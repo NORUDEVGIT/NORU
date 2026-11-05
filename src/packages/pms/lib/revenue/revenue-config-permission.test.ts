@@ -28,7 +28,7 @@ describe("Rate & Revenue permission hotfix — trusted reads", () => {
   it("A. authorized owner can load Revenue base config after requireRateManager", () => {
     const fns = readRel("./revenue-config.functions.ts");
     const base = sliceExport(fns, "getRevenueBaseConfig");
-    assert.match(base, /requireRateManager/);
+    assert.match(base, /requirePmsActor/);
     assert.match(base, /supabaseAdmin/);
     assert.match(base, /loadRevenueBaseConfig\(supabaseAdmin/);
     assert.doesNotMatch(base, /loadRevenueBaseConfig\(context\.supabase/);
@@ -68,7 +68,7 @@ describe("Rate & Revenue permission hotfix — trusted reads", () => {
   it("E. room types load through the trusted base-config path", () => {
     const fns = readRel("./revenue-config.functions.ts");
     const list = sliceExport(fns, "listRevenueRoomTypes");
-    assert.match(list, /requireRateManager/);
+    assert.match(list, /requirePmsActor/);
     assert.match(list, /loadRevenueRoomTypes\(supabaseAdmin/);
     const server = readRel("./revenue-config.server.ts");
     assert.match(server, /from\("room_types"\)/);
@@ -78,7 +78,7 @@ describe("Rate & Revenue permission hotfix — trusted reads", () => {
   it("F. rate plans load through the trusted base-config path", () => {
     const fns = readRel("./revenue-config.functions.ts");
     const list = sliceExport(fns, "listRevenueRatePlans");
-    assert.match(list, /requireRateManager/);
+    assert.match(list, /requirePmsActor/);
     assert.match(list, /loadRevenueRatePlans\(supabaseAdmin/);
     const server = readRel("./revenue-config.server.ts");
     assert.match(server, /from\("hotel_rate_plans"\)/);
@@ -106,7 +106,7 @@ describe("Rate & Revenue permission hotfix — trusted reads", () => {
   it("I. Revenue Control loads property context through the same trusted path", () => {
     const fns = readRel("./revenue-control.functions.ts");
     const server = readRel("./revenue-control.server.ts");
-    assert.match(fns, /requireRateManager/);
+    assert.match(fns, /requirePmsActor/);
     assert.match(fns, /supabaseAdmin/);
     assert.match(fns, /loadRevenueControlWorkspace\(supabaseAdmin/);
     assert.doesNotMatch(fns, /loadRevenueControlWorkspace\(context\.supabase/);

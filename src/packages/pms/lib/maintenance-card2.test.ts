@@ -217,8 +217,8 @@ describe("Card 2 Phase 5 maintenance API wiring", () => {
     assert.match(functions, /export const saveMaintenanceRules/);
     assert.match(functions, /export const getMaintenanceSummary/);
     assert.match(functions, /export const evaluateCard2MaintenanceReadiness/);
-    assert.match(functions, /requireRoomManager/);
-    assert.match(functions, /requireFrontOfficeAccess/);
+    assert.match(functions, /requirePmsActor/);
+    assert.match(functions, /CONFIG_ROOMS_OPS_CONFIGURE/);
     assert.match(functions, /requireSupabaseAuth/);
     assert.match(functions, /\.eq\("restaurant_id"/);
     assert.match(functions, /data\.restaurantId/);

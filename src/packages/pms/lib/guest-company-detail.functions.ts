@@ -15,7 +15,6 @@ import {
   normalizeEmail,
   normalizePhone,
   recordGuestAccountEvent,
-  requireGuestManager,
 } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { ROOM_BUCKET, signRoomImages } from "./rooms.server";
@@ -43,7 +42,7 @@ import {
   COMPANY_NOTE_CATEGORIES,
   COMPANY_NOTE_VISIBILITIES,
 } from "./guest-company-detail-workspace";
-import { guestStayAccessForRole } from "./guests.functions";
+import { guestStayAccessForActor } from "./guests.functions";
 import { isUpcomingStay, knownMoneyTotal, mapReservationToStay } from "./guest-profile-wave3";
 import {
   getCorporateAgreementExpiryState,
@@ -426,7 +425,7 @@ export const getCompanyDetailWorkspace = createServerFn({ method: "POST" })
     const signed = company.logo_storage_path
       ? await signRoomImages([company.logo_storage_path])
       : new Map<string, string>();
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const reservations = await loadCompanyReservations(db, data.restaurantId, data.companyId);
     const today = propertyToday("UTC");
     const year = today.slice(0, 4);
@@ -1536,7 +1535,7 @@ export const listCompanyBilling = createServerFn({ method: "POST" })
       const tr = await db.from("pms_tax_exemption_rules").select("name").eq("id", companyData.tax_exemption_rule_id).maybeSingle();
       taxExemptionRuleName = tr.data?.name ?? null;
     }
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const moneyAvailable = access.folio;
     const reservations = await loadCompanyReservations(db, data.restaurantId, data.companyId);
     const reservationIds = reservations.map((row) => row.id);

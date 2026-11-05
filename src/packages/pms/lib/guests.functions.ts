@@ -5007,6 +5007,19 @@ export function guestStayAccessForRole(role: string): GuestStayAccess {
   };
 }
 
+/** Live stay panes. Role names do not decide folio, reservation, or front-office visibility. */
+export async function guestStayAccessForActor(
+  context: Parameters<typeof resolveEffectivePermissions>[0],
+  restaurantId: string,
+): Promise<GuestStayAccess> {
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  return {
+    reservation: hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_VIEW),
+    frontOffice: hasEffectivePermission(resolved, PMS_PERMISSIONS.FRONT_OFFICE_VIEW),
+    folio: hasEffectivePermission(resolved, PMS_PERMISSIONS.CASHIERING_VIEW),
+  };
+}
+
 function folioTotals(rows: { amount: number }[]): number {
   let charges = 0;
   let credits = 0;
@@ -5204,7 +5217,7 @@ export const listGuestStays = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ stays: GuestStay[]; access: GuestStayAccess }> => {
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const stays = await loadGuestStaysForProfile(
       context as never,
       data.restaurantId,
@@ -5279,7 +5292,7 @@ export const getGuestStayOverview = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<GuestStayOverview> => {
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const stays = await loadGuestStaysForProfile(
       context as never,
       data.restaurantId,

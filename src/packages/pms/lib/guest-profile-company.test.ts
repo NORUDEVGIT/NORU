@@ -288,7 +288,7 @@ describe("Guest Profile Company enrichment lock — AC-GE1-1…24", () => {
       readRel("../../../routes/restaurant/pms/guests.$guestId.tsx"),
     ].join("\n");
     assert.match(functions, /requireSupabaseAuth/);
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(functions, /createServerFn\(\{ method: "GET" \}\)/);
     assert.match(routes, /requireRoutePackage\("pms"\)/);
     assert.match(routes, /\/restaurant\/login/);
@@ -296,7 +296,7 @@ describe("Guest Profile Company enrichment lock — AC-GE1-1…24", () => {
 
   it("AC-GE1-20 Company data and links stay tenant-scoped", () => {
     const functions = readRel("./guest-accounts.functions.ts");
-    assert.match(functions, /requireGuestManager\(context as never, data\.restaurantId\)/);
+    assert.match(functions, /requirePmsActor\(context as never, data\.restaurantId\)/);
     assert.match(functions, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(functions, /assertDefaultTravelAgent/);
   });

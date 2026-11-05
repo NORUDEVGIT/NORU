@@ -81,6 +81,8 @@ import {
   storedRatePerNight,
   type DetailWorkspaceTab,
 } from "@/packages/pms/lib/reservation-detail-overview";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   amendReservation,
   assignReservationRoom,
@@ -235,11 +237,13 @@ export function ReservationDetailWorkspace({
     retry: false,
   });
   const canManage = accessQuery.data?.canManage ?? false;
+  const permissions = usePmsPermissions(restaurantId);
+  const canViewReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
 
   const detailQuery = useQuery({
     queryKey: ["reservation", restaurantId, reservationId],
     queryFn: () => fetchReservation({ data: { restaurantId, reservationId } }),
-    enabled: canManage,
+    enabled: canViewReservation,
     retry: false,
   });
 
@@ -248,7 +252,7 @@ export function ReservationDetailWorkspace({
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, reservation?.guestId],
     queryFn: () => fetchGuest({ data: { restaurantId, guestId: reservation!.guestId } }),
-    enabled: canManage && Boolean(reservation?.guestId),
+    enabled: canViewReservation && Boolean(reservation?.guestId),
     retry: false,
   });
   const set6Query = useQuery({
@@ -271,7 +275,7 @@ export function ReservationDetailWorkspace({
           roomSubtotal: reservation!.roomSubtotal,
         },
       }),
-    enabled: canManage && Boolean(reservation?.id),
+    enabled: canViewReservation && Boolean(reservation?.id),
     retry: false,
   });
 
@@ -294,7 +298,7 @@ export function ReservationDetailWorkspace({
           excludeReservationId: reservationId,
         },
       }),
-    enabled: canManage && !!reservation && reservation.status !== "cancelled",
+    enabled: canViewReservation && !!reservation && reservation.status !== "cancelled",
   });
 
   const availabilityQuery = useQuery({
@@ -312,7 +316,7 @@ export function ReservationDetailWorkspace({
           departure: reservation!.departureDate,
         },
       }),
-    enabled: canManage && Boolean(reservation),
+    enabled: canViewReservation && Boolean(reservation),
     retry: false,
   });
 
@@ -320,7 +324,7 @@ export function ReservationDetailWorkspace({
     queryKey: ["reservation-folio", restaurantId, reservation?.id],
     queryFn: () =>
       fetchReservationFolio({ data: { restaurantId, reservationId: reservation!.id } }),
-    enabled: canManage && Boolean(reservation?.id),
+    enabled: canViewReservation && Boolean(reservation?.id),
     retry: false,
   });
 
@@ -390,26 +394,26 @@ export function ReservationDetailWorkspace({
         ? [reservation.roomSubtotal]
         : [];
   const fetchRoomGuestTotal = useServerFn(quoteReservationRoomGuestTotal);
-  const packageChargeRules = usePackageChargeRules(restaurantId, canManage);
+  const packageChargeRules = usePackageChargeRules(restaurantId, canViewReservation);
   const reservationServices = useReservationServiceCharges(
     restaurantId,
     reservation?.id,
-    canManage && Boolean(reservation?.id),
+    canViewReservation && Boolean(reservation?.id),
   );
   const roomGuestTotalQuery = useQuery({
     queryKey: ["reservation-room-guest-total", restaurantId, roomChargeAmounts],
     queryFn: () => fetchRoomGuestTotal({ data: { restaurantId, amounts: roomChargeAmounts } }),
-    enabled: canManage && roomChargeAmounts.length > 0,
+    enabled: canViewReservation && roomChargeAmounts.length > 0,
   });
 
-  if (accessQuery.isLoading)
+  if (accessQuery.isLoading || permissions.isLoading)
     return <p className="text-sm text-muted-foreground">Loading reservation…</p>;
-  if (!canManage) {
+  if (!canViewReservation) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl">Reservation</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can access reservations for this property.
+          You don't have permission to open this reservation.
         </p>
       </div>
     );

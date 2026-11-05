@@ -14,7 +14,6 @@ import {
   normalizeEmail,
   normalizePhone,
   recordGuestAccountEvent,
-  requireGuestManager,
 } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { ROOM_BUCKET, signRoomImages } from "./rooms.server";

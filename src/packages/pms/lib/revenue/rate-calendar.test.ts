@@ -210,7 +210,7 @@ describe("RR-P2-03 — wiring, drawer and no fake product", () => {
   const changeServer = readRel("./rate-change.server.ts");
 
   it("rejects foreign properties by requiring rate manager then admin reads", () => {
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(functions, /supabaseAdmin/);
     assert.match(functions, /loadRevenueRateCalendar\(supabaseAdmin/);
     assert.doesNotMatch(functions, /loadRevenueRateCalendar\(context\.supabase/);

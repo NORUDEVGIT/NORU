@@ -4,7 +4,7 @@
  * Contacts/documents reuse guest_company_* tables. Reservations reuse hotel_reservations.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
@@ -15,12 +15,11 @@ import {
   normalizeEmail,
   normalizePhone,
   recordGuestAccountEvent,
-  requireGuestManager,
 } from "./guests.server";
 import { requireCashieringAccess } from "./cashiering.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { ROOM_BUCKET, signRoomImages } from "./rooms.server";
-import { guestStayAccessForRole } from "./guests.functions";
+import { guestStayAccessForActor } from "./guests.functions";
 import { nightsBetween } from "./reservation-dates";
 import { propertyToday } from "./reservations.server";
 import { uuidFirstSegment } from "./guest-profile-listing";
@@ -284,7 +283,7 @@ export const getTravelAgentDetailWorkspace = createServerFn({ method: "POST" })
     const db = admin(supabaseAdmin);
     const agency = await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
     const signed = agency.logo_storage_path ? await signRoomImages([agency.logo_storage_path]) : new Map<string, string>();
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const reservations = await loadTravelAgentReservations(db, data.restaurantId, data.agencyId);
     const links = await db
       .from("guest_account_links")
@@ -805,7 +804,7 @@ export const listTravelAgentReservations = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const rows = await loadTravelAgentReservations(db, data.restaurantId, data.agencyId);
     const rateIds = [...new Set(rows.map((row) => row.rate_plan_id).filter(Boolean))] as string[];
     const rateNames = new Map<string, string>();
@@ -1479,7 +1478,7 @@ export const expireTravelAgentAgreement = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, agencyId: idSchema, agreementId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1517,7 +1516,7 @@ export const listTravelAgentBilling = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const agency = await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const moneyAvailable = access.folio;
     const reservations = await loadTravelAgentReservations(db, data.restaurantId, data.agencyId);
     const reservationIds = reservations.map((row) => row.id);
@@ -1974,7 +1973,7 @@ export const listTravelAgentCommissionEntries = createServerFn({ method: "POST" 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const entries = await db
       .from("pms_agency_commission_entries")
       .select("id, reservation_id, plan_id, basis_amount, amount, currency, status, created_at")
@@ -2043,7 +2042,10 @@ export const listTravelAgentCommissionEntries = createServerFn({ method: "POST" 
       totals: access.folio ? commissionEntryTotals(rows) : commissionEntryTotals([]),
       folioAccess: access.folio,
       available: true,
-      canSettle: me.role === "owner" || me.role === "manager",
+      canSettle: hasEffectivePermission(
+        await resolveEffectivePermissions(context as never, data.restaurantId),
+        PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT,
+      ),
     };
   });
 
@@ -2061,9 +2063,9 @@ export const updateTravelAgentCommissionStatus = createServerFn({ method: "POST"
   )
   .handler(async ({ data, context }) => {
     if (data.status === "settled") {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST);
+      await requireCashieringAccess(context as never, data.restaurantId);
     } else {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);

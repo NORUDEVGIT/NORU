@@ -11,7 +11,6 @@ import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware.ts";
-import { requireGuestManager } from "./guests.server.ts";
 import {
   loadTravelAgencyCommissionRatesConfig,
   validateTravelAgencyCommissionRates,

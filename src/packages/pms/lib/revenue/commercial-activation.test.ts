@@ -337,10 +337,10 @@ describe("P5A-04 — apply, history, snapshot, and reservation safety contracts"
     assert.match(packageServer, /rpc\("apply_hotel_package_activation"/);
     assert.match(promoFns, /export const previewPromotionActivation/);
     assert.match(promoFns, /export const applyPromotionActivation/);
-    assert.match(promoFns, /requireRateManager/);
+    assert.match(promoFns, /requirePmsActor/);
     assert.match(packageFns, /export const previewPackageActivation/);
     assert.match(packageFns, /export const applyPackageActivation/);
-    assert.match(packageFns, /requireRateManager/);
+    assert.match(packageFns, /requirePmsActor/);
     assert.match(supabase, /FOR UPDATE/);
     assert.match(supabase, /promotion_activation_created/);
     assert.match(supabase, /package_activation_deactivated/);
@@ -399,7 +399,7 @@ describe("P5A-04 — apply, history, snapshot, and reservation safety contracts"
     assert.equal(COMMERCIAL_CHANGE_EVENT_IMMUTABLE, "COMMERCIAL_CHANGE_EVENT_IMMUTABLE");
     assert.match(historyFns, /export const listCommercialChangeHistory/);
     assert.match(historyFns, /export const getCommercialOperationDetail/);
-    assert.match(historyFns, /requireRateManager/);
+    assert.match(historyFns, /requirePmsActor/);
     assert.match(foundation, /BEFORE UPDATE OR DELETE ON public\.hotel_commercial_change_events/);
   });
 });

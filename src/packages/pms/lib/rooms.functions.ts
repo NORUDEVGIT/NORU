@@ -1,5 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  requirePmsActorAny,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -11,10 +16,6 @@ import {
   ROOM_STATUSES,
   SMOKING_POLICIES,
   blankToNull,
-  canManageRooms,
-  canAccessFrontOffice,
-  requireFrontOfficeAccess,
-  requireRoomManager,
   roomTypeImagePath,
   signRoomImages,
   type MaintenanceStatus,
@@ -539,11 +540,15 @@ export const getRoomsAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
+    const me = await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.ROOM_INVENTORY_VIEW,
+      PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW,
+    ]);
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
     return {
       role: me.role,
-      canManage: canAccessFrontOffice(me.role),
-      canConfigure: canManageRooms(me.role),
+      canManage: hasEffectivePermission(resolved, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW),
+      canConfigure: hasEffectivePermission(resolved, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE),
     };
   });
 
@@ -1707,7 +1712,7 @@ export const listRoomTypeImages = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomTypeId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomTypeImage[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { data: rows } = await pmsDb(context.supabase)
       .from("room_type_images")
       .select("id, storage_path, display_order, is_cover, alt_text")

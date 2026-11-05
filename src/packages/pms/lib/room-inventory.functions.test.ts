@@ -104,7 +104,7 @@ describe("Room & Inventory canonical read adapters", () => {
       source.indexOf("export const listRoomInventoryEvents"),
     );
     expect(availability).toContain(".middleware([requireSupabaseAuth])");
-    expect(availability).toContain("requireFrontOfficeAccess");
+    expect(availability).toContain("requirePmsActor");
     expect(availability).toContain("getRoomTypeAvailabilityCompat");
     expect(availability).not.toContain("count_sellable_rooms");
     expect(availability).not.toContain("count_reserved_rooms");
@@ -128,7 +128,7 @@ describe("Room & Inventory assignment eligibility server function", () => {
   });
 
   it("re-derives Front Office access on the server", () => {
-    expect(eligibility).toContain("requireFrontOfficeAccess");
+    expect(eligibility).toContain("requirePmsActor");
     expect(eligibility).not.toMatch(/membershipId\s*:\s*idSchema/);
     expect(eligibility).not.toMatch(/userId\s*:\s*idSchema/);
     expect(eligibility).not.toMatch(/role\s*:\s*z\./);

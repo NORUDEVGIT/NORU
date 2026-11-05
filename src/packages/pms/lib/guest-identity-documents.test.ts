@@ -125,6 +125,6 @@ describe("Identity documents lock", () => {
     const getEnd = functions.indexOf("export const saveGuestDocument");
     const get = functions.slice(getStart, getEnd);
     assert.match(get, /mapGuestDocumentRow\(item, types, actorNames, signed, true\)/);
-    assert.match(get, /requireGuestManager/);
+    assert.match(get, /requirePmsActor/);
   });
 });

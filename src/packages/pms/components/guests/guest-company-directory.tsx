@@ -50,7 +50,8 @@ import {
 } from "@/packages/pms/lib/guest-companies.functions";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import { displayProfileNumber } from "@/packages/pms/lib/guest-profile-listing";
-import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { GUEST_ACCOUNT_STATUSES } from "@/packages/pms/lib/guest-profile-wave4";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -122,7 +123,6 @@ export function GuestCompanyDirectory({
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const fetchAccess = useServerFn(getGuestsAccess);
   const fetchConfig = useServerFn(getCompanyBusinessWorkspace);
   const fetchList = useServerFn(listCompanyWorkspace);
   const exportCsv = useServerFn(exportCompaniesCsv);
@@ -157,12 +157,8 @@ export function GuestCompanyDirectory({
     setSelected([]);
   }, [debouncedSearch, status, typeId, country, credit, createdFrom, createdTo, pageSize]);
 
-  const accessQuery = useQuery({
-    queryKey: ["guests-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const permissions = usePmsPermissions(restaurantId);
+  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
   const configQuery = useQuery({
     queryKey: ["company-business-workspace", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
@@ -326,7 +322,7 @@ export function GuestCompanyDirectory({
     setCreatedTo("");
   }
 
-  if (accessQuery.isLoading) {
+  if (permissions.isLoading) {
     return (
       <div className="space-y-4" data-testid="guest-companies-page">
         <Skeleton className="h-14 w-full rounded-xl" />

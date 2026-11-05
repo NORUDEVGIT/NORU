@@ -203,7 +203,7 @@ describe("guest tax identities", () => {
       new URL("./guest-tax-identities.functions.ts", import.meta.url),
       "utf8",
     );
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.equal(functions.includes("folio_transactions"), false);
     assert.equal(functions.includes("financial_accounts"), false);
     const roles = readFileSync(new URL("./guests.server.ts", import.meta.url), "utf8");

@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { requireGuestManager } from "./guests.server";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import { emptyGuestProfileRules, type GuestProfileRules } from "./pms-set3-rates-guest";
 import {
@@ -83,7 +82,7 @@ export const getGuestCreateContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestCreateContext> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const [
@@ -333,7 +332,7 @@ export const deleteGuestCreateDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await admin(supabaseAdmin)
       .from("pms_guest_create_drafts")

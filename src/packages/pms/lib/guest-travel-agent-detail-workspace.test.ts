@@ -177,8 +177,8 @@ describe("Travel Agency workspace wiring", () => {
     assert.match(functions, /sendGuestAccountMessage/);
     assert.match(functions, /catch \{\s*return \{ sent: false \};/);
     assert.match(functions, /requireCashieringAccess/);
-    assert.match(functions, /guestStayAccessForRole/);
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /guestStayAccessForActor/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(overview, /TA_COMMISSION_EMPTY_COPY|Not configured/);
     assert.doesNotMatch(overview, /Partner Rating|Conversion Rate/i);
     assert.match(billing, /TA_BILLING_COPY/);

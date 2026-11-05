@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { requireGuestManager } from "./guests.server";
 import { createStatusFromAutoApproval } from "./guest-companies-workspace";
 import { loadBusinessSnapshot } from "./guest-companies.functions";
 import { createGuestAccount, updateGuestAccount } from "./guest-accounts.functions";
@@ -104,7 +103,7 @@ export const getCompanyCreateContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<CompanyCreateContext> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const [
@@ -550,7 +549,7 @@ export const saveCompanyCreateDraft = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, payload: z.record(z.unknown()) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const existing = await db
@@ -590,7 +589,7 @@ export const deleteCompanyCreateDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await admin(supabaseAdmin)
       .from("pms_account_create_drafts")
@@ -1112,7 +1111,8 @@ export const getCompanyEditDraft = createServerFn({ method: "POST" })
 export const getNextCorporateContractCode = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const existingCodesRes = await db

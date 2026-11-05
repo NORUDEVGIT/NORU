@@ -5,7 +5,7 @@
  * Rooming list and financials are derived.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsActorAll } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
@@ -17,10 +17,9 @@ import {
   normalizePhone,
   recordGuestAccountEvent,
   recordGuestEvent,
-  requireGuestManager,
 } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { guestStayAccessForRole } from "./guests.functions";
+import { guestStayAccessForActor } from "./guests.functions";
 import { nightsBetween } from "./reservation-dates";
 import { propertyToday } from "./reservations.server";
 import { assignReservationRoom, listAssignableRooms } from "./reservations.functions";
@@ -394,7 +393,7 @@ export const getGroupDetailWorkspace = createServerFn({ method: "POST" })
         ? db.from("pms_group_types").select("id, name").eq("id", group.group_type_id).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const assignedRooms = reservations.filter((row) => row.room_id).length;
     const reservationStatus = reservations.reduce<Record<string, number>>((acc, row) => {
       acc[row.status] = (acc[row.status] ?? 0) + 1;
@@ -713,7 +712,10 @@ export const createGroupMemberGuest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
+    await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT,
+      PMS_PERMISSIONS.GUEST_PROFILE_CREATE,
+    ]);
     const { createGuest } = await import("./guests.functions");
     const created = await createGuest({
       data: {
@@ -980,10 +982,11 @@ export const listGroupReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const reservations = await loadGroupReservations(admin(supabaseAdmin), data.restaurantId, data.groupId);
-    return reservations.map((row) => mapReservation(row, guestStayAccessForRole(me.role).folio));
+    const folioAccess = (await guestStayAccessForActor(context as never, data.restaurantId)).folio;
+    return reservations.map((row) => mapReservation(row, folioAccess));
   });
 
 export const linkReservationToGroup = createServerFn({ method: "POST" })
@@ -1115,7 +1118,7 @@ export const listGroupRooming = createServerFn({ method: "POST" })
     ]);
     const reservationById = new Map(reservations.map((row) => [row.id, row]));
     const reservationByGuest = new Map(reservations.filter((row) => row.guest_id).map((row) => [row.guest_id as string, row]));
-    const folioAccess = guestStayAccessForRole(me.role).folio;
+    const folioAccess = (await guestStayAccessForActor(context as never, data.restaurantId)).folio;
     const rows = members.map((member) => {
       const reservation =
         (member.reservationId ? reservationById.get(member.reservationId) : undefined) ??
@@ -1280,7 +1283,7 @@ export const getGroupFinancials = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1650,7 +1653,7 @@ export const duplicateGroupMaster = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const source = await loadGroupMaster(db, data.restaurantId, data.groupId);

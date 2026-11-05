@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { recordGuestEvent, requireGuestManager } from "./guests.server";
+import { recordGuestEvent } from "./guests.server";
 import { loadRequiredFieldsCard4Snapshot } from "./required-fields-card4.functions";
 import { CANONICAL_FIELD_CODE_MAP } from "./guest-field-rules";
 import {

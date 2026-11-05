@@ -75,6 +75,16 @@ import {
 } from "./housekeeping-ops";
 import { setOperationalRestrictionCompat } from "./room-inventory-compat";
 
+async function requireHousekeepingActor(
+  context: never,
+  restaurantId: string,
+  permission: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS],
+) {
+  const membership = await requirePmsActor(context, restaurantId, permission);
+  await requireHousekeepingEnabled(restaurantId);
+  return membership;
+}
+
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 
@@ -533,7 +543,7 @@ export const getHousekeepingAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingAccess> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const canManage = await hasPmsPermission(
       context as never,
       data.restaurantId,
@@ -551,7 +561,7 @@ export const listHousekeepingStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingStaffOption[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const names = await staffNames(context.supabase, data.restaurantId);
     return Array.from(names.entries())
       .filter(
@@ -570,7 +580,7 @@ export const getHousekeepingDashboard = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingDashboard> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
       supabaseAdmin,
@@ -628,7 +638,7 @@ export const listRoomRack = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RackRoom[]> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const rackScope = resolveHousekeepingDataScope(me.role);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
@@ -763,7 +773,7 @@ export const listHousekeepingTasks = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingTask[]> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const scope = resolveHousekeepingDataScope(me.role);
     // Maintenance staff work from maintenance requests, not cleaning tasks.
     if (scope === "maintenance") return [];
@@ -830,7 +840,7 @@ export const createHousekeepingTask = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ taskId: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_CREATE);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
     const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);
@@ -889,7 +899,13 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: TaskStatus }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
+    const me = await requireHousekeepingActor(
+      context as never,
+      data.restaurantId,
+      data.action === "cancel"
+        ? PMS_PERMISSIONS.HOUSEKEEPING_TASK_CANCEL
+        : PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: task } = await supabaseAdmin
@@ -1023,7 +1039,7 @@ export const completeHousekeepingTask = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, taskId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: TaskStatus }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: owned } = await supabaseAdmin
       .from("housekeeping_tasks")
@@ -1056,7 +1072,7 @@ export const listInspections = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingInspection[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
 
     const { data: rows, error } = await context.supabase
       .from("housekeeping_inspections")
@@ -1109,10 +1125,11 @@ export const inspectRoom = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ inspectionId: string; result: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const policy = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
-    const me = policy.settings.supervisorApprovalRequired
-      ? await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_INSPECTION_EDIT)
-      : await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_INSPECTION_EDIT);
+    const me = await requireHousekeepingActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.HOUSEKEEPING_INSPECTION_EDIT,
+    );
     const room = await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
     if (room.status === "out_of_order" || room.status === "out_of_service") {
       throw new Error(
@@ -1151,7 +1168,7 @@ export const setRoomRestriction = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: RoomRestriction }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_RESTRICTION_EDIT);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_RESTRICTION_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
     const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);
@@ -1185,7 +1202,7 @@ export const listDiscrepancies = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingDiscrepancy[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const { data: rows, error } = await context.supabase
       .from("housekeeping_discrepancies")
       .select(
@@ -1241,7 +1258,7 @@ export const createDiscrepancy = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
 
@@ -1288,7 +1305,7 @@ export const resolveDiscrepancy = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: row } = await supabaseAdmin
@@ -1328,7 +1345,7 @@ export const listHousekeepingExceptions = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReturnType<typeof deriveHousekeepingExceptions>> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const [rooms, inspections, discrepancies] = await Promise.all([
       listRoomRack({ data: { restaurantId: data.restaurantId, today: data.today } }),
       listInspections({ data: { restaurantId: data.restaurantId } }),
@@ -1348,7 +1365,7 @@ export const listMaintenanceRequests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<MaintenanceRequest[]> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.MAINTENANCE_VIEW);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.MAINTENANCE_VIEW);
     const { data: rows, error } = await context.supabase
       .from("housekeeping_maintenance_requests")
       .select(
@@ -1398,7 +1415,7 @@ export const createMaintenanceRequest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.MAINTENANCE_CREATE);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.MAINTENANCE_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
     const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);
@@ -1454,7 +1471,7 @@ export const updateMaintenanceRequest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.MAINTENANCE_EDIT);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.MAINTENANCE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: row } = await supabaseAdmin
@@ -1521,7 +1538,7 @@ export const listHousekeepingHistory = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingHistoryEntry[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     let query = supabaseAdmin
@@ -1602,7 +1619,7 @@ export const listHousekeepingGuestRequests = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<HousekeepingGuestRequest[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
+    await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const result = await supabaseAdmin
@@ -1814,7 +1831,7 @@ export const updateHousekeepingGuestRequest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; spawnedTaskId: string | null }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
+    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const existing = await supabaseAdmin

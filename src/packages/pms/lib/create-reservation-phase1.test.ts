@@ -222,7 +222,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(page, /getBookingsAccess/);
     assert.match(page, /getGuestsAccess/);
     assert.match(functions, /requirePmsActor/);
-    assert.match(guests, /requireGuestManager/);
+    assert.match(guests, /requirePmsActor/);
     assert.match(page, /canCreateGuest=\{guestAccessQuery\.data\?\.canManage/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
   });
@@ -631,7 +631,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(page, /getBookingsAccess/);
     assert.match(page, /getGuestsAccess/);
     assert.match(functions, /requirePmsActor/);
-    assert.match(accounts, /requireGuestManager/);
+    assert.match(accounts, /requirePmsActor/);
     assert.match(page, /canCreateMaster=\{guestAccessQuery\.data\?\.canManage/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
     assert.match(migration, /RLS model: UNCHANGED/);
@@ -1223,7 +1223,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.match(page, /getBookingsAccess/);
     assert.match(page, /getGuestsAccess/);
     assert.match(functions, /requirePmsActor/);
-    assert.match(accounts, /requireGuestManager/);
+    assert.match(accounts, /requirePmsActor/);
     assert.match(page, /canCreateMaster=\{guestAccessQuery\.data\?\.canManage/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
     assert.match(migration, /RLS model: UNCHANGED/);

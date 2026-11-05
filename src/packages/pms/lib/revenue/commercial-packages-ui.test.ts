@@ -238,7 +238,7 @@ describe("RR-P5-UI-02 packages workspace", () => {
     assert.match(actions, /Review/);
     assert.match(actions, /Confirm/);
     assert.match(actions, /Snapshot stays unchanged on edit/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(server, /from\("pms_packages"\)\s*\.update/);
     assert.doesNotMatch(server, /from\("pms_packages"\)\s*\.insert/);
     assert.doesNotMatch(server, /from\("pms_package_components"\)\s*\.update/);

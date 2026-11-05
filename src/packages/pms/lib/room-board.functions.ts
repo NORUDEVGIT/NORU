@@ -4,7 +4,6 @@ import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireFrontOfficeAccess } from "@/packages/pms/lib/rooms.server";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
 import { isMissingSchemaError } from "@/packages/pms/lib/pms-set2-structure";
 import { expandStayRooms } from "@/packages/pms/lib/reservation-room-units";

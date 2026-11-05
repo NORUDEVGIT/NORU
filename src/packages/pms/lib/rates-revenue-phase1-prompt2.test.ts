@@ -51,7 +51,8 @@ describe("Rate & Revenue Phase 1 Prompt 2 — responsibility split", () => {
     const ovStart = fns.indexOf("export const saveRateOverride");
     const ovFn = fns.slice(ovStart, fns.indexOf("export const listRateRestrictions"));
     assert.match(ovFn, /from\("hotel_rate_calendar"\)/);
-    assert.match(ovFn, /requireRateManager/);
+    assert.match(ovFn, /requirePmsActor/);
+    assert.match(ovFn, /RATES_CALENDAR_OVERRIDE/);
   });
 
   it("C. Operational restrictions still write hotel_rate_restrictions", () => {

@@ -4,8 +4,8 @@
  */
 import {
   hasEffectivePermission,
+  requirePmsActor,
   resolveEffectivePermissions,
-  type requirePmsActor,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";

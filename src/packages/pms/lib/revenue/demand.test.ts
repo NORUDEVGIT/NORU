@@ -275,7 +275,7 @@ describe("RR-P4-01 — snapshot capture and pickup", () => {
     const closeFn = night.slice(night.indexOf("export const closeBusinessDate"));
     const failedReturn = closeFn.indexOf("if (error) return { ok: false, message: nightAuditError(error.message).message }");
     assert.ok(failedReturn > 0);
-    assert.match(closeFn.slice(failedReturn), /captureOtbAfterClose\(supabaseAdmin, data\.restaurantId, run\.business_date\)/);
+    assert.match(closeFn.slice(failedReturn), /captureOtbAfterClose\(\s*supabaseAdmin,\s*data\.restaurantId,\s*run\.business_date\s*\)/);
     assert.match(night, /Never roll back a completed close/);
   });
 });
@@ -312,7 +312,7 @@ describe("RR-P4-01 — SQL, honesty and no forecast", () => {
     const snapshotFns = readRel("./demand-snapshot.functions.ts");
     assert.doesNotMatch(domain, /forecastRooms|projectedOccupancy|demandScore|forecastConfidence/);
     assert.match(functions, /getRevenueDemandOverview/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(functions, /captureRevenueOtbSnapshot/);
     assert.match(snapshotFns, /getRevenueOtbSnapshots/);
     assert.match(snapshotFns, /getRevenueOtbSnapshotHistoryStart/);

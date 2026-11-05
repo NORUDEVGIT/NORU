@@ -8,7 +8,6 @@ import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireGuestManager } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { emptyGuestGroupCreateDraft, type GuestGroupCreateDraft } from "./guest-group-create-workspace";
 
@@ -105,7 +104,7 @@ export const saveGroupTemplate = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const columns = {
@@ -141,7 +140,7 @@ export const deleteGroupTemplate = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, templateId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await admin(supabaseAdmin)
       .from("pms_group_templates")

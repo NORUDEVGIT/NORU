@@ -1,4 +1,4 @@
-import { requirePmsActor } from "./pms-permissions.server";
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -6,11 +6,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   REVENUE_STATUSES,
   blankToNull,
-  canManageRates,
   eachDate,
   parseSnapshot,
   rateError,
-  requireRateManager,
   toQuote,
   type StayQuote } from "./rates.server";
 import { callerMembership } from "@/core/lib/workforce.server";
@@ -116,7 +114,13 @@ export const getRatesAccess = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context as never, data.restaurantId);
-    return { role: me.role, canManage: canManageRates(me.role) };
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
+    const canManage =
+      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_CONFIGURE) ||
+      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE) ||
+      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_RESTRICTION_CONFIGURE) ||
+      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_ACTIVATE);
+    return { role: me.role, canManage };
   });
 
 /* -------------------------------------------------------------- categories */

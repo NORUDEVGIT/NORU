@@ -7,11 +7,11 @@ import { requirePmsActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { blankToNull, normalizeEmail, normalizePhone, recordGuestAccountEvent, recordGuestEvent, requireGuestManager } from "./guests.server";
+import { blankToNull, normalizeEmail, normalizePhone, recordGuestAccountEvent, recordGuestEvent } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { propertyToday, requireReservationManager } from "./reservations.server";
 import { deriveStayOverview } from "./guest-profile-wave3";
-import { guestStayAccessForRole, loadGuestStaysForProfile } from "./guests.functions";
+import { guestStayAccessForActor, loadGuestStaysForProfile } from "./guests.functions";
 import {
   WAVE5_ANONYMISED_MASTER_LABELS,
 } from "./guest-profile-wave5";
@@ -1225,7 +1225,7 @@ export const getAccountLoyaltyValue = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<GuestLoyaltyValue> => {
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const links = await db(context)
       .from("guest_account_links")
       .select("guest_id")

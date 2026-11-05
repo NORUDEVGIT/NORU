@@ -56,14 +56,14 @@ export function DistributionWorkspace({
 
   if (accessQuery.isLoading)
     return <p className="text-sm text-muted-foreground">Loading distribution…</p>;
-  if (!accessQuery.data?.canManage) {
+  if (!accessQuery.data?.canView) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h1 className="font-display text-2xl">
           <PageHeading fallback="Distribution" />
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can manage distribution for this property.
+          You don't have permission to open Distribution for this property.
         </p>
       </div>
     );

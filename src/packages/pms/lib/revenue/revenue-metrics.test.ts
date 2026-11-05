@@ -45,7 +45,7 @@ describe("Rate & Revenue Phase 1 Prompt 5 — metric foundation", () => {
     const overview = fns.slice(fns.indexOf("export const getRevenueOverview"));
     assert.match(overview, /computeBookedRevenueOverview/);
     assert.match(overview, /bookedRoomRevenue: revenue/);
-    assert.match(overview, /reports_analytics/);
+    assert.match(overview, /REPORTS_VIEW/);
     assert.doesNotMatch(overview, /folio_transactions|posted revenue|collected/);
   });
 

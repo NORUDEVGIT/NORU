@@ -1,12 +1,11 @@
-import { requirePmsActor } from "./pms-permissions.server";
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   CHANNEL_STATUSES,
-  blankToNull,
-  canManageDistribution } from "./distribution.server";
+  blankToNull } from "./distribution.server";
 import { callerMembership } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
@@ -59,7 +58,12 @@ export const getDistributionAccess = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     const me = await callerMembership(context as never, data.restaurantId);
-    return { role: me.role, canManage: canManageDistribution(me.role) };
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
+    return {
+      role: me.role,
+      canView: hasEffectivePermission(resolved, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW),
+      canManage: hasEffectivePermission(resolved, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE),
+    };
   });
 
 export const getDistributionOverview = createServerFn({ method: "POST" })

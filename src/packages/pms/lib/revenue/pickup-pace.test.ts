@@ -95,7 +95,7 @@ describe("RR-P4-03 — UI-13 Pickup & Pace", () => {
     const schema = readRel("./pickup-pace.ts");
     assert.match(view, /getRevenuePickupPace/);
     assert.match(view, /"revenue-pickup-pace"/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(view, /getRevenueDemandOverview|getRevenueControlWorkspace|captureRevenueOtbSnapshot/);
     assert.doesNotMatch(view, /Recent Booking Activity|getRevenueOtbSnapshotHistoryStart/);
     assert.doesNotMatch(schema, /ratePlanId|marketSegmentId|commercialSourceId|salesChannelId/);

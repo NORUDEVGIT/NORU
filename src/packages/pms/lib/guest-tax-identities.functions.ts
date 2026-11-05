@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { normalizeGuestTin } from "./guest-tax-identities.ts";
-import { requireGuestManager } from "./guests.server.ts";
 
 const idSchema = z.string().uuid();
 
@@ -162,7 +161,7 @@ export const listGuestTaxIdentities = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestTaxIdentityView[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     const admin = await adminClient();
     const result = await admin
       .from("guest_tax_identities")
@@ -183,7 +182,7 @@ export const createGuestTaxIdentity = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema, ...identityFields }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const admin = await adminClient();
     const saved = await admin.rpc("save_guest_tax_identity", saveArgs(data, null, me.id));
     if (saved.error) throw taxIdentityError(saved.error.message);
@@ -208,7 +207,7 @@ export const updateGuestTaxIdentity = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const admin = await adminClient();
     const saved = await admin.rpc(
       "save_guest_tax_identity",
@@ -224,7 +223,7 @@ export const setDefaultGuestTaxIdentity = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema, identityId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const admin = await adminClient();
     const saved = await admin.rpc("set_default_guest_tax_identity", {
       _restaurant_id: data.restaurantId,
@@ -241,7 +240,7 @@ export const deactivateGuestTaxIdentity = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema, identityId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_ACTIVATE);
     const admin = await adminClient();
     const saved = await admin.rpc("set_guest_tax_identity_active", {
       _restaurant_id: data.restaurantId,
@@ -259,7 +258,7 @@ export const reactivateGuestTaxIdentity = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema, identityId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_ACTIVATE);
     const admin = await adminClient();
     const saved = await admin.rpc("set_guest_tax_identity_active", {
       _restaurant_id: data.restaurantId,

@@ -1,7 +1,7 @@
 /**
  * Guest Profile Wave 5 — activity hub + privacy finish.
  *
- * Extends the existing guests stack (`requireGuestManager` / guest tables).
+ * Extends the existing guests stack (guest tables).
  * Not a second guest master. Not a marketing cloud.
  */
 import { createServerFn } from "@tanstack/react-start";
@@ -12,8 +12,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   recordGuestAccountEvent,
   recordGuestEvent,
-  requireGuestManager,
-  requireGuestPrivacyOfficer,
 } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { parseNotificationChannels } from "./pms-set5-depts-guestsvc";
@@ -261,7 +259,7 @@ export const getGuestAccountActivityHub = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestActivityHub> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const client = db(context.supabase);
     const account = await client
       .from("guest_account_masters")
@@ -362,7 +360,7 @@ export const recordGuestAccountCommunication = createServerFn({ method: "POST" }
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const client = db(context.supabase);
     const account = await client
       .from("guest_account_masters")
@@ -443,7 +441,7 @@ export const sendGuestAccountMessage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const channel = await loadSendChannel(data.restaurantId);
     if (!channel) throw new Error("No send channel is configured.");
     const client = db(context.supabase);
@@ -514,7 +512,7 @@ export const listGuestAccountPrivacyAudit = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPrivacyAuditEntry[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const history = await db(context.supabase)
       .from("guest_account_history")
       .select("id, event_type, notes, actor_membership_id, created_at")

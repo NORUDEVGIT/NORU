@@ -8,7 +8,6 @@ import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireGuestManager } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { DEFAULT_TRAVEL_AGENCY_TYPES } from "./travel-agency-types-card4.server";
 

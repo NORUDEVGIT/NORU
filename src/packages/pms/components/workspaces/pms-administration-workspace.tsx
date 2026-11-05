@@ -47,7 +47,7 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
       {!canManage ? (
         <div className="rounded-2xl border border-border bg-card p-6">
           <p className="text-sm text-muted-foreground">
-            Only owners and managers can administer PMS access for this property.
+            You don't have permission to administer PMS access for this property.
           </p>
         </div>
       ) : (

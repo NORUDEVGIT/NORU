@@ -380,7 +380,7 @@ describe("Guest Profile Wave 3 lock — AC-W3-1…17", () => {
     const functions = readRel("./guests.functions.ts");
     assert.match(functions, /export const listGuestStays/);
     assert.match(functions, /export const getGuestStayOverview/);
-    assert.match(functions, /requireGuestManager\(context as never, data\.restaurantId\)/);
+    assert.match(functions, /requirePmsActor\(context as never, data\.restaurantId,/);
     assert.match(functions, /\.eq\("restaurant_id", restaurantId\)/);
     assert.match(functions, /\.eq\("guest_id", guestId\)/);
     assert.doesNotMatch(functions, /trust the browser restaurant id/i);
@@ -418,7 +418,7 @@ describe("Guest Profile Wave 3 lock — AC-W3-1…17", () => {
   it("AC-W3-16 gates new stay/folio reads behind the existing guest-manage surface", () => {
     const functions = readRel("./guests.functions.ts");
     const listBlock = functions.slice(functions.indexOf("export const listGuestStays"));
-    assert.match(listBlock, /requireGuestManager/);
+    assert.match(listBlock, /requirePmsActor/);
     assert.match(functions, /guestStayAccessForRole/);
     assert.match(functions, /CASHIER_ACCESS_ROLES/);
     assert.doesNotMatch(

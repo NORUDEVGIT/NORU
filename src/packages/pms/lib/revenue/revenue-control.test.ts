@@ -250,7 +250,7 @@ describe("RR-P2-02 — wiring and no fake future data", () => {
     assert.doesNotMatch(workspace, /<RevenueOverviewTab /);
     const reports = readRel("../../components/workspaces/pms-reports-workspace.tsx");
     assert.match(reports, /RevenueOverviewTab/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(functions, /getRevenueControlWorkspace/);
     assert.match(functions, /supabaseAdmin/);
     assert.match(server, /Promise\.all/);
@@ -268,7 +268,9 @@ describe("RR-P2-02 — wiring and no fake future data", () => {
       assert.doesNotMatch(source, /High Demand|Low Demand/);
     }
     assert.match(trend, /No forecast line/);
-    assert.match(view, /Open Rate Calendar/);
+    const inventory = readRel("../../components/rates/revenue-control/rate-inventory-control.tsx");
+    assert.match(inventory, /View Calendar/);
+    assert.match(inventory, /serializeRevenueSearch\("rate-calendar"/);
     assert.doesNotMatch(view, /Review Forecast|Rate Shopping|Approvals/);
   });
 

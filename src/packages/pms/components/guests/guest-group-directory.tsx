@@ -37,7 +37,8 @@ import {
   displayProfileNumber,
   listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
-import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
@@ -125,7 +126,6 @@ export function GuestGroupDirectory({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const fetchAccess = useServerFn(getGuestsAccess);
   const fetchAccounts = useServerFn(listGuestAccounts);
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
   const fetchTemplates = useServerFn(listGroupTemplates);
@@ -163,12 +163,8 @@ export function GuestGroupDirectory({
     setSelected([]);
   }, [status, groupTypeId, pageSize]);
 
-  const accessQuery = useQuery({
-    queryKey: ["guests-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const permissions = usePmsPermissions(restaurantId);
+  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
   const offset = page * pageSize;
 
   const configQuery = useQuery({
@@ -292,6 +288,20 @@ export function GuestGroupDirectory({
     link.download = "groups.csv";
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  if (permissions.isLoading) {
+    return <p className="text-sm text-muted-foreground">Checking access…</p>;
+  }
+  if (!canManage) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6" data-testid="group-directory">
+        <h2 className="font-display text-xl">Groups</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          You don't have permission to open guest accounts for this property.
+        </p>
+      </div>
+    );
   }
 
   const hasActiveFilters = Boolean(search || status !== ALL || groupTypeId !== ALL);

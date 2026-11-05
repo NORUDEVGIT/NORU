@@ -516,7 +516,7 @@ describe("P7-STEP-02 — schema and engine safety", () => {
       /from\("hotel_rate_calendar"\)\.update|from\("hotel_rate_restrictions"\)\.update/,
     );
     assert.doesNotMatch(readRel("./revenue-approval.functions.ts"), /accountant|staff/);
-    assert.match(readRel("./revenue-approval.functions.ts"), /requireRateManager/);
+    assert.match(readRel("./revenue-approval.functions.ts"), /RATES_CONFIGURE/);
   });
 });
 

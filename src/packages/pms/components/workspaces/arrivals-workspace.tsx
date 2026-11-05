@@ -26,12 +26,13 @@ import {
   type FoArrivalQuickView,
 } from "@/packages/pms/lib/fo-arrival.functions";
 import { siblingUnitSummary } from "@/packages/pms/lib/fo-unit-desk";
-import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
 import type { ArrivalRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 import { cn } from "@/shared/lib/utils";
 
@@ -149,15 +150,11 @@ export function ArrivalsWorkspace({
   const [etaQv, setEtaQv] = useState<FoArrivalQuickView | null>(null);
   const [checkInStep, setCheckInStep] = useState<"stay" | "registration" | "deposit">("stay");
 
-  const fetchAccess = useServerFn(getBookingsAccess);
   const fetchDesk = useServerFn(listFrontOfficeArrivalsDesk);
-
-  const accessQuery = useQuery({
-    queryKey: ["bookings-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const permissions = usePmsPermissions(restaurantId);
+  const canOpenArrivals =
+    permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_VIEW) ||
+    permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
 
   const deskQuery = useQuery({
     queryKey: ["front-office", "arrivals-desk", restaurantId, date, status, assignment],
@@ -170,7 +167,7 @@ export function ArrivalsWorkspace({
           ...(assignment !== ALL ? { assignment: assignment as "assigned" | "unassigned" } : {}),
         },
       }),
-    enabled: canManage,
+    enabled: canOpenArrivals,
     ...foOperationalQueryOptions(),
   });
 
@@ -209,8 +206,8 @@ export function ArrivalsWorkspace({
     void queryClient.invalidateQueries({ queryKey: ["fo-arrival-qv", restaurantId] });
   }
 
-  if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading arrivals…</p>;
-  if (!canManage) {
+  if (permissions.isLoading) return <p className="text-sm text-muted-foreground">Loading arrivals…</p>;
+  if (!canOpenArrivals) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         {embedded ? null : (
@@ -219,7 +216,7 @@ export function ArrivalsWorkspace({
           </h1>
         )}
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can access Front Office for this property.
+          You don't have permission to open arrivals for this property.
         </p>
       </div>
     );

@@ -408,7 +408,7 @@ describe("RR-P2-01 — SQL contracts and wiring", () => {
     assert.match(functions, /export const applyRateChanges/);
     assert.match(functions, /export const listRateChangeHistory/);
     assert.match(functions, /export const getRateChangeOperationDetail/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(server, /rpc\("apply_hotel_rate_changes"/);
     assert.doesNotMatch(server, /for \(.*\) \{\s*await saveRateOverride/);
     assert.doesNotMatch(server, /\.update\(/);

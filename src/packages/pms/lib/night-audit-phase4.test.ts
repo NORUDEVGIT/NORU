@@ -837,9 +837,9 @@ describe("NA-P4 redaction", () => {
     assert.match(functions, /shifts: financialDetail \? evaluation\.shifts : \[\]/);
     assert.match(
       handler("getNightAuditRun"),
-      /toException\(ex, me\.role, new Map\(\), overrides, overrideNames, history\)/,
+      /toException\(ex, flags\.detailRole, new Map\(\), overrides, overrideNames, history\)/,
     );
-    assert.match(handler("listNightAuditRuns"), /toRunRow\(r, names, me\.role\)/);
+    assert.match(handler("listNightAuditRuns"), /toRunRow\(r, names, flags\.detailRole\)/);
   });
 });
 
@@ -1054,7 +1054,7 @@ describe("NA-P4 fiscal close override", () => {
     referenceId: "doc-1",
   });
 
-  it("1–5. only owner and manager see/use the fiscal-only action", () => {
+  it("1–5. fiscal close override follows night_audit.fiscal.authorize", () => {
     assert.equal(isFiscalOverrideableException(fiscal), true);
     assert.deepEqual(
       [...FISCAL_OVERRIDEABLE_EXCEPTION_TYPES],
@@ -1064,8 +1064,9 @@ describe("NA-P4 fiscal close override", () => {
       !(FISCAL_OVERRIDEABLE_EXCEPTION_TYPES as readonly string[]).includes("fiscal_unrecognized"),
     );
     assert.match(queue, /Authorize Fiscal Close Override/);
-    assert.match(queue, /role === "owner" \|\| role === "manager"/);
+    assert.match(queue, /canAuthorizeFiscalOverride\(canFiscalOverride, row\)/);
     assert.match(authorize, /NIGHT_AUDIT_FISCAL_AUTHORIZE/);
+    assert.doesNotMatch(queue, /role === "owner" \|\| role === "manager"/);
     assert.doesNotMatch(queue, /Override Blocker/);
   });
 

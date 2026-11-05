@@ -8,7 +8,7 @@ import { requirePmsActor } from "../pms-permissions.server";
 import { PMS_PERMISSIONS } from "../pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { rateError, requireRateManager } from "../rates.server";
+import { rateError } from "../rates.server";
 import {
   revenueApprovalDetailQuerySchema,
   revenueApprovalListQuerySchema,

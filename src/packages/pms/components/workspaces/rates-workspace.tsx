@@ -692,7 +692,7 @@ export function RatesWorkspace({
     return (
       <div className="m-4 rounded-xl border border-border bg-card p-6">
         <p className="text-sm text-muted-foreground">
-          Only owners and managers can access rates and revenue for this property.
+          You don't have permission to open Rate & Revenue for this property.
         </p>
       </div>
     );

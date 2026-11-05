@@ -42,7 +42,8 @@ import {
   displayProfileNumber,
   listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
-import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { getTravelAgentWorkspaceSummary } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
@@ -123,7 +124,6 @@ export function GuestTravelAgentDirectory({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const fetchAccess = useServerFn(getGuestsAccess);
   const fetchAccounts = useServerFn(listGuestAccounts);
   const fetchSummary = useServerFn(getTravelAgentWorkspaceSummary);
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
@@ -154,12 +154,8 @@ export function GuestTravelAgentDirectory({
     setSelected([]);
   }, [debouncedSearch, status, agencyType, country, pageSize]);
 
-  const accessQuery = useQuery({
-    queryKey: ["guests-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const permissions = usePmsPermissions(restaurantId);
+  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
 
   const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
@@ -277,7 +273,7 @@ export function GuestTravelAgentDirectory({
     setPage(0);
   }
 
-  if (accessQuery.isLoading) {
+  if (permissions.isLoading) {
     return <p className="text-sm text-[#756A5B]">Loading travel agencies…</p>;
   }
 
@@ -286,7 +282,7 @@ export function GuestTravelAgentDirectory({
       <div className="rounded-2xl border border-[#DDD4C5] bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-bold text-[#251605]">Travel Agencies</h2>
         <p className="mt-2 text-sm text-[#756A5B]">
-          Only owners and managers can access guest profiles for this property.
+          You don't have permission to open travel agent accounts for this property.
         </p>
       </div>
     );

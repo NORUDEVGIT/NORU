@@ -233,13 +233,7 @@ function blockError(error: unknown, fallback: string): Error {
   return new Error(fallback);
 }
 
-/**
- * Block mutation RPCs are intentionally owner/manager operations in 0095.
- *
- * Use the existing membership/authz helper rather than trusting a membership
- * supplied by the browser. Then tighten the result to the roles accepted by
- * the block RPCs themselves.
- */
+/** Block mutations require room.block.edit. Membership still comes from the caller, not the browser. */
 async function requireOperationalBlockManager(context: never, restaurantId: string) {
   return requirePmsActor(context, restaurantId, PMS_PERMISSIONS.ROOM_BLOCK_EDIT);
 }
@@ -468,7 +462,7 @@ export const listOperationalBlocks = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<OperationalInventoryBlock[]> => {
-    await requireOperationalBlockManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     let query = looseDb(context.supabase)
       .from("pms_operational_inventory_blocks")
@@ -814,7 +808,7 @@ export const evaluateRoomAssignment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => evaluateRoomAssignmentSchema.parse(input))
   .handler(async ({ data, context }): Promise<AssignmentEligibilityResult> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     const legacyFallback = async (): Promise<AssignmentEligibilityResult> => {
       const { data: room, error: roomError } = await context.supabase
