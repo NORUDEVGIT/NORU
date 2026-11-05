@@ -238,12 +238,10 @@ describe("FO folio tab — Cashiering figures and writers", () => {
     assert.match(panel, /data-testid="fo-folio-invoice"/);
   });
 
-  it("opens the full Cashiering folio workspace from the tab", () => {
-    assert.match(
-      panel,
-      /to: "\/restaurant\/pms\/cashiering\/folios\/\$folioId",\s*params: \{ folioId: folio\.id \}/,
-    );
-    assert.match(panel, /data-testid="fo-folio-open-cashiering"/);
-    assert.match(panel, /openCashiering\("history"\)/);
+  it("keeps folio actions in the Cashiering-owned dialogs from the burger menu", () => {
+    assert.match(panel, /aria-label="Folio actions"/);
+    assert.match(panel, /FolioEntryDialog/);
+    assert.match(panel, /CloseFolioDialog/);
+    assert.match(panel, /issueGuestFolioInvoice/);
   });
 });

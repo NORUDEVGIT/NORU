@@ -43,22 +43,10 @@ describe("FO guest workspace — status-aware tabs", () => {
   });
 
   it("checked-in stays get in-house tabs only", () => {
-    assert.deepEqual(ids("checked_in"), [
-      "overview",
-      "edit_details",
-      "move_room",
-      "extend_stay",
-      "check_out",
-    ]);
+    assert.deepEqual(ids("checked_in"), ["overview", "edit_details"]);
     assert.deepEqual(
       foGuestWorkspaceTabs("checked_in").map((tab) => tab.label),
-      [
-        "Stay Overview",
-        "Edit Details",
-        "Move / Change Room",
-        "Extend Stay",
-        "Check-Out / Folio Review",
-      ],
+      ["Stay Overview", "Edit Details"],
     );
   });
 

@@ -291,7 +291,7 @@ describe("FO Edit Details — form reuses the existing writers", () => {
     assert.match(inHouse, /<FoEditDetailsForm/);
     assert.doesNotMatch(confirmed, /fo-ci-workspace-edit-/);
     assert.doesNotMatch(inHouse, /fo-inhouse-edit-/);
-    assert.match(form, /Save Changes & Recalculate/);
+    assert.match(form, /Save Changes/);
     assert.match(form, /CanonicalPhoneInput/);
     assert.match(form, /First name/);
     assert.match(form, /Middle name/);

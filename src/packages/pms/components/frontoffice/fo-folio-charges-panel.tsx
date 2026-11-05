@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CreditCard, Landmark, MoreHorizontal, Printer, Receipt, Wallet } from "lucide-react";
+import { CreditCard, Landmark, Menu, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -12,12 +11,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import {
   CloseFolioDialog,
   FolioEntryDialog,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 import { useMoney } from "@/core/state/property-format";
 import {
   getCashieringCorrectionNotice,
@@ -45,15 +53,40 @@ import {
 } from "@/packages/pms/lib/reservation-detail-folio";
 import { cn } from "@/shared/lib/utils";
 
-const GOLD = "bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]";
-
-const MORE_ACTIONS: Array<{ id: FoFolioActionId; label: string }> = [
+const FOLIO_BURGER_ACTIONS: Array<{ id: FoFolioActionId; label: string }> = [
+  { id: "post_charge", label: "Post Charge" },
+  { id: "record_payment", label: "Record Payment" },
+  { id: "post_deposit", label: "Post Deposit" },
   { id: "adjustment", label: "Post Adjustment" },
   { id: "discount", label: "Post Discount" },
   { id: "refund", label: "Post Refund" },
+  { id: "print_folio", label: "Print Folio" },
   { id: "issue_invoice", label: "Issue Invoice" },
   { id: "close_folio", label: "Close Folio" },
 ];
+
+const HIDDEN_REFERENCE_TYPES = new Set(["reservation_package_charge", "reservation_room_charge"]);
+
+function isTechnicalSourceLabel(value: string | null | undefined): boolean {
+  if (!value) return false;
+  if (HIDDEN_REFERENCE_TYPES.has(value)) return true;
+  return /^[a-z]+(_[a-z0-9]+)+$/.test(value);
+}
+
+function folioLineMeta(row: FolioTransactionRow): string | null {
+  const method = paymentMethodLabel(row.paymentMethod);
+  if (method) return method;
+  if (isTechnicalSourceLabel(row.referenceType)) return null;
+  return row.referenceType;
+}
+
+function folioLineDescription(row: FolioTransactionRow): string {
+  if (row.referenceType === "reservation_room_charge" && isTechnicalSourceLabel(row.description)) {
+    return "Room Charge";
+  }
+  if (isTechnicalSourceLabel(row.description)) return row.description.replaceAll("_", " ");
+  return row.description;
+}
 
 /**
  * Folio for the selected reservation, read and posted through Cashiering.
@@ -66,7 +99,7 @@ export function FoFolioChargesPanel({
   guestName,
   confirmationNumber,
   roomNumber,
-  roomTypeName,
+  roomTypeName: _roomTypeName,
 }: {
   restaurantId: string;
   reservationId: string;
@@ -77,7 +110,6 @@ export function FoFolioChargesPanel({
   roomTypeName: string | null;
 }) {
   const money = useMoney();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchReservationFolio = useServerFn(getReservationFolio);
   const fetchWorkspace = useServerFn(getFolioWorkspace);
@@ -173,15 +205,6 @@ export function FoFolioChargesPanel({
     }
   }
 
-  function openCashiering(tab?: "history") {
-    if (!folio) return;
-    void navigate({
-      to: "/restaurant/pms/cashiering/folios/$folioId",
-      params: { folioId: folio.id },
-      ...(tab ? { search: { tab } } : {}),
-    });
-  }
-
   const error =
     previewQuery.error instanceof Error
       ? previewQuery.error.message
@@ -212,100 +235,40 @@ export function FoFolioChargesPanel({
       ) : null}
       {folio && matches && workspace ? (
         <>
-          <section className="rounded-xl border border-[#E8E1D7] bg-[#FBF7F0] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Receipt className="size-4 text-[#765719]" />
-                  <h3 className="font-display text-base font-semibold text-[#251605]">
-                    Folio {folio.folioNumber}
-                  </h3>
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                      folio.status === "open"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-[#EFE8DC] text-[#6B5C45]",
-                    )}
-                    data-testid="fo-folio-status"
-                  >
-                    {folio.status === "open" ? "Open" : "Closed"}
-                  </span>
-                  {issued ? (
-                    <span
-                      className="rounded-full bg-[#EFE8DC] px-2 py-0.5 text-[11px] font-semibold text-[#6B5C45]"
-                      data-testid="fo-folio-invoice"
-                    >
-                      Invoice {issued.issuedNumber}
-                    </span>
-                  ) : folio.legacyFolioInvoice ? (
-                    <span className="text-[11px] font-semibold text-[#6B5C45]">Invoiced</span>
-                  ) : null}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {[roomNumber ? `Room ${roomNumber}` : null, guestName, confirmationNumber]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  {roomTypeName ? ` · ${roomTypeName}` : ""}
-                </p>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                data-testid="fo-folio-open-cashiering"
-                onClick={() => openCashiering()}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h3 className="font-display text-base font-semibold text-[#251605]">
+                Folio {folio.folioNumber}
+              </h3>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                  folio.status === "open"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-[#EFE8DC] text-[#6B5C45]",
+                )}
+                data-testid="fo-folio-status"
               >
-                Open in Cashiering
-              </Button>
+                {folio.status === "open" ? "Open" : "Closed"}
+              </span>
+              {issued ? (
+                <span
+                  className="rounded-full bg-[#EFE8DC] px-2 py-0.5 text-[11px] font-semibold text-[#6B5C45]"
+                  data-testid="fo-folio-invoice"
+                >
+                  Invoice {issued.issuedNumber}
+                </span>
+              ) : folio.legacyFolioInvoice ? (
+                <span className="text-[11px] font-semibold text-[#6B5C45]">Invoiced</span>
+              ) : null}
             </div>
-          </section>
-
-          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4" data-testid="fo-folio-summary">
-            {cards.map((card) => (
-              <article
-                key={card.id}
-                className="rounded-xl border border-[#E8E1D7] bg-white p-3"
-                data-testid={`fo-folio-card-${card.id}`}
-              >
-                <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-                  <CardIcon id={card.id} />
-                  {card.label}
-                </p>
-                <p className="mt-1 font-display text-lg text-[#251605]">{money(card.amount)}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <FolioActionButton
-              state={stateFor("post_charge")}
-              label="Post Charge"
-              testId="fo-folio-post-charge"
-              className={GOLD}
-              onClick={() => openEntry("post_charge")}
-            />
-            <FolioActionButton
-              state={stateFor("record_payment")}
-              label="Record Payment"
-              testId="fo-folio-record-payment"
-              onClick={() => openEntry("record_payment")}
-            />
-            <FolioActionButton
-              state={stateFor("post_deposit")}
-              label="Post Deposit"
-              testId="fo-folio-post-deposit"
-              onClick={() => openEntry("post_deposit")}
-            />
-            <FolioActionButton
-              state={stateFor("print_folio")}
-              label="Print Folio"
-              testId="fo-folio-print"
-              onClick={() => window.print()}
-            />
-            <MoreMenu
-              actions={MORE_ACTIONS.map((item) => ({ ...item, state: stateFor(item.id) }))}
+            <FolioActionsMenu
+              actions={FOLIO_BURGER_ACTIONS.map((item) => ({ ...item, state: stateFor(item.id) }))}
               onSelect={(id) => {
+                if (id === "print_folio") {
+                  window.print();
+                  return;
+                }
                 if (id === "close_folio") {
                   if (stateFor("close_folio") === "enabled") setCloseOpen(true);
                   return;
@@ -319,9 +282,29 @@ export function FoFolioChargesPanel({
             />
           </div>
 
-          <div className="rounded-xl border border-[#E8E1D7] bg-white">
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4" data-testid="fo-folio-summary">
+            {cards.map((card) => (
+              <article
+                key={card.id}
+                className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
+                data-testid={`fo-folio-card-${card.id}`}
+              >
+                <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", kpiTone(card.id, card.amount))}>
+                  <CardIcon id={card.id} />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
+                  <p className="font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+                    {money(card.amount)}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className={ROOM_TABLE_WRAP}>
             <div
-              className="flex gap-1 overflow-x-auto border-b border-[#E8E1D7] px-2"
+              className="flex gap-1 overflow-x-auto border-b border-[#DDD4C5] px-2"
               role="tablist"
             >
               {FO_FOLIO_SECTIONS.map((item) => (
@@ -351,16 +334,6 @@ export function FoFolioChargesPanel({
                 money={money}
               />
             )}
-            <div className="border-t border-[#E8E1D7] px-3 py-2">
-              <button
-                type="button"
-                className="text-xs font-medium text-[#765719]"
-                data-testid="fo-folio-history"
-                onClick={() => openCashiering("history")}
-              >
-                View Full Folio History
-              </button>
-            </div>
           </div>
 
           <FolioEntryDialog
@@ -403,6 +376,13 @@ export function FoFolioChargesPanel({
 
 type FoFolioSummaryCardId = "charges" | "payments" | "balance" | "deposits";
 
+function kpiTone(id: FoFolioSummaryCardId, amount: number): string {
+  if (id === "charges") return "bg-amber-100 text-amber-800";
+  if (id === "payments") return "bg-emerald-100 text-emerald-800";
+  if (id === "deposits") return "bg-teal-100 text-teal-800";
+  return amount > 0 ? "bg-red-100 text-red-700" : "bg-[#EFE8DC] text-[#6B5C45]";
+}
+
 function CardIcon({ id }: { id: FoFolioSummaryCardId }) {
   const className = "size-3.5";
   if (id === "charges") return <Receipt className={className} />;
@@ -411,37 +391,7 @@ function CardIcon({ id }: { id: FoFolioSummaryCardId }) {
   return <Wallet className={className} />;
 }
 
-function FolioActionButton({
-  state,
-  label,
-  testId,
-  className,
-  onClick,
-}: {
-  state: FoFolioActionState;
-  label: string;
-  testId: string;
-  className?: string;
-  onClick: () => void;
-}) {
-  if (state === "hidden") return null;
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant={className ? "default" : "outline"}
-      className={className}
-      disabled={state === "disabled"}
-      data-testid={testId}
-      onClick={onClick}
-    >
-      {label === "Print Folio" ? <Printer className="mr-1 size-3.5" /> : null}
-      {label}
-    </Button>
-  );
-}
-
-function MoreMenu({
+function FolioActionsMenu({
   actions,
   onSelect,
 }: {
@@ -452,12 +402,23 @@ function MoreMenu({
   if (visible.length === 0) return null;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" size="sm" variant="outline" data-testid="fo-folio-more">
-          <MoreHorizontal className="mr-1 size-3.5" />
-          More
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={SHELL_ICON_BUTTON}
+              aria-label="Folio actions"
+              data-testid="fo-folio-more"
+            >
+              <Menu className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Folio actions</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         {visible.map((item) => (
           <DropdownMenuItem
@@ -487,34 +448,35 @@ function TransactionTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        <thead className={ROOM_TABLE_HEAD}>
           <tr>
-            <th className="px-3 py-2 font-medium">Date</th>
-            <th className="px-3 py-2 font-medium">Type</th>
-            <th className="px-3 py-2 font-medium">Description</th>
-            <th className="px-3 py-2 font-medium">Qty</th>
-            <th className="px-3 py-2 text-right font-medium">Amount</th>
+            <th className={ROOM_TABLE_TH}>Date</th>
+            <th className={ROOM_TABLE_TH}>Type</th>
+            <th className={ROOM_TABLE_TH}>Description</th>
+            <th className={ROOM_TABLE_TH}>Qty</th>
+            <th className={`${ROOM_TABLE_TH} text-right`}>Amount</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-[#E8E1D7]">
-              <td className="px-3 py-2 whitespace-nowrap">
-                {formatStayDate(row.postedAt.slice(0, 10))}
-              </td>
-              <td className="px-3 py-2">{labelTransactionType(row.type)}</td>
-              <td className="px-3 py-2">
-                <span>{row.description}</span>
-                {row.paymentMethod || row.referenceType ? (
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {paymentMethodLabel(row.paymentMethod) || row.referenceType}
-                  </span>
-                ) : null}
-              </td>
-              <td className="px-3 py-2">{row.quantity ?? "—"}</td>
-              <td className="px-3 py-2 text-right">{money(row.amount)}</td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const meta = folioLineMeta(row);
+            return (
+              <tr key={row.id} className={ROOM_TABLE_ROW}>
+                <td className={`${ROOM_TABLE_TD} whitespace-nowrap`}>
+                  {formatStayDate(row.postedAt.slice(0, 10))}
+                </td>
+                <td className={ROOM_TABLE_TD}>{labelTransactionType(row.type)}</td>
+                <td className={ROOM_TABLE_TD}>
+                  <span>{folioLineDescription(row)}</span>
+                  {meta ? (
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{meta}</span>
+                  ) : null}
+                </td>
+                <td className={ROOM_TABLE_TD}>{row.quantity ?? "—"}</td>
+                <td className={`${ROOM_TABLE_TD} text-right`}>{money(row.amount)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

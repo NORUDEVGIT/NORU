@@ -87,7 +87,16 @@ export function FoGuestServicesPanel({
   const nowMs = Date.now();
 
   if (summaryOnly) {
-    if (summary.signals.activeCount === 0) return null;
+    if (summary.signals.activeCount === 0) {
+      return (
+        <section className="space-y-1" data-testid="fo-gs-summary">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Guest Services
+          </h4>
+          <p className="text-sm text-muted-foreground">No active guest services.</p>
+        </section>
+      );
+    }
     return (
       <section className="space-y-1" data-testid="fo-gs-summary">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
