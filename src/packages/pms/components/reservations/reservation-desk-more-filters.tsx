@@ -17,6 +17,7 @@ import {
   EMPTY_ADVANCED_FILTERS,
   validateAdvancedFilters,
   type DeskAdvancedFilters,
+  type DeskSourceFilter,
 } from "@/packages/pms/lib/reservation-workspace/reservation-desk-filters";
 import { listRooms } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
@@ -31,22 +32,53 @@ import {
 } from "@/shared/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/shared/components/ui/sheet";
 
+export type DeskQuickFilters = {
+  arrivalFrom: string;
+  arrivalTo: string;
+  status: string;
+  roomTypeId: string;
+};
+
+export const DESK_STATUS_OPTIONS: Array<[string, string]> = [
+  ["all", "All statuses"],
+  ["pending", "Pending"],
+  ["confirmed", "Confirmed"],
+  ["checked_in", "Checked In"],
+  ["checked_out", "Checked Out"],
+  ["cancelled", "Cancelled"],
+  ["no_show", "No Show"],
+];
+
 export function ReservationDeskMoreFilters({
   restaurantId,
   open,
   view,
   applied,
+  source,
+  quick,
+  roomTypeOptions,
   onOpenChange,
   onApply,
+  onSourceChange,
+  onApplyQuick,
 }: {
   restaurantId: string;
   open: boolean;
   view: string;
   applied: DeskAdvancedFilters;
+  /** Existing desk source filter. Edited here so the toolbar does not show a second copy. */
+  source: DeskSourceFilter;
+  /** Arrival dates, status and room type. Same values the desk query already uses. */
+  quick: DeskQuickFilters;
+  roomTypeOptions: Array<[string, string]>;
   onOpenChange: (open: boolean) => void;
   onApply: (next: DeskAdvancedFilters) => void;
+  onSourceChange: (next: DeskSourceFilter) => void;
+  onApplyQuick: (next: DeskQuickFilters) => void;
 }) {
   const [draft, setDraft] = useState(applied);
+  const [sourceDraft, setSourceDraft] = useState<DeskSourceFilter>(source);
+  const [quickDraft, setQuickDraft] = useState<DeskQuickFilters>(quick);
   const [error, setError] = useState<string | null>(null);
   const loadRooms = useServerFn(listRooms);
   const loadPlans = useServerFn(listRatePlans);
@@ -54,8 +86,10 @@ export function ReservationDeskMoreFilters({
 
   useEffect(() => {
     if (open) setDraft(applied);
+    if (open) setSourceDraft(source);
+    if (open) setQuickDraft(quick);
     if (open) setError(null);
-  }, [open, applied]);
+  }, [open, applied, source, quick]);
 
   const roomsQuery = useQuery({
     queryKey: ["reservation-desk-rooms", restaurantId],
@@ -98,6 +132,8 @@ export function ReservationDeskMoreFilters({
       setError(invalid);
       return;
     }
+    onSourceChange(sourceDraft);
+    onApplyQuick(quickDraft);
     onApply(draft);
     onOpenChange(false);
   }
@@ -133,6 +169,32 @@ export function ReservationDeskMoreFilters({
           </SheetDescription>
         </div>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          <FilterSection title="Reservation">
+            <div className="grid grid-cols-2 gap-3">
+              <DateField
+                label="Arrival From"
+                value={quickDraft.arrivalFrom}
+                onChange={(arrivalFrom) => setQuickDraft((current) => ({ ...current, arrivalFrom }))}
+              />
+              <DateField
+                label="Arrival To"
+                value={quickDraft.arrivalTo}
+                onChange={(arrivalTo) => setQuickDraft((current) => ({ ...current, arrivalTo }))}
+              />
+            </div>
+            <FilterSelect
+              label="Status"
+              value={quickDraft.status}
+              onValueChange={(status) => setQuickDraft((current) => ({ ...current, status }))}
+              options={DESK_STATUS_OPTIONS}
+            />
+            <FilterSelect
+              label="Room Type"
+              value={quickDraft.roomTypeId}
+              onValueChange={(roomTypeId) => setQuickDraft((current) => ({ ...current, roomTypeId }))}
+              options={[[DESK_FILTER_ALL, "All room types"], ...roomTypeOptions]}
+            />
+          </FilterSection>
           <FilterSection title="Guest">
             <FilterSelect
               label="VIP"
@@ -191,6 +253,18 @@ export function ReservationDeskMoreFilters({
           </FilterSection>
 
           <FilterSection title="Reservation">
+            <FilterSelect
+              label="Source"
+              value={sourceDraft}
+              onValueChange={(value) => setSourceDraft(value as DeskSourceFilter)}
+              options={[
+                ["all", "All sources"],
+                ["staff", "Staff"],
+                ["walk_in", "Walk-in"],
+                ["direct_booking", "Direct booking"],
+                ["future_online", "Future online"],
+              ]}
+            />
             {showRatePlans ? (
               <FilterSelect
                 label="Rate Plan"
@@ -280,7 +354,14 @@ export function ReservationDeskMoreFilters({
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white px-4 py-3">
-          <Button type="button" variant="ghost" onClick={() => setDraft(EMPTY_ADVANCED_FILTERS)}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setDraft(EMPTY_ADVANCED_FILTERS);
+              setSourceDraft("all");
+            }}
+          >
             Reset
           </Button>
           <Button

@@ -15,12 +15,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
-import { CheckCircle2, Printer, Users } from "lucide-react";
+import { CheckCircle2, CreditCard, Menu, Printer, Receipt, Users, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { Dialog, DialogContent } from "@/shared/components/ui/dialog";
 import {
   DropdownMenu,
@@ -28,6 +35,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
   RoomUnitOccupantContext,
@@ -47,7 +63,6 @@ import {
 } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import {
   FOLIO_LEFT_OPEN_CHIP,
-  formatCheckoutDate,
   isOwesBalance,
   outstandingAmount,
   overrideKindForBalance,
@@ -55,7 +70,6 @@ import {
   renderCheckoutDocumentHtml,
 } from "@/packages/pms/lib/fo-check-out";
 import {
-  checkOutAccountingBadge,
   checkOutDueLabel,
   checkOutDocumentSnapshot,
   checkOutSharedFolioWarning,
@@ -79,12 +93,30 @@ import { cn } from "@/shared/lib/utils";
 
 const GOLD = "bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]";
 const HEADER_BG = "bg-[#1F140A]";
-const RAIL_BG = "bg-[#2B1B0C]";
+const CONTROL =
+  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none placeholder:text-[#8C7E72] hover:border-[#8A641A] focus:border-[#8A641A] focus:outline-none focus:ring-1 focus:ring-[#8A641A]";
+const SELECT =
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus-visible:border-[#8A641A] focus-visible:ring-1 focus-visible:ring-[#8A641A]";
 
 type Stage = "pick-room" | "folio" | "confirm" | "complete";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+function isTechnicalSourceLabel(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return (
+    value === "reservation_package_charge" ||
+    value === "reservation_room_charge" ||
+    /^[a-z]+(_[a-z0-9]+)+$/.test(value)
+  );
+}
+
+function visibleChargeDescription(description: string): string {
+  if (description === "reservation_room_charge") return "Room Charge";
+  if (isTechnicalSourceLabel(description)) return description.replaceAll("_", " ");
+  return description;
 }
 
 export function FoCheckOutWorkspace({
@@ -288,6 +320,7 @@ export function FoCheckOutWorkspace({
     onSuccess: async () => {
       payKey.current = crypto.randomUUID();
       setPayRef("");
+      setPaymentPanelOpen(false);
       closedOnceRef.current = false;
       await contractQuery.refetch();
     },
@@ -448,11 +481,8 @@ export function FoCheckOutWorkspace({
   const stageIndex =
     stage === "pick-room" ? 0 : stage === "folio" ? 0 : stage === "confirm" ? 1 : 2;
   const balance = contract?.folio?.balance ?? 0;
-  const badge = checkOutAccountingBadge({
-    folio: contract?.folio ?? null,
-    override: contract?.override ?? { recorded: false, kind: null, reason: null },
-  });
   const checkOutAuth = approvalQuery.data;
+  const stepOfThree = stage === "complete" ? 3 : stage === "confirm" ? 2 : 1;
   const dueLabel = checkOutDueLabel(
     contract?.stay.scheduledDepartureDate ?? stay.departureDate,
     contract?.businessDate ?? null,
@@ -470,62 +500,66 @@ export function FoCheckOutWorkspace({
         data-testid="fo-check-out-workspace"
         className="flex max-h-[92vh] w-[calc(100%-2rem)] max-w-[920px] flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-[920px] [&>button:last-child]:text-[#F3E9D8]"
       >
-        <header className={cn(HEADER_BG, "shrink-0 px-5 py-4 text-[#F3E9D8]")}>
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-display text-base font-semibold">
-                  Front Desk Check-Out &amp; Folio Review
-                </h2>
-                {contract?.folio?.folioNumber ? (
-                  <span className="rounded-full bg-[#C89933]/20 px-2.5 py-0.5 text-xs font-semibold text-[#C89933]">
-                    Folio #{contract.folio.folioNumber}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 text-xs text-[#C7B79A]" data-testid="fo-check-out-step-label">
-                {stage === "complete"
-                  ? "Step Complete: Departure Processed"
-                  : stage === "confirm"
-                    ? "Step 2 of 2: Final Confirmation & Turnover"
-                    : "Step 1 of 2: Folio Verification & Settlement"}
-              </p>
-            </div>
-            <p className="text-xs text-[#C7B79A]" data-testid="fo-check-out-business-date">
-              Business Date:{" "}
-              {contract?.businessDate ? formatCheckoutDate(contract.businessDate) : "—"}
-            </p>
+        <header className={cn(HEADER_BG, "shrink-0 px-4 py-2 pr-12 text-[#F3E9D8]")}>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 className="font-display text-sm font-semibold">Front Desk Check-Out</h2>
+            <span className="text-[#8A7A61]">·</span>
+            <span className="font-display text-sm font-semibold text-[#F3E9D8]">
+              {contract?.guestName ?? stay.guestName}
+            </span>
+            {contract?.folio?.folioNumber ? (
+              <span className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-[11px] font-semibold text-[#C89933]">
+                {contract.folio.folioNumber}
+              </span>
+            ) : null}
+            {(contract?.roomNumber ?? stay.roomNumber) ? (
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">
+                Room {contract?.roomNumber ?? stay.roomNumber}
+              </span>
+            ) : null}
           </div>
         </header>
 
-        <nav className={cn(RAIL_BG, "shrink-0 px-5 py-2.5")}>
-          <ol className="flex flex-wrap items-center gap-2 text-xs">
+        <nav className="flex h-9 shrink-0 items-center gap-3 border-b border-[#DDD4C5] bg-white px-4">
+          <p className="shrink-0 text-[11px] text-[#756A5B]" data-testid="fo-check-out-step-label">
+            Step {stepOfThree} of 3
+          </p>
+          <ol className="flex min-w-0 items-center">
             {(
               [
-                { id: 0, label: "Folio Review & Settlement" },
-                { id: 1, label: "Final Confirmation" },
-                { id: 2, label: "Departure Complete" },
+                { id: 0, label: "Folio & Settlement" },
+                { id: 1, label: "Confirmation" },
+                { id: 2, label: "Complete" },
               ] as const
-            ).map((step, idx) => (
-              <li key={step.id} className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium",
-                    step.id < stageIndex && "bg-[#436436]/25 text-[#8FD19E]",
-                    step.id === stageIndex && "bg-[#C89933] text-[#251605]",
-                    step.id > stageIndex && "text-[#8A7A61]",
-                  )}
-                >
-                  {step.id < stageIndex ? <CheckCircle2 className="size-3.5" /> : null}
-                  {step.id + 1} {step.label}
-                </span>
-                {idx < 2 ? <span className="text-[#8A7A61]">→</span> : null}
-              </li>
-            ))}
+            ).map((step) => {
+              const done = step.id < stageIndex;
+              const current = step.id === stageIndex;
+              return (
+                <li key={step.id}>
+                  <span
+                    className={cn(
+                      "relative flex h-9 items-center gap-1 px-2.5 text-xs font-medium",
+                      done && "text-[#436436]",
+                      current && "text-[#251605]",
+                      !done && !current && "text-muted-foreground",
+                    )}
+                  >
+                    {done ? <CheckCircle2 className="size-3" /> : null}
+                    {step.id + 1} {step.label}
+                    {done ? (
+                      <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                    ) : null}
+                    {current ? (
+                      <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
           </ol>
         </nav>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBF7F0] px-5 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBF7F0] px-4 py-3">
           {denyMessage ? <PermissionDeniedPanel className="mb-4" message={denyMessage} /> : null}
           {staleMessage && stage === "folio" ? (
             <p
@@ -570,7 +604,7 @@ export function FoCheckOutWorkspace({
             ) : contractQuery.isError ? (
               <p className="text-sm text-destructive">{errorText(contractQuery.error)}</p>
             ) : contract ? (
-              <div className="space-y-4" data-testid="fo-check-out-stage-folio">
+              <div className="space-y-2.5" data-testid="fo-check-out-stage-folio">
                 <StaySummaryCard contract={contract} dueLabel={dueLabel} />
 
                 {sharedWarning.shared && sharedWarning.siblingsInHouse.length > 0 ? (
@@ -608,148 +642,52 @@ export function FoCheckOutWorkspace({
                   </div>
                 ) : null}
 
-                <section className="rounded-xl border border-[#E8E1D7] bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-display text-sm font-semibold text-[#251605]">
-                      Folio Balance &amp; Accounting Summary
-                    </h3>
-                    <AccountingBadge badge={badge} />
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <SummaryCard
-                      label="Total Charges (Debit)"
+                <section className="rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <FinancialStripItem
+                      label="Total Charges"
                       amount={money(contract.folio?.charges ?? 0)}
-                      sub={`${contract.charges.length} posted charge item${contract.charges.length === 1 ? "" : "s"}`}
+                      tone="charges"
                     />
-                    <SummaryCard
-                      label="Payments & Credits (Credit)"
+                    <span className="hidden text-[#C7B79A] sm:inline">|</span>
+                    <FinancialStripItem
+                      label="Paid"
                       amount={money(contract.folio?.credits ?? 0)}
-                      sub={`${contract.payments.length} recorded payment${contract.payments.length === 1 ? "" : "s"}`}
+                      tone="paid"
                     />
-                    <SummaryCard
-                      label="Outstanding Balance"
+                    <span className="hidden text-[#C7B79A] sm:inline">|</span>
+                    <FinancialStripItem
+                      label="Balance Due"
                       amount={money(balance)}
-                      sub={
-                        badge === "paid_in_full"
-                          ? "Account clear for departure"
-                          : badge === "credit"
-                            ? "Credit on folio"
-                            : "Settle to continue"
-                      }
-                      tone={badge === "paid_in_full" ? "good" : badge === "credit" ? "warn" : "bad"}
+                      tone="balance"
+                      emphasize={isOwesBalance(balance)}
                     />
-                  </div>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Review all posted ledger entries below before confirming departure.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {isOwesBalance(balance) ? (
-                      <Button
-                        type="button"
-                        className={GOLD}
-                        data-testid="fo-check-out-record-payment"
-                        onClick={() => setPaymentPanelOpen((v) => !v)}
-                      >
-                        Record Payment
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      data-testid="fo-check-out-print-folio"
-                      onClick={() =>
-                        printSnapshot(
-                          contract,
-                          contract.charges,
-                          contract.payments,
-                          contract.override.recorded,
-                        )
-                      }
-                    >
-                      <Printer className="mr-1 size-3.5" />
-                      Print Folio
-                    </Button>
-                    {contract.eligibility.overrideAvailable || contract.override.recorded ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button type="button" variant="outline" data-testid="fo-check-out-more">
-                            More
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            disabled={!contract.eligibility.overrideAvailable}
-                            data-testid="fo-check-out-override-menu"
-                            onSelect={() => setOverridePanelOpen(true)}
-                          >
-                            Override settlement
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : null}
+                    <div className="ml-auto">
+                      <CheckoutFolioMenu
+                        canRecordPayment={isOwesBalance(balance)}
+                        canOverride={
+                          contract.eligibility.overrideAvailable || contract.override.recorded
+                        }
+                        overrideEnabled={contract.eligibility.overrideAvailable}
+                        onRecordPayment={() => setPaymentPanelOpen((v) => !v)}
+                        onPrintFolio={() =>
+                          printSnapshot(
+                            contract,
+                            contract.charges,
+                            contract.payments,
+                            contract.override.recorded,
+                          )
+                        }
+                        onOverride={() => setOverridePanelOpen(true)}
+                      />
+                    </div>
                   </div>
 
                   {contract.override.recorded ? (
-                    <p className="mt-3 inline-flex rounded-full bg-[#C89933] px-2.5 py-1 text-xs font-semibold text-[#251605]">
+                    <p className="mt-2 inline-flex rounded-full bg-[#C89933] px-2.5 py-1 text-xs font-semibold text-[#251605]">
                       {FOLIO_LEFT_OPEN_CHIP}
                       {contract.override.reason ? ` · ${contract.override.reason}` : ""}
                     </p>
-                  ) : null}
-
-                  {paymentPanelOpen && isOwesBalance(balance) ? (
-                    <div className="mt-4 space-y-3 rounded-xl border border-border p-3">
-                      <Field label="Amount">
-                        <Input
-                          type="number"
-                          min={0.01}
-                          step="0.01"
-                          max={remaining}
-                          value={payAmount}
-                          onChange={(e) => setPayAmount(e.target.value)}
-                        />
-                      </Field>
-                      <p className="text-xs text-muted-foreground">
-                        Outstanding {money(remaining)}.
-                      </p>
-                      {tenders.length === 0 ? (
-                        <p className="text-sm text-[#C89933]">
-                          No active payment methods. Configure them in{" "}
-                          <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
-                            Payment methods
-                          </a>
-                          .
-                        </p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {tenders.map((tender) => (
-                            <button
-                              key={tender.code}
-                              type="button"
-                              className={cn(
-                                "rounded-full border px-3 py-1.5 text-sm",
-                                payMethod === tender.code
-                                  ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
-                                  : "border-[#CCCCCC] text-muted-foreground",
-                              )}
-                              onClick={() => setPayMethod(tender.code)}
-                            >
-                              {tender.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <Field label="Reference">
-                        <Input value={payRef} onChange={(e) => setPayRef(e.target.value)} />
-                      </Field>
-                      <Button
-                        type="button"
-                        className={GOLD}
-                        disabled={!canPostPay || postPayMut.isPending}
-                        onClick={() => postPayMut.mutate()}
-                      >
-                        {postPayMut.isPending ? "Posting…" : "Post payment"}
-                      </Button>
-                    </div>
                   ) : null}
 
                   {overridePanelOpen && overrideKind ? (
@@ -782,6 +720,24 @@ export function FoCheckOutWorkspace({
                   ) : null}
                 </section>
 
+                {paymentPanelOpen && isOwesBalance(balance) ? (
+                  <CheckoutPaymentPanel
+                    amount={payAmount}
+                    remaining={remaining}
+                    remainingLabel={money(remaining)}
+                    method={payMethod}
+                    tenders={tenders}
+                    reference={payRef}
+                    pending={postPayMut.isPending}
+                    canPost={canPostPay}
+                    onAmountChange={setPayAmount}
+                    onMethodChange={setPayMethod}
+                    onReferenceChange={setPayRef}
+                    onPost={() => postPayMut.mutate()}
+                    onClose={() => setPaymentPanelOpen(false)}
+                  />
+                ) : null}
+
                 <ItemizedChargesTable charges={contract.charges} money={money} />
                 <PaymentsCreditsTable payments={contract.payments} money={money} />
               </div>
@@ -801,30 +757,21 @@ export function FoCheckOutWorkspace({
           ) : null}
         </div>
 
-        <footer className="shrink-0 border-t border-[#E8E1D7] bg-white px-5 py-3">
+        <footer className="shrink-0 border-t border-[#E8E1D7] bg-white px-4 py-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {stage === "folio" ? (
               <>
                 <Button type="button" variant="ghost" onClick={requestClose}>
                   Cancel &amp; Return
                 </Button>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      contract &&
-                      printSnapshot(
-                        contract,
-                        contract.charges,
-                        contract.payments,
-                        contract.override.recorded,
-                      )
-                    }
-                    disabled={!contract}
-                  >
-                    Print Folio
-                  </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {contract &&
+                  !contract.eligibility.checkoutAllowed &&
+                  isOwesBalance(balance) ? (
+                    <p className="text-xs text-destructive">
+                      Settle {money(remaining)} to continue
+                    </p>
+                  ) : null}
                   <Button
                     type="button"
                     className={GOLD}
@@ -832,7 +779,7 @@ export function FoCheckOutWorkspace({
                     disabled={!contract?.eligibility.checkoutAllowed}
                     onClick={goToConfirmation}
                   >
-                    Continue to Confirmation →
+                    Continue to Confirmation
                   </Button>
                 </div>
               </>
@@ -890,12 +837,108 @@ export function FoCheckOutWorkspace({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function CheckoutPaymentPanel({
+  amount,
+  remaining,
+  remainingLabel,
+  method,
+  tenders,
+  reference,
+  pending,
+  canPost,
+  onAmountChange,
+  onMethodChange,
+  onReferenceChange,
+  onPost,
+  onClose,
+}: {
+  amount: string;
+  remaining: number;
+  remainingLabel: string;
+  method: string;
+  tenders: Array<{ code: string; name: string }>;
+  reference: string;
+  pending: boolean;
+  canPost: boolean;
+  onAmountChange: (value: string) => void;
+  onMethodChange: (value: string) => void;
+  onReferenceChange: (value: string) => void;
+  onPost: () => void;
+  onClose: () => void;
+}) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      {children}
-    </div>
+    <section
+      className="rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2"
+      data-testid="fo-check-out-payment-panel"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-[#251605]">Record Payment</p>
+        <button
+          type="button"
+          className="grid size-7 place-items-center rounded-md text-[#756A5B] hover:bg-[#F7F4EE]"
+          aria-label="Close payment panel"
+          onClick={onClose}
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      <div className="mt-1.5 grid items-end gap-2 sm:grid-cols-[minmax(0,7rem)_minmax(0,10rem)_minmax(0,1fr)_auto]">
+        <div className="space-y-1">
+          <Label className="text-[10px] font-medium text-[#756A5B]">Amount</Label>
+          <Input
+            type="number"
+            min={0.01}
+            step="0.01"
+            max={remaining}
+            value={amount}
+            className={CONTROL}
+            onChange={(e) => onAmountChange(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] font-medium text-[#756A5B]">Payment Method</Label>
+          {tenders.length === 0 ? (
+            <p className="text-xs text-[#C89933]">
+              No active payment methods. Configure them in{" "}
+              <a href={POLISH1_PAYMENT_METHODS_HREF} className="underline">
+                Payment methods
+              </a>
+              .
+            </p>
+          ) : (
+            <Select value={method} onValueChange={onMethodChange}>
+              <SelectTrigger className={SELECT}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {tenders.map((tender) => (
+                  <SelectItem key={tender.code} value={tender.code}>
+                    {tender.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] font-medium text-[#756A5B]">Reference</Label>
+          <Input
+            value={reference}
+            className={CONTROL}
+            onChange={(e) => onReferenceChange(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          className={cn(GOLD, "h-9")}
+          disabled={!canPost || pending}
+          onClick={onPost}
+        >
+          {pending ? "Posting…" : "Post Payment"}
+        </Button>
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">Outstanding {remainingLabel}.</p>
+    </section>
   );
 }
 
@@ -906,15 +949,25 @@ function StaySummaryCard({
   contract: CheckOutContract;
   dueLabel: "due_out_today" | "in_house";
 }) {
+  const occupancy = `${contract.stay.nights} night${contract.stay.nights === 1 ? "" : "s"} · ${contract.stay.adults} / ${contract.stay.children ?? 0}`;
   return (
     <section
-      className="rounded-xl border border-[#E8E1D7] bg-white p-4"
+      className="rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2"
       data-testid="fo-check-out-stay-summary"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-display text-base font-semibold text-[#251605]">
-          {contract.guestName}
-        </h3>
+      <dl className="flex flex-wrap items-end gap-x-4 gap-y-2 text-sm">
+        <Detail label="Guest" value={contract.guestName} />
+        <Detail
+          label="Room"
+          value={contract.roomNumber ? `Room ${contract.roomNumber}` : "Unassigned"}
+        />
+        <Detail label="Arrival" value={formatStayDate(contract.stay.arrivalDate)} />
+        <Detail
+          label="Scheduled Departure"
+          value={formatStayDate(contract.stay.scheduledDepartureDate)}
+        />
+        <Detail label="Nights / Occupancy" value={occupancy} />
+        <Detail label="Booking Reference" value={contract.confirmationNumber} />
         <span
           className={cn(
             "rounded-full px-2 py-0.5 text-[11px] font-semibold",
@@ -923,24 +976,8 @@ function StaySummaryCard({
               : "bg-[#436436]/15 text-[#436436]",
           )}
         >
-          {dueLabel === "due_out_today" ? "DUE OUT TODAY" : "IN-HOUSE"}
+          {dueLabel === "due_out_today" ? "Due Out" : "In-House"}
         </span>
-        <span className="text-xs text-muted-foreground">
-          Unit: {contract.roomNumber ? `Room #${contract.roomNumber}` : "Unassigned"}
-          {contract.roomTypeName ? ` · Category: ${contract.roomTypeName}` : ""}
-        </span>
-      </div>
-      <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <Detail label="Arrival" value={formatStayDate(contract.stay.arrivalDate)} />
-        <Detail
-          label="Scheduled departure"
-          value={formatStayDate(contract.stay.scheduledDepartureDate)}
-        />
-        <Detail
-          label="Duration & occupancy"
-          value={`${contract.stay.nights} night${contract.stay.nights === 1 ? "" : "s"} · ${contract.stay.adults} adult${contract.stay.adults === 1 ? "" : "s"}`}
-        />
-        <Detail label="Booking reference" value={contract.confirmationNumber} />
       </dl>
     </section>
   );
@@ -955,61 +992,106 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SummaryCard({
+function FinancialStripItem({
   label,
   amount,
-  sub,
   tone,
+  emphasize = false,
 }: {
   label: string;
   amount: string;
-  sub: string;
-  tone?: "good" | "warn" | "bad";
+  tone: "charges" | "paid" | "balance";
+  emphasize?: boolean;
 }) {
   return (
-    <article className="rounded-xl border border-[#E8E1D7] bg-[#FBF7F0] p-3">
-      <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-      <p
+    <div className="flex min-w-0 items-center gap-2">
+      <span
         className={cn(
-          "mt-1 font-display text-lg",
-          tone === "good" && "text-[#436436]",
-          tone === "bad" && "text-destructive",
-          tone === "warn" && "text-[#8A6A1F]",
-          !tone && "text-[#251605]",
+          "grid size-7 shrink-0 place-items-center rounded-full",
+          tone === "charges" && "bg-amber-100 text-amber-800",
+          tone === "paid" && "bg-emerald-100 text-emerald-800",
+          tone === "balance" && (emphasize ? "bg-red-100 text-red-700" : "bg-[#EFE8DC] text-[#6B5C45]"),
         )}
       >
-        {amount}
-      </p>
-      <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>
-    </article>
+        {tone === "charges" ? (
+          <Receipt className="size-3.5" />
+        ) : tone === "paid" ? (
+          <CreditCard className="size-3.5" />
+        ) : (
+          <Wallet className="size-3.5" />
+        )}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-medium text-[#756A5B]">{label}</p>
+        <p
+          className={cn(
+            "leading-tight text-[#251605]",
+            emphasize ? "font-display text-base font-semibold" : "text-sm font-medium",
+          )}
+        >
+          {amount}
+        </p>
+      </div>
+    </div>
   );
 }
 
-function AccountingBadge({ badge }: { badge: ReturnType<typeof checkOutAccountingBadge> }) {
-  const label =
-    badge === "paid_in_full"
-      ? "Paid in Full"
-      : badge === "credit"
-        ? "Credit"
-        : badge === "override_open"
-          ? "Override — Left Open"
-          : badge === "no_folio"
-            ? "No Folio"
-            : "Balance Due";
+function CheckoutFolioMenu({
+  canRecordPayment,
+  canOverride,
+  overrideEnabled,
+  onRecordPayment,
+  onPrintFolio,
+  onOverride,
+}: {
+  canRecordPayment: boolean;
+  canOverride: boolean;
+  overrideEnabled: boolean;
+  onRecordPayment: () => void;
+  onPrintFolio: () => void;
+  onOverride: () => void;
+}) {
   return (
-    <span
-      className={cn(
-        "rounded-full px-2.5 py-1 text-xs font-semibold",
-        badge === "paid_in_full" && "bg-[#436436]/15 text-[#436436]",
-        badge === "balance_due" && "bg-destructive/10 text-destructive",
-        badge === "credit" && "bg-[#C89933]/20 text-[#8A6A1F]",
-        badge === "override_open" && "bg-[#C89933]/20 text-[#8A6A1F]",
-        badge === "no_folio" && "bg-[#CCCCCC]/40 text-muted-foreground",
-      )}
-      data-testid="fo-check-out-accounting-badge"
-    >
-      {label}
-    </span>
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className={SHELL_ICON_BUTTON}
+              aria-label="Checkout folio actions"
+              data-testid="fo-check-out-more"
+            >
+              <Menu className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Checkout folio actions</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          disabled={!canRecordPayment}
+          data-testid="fo-check-out-record-payment"
+          onSelect={onRecordPayment}
+        >
+          Record Payment
+        </DropdownMenuItem>
+        <DropdownMenuItem data-testid="fo-check-out-print-folio" onSelect={onPrintFolio}>
+          Print Folio
+        </DropdownMenuItem>
+        {canOverride ? (
+          <DropdownMenuItem
+            disabled={!overrideEnabled}
+            data-testid="fo-check-out-override-menu"
+            onSelect={onOverride}
+          >
+            Override Settlement
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1021,11 +1103,8 @@ function ItemizedChargesTable({
   money: (value: number) => string;
 }) {
   return (
-    <section
-      className="overflow-hidden rounded-xl border border-[#E8E1D7] bg-white"
-      data-testid="fo-check-out-charges-table"
-    >
-      <div className="flex items-center justify-between border-b border-[#E8E1D7] px-3 py-2">
+    <section className={ROOM_TABLE_WRAP} data-testid="fo-check-out-charges-table">
+      <div className="flex items-center justify-between border-b border-[#DDD4C5] px-2 py-2">
         <h4 className="text-xs font-semibold text-[#251605]">
           Itemized Charges &amp; Taxes ({charges.length})
         </h4>
@@ -1034,31 +1113,31 @@ function ItemizedChargesTable({
         </span>
       </div>
       {charges.length === 0 ? (
-        <p className="px-3 py-4 text-sm text-muted-foreground">No charges posted yet.</p>
+        <p className="px-2 py-3 text-sm text-muted-foreground">No charges posted yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <thead className={ROOM_TABLE_HEAD}>
               <tr>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Category</th>
-                <th className="px-3 py-2 font-medium">Description</th>
-                <th className="px-3 py-2 font-medium">Qty</th>
-                <th className="px-3 py-2 text-right font-medium">Amount</th>
-                <th className="px-3 py-2 font-medium">Posted By</th>
+                <th className={ROOM_TABLE_TH}>Date</th>
+                <th className={ROOM_TABLE_TH}>Category</th>
+                <th className={ROOM_TABLE_TH}>Description</th>
+                <th className={ROOM_TABLE_TH}>Qty</th>
+                <th className={`${ROOM_TABLE_TH} text-right`}>Amount</th>
+                <th className={ROOM_TABLE_TH}>Posted By</th>
               </tr>
             </thead>
             <tbody>
               {charges.map((row) => (
-                <tr key={row.transactionId} className="border-t border-[#E8E1D7]">
-                  <td className="px-3 py-2 whitespace-nowrap">
+                <tr key={row.transactionId} className={ROOM_TABLE_ROW}>
+                  <td className={`${ROOM_TABLE_TD} whitespace-nowrap`}>
                     {formatStayDate(row.postedAt.slice(0, 10))}
                   </td>
-                  <td className="px-3 py-2 capitalize">{row.category}</td>
-                  <td className="px-3 py-2">{row.description}</td>
-                  <td className="px-3 py-2">{row.quantity ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">{money(row.amount)}</td>
-                  <td className="px-3 py-2">{row.postedBy ?? row.source ?? "System"}</td>
+                  <td className={`${ROOM_TABLE_TD} capitalize`}>{row.category}</td>
+                  <td className={ROOM_TABLE_TD}>{visibleChargeDescription(row.description)}</td>
+                  <td className={ROOM_TABLE_TD}>{row.quantity ?? "—"}</td>
+                  <td className={`${ROOM_TABLE_TD} text-right`}>{money(row.amount)}</td>
+                  <td className={ROOM_TABLE_TD}>{row.postedBy ?? "System"}</td>
                 </tr>
               ))}
             </tbody>
@@ -1077,11 +1156,8 @@ function PaymentsCreditsTable({
   money: (value: number) => string;
 }) {
   return (
-    <section
-      className="overflow-hidden rounded-xl border border-[#E8E1D7] bg-white"
-      data-testid="fo-check-out-payments-table"
-    >
-      <div className="flex items-center justify-between border-b border-[#E8E1D7] px-3 py-2">
+    <section className={ROOM_TABLE_WRAP} data-testid="fo-check-out-payments-table">
+      <div className="flex items-center justify-between border-b border-[#DDD4C5] px-2 py-2">
         <h4 className="text-xs font-semibold text-[#251605]">
           Recorded Payments &amp; Credits ({payments.length})
         </h4>
@@ -1090,29 +1166,31 @@ function PaymentsCreditsTable({
         </span>
       </div>
       {payments.length === 0 ? (
-        <p className="px-3 py-4 text-sm text-muted-foreground">No payments recorded yet.</p>
+        <p className="px-2 py-3 text-sm text-muted-foreground">No payments recorded yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <thead className={ROOM_TABLE_HEAD}>
               <tr>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Payment Method</th>
-                <th className="px-3 py-2 font-medium">Reference / Txn ID</th>
-                <th className="px-3 py-2 font-medium">Cashier / Channel</th>
-                <th className="px-3 py-2 text-right font-medium">Amount</th>
+                <th className={ROOM_TABLE_TH}>Date</th>
+                <th className={ROOM_TABLE_TH}>Payment Method</th>
+                <th className={ROOM_TABLE_TH}>Reference</th>
+                <th className={ROOM_TABLE_TH}>Cashier / Channel</th>
+                <th className={`${ROOM_TABLE_TH} text-right`}>Amount</th>
               </tr>
             </thead>
             <tbody>
               {payments.map((row) => (
-                <tr key={row.transactionId} className="border-t border-[#E8E1D7]">
-                  <td className="px-3 py-2 whitespace-nowrap">
+                <tr key={row.transactionId} className={ROOM_TABLE_ROW}>
+                  <td className={`${ROOM_TABLE_TD} whitespace-nowrap`}>
                     {formatStayDate(row.postedAt.slice(0, 10))}
                   </td>
-                  <td className="px-3 py-2 capitalize">{row.method ?? "—"}</td>
-                  <td className="px-3 py-2">{row.reference ?? "—"}</td>
-                  <td className="px-3 py-2">{row.cashier ?? row.channel ?? "System"}</td>
-                  <td className="px-3 py-2 text-right">{money(row.amount)}</td>
+                  <td className={`${ROOM_TABLE_TD} capitalize`}>{row.method ?? "—"}</td>
+                  <td className={ROOM_TABLE_TD}>
+                    {isTechnicalSourceLabel(row.reference) ? "—" : (row.reference ?? "—")}
+                  </td>
+                  <td className={ROOM_TABLE_TD}>{row.cashier ?? row.channel ?? "System"}</td>
+                  <td className={`${ROOM_TABLE_TD} text-right`}>{money(row.amount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1136,19 +1214,15 @@ export function FinalConfirmationStage({
   if (loading || !contract) {
     return <p className="text-sm text-muted-foreground">Reviewing the fresh folio…</p>;
   }
-  const target = contract.housekeeping.targetStatus ?? "dirty";
   return (
-    <div className="space-y-4 text-center" data-testid="fo-check-out-stage-confirm">
-      <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-[#436436]/15">
+    <div className="space-y-3 text-center" data-testid="fo-check-out-stage-confirm">
+      <div className="mx-auto flex size-9 items-center justify-center rounded-full bg-[#436436]/15">
         <CheckCircle2 className="size-5 text-[#436436]" />
       </div>
       <h3 className="font-display text-lg text-[#251605]">
         Confirm Guest Departure &amp; Key Handover
       </h3>
-      <p className="text-sm text-muted-foreground">
-        Review the departure summary before closing the guest stay and vacating the room unit.
-      </p>
-      <div className="rounded-xl border border-[#E8E1D7] bg-white p-4 text-left">
+      <div className="rounded-lg border border-[#DDD4C5] bg-white p-3 text-left">
         <div className="flex items-center justify-between">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">Guest Name</span>
           <span className="font-medium text-[#251605]">{contract.guestName}</span>
@@ -1161,7 +1235,7 @@ export function FinalConfirmationStage({
             {contract.roomNumber ? `Room #${contract.roomNumber}` : "Unassigned"}
           </span>
         </div>
-        <div className="mt-3 space-y-1 border-t border-[#E8E1D7] pt-3 text-sm">
+        <div className="mt-2.5 space-y-1 border-t border-[#E8E1D7] pt-2.5 text-sm">
           <Row label="Total Stay Charges" value={money(contract.folio?.charges ?? 0)} />
           <Row label="Total Payments Received" value={money(contract.folio?.credits ?? 0)} />
           <Row
@@ -1170,11 +1244,6 @@ export function FinalConfirmationStage({
             emphasis
             testId="fo-check-out-final-balance"
           />
-        </div>
-        <div className="mt-3 rounded-lg bg-[#2F6FA6]/10 px-3 py-2 text-xs text-[#20507A]">
-          <strong>Housekeeping Turnover Trigger:</strong> Completing check-out will automatically
-          set {contract.roomNumber ? `Room #${contract.roomNumber}` : "this room"} to{" "}
-          {target.replaceAll("_", " ")} status for housekeeping inspection and linen change.
         </div>
       </div>
     </div>
@@ -1219,15 +1288,15 @@ export function DepartureCompleteStage({
           ? "Left open — credit override"
           : "Open";
   return (
-    <div className="space-y-4 text-center" data-testid="fo-check-out-stage-complete">
-      <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#436436]/15">
-        <CheckCircle2 className="size-6 text-[#436436]" />
+    <div className="space-y-3 text-center" data-testid="fo-check-out-stage-complete">
+      <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-[#436436]/15">
+        <CheckCircle2 className="size-5 text-[#436436]" />
       </div>
       <h3 className="font-display text-lg text-[#251605]">Check-Out Successfully Processed!</h3>
       <p className="text-sm text-muted-foreground">
         Guest {completion.guestName} is now marked as departed.
       </p>
-      <div className="space-y-2 rounded-xl border border-[#E8E1D7] bg-white p-4 text-left text-sm">
+      <div className="space-y-1.5 rounded-lg border border-[#DDD4C5] bg-white p-3 text-left text-sm">
         <Row label="Booking Reference" value={completion.confirmationNumber} />
         <Row
           label="Room Status"

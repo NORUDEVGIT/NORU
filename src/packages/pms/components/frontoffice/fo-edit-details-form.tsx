@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Calendar, Pencil, RefreshCw } from "lucide-react";
+import { Calendar, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import { useMoney } from "@/core/state/property-format";
@@ -73,11 +73,11 @@ function FieldError({ message }: { message?: string }) {
   );
 }
 
-function Dash({ value, testId }: { value: string | null; testId: string }) {
+function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <dd className="font-medium text-foreground" data-testid={testId}>
-      {value ?? "—"}
-    </dd>
+    <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-[#756A5B] md:col-span-2">
+      {children}
+    </p>
   );
 }
 
@@ -178,6 +178,8 @@ export function FoEditDetailsForm({
   const financial = foEditDetailsFinancial(
     datesChanged && quoteQuery.isSuccess ? quoteQuery.data : null,
   );
+  void money;
+  void financial;
 
   const roomTypes = amendQuery.data?.roomTypes ?? [];
   const knownType = roomTypes.some((type) => type.id === draft.roomTypeId);
@@ -293,28 +295,17 @@ export function FoEditDetailsForm({
   return (
     <section
       role="tabpanel"
-      className="rounded-xl border border-border bg-card p-4 shadow-sm"
+      className="rounded-lg border border-[#DDD4C5] bg-card p-3 shadow-sm"
       data-testid={testId}
     >
-      <div className="flex items-start gap-2">
-        <Pencil className="mt-0.5 size-4 text-[#C89933]" />
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
-            Edit reservation & stay details
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Update dates, room category, occupancy, or guest contact details.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2" data-testid="fo-edit-details-form">
+      <div className="grid gap-2.5 md:grid-cols-2" data-testid="fo-edit-details-form">
         {errors.form ? (
           <p className="text-sm text-destructive md:col-span-2" role="alert">
             {errors.form}
           </p>
         ) : null}
 
+        <SectionLabel>Stay</SectionLabel>
         <div className="space-y-1.5">
           <FieldLabel htmlFor="fo-edit-arrival" required>
             Check-in date
@@ -363,27 +354,7 @@ export function FoEditDetailsForm({
           <FieldError message={errors.departure} />
         </div>
 
-        <dl className="space-y-1 text-sm md:col-span-2">
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-muted-foreground">Calculated Duration</dt>
-            <Dash value={financial.duration} testId="fo-edit-details-duration" />
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-muted-foreground">New Booking Total</dt>
-            <Dash
-              value={financial.total == null ? null : money(financial.total)}
-              testId="fo-edit-details-total"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <dt className="text-muted-foreground">Price Adjustment</dt>
-            <Dash
-              value={financial.adjustment == null ? null : money(financial.adjustment)}
-              testId="fo-edit-details-adjustment"
-            />
-          </div>
-        </dl>
-
+        <SectionLabel>Room</SectionLabel>
         <div className="space-y-1.5">
           <FieldLabel htmlFor="fo-edit-room-type" required>
             Room category
@@ -409,22 +380,23 @@ export function FoEditDetailsForm({
 
         <div className="space-y-1.5">
           <FieldLabel htmlFor="fo-edit-room">Assigned room / unit</FieldLabel>
-          <Select value={stay.roomId ?? undefined} disabled>
-            <SelectTrigger id="fo-edit-room" className={SELECT} data-testid="fo-edit-details-room">
-              <SelectValue placeholder={FO_EDIT_DETAILS_PLACEHOLDERS.room} />
-            </SelectTrigger>
-            <SelectContent>
-              {stay.roomId ? (
-                <SelectItem value={stay.roomId}>
-                  {stay.roomNumber ? `Room ${stay.roomNumber}` : "Assigned room"}
-                </SelectItem>
-              ) : null}
-            </SelectContent>
-          </Select>
+          <div
+            id="fo-edit-room"
+            data-testid="fo-edit-details-room"
+            className="flex h-9 items-center gap-2 rounded-[6px] border border-[#E8E1D7] bg-[#FAF8F5] px-3 text-sm text-[#8C7E72]"
+          >
+            <Lock className="size-3.5 shrink-0" aria-hidden />
+            <span>
+              {stay.roomNumber
+                ? `Room ${stay.roomNumber}`
+                : (FO_EDIT_DETAILS_PLACEHOLDERS.room ?? "Unassigned")}
+            </span>
+          </div>
         </div>
 
+        <SectionLabel>Occupancy</SectionLabel>
         <div className="space-y-1.5">
-          <FieldLabel htmlFor="fo-edit-adults">Adults count</FieldLabel>
+          <FieldLabel htmlFor="fo-edit-adults">Adults</FieldLabel>
           <Input
             id="fo-edit-adults"
             inputMode="numeric"
@@ -438,7 +410,7 @@ export function FoEditDetailsForm({
         </div>
 
         <div className="space-y-1.5">
-          <FieldLabel htmlFor="fo-edit-children">Children count</FieldLabel>
+          <FieldLabel htmlFor="fo-edit-children">Children</FieldLabel>
           <Input
             id="fo-edit-children"
             inputMode="numeric"
@@ -451,6 +423,7 @@ export function FoEditDetailsForm({
           <FieldError message={errors.children} />
         </div>
 
+        <SectionLabel>Guest</SectionLabel>
         <div className="space-y-1.5">
           <FieldLabel htmlFor="fo-edit-first-name" required>
             First name
@@ -520,10 +493,9 @@ export function FoEditDetailsForm({
           <FieldError message={errors.email} />
         </div>
 
+        <SectionLabel>Requests & Notes</SectionLabel>
         <div className="space-y-1.5 md:col-span-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Special requests / notes
-          </p>
+          <FieldLabel htmlFor="fo-edit-requests">Special Requests</FieldLabel>
           <Textarea
             id="fo-edit-requests"
             value={draft.specialRequests}
@@ -532,6 +504,9 @@ export function FoEditDetailsForm({
             data-testid="fo-edit-details-requests"
             onChange={(event) => patch({ specialRequests: event.target.value })}
           />
+        </div>
+        <div className="space-y-1.5 md:col-span-2">
+          <FieldLabel htmlFor="fo-edit-notes">Internal Notes</FieldLabel>
           <Textarea
             id="fo-edit-notes"
             value={draft.notes}
@@ -543,7 +518,7 @@ export function FoEditDetailsForm({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <div className="mt-3 flex items-center justify-between gap-3">
         <Button
           type="button"
           variant="outline"
@@ -564,8 +539,7 @@ export function FoEditDetailsForm({
           disabled={save.isPending}
           onClick={() => save.mutate()}
         >
-          <RefreshCw />
-          Save Changes & Recalculate
+          Save Changes
         </Button>
       </div>
     </section>

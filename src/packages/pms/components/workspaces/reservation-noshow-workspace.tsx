@@ -2,7 +2,15 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, BedDouble, Check, Printer } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BedDouble,
+  Check,
+  ChevronDown,
+  ExternalLink,
+  Printer,
+} from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
@@ -58,7 +66,17 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { cn } from "@/shared/lib/utils";
+
+const OUTLINE_BUTTON =
+  "rounded-full border-[#e9dfd0] bg-white font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]";
+const MENU_ITEM = "gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[#4a2c1a]";
 
 function SectionCard({
   title,
@@ -72,10 +90,12 @@ function SectionCard({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm", className)}>
+    <section
+      className={cn("rounded-2xl border border-[#e9dfd0] bg-white p-5 shadow-sm", className)}
+    >
       <header className="mb-3">
-        <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
-        {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
+        <h2 className="font-display text-base font-semibold text-[#4a2c1a]">{title}</h2>
+        {subtitle ? <p className="text-xs text-[#7A6B58]">{subtitle}</p> : null}
       </header>
       {children}
     </section>
@@ -350,21 +370,21 @@ export function ReservationNoShowWorkspace({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col bg-[#F7F4EE]"
+      className="flex min-h-0 flex-1 flex-col bg-[#fbfbfb]"
       data-testid="noshow-reservation-workspace"
     >
-      <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-3">
+      <header className="shrink-0 border-b border-[#e9dfd0] bg-white px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-xl font-semibold text-[#251605]">
+              <h1 className="font-display text-xl font-semibold text-[#4a2c1a]">
                 {step === "complete"
                   ? "No-Show Processed"
                   : `No-Show Processing — ${reservation.confirmationNumber}`}
               </h1>
               <ReservationStatusBadge status={reservation.status} />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-[#7A6B58]">
               {step === "complete"
                 ? completion?.reservationRoomId
                   ? `The selected room was marked No-Show. Reservation status is ${completion.status.replaceAll("_", " ")}.`
@@ -372,48 +392,78 @@ export function ReservationNoShowWorkspace({
                 : "Review eligibility, policy, Cashiering readiness, and room release."}
             </p>
             {step === "complete" ? (
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-[#7A6B58]">
                 Reservation {reservation.confirmationNumber} · Marked{" "}
                 {dateTime(reservation.updatedAt)}
               </p>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenReservation(reservation.id)}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn(OUTLINE_BUTTON, "gap-2 px-4")}
+                data-testid="noshow-more-menu"
+              >
+                More
+                <ChevronDown className="size-4 text-[#c9a24a]" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-[200px] rounded-2xl border-[#e9dfd0] bg-white p-1.5 shadow-[0_8px_24px_rgba(74,44,26,0.15)]"
             >
-              View Reservation
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-              <Printer className="size-3.5" />
-              Print
-            </Button>
-          </div>
+              <DropdownMenuItem
+                className={MENU_ITEM}
+                onSelect={() => onOpenReservation(reservation.id)}
+              >
+                <ExternalLink className="size-4 text-[#c9a24a]" />
+                View Reservation
+              </DropdownMenuItem>
+              <DropdownMenuItem className={MENU_ITEM} onSelect={() => window.print()}>
+                <Printer className="size-4 text-[#c9a24a]" />
+                Print
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <ol className="mt-4 grid grid-cols-3 gap-2" data-testid="noshow-reservation-stepper">
+        <ol
+          className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2"
+          data-testid="noshow-reservation-stepper"
+        >
           {NOSHOW_RESERVATION_STEPS.map((item, index) => {
             const current = NOSHOW_RESERVATION_STEPS.findIndex((row) => row.id === step);
             const active = item.id === step;
+            const done = index < current || step === "complete";
             return (
-              <li
-                key={item.id}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-sm",
-                  active ? "border-[#1F6FEB] bg-[#EEF4FF]" : "border-[#E6DFD4] bg-white",
-                )}
-              >
-                <p
-                  className={cn(
-                    "font-medium",
-                    index <= current ? "text-[#1F6FEB]" : "text-[#251605]",
-                  )}
-                >
-                  {index + 1}. {item.label}
-                </p>
-                <p className="text-xs text-muted-foreground">{item.hint}</p>
+              <li key={item.id} className="flex items-center gap-3" title={item.hint}>
+                <span className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "grid size-6 place-items-center rounded-full text-xs font-bold",
+                      active
+                        ? "bg-[#C89933] text-[#251605]"
+                        : done
+                          ? "bg-[#4a2c1a] text-white"
+                          : "bg-[#f1ede6] text-[#7A6B58]",
+                    )}
+                  >
+                    {done && !active ? <Check className="size-3.5" /> : index + 1}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm",
+                      active ? "font-bold text-[#4a2c1a]" : "font-medium text-[#7A6B58]",
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </span>
+                {index < NOSHOW_RESERVATION_STEPS.length - 1 ? (
+                  <span aria-hidden="true" className="h-px w-8 bg-[#e9dfd0]" />
+                ) : null}
               </li>
             );
           })}
@@ -421,12 +471,15 @@ export function ReservationNoShowWorkspace({
       </header>
 
       {step === "complete" ? (
-        <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <p className="font-semibold">No-Show Completed</p>
-          <p>
-            The selected room status, reservation rollup, assignment release, and audit event were
-            saved together.
-          </p>
+        <div className="mx-5 mt-4 flex items-start gap-3 rounded-2xl border border-[#c9a24a] bg-[#f5ead0] px-4 py-3 text-sm text-[#4a2c1a]">
+          <Check className="mt-0.5 size-4 shrink-0 text-[#8C6D23]" />
+          <div>
+            <p className="font-bold">No-Show Completed</p>
+            <p className="text-[#7A6B58]">
+              The selected room status, reservation rollup, assignment release, and audit event were
+              saved together.
+            </p>
+          </div>
         </div>
       ) : null}
 

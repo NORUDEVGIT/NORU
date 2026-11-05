@@ -47,6 +47,8 @@ import {
 } from "@/packages/pms/components/frontoffice/fo-guest-workspace-tabs";
 import { FoEditDetailsForm } from "@/packages/pms/components/frontoffice/fo-edit-details-form";
 import { FoFolioChargesPanel } from "@/packages/pms/components/frontoffice/fo-folio-charges-panel";
+import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
+import { foFolioPaymentStatusLabel } from "@/packages/pms/lib/fo-guest-workspace-tabs";
 import { isStayCancellable } from "@/packages/pms/lib/fo-cancel-noshow";
 import {
   FO_FEE_DEFAULTS_SECTION,
@@ -55,13 +57,10 @@ import {
 } from "@/packages/pms/lib/fo-fee-defaults";
 import { getFoFeeDefaults } from "@/packages/pms/lib/fo-fee-defaults.functions";
 import { getFrontOfficeArrivalQuickView } from "@/packages/pms/lib/fo-arrival.functions";
-import { GUARANTEE_HOLD_UNSUPPORTED } from "@/packages/pms/lib/fo-arrival";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import {
   FO_CHECK_IN_WORKSPACE_SHEET_MAX_CLASS,
-  FO_FOLIO_PREVIEW_TAXES_UNAVAILABLE,
   foBuildFolioPreviewDisplay,
-  foCheckInWorkspaceProminentUnassigned,
   foDeriveReservationType,
   foGuestDisplayId,
   foGuestIdLooksLikeUuid,
@@ -127,11 +126,28 @@ function GuaranteeStatusBadge({ label }: { label: string }) {
   );
 }
 
-function DlRow({ label, value }: { label: string; value: ReactNode }) {
+function DlRow({
+  label,
+  value,
+  emphasize = false,
+}: {
+  label: string;
+  value: ReactNode;
+  emphasize?: boolean;
+}) {
   return (
     <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2 text-sm">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 font-medium text-foreground">{value}</dd>
+      <dt className={cn("text-muted-foreground", emphasize && "font-semibold text-foreground")}>
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "min-w-0 font-medium text-foreground",
+          emphasize && "font-display text-base font-semibold tracking-tight text-[#251605]",
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -322,7 +338,6 @@ export function FoCheckInWorkspaceSheet({
   const folioDenied = folioQuery.isError && isPermissionDeniedMessage(folioQuery.error);
   const menuItems = stayQuickViewMenuItems({ status: stay.status, assigned: Boolean(stay.roomId) });
   const reservationType = foDeriveReservationType(reservation);
-  const prominentUnassigned = foCheckInWorkspaceProminentUnassigned(stay);
   const guestDisplayId = foGuestDisplayId(guestQuery.data?.guest.profileNumber);
   const packageAttributions = commercialQuery.data?.packages ?? [];
   const packageLabel = foPackageSummaryLabel(packageAttributions) ?? "—";
@@ -380,7 +395,16 @@ export function FoCheckInWorkspaceSheet({
   const roomNumber = stay.roomNumber ?? reservation?.roomNumber ?? arrival?.room.roomNumber ?? null;
   const roomAssigned = Boolean(stay.roomId || reservation?.roomId);
   const tabs = foGuestWorkspaceTabs(stay.status, { canReadFolio: canOpenCashiering });
-  const activeTab = tabs.some((item) => item.id === tab) ? tab : "overview";
+  const activeTab =
+    tabs.some((item) => item.id === tab) ||
+    tab === "assign_room" ||
+    tab === "check_in" ||
+    tab === "cancel_no_show"
+      ? tab
+      : "overview";
+  const compactChrome =
+    stay.status === "pending" || stay.status === "confirmed" || stay.status === "checked_out";
+  const cardClass = compactChrome ? "rounded-lg border-[#DDD4C5] p-2.5" : undefined;
   const canCheckIn = menuItems.some((item) => item.id === "check_in");
   const canAssign = !roomAssigned && menuItems.some((item) => item.id === "assign");
   const canChangeRoom = roomAssigned && foOpensPreArrivalCheckInWorkspace(stay);
@@ -399,6 +423,7 @@ export function FoCheckInWorkspaceSheet({
     null;
 
   const rateLabel = reservation?.roomSubtotal != null ? money(reservation.roomSubtotal) : "—";
+  const departed = stay.status === "checked_out";
 
   const idType = arrival?.guest.idDocumentType;
   const idLabel = idType ? ID_DOCUMENT_LABELS[idType] : "—";
@@ -415,26 +440,34 @@ export function FoCheckInWorkspaceSheet({
           data-testid="fo-check-in-workspace"
         >
           <SheetHeader
-            className="shrink-0 space-y-3 border-b border-[#3A2A16] bg-[#1A1208] pb-0 pl-5 pr-12 pt-4 text-left"
+            className={cn(
+              "shrink-0 border-b border-[#3A2A16] bg-[#1A1208] pb-0 pr-12 text-left",
+              compactChrome ? "space-y-1 pl-4 pt-2" : "space-y-3 pl-5 pt-4",
+            )}
             data-testid="fo-ci-workspace-header"
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 space-y-2">
-                <SheetDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[#C4B39A]">
-                  <span className="flex size-7 items-center justify-center rounded-md bg-[#C89933] text-[#1A1208]">
-                    <Calendar className="size-3.5" />
+            {compactChrome ? (
+              <>
+                <SheetDescription className="sr-only">
+                  {stay.confirmationNumber} · {stay.guestName}
+                  {roomNumber ? ` · Room ${roomNumber}` : " · Unassigned"}
+                </SheetDescription>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-xs font-semibold text-[#C89933]">
+                    {stay.confirmationNumber}
                   </span>
-                  <span className="font-semibold text-[#C89933]">{stay.confirmationNumber}</span>
-                  <ReservationStatusBadge status={stay.status} />
-                  {roomAssigned ? (
-                    roomNumber ? (
-                      <span
-                        className="inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-[#F6EFE4]"
-                        data-testid="fo-ci-workspace-assigned-room"
-                      >
-                        Room {roomNumber}
-                      </span>
-                    ) : null
+                  <span className="text-[#8C7A64]">·</span>
+                  <SheetTitle className="font-display text-base font-semibold leading-none text-[#F6EFE4]">
+                    {stay.guestName}
+                  </SheetTitle>
+                  {stay.guestVip ? <VipBadge /> : null}
+                  {roomAssigned && roomNumber ? (
+                    <span
+                      className="inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-[#F6EFE4]"
+                      data-testid="fo-ci-workspace-assigned-room"
+                    >
+                      Room {roomNumber}
+                    </span>
                   ) : (
                     <span
                       className="inline-flex rounded-full bg-[#C89933]/20 px-2 py-0.5 text-xs font-semibold text-[#C89933]"
@@ -443,25 +476,62 @@ export function FoCheckInWorkspaceSheet({
                       Unassigned
                     </span>
                   )}
-                </SheetDescription>
-                <SheetTitle className="font-display text-xl text-[#F6EFE4]">
-                  {stay.guestName}
-                </SheetTitle>
+                  <ReservationStatusBadge status={stay.status} />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 space-y-2">
+                  <SheetDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[#C4B39A]">
+                    <span className="flex size-7 items-center justify-center rounded-md bg-[#C89933] text-[#1A1208]">
+                      <Calendar className="size-3.5" />
+                    </span>
+                    <span className="font-semibold text-[#C89933]">{stay.confirmationNumber}</span>
+                    <ReservationStatusBadge status={stay.status} />
+                    {roomAssigned ? (
+                      roomNumber ? (
+                        <span
+                          className="inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-[#F6EFE4]"
+                          data-testid="fo-ci-workspace-assigned-room"
+                        >
+                          Room {roomNumber}
+                        </span>
+                      ) : null
+                    ) : (
+                      <span
+                        className="inline-flex rounded-full bg-[#C89933]/20 px-2 py-0.5 text-xs font-semibold text-[#C89933]"
+                        data-testid="fo-ci-workspace-unassigned"
+                      >
+                        Unassigned
+                      </span>
+                    )}
+                  </SheetDescription>
+                  <SheetTitle className="font-display text-xl text-[#F6EFE4]">
+                    {stay.guestName}
+                  </SheetTitle>
+                </div>
               </div>
-            </div>
-            <StayBadgeStrip
-              badges={liveStayBadges({
-                guestVip: stay.guestVip,
-                source: reservation?.source ?? stay.source ?? null,
-                specialRequests: stay.specialRequests,
-                hasOpenDiscrepancy,
-              })}
-              mode="compact"
-            />
+            )}
+            {!compactChrome ? (
+              <StayBadgeStrip
+                badges={liveStayBadges({
+                  guestVip: stay.guestVip,
+                  source: reservation?.source ?? stay.source ?? null,
+                  specialRequests: stay.specialRequests,
+                  hasOpenDiscrepancy,
+                })}
+                mode="compact"
+              />
+            ) : null}
             <FoGuestWorkspaceTabBar tabs={tabs} active={activeTab} onSelect={setTab} />
           </SheetHeader>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto",
+              compactChrome ? "space-y-2.5 px-4 py-3" : "space-y-3 px-5 py-4",
+            )}
+          >
             {activeTab === "edit_details" ? (
               <FoEditDetailsForm
                 restaurantId={restaurantId}
@@ -659,8 +729,12 @@ export function FoCheckInWorkspaceSheet({
             ) : null}
 
             {activeTab === "overview" ? (
-              <div role="tabpanel" className="space-y-3" data-testid="fo-ci-workspace-overview">
-                {assignmentRequired ? (
+              <div
+                role="tabpanel"
+                className={compactChrome ? "space-y-2.5" : "space-y-3"}
+                data-testid="fo-ci-workspace-overview"
+              >
+                {assignmentRequired && !compactChrome ? (
                   <div
                     role="status"
                     className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
@@ -671,9 +745,18 @@ export function FoCheckInWorkspaceSheet({
                   </div>
                 ) : null}
 
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <OpCard title="Guest Information" testId="fo-ci-workspace-guest">
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_5.5rem]">
+                <div className={cn("grid lg:grid-cols-2", compactChrome ? "gap-2.5" : "gap-3")}>
+                  <OpCard
+                    title="Guest Information"
+                    testId="fo-ci-workspace-guest"
+                    className={cardClass}
+                  >
+                    <div
+                      className={cn(
+                        "grid gap-3",
+                        identityPreview.url && "sm:grid-cols-[minmax(0,1fr)_5.5rem]",
+                      )}
+                    >
                       <FieldGroup>
                         <div className="flex items-center gap-2 pb-1">
                           <p className="font-display text-base font-semibold">{stay.guestName}</p>
@@ -710,38 +793,42 @@ export function FoCheckInWorkspaceSheet({
                           label="Address"
                           value={[arrival?.guest.addressLine1].filter(Boolean).join(", ") || "—"}
                         />
-                      </FieldGroup>
-                      <div
-                        className="flex flex-col items-center justify-start gap-1"
-                        data-testid="fo-ci-workspace-identity-image"
-                      >
-                        {identityPreview.url ? (
-                          <>
-                            <img
-                              src={identityPreview.url}
-                              alt=""
-                              className="aspect-[3/4] w-full max-w-[5.5rem] rounded-md border border-border object-cover"
-                            />
-                            {identityPreview.verificationStatus === "verified" ? (
-                              <p className="text-center text-[10px] font-medium text-emerald-700">
-                                Verified on file
-                              </p>
-                            ) : (
-                              <p className="text-center text-[10px] text-muted-foreground">
-                                On file
-                              </p>
-                            )}
-                          </>
-                        ) : (
-                          <p className="text-center text-[10px] text-muted-foreground">
-                            No identity document image available
+                        {!identityPreview.url ? (
+                          <p
+                            className="text-xs text-muted-foreground"
+                            data-testid="fo-ci-workspace-identity-image"
+                          >
+                            No identity document on file
                           </p>
-                        )}
-                      </div>
+                        ) : null}
+                      </FieldGroup>
+                      {identityPreview.url ? (
+                        <div
+                          className="flex flex-col items-center justify-start gap-1"
+                          data-testid="fo-ci-workspace-identity-image"
+                        >
+                          <img
+                            src={identityPreview.url}
+                            alt=""
+                            className="aspect-[3/4] w-full max-w-[5.5rem] rounded-md border border-border object-cover"
+                          />
+                          {identityPreview.verificationStatus === "verified" ? (
+                            <p className="text-center text-[10px] font-medium text-emerald-700">
+                              Verified on file
+                            </p>
+                          ) : (
+                            <p className="text-center text-[10px] text-muted-foreground">On file</p>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   </OpCard>
 
-                  <OpCard title="Stay & Accommodation" testId="fo-ci-workspace-stay-information">
+                  <OpCard
+                    title="Stay & Accommodation"
+                    testId="fo-ci-workspace-stay-information"
+                    className={cardClass}
+                  >
                     <FieldGroup>
                       <DlRow label="Arrival" value={formatStayDate(stay.arrivalDate)} />
                       <DlRow label="Departure" value={formatStayDate(stay.departureDate)} />
@@ -763,170 +850,203 @@ export function FoCheckInWorkspaceSheet({
                   </OpCard>
 
                   <OpCard
-                    title={roomAssigned ? "Room Information" : "Room Assignment"}
-                    testId="fo-ci-workspace-room-assignment"
-                    prominent={prominentUnassigned}
+                    title="Financial Summary"
+                    testId="fo-ci-workspace-financial"
+                    className={cardClass}
                   >
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_6.5rem]">
-                      <FieldGroup>
-                        <DlRow
-                          label="Room Number"
-                          value={
-                            <span data-testid="fo-ci-workspace-room-number">
-                              {roomNumber ?? (prominentUnassigned ? "Unassigned" : "—")}
-                            </span>
-                          }
-                        />
-                        <DlRow label="Room Type" value={stay.roomTypeName} />
-                        <DlRow
-                          label="Building"
-                          value={
-                            <span data-testid="fo-ci-workspace-room-building">
-                              {assignedRoomMeta?.building ?? "—"}
-                            </span>
-                          }
-                        />
-                        <DlRow
-                          label="Floor"
-                          value={
-                            <span data-testid="fo-ci-workspace-room-floor">
-                              {assignedRoomMeta?.floor ?? "—"}
-                            </span>
-                          }
-                        />
-                        <DlRow
-                          label="Room Status"
-                          value={
-                            <span data-testid="fo-ci-workspace-room-status">
-                              {roomStatus ?? "—"}
-                            </span>
-                          }
-                        />
-                        <DlRow
-                          label="Housekeeping"
-                          value={
-                            <span data-testid="fo-ci-workspace-room-housekeeping">
-                              {housekeepingStatus ?? "—"}
-                            </span>
-                          }
-                        />
-                      </FieldGroup>
-                      <div
-                        className="flex flex-col items-center gap-1"
-                        data-testid="fo-ci-workspace-room-cover"
-                      >
-                        {roomTypeCover ? (
-                          <img
-                            src={roomTypeCover}
-                            alt=""
-                            className="aspect-[4/3] w-full rounded-md border border-border object-cover"
-                          />
-                        ) : (
-                          <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md border border-dashed border-border bg-muted/30 px-2 text-center text-[10px] text-muted-foreground">
-                            No room type image
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {arrival?.room.assigned &&
-                    arrival.room.ready === false &&
-                    arrival.room.readyReason ? (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {arrival.room.readyReason}
-                      </p>
-                    ) : null}
-                  </OpCard>
-
-                  <OpCard title="Financial Summary" testId="fo-ci-workspace-financial">
                     {folioDenied ? (
                       <PermissionDeniedPanel
                         className="border-0 p-0"
                         message="You don't have access to folios for this property."
                       />
+                    ) : departed ? (
+                      <FieldGroup>
+                        <DlRow label="Folio No." value={folioNumber || "None yet"} />
+                        {reservation?.roomSubtotal != null ? (
+                          <DlRow label="Room Charge" value={rateLabel} />
+                        ) : null}
+                        {folioBalance != null ? (
+                          <DlRow
+                            label="Final Balance"
+                            emphasize={folioBalance !== 0}
+                            value={money(folioBalance)}
+                          />
+                        ) : null}
+                        {folioBalance != null ? (
+                          <DlRow
+                            label="Payment status"
+                            value={foFolioPaymentStatusLabel(folioBalance)}
+                          />
+                        ) : null}
+                        {arrival && arrival.financial.depositPosted > 0 ? (
+                          <DlRow label="Deposits" value={money(arrival.financial.depositPosted)} />
+                        ) : null}
+                      </FieldGroup>
                     ) : (
-                      <FieldGroup>
-                        {folioNumber ? <DlRow label="Folio No." value={folioNumber} /> : null}
-                        <DlRow label="Room Charge" value={folioPreview.roomCharge ?? "—"} />
-                        <DlRow label="Package" value={folioPreview.packageLine ?? "—"} />
-                        <DlRow
-                          label="Taxes & Service"
-                          value={folioPreview.taxesAndService ?? "—"}
-                        />
-                        <DlRow label="Estimated Total" value={folioPreview.estimatedTotal ?? "—"} />
-                        {folioPreview.folioBalance ? (
-                          <DlRow label="Folio Balance" value={folioPreview.folioBalance} />
-                        ) : null}
-                      </FieldGroup>
+                      <>
+                        <FieldGroup>
+                          <DlRow label="Folio No." value={folioNumber || "None yet"} />
+                          <DlRow label="Room Charge" value={folioPreview.roomCharge ?? "—"} />
+                          <DlRow label="Package" value={folioPreview.packageLine ?? "—"} />
+                          <DlRow
+                            label="Taxes & Service"
+                            value={folioPreview.taxesAndService ?? "—"}
+                          />
+                          <DlRow
+                            label="Estimated Total"
+                            value={folioPreview.estimatedTotal ?? "—"}
+                          />
+                          {folioPreview.folioBalance ? (
+                            <DlRow label="Folio Balance" value={folioPreview.folioBalance} />
+                          ) : folioBalance != null ? (
+                            <DlRow label="Folio Balance" value={money(folioBalance)} />
+                          ) : null}
+                        </FieldGroup>
+                        <div className="mt-2 border-t border-border pt-2">
+                          <FieldGroup>
+                            <DlRow label="Guarantee Type" value={guaranteeMethod?.trim() || "—"} />
+                            <DlRow
+                              label="Guarantee Status"
+                              value={<GuaranteeStatusBadge label={guaranteeStatus} />}
+                            />
+                            <DlRow
+                              label="Deposit"
+                              value={
+                                arrival
+                                  ? depositStateCopy({
+                                      depositRequired: arrival.financial.depositRequired,
+                                      depositRequiredAmount:
+                                        arrival.financial.depositRequiredAmount,
+                                      depositPosted: arrival.financial.depositPosted,
+                                      depositWaived: arrival.financial.depositWaived,
+                                      money,
+                                    })
+                                  : "—"
+                              }
+                            />
+                            {arrival?.financial.depositMethod ? (
+                              <DlRow
+                                label="Tender on file"
+                                value={arrival.financial.depositMethod}
+                              />
+                            ) : null}
+                          </FieldGroup>
+                        </div>
+                      </>
                     )}
-                    <div className="mt-2 border-t border-border pt-2">
-                      <FieldGroup>
-                        <DlRow label="Guarantee Type" value={guaranteeMethod?.trim() || "—"} />
-                        <DlRow
-                          label="Guarantee Status"
-                          value={<GuaranteeStatusBadge label={guaranteeStatus} />}
-                        />
-                        <DlRow
-                          label="Deposit"
-                          value={
-                            arrival
-                              ? depositStateCopy({
-                                  depositRequired: arrival.financial.depositRequired,
-                                  depositRequiredAmount: arrival.financial.depositRequiredAmount,
-                                  depositPosted: arrival.financial.depositPosted,
-                                  depositWaived: arrival.financial.depositWaived,
-                                  money,
-                                })
-                              : "—"
-                          }
-                        />
-                        {arrival?.financial.depositMethod ? (
-                          <DlRow label="Tender on file" value={arrival.financial.depositMethod} />
-                        ) : null}
-                      </FieldGroup>
-                    </div>
-                    <p
-                      className="mt-2 text-[10px] leading-snug text-muted-foreground"
-                      data-testid="fo-ci-workspace-card-auth"
-                    >
-                      Card authorization: Not supported. {GUARANTEE_HOLD_UNSUPPORTED}{" "}
-                      {FO_FOLIO_PREVIEW_TAXES_UNAVAILABLE}
-                    </p>
                   </OpCard>
 
                   <OpCard
-                    title="Special Requests / Notes"
-                    testId="fo-ci-workspace-special-requests"
+                    title="Room Information"
+                    testId="fo-ci-workspace-room-assignment"
+                    className={cardClass}
                   >
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Special requests</p>
-                        {specialRequestText || (amendQuery.data?.guestRequests ?? []).length > 0 ? (
-                          <ul className="list-inside list-disc space-y-1 text-sm">
-                            {specialRequestText ? <li>{specialRequestText}</li> : null}
-                            {(amendQuery.data?.guestRequests ?? []).map((row) => (
-                              <li key={row.id}>
-                                {row.requestText}
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                  · {row.status === "open" ? "Open" : "Done"}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No special requests.</p>
+                    {roomAssigned ? (
+                      <div
+                        className={cn(
+                          "grid gap-3",
+                          roomTypeCover && "sm:grid-cols-[minmax(0,1fr)_6.5rem]",
                         )}
+                      >
+                        <FieldGroup>
+                          <DlRow
+                            label="Room Number"
+                            value={
+                              <span data-testid="fo-ci-workspace-room-number">
+                                {roomNumber ?? "—"}
+                              </span>
+                            }
+                          />
+                          <DlRow label="Room Type" value={stay.roomTypeName} />
+                          <DlRow
+                            label="Building"
+                            value={
+                              <span data-testid="fo-ci-workspace-room-building">
+                                {assignedRoomMeta?.building ?? "—"}
+                              </span>
+                            }
+                          />
+                          <DlRow
+                            label="Floor"
+                            value={
+                              <span data-testid="fo-ci-workspace-room-floor">
+                                {assignedRoomMeta?.floor ?? "—"}
+                              </span>
+                            }
+                          />
+                          <DlRow
+                            label="Room Status"
+                            value={
+                              <span data-testid="fo-ci-workspace-room-status">
+                                {roomStatus ?? "—"}
+                              </span>
+                            }
+                          />
+                          <DlRow
+                            label="Housekeeping"
+                            value={
+                              <span data-testid="fo-ci-workspace-room-housekeeping">
+                                {housekeepingStatus ?? "—"}
+                              </span>
+                            }
+                          />
+                        </FieldGroup>
+                        {roomTypeCover ? (
+                          <div
+                            className="flex flex-col items-center gap-1"
+                            data-testid="fo-ci-workspace-room-cover"
+                          >
+                            <img
+                              src={roomTypeCover}
+                              alt=""
+                              className="aspect-[4/3] w-full rounded-md border border-border object-cover"
+                            />
+                          </div>
+                        ) : null}
                       </div>
-                      <div data-testid="fo-ci-workspace-notes">
-                        <p className="text-xs text-muted-foreground">Internal notes</p>
-                        {reservation?.notes ? (
-                          <p className="whitespace-pre-wrap text-sm">{reservation.notes}</p>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No internal notes.</p>
-                        )}
-                      </div>
-                    </div>
+                    ) : (
+                      <p
+                        className="text-sm text-muted-foreground"
+                        data-testid="fo-ci-workspace-room-number"
+                      >
+                        Room not assigned
+                      </p>
+                    )}
                   </OpCard>
                 </div>
+
+                <OpCard
+                  title="Requests, Notes & Guest Services"
+                  testId="fo-ci-workspace-special-requests"
+                  className={cardClass}
+                >
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Special Requests
+                      </p>
+                      <p className="mt-1 text-sm text-foreground">
+                        {specialRequestText || "No special request."}
+                      </p>
+                    </div>
+                    <div data-testid="fo-ci-workspace-notes">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Internal Notes
+                      </p>
+                      {reservation?.notes ? (
+                        <p className="mt-1 whitespace-pre-wrap text-sm">{reservation.notes}</p>
+                      ) : (
+                        <p className="mt-1 text-sm text-muted-foreground">No internal note.</p>
+                      )}
+                    </div>
+                    <FoGuestServicesPanel
+                      restaurantId={restaurantId}
+                      reservationId={stay.id}
+                      guestId={stay.guestId}
+                      summaryOnly
+                    />
+                  </div>
+                </OpCard>
               </div>
             ) : null}
           </div>

@@ -37,8 +37,19 @@ import { FolioSearchStayDates } from "@/packages/pms/components/cashiering/folio
 import {
   InventoryState,
   InventoryStatusBadge,
-  InventoryViewHeader,
 } from "@/packages/pms/components/rooms/room-inventory-shared";
+import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
+import {
+  CashieringShellSlot,
+  CashieringToolbarSearch,
+} from "@/packages/pms/components/cashiering/cashiering-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 import {
   getFolio,
   type FolioDetail,
@@ -77,7 +88,7 @@ import {
   type AllAccountSearchRow,
   type GuestFolioSearchRow,
 } from "@/packages/pms/lib/folio-search.server";
-import { formatStayDate } from "@/shared/lib/property-dates";
+import { addDays, formatStayDate } from "@/shared/lib/property-dates";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -92,10 +103,9 @@ import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
-const FILTER_CARD = "rounded-xl border border-[#E8E1D7] bg-card p-3.5 shadow-sm";
-const TABLE_SHELL = "overflow-x-auto rounded-xl border border-[#E8E1D7] bg-card shadow-sm";
-const TABLE_HEAD = "border-b border-[#E8E1D7] bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
-const TABLE_ROW = "border-b border-[#E8E1D7]/70 last:border-0 transition-colors";
+const TABLE_SHELL = ROOM_TABLE_WRAP;
+const TABLE_HEAD = ROOM_TABLE_HEAD;
+const TABLE_ROW = ROOM_TABLE_ROW;
 const ROW_HOVER = "hover:bg-[#F7F4EE]/60";
 const ROW_SELECTED = "bg-[#C89933]/10 border-l-[3px] border-l-[#C89933]";
 const DRAWER_CARD = "rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-sm";
@@ -271,13 +281,14 @@ const FOLIO_RESULTS_TABLE_CLASS = "w-full min-w-[920px] table-fixed text-left te
 function FolioResultsColGroup() {
   return (
     <colgroup>
-      <col className="w-[14%]" />
-      <col className="w-[24%]" />
-      <col className="w-[13%]" />
-      <col className="w-[15%]" />
-      <col className="w-[13%]" />
+      <col className="w-[12%]" />
+      <col className="w-[18%]" />
       <col className="w-[11%]" />
-      <col className="w-[10%]" />
+      <col className="w-[13%]" />
+      <col className="w-[14%]" />
+      <col className="w-[12%]" />
+      <col className="w-[8%]" />
+      <col className="w-[12%]" />
     </colgroup>
   );
 }
@@ -286,13 +297,14 @@ function FolioResultsTableHead() {
   return (
     <thead className={TABLE_HEAD}>
       <tr>
-        <th className="px-3.5 py-3 font-semibold">Folio</th>
-        <th className="px-3.5 py-3 font-semibold">Guest / Stay</th>
-        <th className="px-3.5 py-3 font-semibold">Room</th>
-        <th className="px-3.5 py-3 font-semibold">Status</th>
-        <th className="px-3.5 py-3 text-right font-semibold">Balance</th>
-        <th className="px-3.5 py-3 font-semibold">Last Activity</th>
-        <th className="px-3.5 py-3 text-right" aria-label="Actions" />
+        <th className={ROOM_TABLE_TH}>Folio No</th>
+        <th className={ROOM_TABLE_TH}>Guest</th>
+        <th className={ROOM_TABLE_TH}>Room</th>
+        <th className={ROOM_TABLE_TH}>Reservation</th>
+        <th className={ROOM_TABLE_TH}>Status</th>
+        <th className={`${ROOM_TABLE_TH} text-right`}>Balance</th>
+        <th className={ROOM_TABLE_TH}>Currency</th>
+        <th className={`${ROOM_TABLE_TH} text-right`} aria-label="Actions" />
       </tr>
     </thead>
   );
@@ -363,6 +375,7 @@ export function FolioSearchPanel({
   canManage,
   money,
   dateTime,
+  weekStart,
 }: {
   restaurantId: string;
   searchParams: CashieringSearchParams;
@@ -371,6 +384,7 @@ export function FolioSearchPanel({
   canManage: boolean;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
+  weekStart: string | null;
 }) {
   const accountType = resolveFolioAccountType(searchParams.account);
   const [barFilters, setBarFilters] = useState<FolioSearchBarFilters>(() => ({
@@ -435,8 +449,8 @@ export function FolioSearchPanel({
       search: debouncedSearch.trim() || undefined,
       folioStatus: barFilters.folioStatus,
       stayStatus: barFilters.stayStatus,
-      stayFrom: barFilters.stayFrom || undefined,
-      stayTo: barFilters.stayTo || undefined,
+      stayFrom: weekStart || barFilters.stayFrom || undefined,
+      stayTo: weekStart ? addDays(weekStart, 6) : barFilters.stayTo || undefined,
       paymentState: barFilters.paymentState,
       roomTypeId:
         moreFilters.roomTypeId !== FOLIO_SEARCH_FILTER_ALL ? moreFilters.roomTypeId : undefined,
@@ -468,6 +482,7 @@ export function FolioSearchPanel({
       barFilters.stayFrom,
       barFilters.stayStatus,
       barFilters.stayTo,
+      weekStart,
       debouncedSearch,
       moreFilters,
       page,
@@ -541,6 +556,11 @@ export function FolioSearchPanel({
     },
     [onSearchParams, searchParams],
   );
+
+  useEffect(() => {
+    if (!weekStart || searchParams.page === 1 || searchParams.page == null) return;
+    patchSearchParams({ page: 1 });
+  }, [weekStart]);
 
   function closeDrawer() {
     setSelectedId(null);
@@ -634,147 +654,83 @@ export function FolioSearchPanel({
     else void accountsQuery.refetch();
   }
 
+  const folioFilterCount =
+    (accountType !== "guest" ? 1 : 0) +
+    (barFilters.folioStatus !== "all" ? 1 : 0) +
+    (barFilters.stayStatus !== "all" ? 1 : 0) +
+    (barFilters.paymentState !== "all" ? 1 : 0) +
+    (weekStart ? 0 : (barFilters.stayFrom ? 1 : 0) + (barFilters.stayTo ? 1 : 0)) +
+    countActiveFolioMoreFilters(moreFilters);
+
   return (
-    <div className="w-full min-w-0 space-y-4" data-testid="folio-search-panel">
-      <InventoryViewHeader
-        eyebrow="Cashiering"
-        title="Folio Search"
-        description="Find and manage guest, company and group financial accounts."
-        action={
-          <Button type="button" variant="outline" size="sm" onClick={handleRefresh}>
-            <RefreshCw className={cn("mr-2 size-4", isRefreshing && "animate-spin")} />
-            Refresh
-          </Button>
-        }
-      />
-
-      <section className={FILTER_CARD} data-testid="folio-search-toolbar">
-        <div className="space-y-2">
-          <div className="relative min-w-0">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={barFilters.search}
-              onChange={(event) => updateBar({ search: event.target.value })}
-              placeholder={searchPlaceholder(accountType)}
-              className="h-9 min-h-9 bg-background pl-9"
-              data-testid="cashiering-folio-search"
-            />
-          </div>
-
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-            <Select value={accountType} onValueChange={(value) => setAccountType(value as FolioAccountType)}>
-              <SelectTrigger className={TOOLBAR_SELECT} data-testid="folio-account-type">
-                <SelectValue placeholder="Account Type" />
-              </SelectTrigger>
-              <SelectContent>
-                {FOLIO_ACCOUNT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type === "all" ? "All Accounts" : accountTypeLabel(type)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {accountType === "guest" || accountType === "all" ? (
-              <>
-                <Select
-                  value={barFilters.folioStatus}
-                  onValueChange={(value) =>
-                    updateBar({ folioStatus: value as FolioSearchBarFilters["folioStatus"] })
-                  }
-                >
-                  <SelectTrigger className={TOOLBAR_SELECT}>
-                    <SelectValue placeholder="Folio Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FOLIO_STATUS_FILTERS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value === "all" ? "Folio Status" : value === "open" ? "Open" : "Closed"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={barFilters.stayStatus}
-                  onValueChange={(value) =>
-                    updateBar({ stayStatus: value as FolioSearchBarFilters["stayStatus"] })
-                  }
-                >
-                  <SelectTrigger className={TOOLBAR_SELECT}>
-                    <SelectValue placeholder="Stay Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FOLIO_STAY_STATUS_FILTERS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value === "all"
-                          ? "Stay Status"
-                          : reservationStatusLabel(value === "checked_in" ? "checked_in" : value)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <FolioSearchStayDates
-                  from={barFilters.stayFrom}
-                  to={barFilters.stayTo}
-                  onChange={({ from, to }) => updateBar({ stayFrom: from, stayTo: to })}
-                  className={TOOLBAR_DATES}
-                />
-
-                <Select
-                  value={barFilters.paymentState}
-                  onValueChange={(value) =>
-                    updateBar({ paymentState: value as FolioSearchBarFilters["paymentState"] })
-                  }
-                >
-                  <SelectTrigger className={TOOLBAR_SELECT}>
-                    <SelectValue placeholder="Payment State" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FOLIO_PAYMENT_STATE_FILTERS.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value === "all" ? "Payment State" : paymentStateLabel(value)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 min-h-9 shrink-0 gap-2 px-3"
-                  onClick={() => setMoreOpen(true)}
-                >
-                  <SlidersHorizontal className="size-4" />
-                  More Filters
-                  {countActiveFolioMoreFilters(moreFilters) > 0 ? (
-                    <span className="rounded-full bg-[#C89933]/20 px-1.5 py-0.5 text-[11px] font-medium text-[#251605]">
-                      {countActiveFolioMoreFilters(moreFilters)}
-                    </span>
-                  ) : null}
-                </Button>
-
-                <Select
-                  value={sortId}
-                  onValueChange={(value) => patchSearchParams({ sort: value, page: 1 })}
-                >
-                  <SelectTrigger className={TOOLBAR_SORT}>
-                    <SelectValue placeholder="Sort" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FOLIO_SEARCH_SORT_OPTIONS.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </section>
+    <div className="w-full min-w-0 space-y-3" data-testid="folio-search-panel">
+      <CashieringShellSlot name="search">
+        <CashieringToolbarSearch
+          value={barFilters.search}
+          onChange={(value) => updateBar({ search: value })}
+          placeholder={searchPlaceholder(accountType)}
+          testId="cashiering-folio-search"
+        />
+      </CashieringShellSlot>
+      <CashieringShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={folioFilterCount}
+          onClear={clearFilters}
+          buttonTestId="folio-search-filters-button"
+          menuTestId="folio-search-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Account Type"
+            value={accountType}
+            current={accountType === "guest" ? "" : accountType === "all" ? "All Accounts" : accountTypeLabel(accountType)}
+            options={FOLIO_ACCOUNT_TYPES.map((type) => [
+              type,
+              type === "all" ? "All Accounts" : accountTypeLabel(type),
+            ] as const)}
+            neutralValue="guest"
+            onChange={(value) => setAccountType(value as FolioAccountType)}
+          />
+          <PmsFilterChoiceRow
+            label="Folio Status"
+            value={barFilters.folioStatus}
+            current={barFilters.folioStatus === "open" ? "Open" : barFilters.folioStatus === "closed" ? "Closed" : ""}
+            options={FOLIO_STATUS_FILTERS.map((value) => [
+              value,
+              value === "all" ? "All" : value === "open" ? "Open" : "Closed",
+            ] as const)}
+            onChange={(value) => updateBar({ folioStatus: value as FolioSearchBarFilters["folioStatus"] })}
+          />
+          <PmsFilterChoiceRow
+            label="Stay Status"
+            value={barFilters.stayStatus}
+            current={
+              barFilters.stayStatus === "all"
+                ? ""
+                : reservationStatusLabel(barFilters.stayStatus === "checked_in" ? "checked_in" : barFilters.stayStatus)
+            }
+            options={FOLIO_STAY_STATUS_FILTERS.map((value) => [
+              value,
+              value === "all" ? "All" : reservationStatusLabel(value === "checked_in" ? "checked_in" : value),
+            ] as const)}
+            onChange={(value) => updateBar({ stayStatus: value as FolioSearchBarFilters["stayStatus"] })}
+          />
+          <PmsFilterChoiceRow
+            label="Balance"
+            value={barFilters.paymentState}
+            current={barFilters.paymentState === "all" ? "" : paymentStateLabel(barFilters.paymentState)}
+            options={FOLIO_PAYMENT_STATE_FILTERS.map((value) => [
+              value,
+              value === "all" ? "All" : paymentStateLabel(value),
+            ] as const)}
+            onChange={(value) => updateBar({ paymentState: value as FolioSearchBarFilters["paymentState"] })}
+          />
+          <PmsFilterNoteRow label="More">
+            <Button type="button" variant="outline" size="sm" className="h-8 w-full text-xs" onClick={() => setMoreOpen(true)}>
+              Open more filters
+            </Button>
+          </PmsFilterNoteRow>
+        </PmsFilterMenu>
+      </CashieringShellSlot>
 
       {accountType === "all" ? (
         <AllAccountsTable
@@ -930,53 +886,46 @@ function FolioSearchPaginationFooter({
   onPageSize: (size: number) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-t border-[#E8E1D7] px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-      <span>
-        Showing {from}–{to} of {total}
-      </span>
-      <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className="size-8"
-            disabled={page <= 1}
-            onClick={() => onPage(page - 1)}
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="min-w-[64px] text-center tabular-nums">
-            {page} / {pageCount}
-          </span>
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className="size-8"
-            disabled={page >= pageCount}
-            onClick={() => onPage(page + 1)}
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span>{pageSize} per page</span>
-          <Select value={String(pageSize)} onValueChange={(value) => onPageSize(Number(value))}>
-            <SelectTrigger className="h-8 w-[68px] bg-background">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FOLIO_SEARCH_PAGE_SIZES.map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white px-3 py-2.5">
+      <p className="text-xs text-muted-foreground">
+        Showing {from}–{to} of {total} folios
+      </p>
+      <div className="flex items-center gap-2">
+        <Select value={String(pageSize)} onValueChange={(value) => onPageSize(Number(value))}>
+          <SelectTrigger className="h-8 w-[88px] bg-white text-xs" aria-label="Rows per page">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FOLIO_SEARCH_PAGE_SIZES.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size} / page
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 border-[#DDD4C5] px-3 text-xs font-medium"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+        >
+          Previous
+        </Button>
+        <span className="text-xs font-medium text-muted-foreground">
+          Page {page} of {pageCount}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 border-[#DDD4C5] px-3 text-xs font-medium"
+          disabled={page >= pageCount}
+          onClick={() => onPage(page + 1)}
+        >
+          Next
+        </Button>
       </div>
     </div>
   );
@@ -1099,7 +1048,7 @@ function AllAccountsTable({
                     }}
                     className={tableRowClass(Boolean(selected), true)}
                   >
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex items-start gap-2">
                         {isGuest ? (
                           <FileText className="mt-0.5 size-4 shrink-0 text-[#8a6a1f]" aria-hidden />
@@ -1129,11 +1078,10 @@ function AllAccountsTable({
                               {row.accountNumber}
                             </Link>
                           )}
-                          <p className="truncate text-[11px] text-muted-foreground">{folioSecondary}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex min-w-0 items-start gap-2.5">
                         {isGuest ? (
                           <GuestAvatarCell name={row.accountName} />
@@ -1146,7 +1094,7 @@ function AllAccountsTable({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex items-start gap-2">
                         <BedDouble className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                         <div className="min-w-0">
@@ -1157,7 +1105,12 @@ function AllAccountsTable({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
+                      <p className="truncate font-mono text-xs text-foreground">
+                        {isGuest ? row.confirmationNumber ?? "—" : folioSecondary}
+                      </p>
+                    </td>
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <FolioSearchFolioStatusBadge status={row.status as "open" | "closed"} />
                         {isGuest ? (
@@ -1169,16 +1122,11 @@ function AllAccountsTable({
                         )}
                       </div>
                     </td>
-                    <td className="px-3.5 py-3 text-right">
+                    <td className={`${ROOM_TABLE_TD} text-right`}>
                       <BalanceCell balance={row.balance} money={money} />
                     </td>
-                    <td className="px-3.5 py-3">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Clock3 className="size-3.5 shrink-0 text-[#8a6a1f]" aria-hidden />
-                        <span className="whitespace-nowrap">
-                          {row.lastActivity ? formatDeskDate(row.lastActivity.slice(0, 10)) : "—"}
-                        </span>
-                      </div>
+                    <td className={ROOM_TABLE_TD}>
+                      <span className="text-xs font-medium text-muted-foreground">{row.currency}</span>
                     </td>
                     <td className="px-2 py-3 text-right" onClick={(event) => event.stopPropagation()}>
                       {isGuest ? (
@@ -1335,7 +1283,7 @@ function GuestFolioTable({
                     onClick={() => onSelect(folio)}
                     className={tableRowClass(selected)}
                   >
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex items-start gap-2">
                         <FileText className="mt-0.5 size-4 shrink-0 text-[#8a6a1f]" aria-hidden />
                         <div className="min-w-0">
@@ -1348,15 +1296,10 @@ function GuestFolioTable({
                           >
                             {folio.folioNumber}
                           </Link>
-                          {folio.confirmationNumber ? (
-                            <p className="truncate font-mono text-[11px] text-muted-foreground">
-                              {folio.confirmationNumber}
-                            </p>
-                          ) : null}
                         </div>
                       </div>
                     </td>
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex min-w-0 items-start gap-2.5">
                         <GuestAvatarCell name={folio.guestName} />
                         <div className="min-w-0">
@@ -1367,7 +1310,7 @@ function GuestFolioTable({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex items-start gap-2">
                         <BedDouble className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                         <div className="min-w-0">
@@ -1382,7 +1325,12 @@ function GuestFolioTable({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3.5 py-3">
+                    <td className={ROOM_TABLE_TD}>
+                      <p className="truncate font-mono text-xs text-foreground">
+                        {folio.confirmationNumber ?? "—"}
+                      </p>
+                    </td>
+                    <td className={ROOM_TABLE_TD}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <FolioSearchFolioStatusBadge status={folio.status} />
                         <FolioSearchStayStatusBadge status={folio.reservationStatus} />
@@ -1393,18 +1341,13 @@ function GuestFolioTable({
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-3.5 py-3 text-right">
+                    <td className={`${ROOM_TABLE_TD} text-right`}>
                       <BalanceCell balance={folio.balance} money={money} />
                     </td>
-                    <td className="px-3.5 py-3">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Clock3 className="size-3.5 shrink-0 text-[#8a6a1f]" aria-hidden />
-                        <span className="whitespace-nowrap">
-                          {folio.lastActivity ? formatDeskDate(folio.lastActivity.slice(0, 10)) : "—"}
-                        </span>
-                      </div>
+                    <td className={ROOM_TABLE_TD}>
+                      <span className="text-xs font-medium text-muted-foreground">{folio.currency}</span>
                     </td>
-                    <td className="px-2 py-3 text-right" onClick={(event) => event.stopPropagation()}>
+                    <td className={`${ROOM_TABLE_TD} text-right`} onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           asChild
@@ -1790,11 +1733,11 @@ function FinancialAccountsTable({
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className={TABLE_HEAD}>
               <tr>
-                <th className="px-3.5 py-3 font-semibold">Account</th>
-                <th className="px-3.5 py-3 font-semibold">{nameLabel}</th>
-                <th className="px-3.5 py-3 font-semibold">Status</th>
-                <th className="px-3.5 py-3 text-right font-semibold">Balance</th>
-                <th className="px-3.5 py-3 font-semibold">Last Activity</th>
+                <th className={ROOM_TABLE_TH}>Account</th>
+                <th className={ROOM_TABLE_TH}>{nameLabel}</th>
+                <th className={ROOM_TABLE_TH}>Status</th>
+                <th className={`${ROOM_TABLE_TH} text-right`}>Balance</th>
+                <th className={ROOM_TABLE_TH}>Currency</th>
               </tr>
             </thead>
             <tbody>
@@ -1809,7 +1752,7 @@ function FinancialAccountsTable({
                     })
                   }
                 >
-                  <td className="px-3.5 py-3">
+                  <td className={ROOM_TABLE_TD}>
                     <Link
                       to="/restaurant/pms/cashiering/accounts/$accountId"
                       params={{ accountId: row.id }}
@@ -1818,18 +1761,15 @@ function FinancialAccountsTable({
                       <IconTextCell icon={AccountIcon} primary={row.accountNumber} secondary={nameLabel} />
                     </Link>
                   </td>
-                  <td className="px-3.5 py-3 font-medium text-foreground">{row.masterName}</td>
-                  <td className="px-3.5 py-3">
+                  <td className={`${ROOM_TABLE_TD} font-medium text-foreground`}>{row.masterName}</td>
+                  <td className={ROOM_TABLE_TD}>
                     <FolioSearchFolioStatusBadge status={row.status} />
                   </td>
-                  <td className="px-3.5 py-3 text-right">
+                  <td className={`${ROOM_TABLE_TD} text-right`}>
                     <BalanceCell balance={row.balance} money={money} />
                   </td>
-                  <td className="px-3.5 py-3">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Clock3 className="size-3.5 shrink-0 text-[#8a6a1f]" aria-hidden />
-                      <span>{formatDeskDate(row.openedAt.slice(0, 10))}</span>
-                    </div>
+                  <td className={ROOM_TABLE_TD}>
+                    <span className="text-xs font-medium text-muted-foreground">{row.currency}</span>
                   </td>
                 </tr>
               ))}

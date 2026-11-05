@@ -1,29 +1,32 @@
-import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
+  BadgeDollarSign,
+  BarChart3,
+  BedDouble,
   CalendarDays,
-  ChevronDown,
-  Clock,
+  CircleDollarSign,
+  ClipboardList,
+  DoorOpen,
+  FileText,
   History,
+  LayoutGrid,
+  Menu,
+  Package,
+  RefreshCw,
   ShieldAlert,
   SlidersHorizontal,
+  Tag,
+  TrendingUp,
 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
 import { RateRevenueChrome } from "@/packages/pms/components/rates/rate-revenue-chrome";
 import { RevenueFoundationView } from "@/packages/pms/components/rates/revenue-foundation-view";
-import { RevenueContextBar } from "@/packages/pms/components/rates/revenue-context-bar";
 import { RevenueControlView } from "@/packages/pms/components/rates/revenue-control/revenue-control-view";
 import { RateCalendarView } from "@/packages/pms/components/rates/rate-calendar/rate-calendar-view";
 import { BulkRateChangeView } from "@/packages/pms/components/rates/bulk-rate-change/bulk-rate-change-view";
@@ -49,6 +52,22 @@ import { defaultDemandCalendarRange } from "@/packages/pms/lib/revenue/demand-ca
 import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
 import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
+import { getRevenueControlWorkspace } from "@/packages/pms/lib/revenue/revenue-control.functions";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
+import {
+  RATE_REVENUE_SHELL_PRIMARY_BUTTON,
+  RateRevenueDateRange,
+  RateRevenueExportButton,
+  RateRevenueShellProvider,
+  RateRevenueViewSwitcher,
+  type RateRevenueShellSlots,
+  downloadCsv,
+} from "@/packages/pms/components/rates/rate-revenue-shell-slots";
+import { useMoney } from "@/core/state/property-format";
+import { Skeleton } from "@/shared/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import { cn } from "@/shared/lib/utils";
 import {
   getRevenueBaseConfig,
   listRevenueCatalogues,
@@ -63,77 +82,58 @@ import {
   type RevenueSearchParams,
 } from "@/packages/pms/lib/revenue/revenue-context";
 import {
-  type RevenuePrimarySection,
   type RevenueWorkspaceView,
   REVENUE_DEFAULT_VIEW,
-  REVENUE_PRIMARY_SECTIONS,
-  REVENUE_SECTION_DEFAULTS,
   canAccessRevenueView,
   contextFieldsForView,
   firstAccessibleRevenueView,
   isDemotedDemandView,
   normalizeRevenueView,
   revenueViewDefinition,
-  sectionForRevenueView,
-  viewsForRevenueSection,
 } from "@/packages/pms/lib/rate-revenue-workspace";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
-interface SectionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  active?: boolean;
-}
+const BURGER_DESTINATIONS: RevenueWorkspaceView[] = [
+  "control-center",
+  "rate-plans-reference",
+  "rate-calendar",
+  "rate-history",
+  "restrictions",
+  "restriction-history",
+  "commercial",
+  "promotions",
+  "packages",
+  "commercial-history",
+  "approvals",
+  "revenue-performance",
+  "audit-control",
+  "export",
+  "competitor-setup",
+];
 
-const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
-  ({ active = false, children, className, ...props }, ref) => {
-    return (
-      <button
-        ref={ref}
-        type="button"
-        className={[
-          "relative flex h-11 shrink-0 items-center gap-2 px-4 text-sm font-semibold transition-colors",
-          active ? "text-[#251605]" : "text-[#756A5B] hover:text-[#251605]",
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        {...props}
-      >
-        {children}
-        {active ? (
-          <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-        ) : null}
-      </button>
-    );
-  },
-);
-SectionButton.displayName = "SectionButton";
+const BURGER_ICONS: Partial<Record<RevenueWorkspaceView, typeof LayoutGrid>> = {
+  "control-center": LayoutGrid,
+  "rate-plans-reference": FileText,
+  "rate-calendar": CalendarDays,
+  "rate-history": History,
+  restrictions: ShieldAlert,
+  "restriction-history": ClipboardList,
+  commercial: Tag,
+  promotions: SlidersHorizontal,
+  packages: Package,
+  "commercial-history": History,
+  approvals: ShieldAlert,
+  "revenue-performance": TrendingUp,
+  "audit-control": ClipboardList,
+  export: FileText,
+  "competitor-setup": BarChart3,
+};
 
-function SecondaryButton({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "relative flex h-10 shrink-0 items-center px-3.5 text-sm font-semibold transition-colors",
-        active ? "text-[#251605]" : "text-[#756A5B] hover:text-[#251605]",
-      ].join(" ")}
-    >
-      {children}
-      {active ? (
-        <span className="absolute inset-x-2.5 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-      ) : null}
-    </button>
-  );
-}
+const BURGER_LABELS: Partial<Record<RevenueWorkspaceView, string>> = {
+  "control-center": "Revenue Control",
+  "rate-plans-reference": "Rates",
+};
 
 export function RatesWorkspace({
   membership,
@@ -155,6 +155,36 @@ export function RatesWorkspace({
   );
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [presentation, setPresentation] = useState<"table" | "chart">("table");
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
+  const [shellSlots, setShellSlots] = useState<RateRevenueShellSlots>({
+    date: null,
+    search: null,
+    filter: null,
+    export: null,
+    view: null,
+    cta: null,
+  });
+  const setDateSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.date === node ? current : { ...current, date: node }));
+  }, []);
+  const setSearchSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.search === node ? current : { ...current, search: node }));
+  }, []);
+  const setFilterSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.filter === node ? current : { ...current, filter: node }));
+  }, []);
+  const setExportSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.export === node ? current : { ...current, export: node }));
+  }, []);
+  const setViewSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.view === node ? current : { ...current, view: node }));
+  }, []);
+  const setCtaSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.cta === node ? current : { ...current, cta: node }));
+  }, []);
+  const qc = useQueryClient();
+  const money = useMoney();
 
   useEffect(() => {
     setView(normalizeRevenueView(search.view ?? search.tab));
@@ -212,21 +242,47 @@ export function RatesWorkspace({
     catalogues: cataloguesQuery.isSuccess,
   });
 
+  const fetchControl = useServerFn(getRevenueControlWorkspace);
+  const controlQuery = useQuery({
+    queryKey: [
+      "revenue-control",
+      restaurantId,
+      context.fromDate,
+      context.toDate,
+      context.roomTypeId,
+      context.ratePlanId,
+      context.marketSegmentId,
+      context.commercialSourceId,
+      context.salesChannelId,
+    ],
+    queryFn: () =>
+      fetchControl({
+        data: {
+          restaurantId,
+          fromDate: context.fromDate,
+          toDate: context.toDate,
+          roomTypeId: context.roomTypeId,
+          ratePlanId: context.ratePlanId,
+          marketSegmentId: context.marketSegmentId,
+          commercialSourceId: context.commercialSourceId,
+          salesChannelId: context.salesChannelId,
+        },
+      }),
+    retry: false,
+  });
+  const refreshing = useIsFetching({
+    predicate: (query) => {
+      const key = String(query.queryKey[0] ?? "");
+      return key.startsWith("revenue") || key.startsWith("rate");
+    },
+  });
+
   const safeView = isDemotedDemandView(view) ? REVENUE_DEFAULT_VIEW : view;
   const requestedView =
     access && !canAccessRevenueView(access, safeView)
       ? (firstAccessibleRevenueView(access) ?? REVENUE_DEFAULT_VIEW)
       : safeView;
   const definition = revenueViewDefinition(requestedView);
-  const activeSection = sectionForRevenueView(requestedView);
-  const secondaryViews = viewsForRevenueSection(activeSection, access);
-  const showSecondary = activeSection !== "revenue-control" && activeSection !== "more";
-  const moreViews = viewsForRevenueSection("more", access).filter(
-    (item) => item !== "competitor-setup" && revenueViewDefinition(item).implemented,
-  );
-  const primarySections = REVENUE_PRIMARY_SECTIONS.filter(
-    (section) => viewsForRevenueSection(section.id, access).length > 0,
-  );
 
   function defaultRangeForView(targetView: RevenueWorkspaceView, bDate: string) {
     if (targetView === "control-center") return defaultControlCenterRange(bDate);
@@ -346,26 +402,23 @@ export function RatesWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView, baseQuery.isSuccess, search.from, search.to, businessDate]);
 
-  function selectPrimary(section: RevenuePrimarySection) {
-    if (section === "more") {
-      setMoreOpen((current) => !current);
-      return;
-    }
-    if (section === activeSection) return;
-    selectView(REVENUE_SECTION_DEFAULTS[section]);
-  }
-
   function renderView() {
     switch (requestedView) {
       case "control-center":
         return (
-          <RevenueControlView restaurantId={restaurantId} context={context} access={access!} />
+          <RevenueControlView
+            restaurantId={restaurantId}
+            context={context}
+            access={access!}
+            presentation={presentation}
+          />
         );
       case "rate-plans-reference":
         return (
           <RatePlansTab
             restaurantId={restaurantId}
             roomTypeId={context.roomTypeId}
+            searchQuery={searchQuery}
             onRoomTypeChange={(roomTypeId) => updateContext({ roomTypeId })}
             onOpenCalendar={(ratePlanId, planRoomTypeId) =>
               writeState(
@@ -562,15 +615,83 @@ export function RatesWorkspace({
     }
   }
 
+  const fields = contextFieldsForView(requestedView);
+  const visiblePlans = context.roomTypeId
+    ? ratePlans.filter((plan) => plan.roomTypeId === context.roomTypeId)
+    : ratePlans;
+  const burgerItems = BURGER_DESTINATIONS.filter(
+    (item) =>
+      revenueViewDefinition(item).implemented &&
+      !isDemotedDemandView(item) &&
+      (!access || canAccessRevenueView(access, item)),
+  );
+  const filterCount =
+    (context.roomTypeId ? 1 : 0) +
+    (context.ratePlanId ? 1 : 0) +
+    (context.marketSegmentId ? 1 : 0) +
+    (context.commercialSourceId ? 1 : 0) +
+    (context.salesChannelId ? 1 : 0);
+  const summary = controlQuery.data?.summary;
+  const slotMetrics = controlQuery.data?.slotMetrics;
+  const kpis = [
+    {
+      label: "Booked Room Revenue",
+      value: summary ? money(summary.roomRevenue) : null,
+      icon: CircleDollarSign,
+      tone: "bg-[#F4E9D0] text-[#8A641A]",
+    },
+    {
+      label: "Sold Room Nights",
+      value: summary ? String(summary.soldRoomNights) : null,
+      icon: BedDouble,
+      tone: "bg-sky-50 text-sky-700",
+    },
+    {
+      label: "Occupancy",
+      value: summary ? `${summary.occupancyPercent}%` : null,
+      icon: DoorOpen,
+      tone: "bg-emerald-50 text-emerald-700",
+    },
+    {
+      label: "ADR",
+      value: summary ? money(summary.adr) : null,
+      icon: BadgeDollarSign,
+      tone: "bg-amber-50 text-amber-800",
+    },
+    {
+      label: "RevPAR",
+      value: summary ? money(summary.revPar) : null,
+      icon: TrendingUp,
+      tone: "bg-teal-50 text-teal-700",
+    },
+    {
+      label: "Available Room Nights",
+      value: summary ? String(summary.availableRoomNights) : null,
+      icon: CalendarDays,
+      tone: "bg-violet-50 text-violet-700",
+    },
+  ] as const;
+
+  function refreshRevenue() {
+    for (const key of [
+      "revenue-control",
+      "revenue-access",
+      "revenue-base-config",
+      "revenue-catalogues",
+      "revenue-overview",
+    ]) {
+      void qc.invalidateQueries({ queryKey: [key, restaurantId] });
+    }
+  }
+
   if (accessQuery.isLoading) {
     return <p className="px-6 py-10 text-sm text-muted-foreground">Loading Rate & Revenue…</p>;
   }
 
   if (!access?.canView) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl font-semibold">Rate & Revenue</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+      <div className="m-4 rounded-xl border border-border bg-card p-6">
+        <p className="text-sm text-muted-foreground">
           Only owners and managers can access rates and revenue for this property.
         </p>
       </div>
@@ -579,224 +700,334 @@ export function RatesWorkspace({
 
   return (
     <RateRevenueChrome membership={membership} suppressReturnButton>
-      <div className="min-w-0 bg-[#F7F4EE]">
-        <div className="border-b border-border bg-background" data-testid="rates-desk-header">
-          <div className="px-5 pt-4 sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Operations
-                </p>
-                <h1 className="mt-0.5 font-display text-2xl font-semibold tracking-tight text-[#251605]">
-                  Rate & Revenue
-                </h1>
-                <p className="mt-1 text-sm text-[#756A5B]">
-                  Operational pricing, occupancy and revenue control.
-                </p>
+      <RateRevenueShellProvider value={shellSlots}>
+        <div
+          className="flex min-h-[calc(100vh-4rem)] flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4"
+          data-testid="rates-desk"
+        >
+          <section
+            className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
+            aria-label="Rate & Revenue KPIs"
+            data-testid="rate-revenue-kpis"
+          >
+            {kpis.map((card) => (
+              <div
+                key={card.label}
+                className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
+              >
+                <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
+                  <card.icon className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
+                  {controlQuery.isLoading ? (
+                    <Skeleton className="mt-1 h-5 w-10" />
+                  ) : (
+                    <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+                      {card.value ?? "—"}
+                    </p>
+                  )}
+                </div>
               </div>
+            ))}
+          </section>
 
-              <div className="flex flex-wrap items-center gap-2">
+          {slotMetrics ? (
+            <div className="flex flex-wrap gap-1.5 text-[11px] font-medium text-[#5A4833]">
+              <span className="rounded-full border border-[#DDD4C5] bg-white px-2 py-0.5">
+                Remaining inventory {slotMetrics.remainingRoomNights}
+              </span>
+              <span className="rounded-full border border-[#DDD4C5] bg-white px-2 py-0.5">
+                Active restrictions {slotMetrics.activeRestrictionCount}
+              </span>
+              <span className="rounded-full border border-[#DDD4C5] bg-white px-2 py-0.5">
+                Overrides {slotMetrics.overrideCount}
+              </span>
+            </div>
+          ) : null}
+
+          <section
+            ref={setToolbarSlot}
+            className="relative w-full min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm"
+            data-testid="rate-revenue-toolbar"
+          >
+            <div className="flex w-full min-w-0 items-center gap-1.5">
+              <div className="relative size-8 shrink-0">
+                <RateRevenueBurger
+                  active={requestedView}
+                  items={burgerItems}
+                  onSelect={selectView}
+                />
+              </div>
+              {fields.includes("dateRange") ? (
+                <RateRevenueDateRange
+                  fromDate={context.fromDate}
+                  toDate={context.toDate}
+                  onChange={(fromDate, toDate) => updateContext({ fromDate, toDate })}
+                />
+              ) : (
+                <div ref={setDateSlot} className="shrink-0 empty:hidden" />
+              )}
+              <div ref={setSearchSlot} className="min-w-0 flex-1 overflow-hidden">
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs"
+                  placeholder="Search rate plan, room type, or restriction…"
+                  aria-label="Search"
+                />
+              </div>
+              <div className="relative z-10 flex shrink-0 items-center gap-1.5">
+                <PmsFilterMenu
+                  activeCount={filterCount}
+                  onClear={() =>
+                    updateContext({
+                      roomTypeId: null,
+                      ratePlanId: null,
+                      marketSegmentId: null,
+                      commercialSourceId: null,
+                      salesChannelId: null,
+                    })
+                  }
+                  buttonTestId="rate-revenue-filters-button"
+                  menuTestId="rate-revenue-filters-menu"
+                >
+                  {fields.includes("roomType") ? (
+                    <PmsFilterChoiceRow
+                      label="Room Type"
+                      value={context.roomTypeId ?? "all"}
+                      current={roomTypes.find((row) => row.id === context.roomTypeId)?.name ?? ""}
+                      options={[
+                        ["all", "All room types"] as const,
+                        ...roomTypes.map((row) => [row.id, row.name] as const),
+                      ]}
+                      onChange={(value) => updateContext({ roomTypeId: value === "all" ? null : value })}
+                    />
+                  ) : null}
+                  {fields.includes("ratePlan") ? (
+                    <PmsFilterChoiceRow
+                      label="Rate Plan"
+                      value={context.ratePlanId ?? "all"}
+                      current={
+                        visiblePlans.find((row) => row.id === context.ratePlanId)
+                          ? `${visiblePlans.find((row) => row.id === context.ratePlanId)?.code}`
+                          : ""
+                      }
+                      options={[
+                        ["all", "All rate plans"] as const,
+                        ...visiblePlans.map((row) => [row.id, `${row.code} — ${row.name}`] as const),
+                      ]}
+                      onChange={(value) => updateContext({ ratePlanId: value === "all" ? null : value })}
+                    />
+                  ) : null}
+                  {fields.includes("segment") ? (
+                    <PmsFilterChoiceRow
+                      label="Market Segment"
+                      value={context.marketSegmentId ?? "all"}
+                      current={
+                        marketSegments.find((row) => row.id === context.marketSegmentId)?.name ?? ""
+                      }
+                      options={[
+                        ["all", "All segments"] as const,
+                        ...marketSegments.map((row) => [row.id, row.name] as const),
+                      ]}
+                      onChange={(value) =>
+                        updateContext({ marketSegmentId: value === "all" ? null : value })
+                      }
+                    />
+                  ) : null}
+                  {fields.includes("source") ? (
+                    <PmsFilterChoiceRow
+                      label="Source"
+                      value={context.commercialSourceId ?? "all"}
+                      current={
+                        bookingSources.find((row) => row.id === context.commercialSourceId)?.name ?? ""
+                      }
+                      options={[
+                        ["all", "All sources"] as const,
+                        ...bookingSources.map((row) => [row.id, row.name] as const),
+                      ]}
+                      onChange={(value) =>
+                        updateContext({ commercialSourceId: value === "all" ? null : value })
+                      }
+                    />
+                  ) : null}
+                  {fields.includes("channel") ? (
+                    <PmsFilterChoiceRow
+                      label="Sales Channel"
+                      value={context.salesChannelId ?? "all"}
+                      current={
+                        salesChannels.find((row) => row.id === context.salesChannelId)?.name ?? ""
+                      }
+                      options={[
+                        ["all", "All channels"] as const,
+                        ...salesChannels.map((row) => [row.id, row.name] as const),
+                      ]}
+                      onChange={(value) =>
+                        updateContext({ salesChannelId: value === "all" ? null : value })
+                      }
+                    />
+                  ) : null}
+                </PmsFilterMenu>
+                <div ref={setFilterSlot} className="hidden" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={SHELL_ICON_BUTTON}
+                  onClick={refreshRevenue}
+                  aria-label="Refresh"
+                  title="Refresh"
+                  data-testid="rate-revenue-refresh"
+                >
+                  <RefreshCw className={cn("size-4", refreshing > 0 && "animate-spin")} />
+                </Button>
+                {requestedView === "control-center" ? (
+                  <RateRevenueExportButton
+                    disabled={!controlQuery.data?.controlRows.length}
+                    onClick={() =>
+                      downloadCsv(
+                        "rate-inventory-control.csv",
+                        ["Date", "Occupancy", "Sold", "Available", "Rate", "Restriction", "Signal"],
+                        (controlQuery.data?.controlRows ?? []).map((row) => [
+                          row.date,
+                          `${row.occupancyPercent}%`,
+                          String(row.soldRoomNights),
+                          String(row.availableRoomNights),
+                          row.effectiveRate == null ? "" : String(row.effectiveRate),
+                          row.restrictionLabel ?? "",
+                          row.signal,
+                        ]),
+                      )
+                    }
+                  />
+                ) : (
+                  <div ref={setExportSlot} className="shrink-0 empty:hidden" />
+                )}
+                {requestedView === "control-center" ? (
+                  <RateRevenueViewSwitcher value={presentation} onChange={setPresentation} />
+                ) : (
+                  <div ref={setViewSlot} className="shrink-0 empty:hidden" />
+                )}
+                {access.canViewRates &&
+                (requestedView === "rate-plans-reference" || requestedView === "rate-calendar") ? (
+                  <Button
+                    type="button"
+                    className={cn(RATE_REVENUE_SHELL_PRIMARY_BUTTON, "px-3.5 text-xs font-semibold")}
+                    onClick={() => selectView("bulk-rate-change")}
+                  >
+                    Bulk Rate Change
+                  </Button>
+                ) : access.canApplyRestrictions && requestedView === "restrictions" ? (
+                  <Button
+                    type="button"
+                    className={cn(RATE_REVENUE_SHELL_PRIMARY_BUTTON, "px-3.5 text-xs font-semibold")}
+                    onClick={() => selectView("apply-restriction")}
+                  >
+                    Apply Restriction
+                  </Button>
+                ) : (
+                  <div ref={setCtaSlot} className="shrink-0 empty:hidden" />
+                )}
                 {hasPrevious ? (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleReturn}
                     data-testid="rates-return-to-previous"
-                    className="h-10 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs hover:bg-[#FAF8F4] transition-all"
+                    className="h-9 shrink-0 gap-1.5 border-[#DDD4C5] bg-white px-3 text-xs font-semibold text-[#5C5346]"
                   >
                     <ArrowLeft className="size-3.5 text-[#8A6A24]" />
                     {computedLabel}
                   </Button>
                 ) : null}
-
-                {access.canViewRates || access.canViewRestrictions ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-10 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-4 text-sm font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#FAF6F0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#251605]"
-                      >
-                        <SlidersHorizontal className="size-4 text-[#8A641A]" />
-                        <span>Rate & Restriction Actions</span>
-                        <ChevronDown className="size-4 text-[#756A5B]" />
-                      </button>
-                    </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    sideOffset={6}
-                    className="z-50 w-60 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-xl"
-                  >
-                    {access.canViewRates ? (
-                      <>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            to="/restaurant/pms/rates-revenue"
-                            search={serializeRevenueSearch("rate-calendar", context)}
-                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
-                          >
-                            <CalendarDays className="size-4 text-[#8A641A]" />
-                            <span>Rate Calendar & Bulk Rates</span>
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            to="/restaurant/pms/rates-revenue"
-                            search={serializeRevenueSearch("rate-history", context)}
-                            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
-                          >
-                            <History className="size-4 text-[#8A641A]" />
-                            <span>View Rate History</span>
-                          </Link>
-                        </DropdownMenuItem>
-                      </>
-                    ) : null}
-                    {access.canViewRestrictions ? (
-                      <DropdownMenuItem asChild>
-                        <Link
-                          to="/restaurant/pms/rates-revenue"
-                          search={serializeRevenueSearch("restrictions", context)}
-                          className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#251605] transition-colors hover:bg-[#FAF6F0]"
-                        >
-                          <ShieldAlert className="size-4 text-amber-700" />
-                          <span>Restrictions & Bulk Rules</span>
-                        </Link>
-                      </DropdownMenuItem>
-                    ) : null}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null}
+              </div>
             </div>
-          </div>
+          </section>
+
+          <main className="min-w-0">
+            {cataloguesQuery.isError ? (
+              <p className="mb-3 text-xs text-muted-foreground">
+                {revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")}
+              </p>
+            ) : null}
+            {coreConfigStatus === "error" ? (
+              <p className="mb-3 text-xs text-muted-foreground">Rate configuration could not be loaded.</p>
+            ) : null}
+            {renderView()}
+          </main>
         </div>
-
-        <div className="relative mt-3 flex items-end gap-3 overflow-x-auto px-5 sm:px-6">
-            {primarySections.map((section) =>
-              section.id === "more" ? (
-                <DropdownMenu key={section.id} open={moreOpen} onOpenChange={setMoreOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <SectionButton active={activeSection === "more"}>
-                      {section.label}
-                      <ChevronDown
-                        className={[
-                          "h-4 w-4 transition-transform",
-                          moreOpen ? "rotate-180" : "",
-                        ].join(" ")}
-                      />
-                    </SectionButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    sideOffset={6}
-                    className="z-50 w-72 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-xl"
-                  >
-                    {moreViews.map((item) => {
-                      const itemDef = revenueViewDefinition(item);
-                      return (
-                        <DropdownMenuItem
-                          key={item}
-                          onSelect={() => selectView(item)}
-                          className={[
-                            "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm cursor-pointer transition-colors",
-                            requestedView === item
-                              ? "bg-muted font-semibold text-foreground"
-                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                          ].join(" ")}
-                        >
-                          {itemDef.label}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                    <div className="my-1 border-t border-border/60" />
-                    <DropdownMenuItem
-                      disabled
-                      aria-disabled="true"
-                      onSelect={(event) => event.preventDefault()}
-                      className="pointer-events-none flex w-full flex-col items-start gap-1 rounded-lg border border-dashed border-[#E8E1D7] bg-[#FAF6F0]/80 px-3 py-2.5 text-left opacity-65 select-none"
-                    >
-                      <div className="flex w-full items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5A4833]">
-                          <Clock className="size-3.5 text-[#8A641A]" />
-                          Demand & Forecast
-                        </span>
-                        <span className="inline-flex items-center rounded-full border border-[#E5D3A8] bg-[#F8F1E5] px-2 py-0.5 text-[11px] font-semibold text-[#8A641A]">
-                          Coming later
-                        </span>
-                      </div>
-                      <span className="text-xs text-[#756A5B]">
-                        Forecast occupancy and booking pace
-                      </span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <SectionButton
-                  key={section.id}
-                  active={activeSection === section.id}
-                  onClick={() => selectPrimary(section.id)}
-                >
-                  {section.label}
-                </SectionButton>
-              ),
-            )}
-          </div>
-
-          {showSecondary ? (
-            <div className="flex items-end gap-3 overflow-x-auto border-t border-border/60 px-5 sm:px-6">
-              {secondaryViews
-                .filter(
-                  (item) =>
-                    (item !== "bulk-rate-change" || requestedView === "bulk-rate-change") &&
-                    (item !== "apply-restriction" || requestedView === "apply-restriction"),
-                )
-                .map((item) => (
-                  <SecondaryButton
-                    key={item}
-                    active={requestedView === item}
-                    onClick={() => selectView(item)}
-                  >
-                    {revenueViewDefinition(item).label}
-                  </SecondaryButton>
-                ))}
-            </div>
-          ) : null}
-        </div>
-
-        <main className="space-y-4 p-4 sm:p-5 lg:p-6">
-          {requestedView !== "rate-plans-reference" &&
-          requestedView !== "bulk-rate-change" &&
-          requestedView !== "rate-history" &&
-          requestedView !== "apply-restriction" &&
-          requestedView !== "restriction-history" &&
-          requestedView !== "promotions" &&
-          requestedView !== "packages" &&
-          requestedView !== "commercial-history" ? (
-            <RevenueContextBar
-              fields={contextFieldsForView(requestedView)}
-              context={context}
-              onChange={updateContext}
-              roomTypes={roomTypes}
-              ratePlans={ratePlans}
-              marketSegments={marketSegments}
-              bookingSources={bookingSources}
-              salesChannels={salesChannels}
-              searchQuery={searchQuery}
-              onSearchChange={
-                requestedView === "rate-calendar" || requestedView === "restrictions"
-                  ? setSearchQuery
-                  : undefined
-              }
-              cataloguesError={
-                cataloguesQuery.isError
-                  ? revenueUiError(cataloguesQuery.error, "Sales catalogues could not be loaded.")
-                  : null
-              }
-              coreConfigStatus={coreConfigStatus}
-              cataloguesStatus={cataloguesStatus}
-            />
-          ) : null}
-          {renderView()}
-        </main>
-      </div>
+      </RateRevenueShellProvider>
     </RateRevenueChrome>
+  );
+}
+
+function RateRevenueBurger({
+  active,
+  items,
+  onSelect,
+}: {
+  active: RevenueWorkspaceView;
+  items: RevenueWorkspaceView[];
+  onSelect: (id: RevenueWorkspaceView) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Rate & Revenue navigation"
+          title="Rate & Revenue navigation"
+          data-testid="rate-revenue-nav-trigger"
+          className={cn(
+            "inline-flex size-8 items-center justify-center rounded-md text-[#251605]",
+            "opacity-50 transition-opacity hover:bg-[#F3EEE4] hover:opacity-100",
+            "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+            "data-[state=open]:bg-[#F3EEE4] data-[state=open]:opacity-100",
+          )}
+        >
+          <Menu className="size-4" aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-64 p-1.5"
+        data-testid="rate-revenue-workspace-nav"
+        aria-label="Rate & Revenue"
+      >
+        <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Rate & Revenue
+        </p>
+        <div className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
+          {items.map((id) => {
+            const Icon = BURGER_ICONS[id] ?? LayoutGrid;
+            const isActive = id === active;
+            return (
+              <button
+                key={id}
+                type="button"
+                data-testid={`rate-revenue-nav-${id}`}
+                onClick={() => {
+                  setOpen(false);
+                  onSelect(id);
+                }}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
+                  isActive
+                    ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                    : "text-foreground hover:bg-[#F7F4EE]",
+                )}
+              >
+                <Icon className="size-4 shrink-0 text-[#8A6A24]" aria-hidden="true" />
+                <span className="flex-1">{BURGER_LABELS[id] ?? revenueViewDefinition(id).label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

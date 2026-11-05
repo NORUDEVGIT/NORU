@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -232,12 +233,15 @@ export function AssignRoomDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="overflow-hidden bg-white">
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-[#C89933]" aria-hidden />
         <DialogHeader>
           <DialogTitle>Assign room</DialogTitle>
           <DialogDescription>
             {stay.confirmationNumber} · {stay.guestName} ·{" "}
-            {formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}
+            <span className="font-bold text-[#8C6D23]">
+              {formatRoomTypeLabel(stay.roomTypeName, stay.roomTypeCode)}
+            </span>
           </DialogDescription>
         </DialogHeader>
         <RoomUnitTargetSelect
@@ -258,10 +262,15 @@ export function AssignRoomDialog({
           onChange={setRoomId}
         />
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            className="h-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button
+            className={SHELL_PRIMARY_BUTTON}
             disabled={!roomId || mutation.isPending || (multiRoom && !reservationRoomId)}
             onClick={() => mutation.mutate()}
           >

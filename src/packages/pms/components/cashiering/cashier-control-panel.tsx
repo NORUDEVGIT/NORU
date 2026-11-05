@@ -50,7 +50,12 @@ import {
   visibleShiftHistory,
 } from "@/packages/pms/lib/cashiering-control";
 import type { CashieringSearchParams, CashieringTabId } from "@/packages/pms/lib/cashiering-shell";
+import {
+  CASHIERING_SHELL_PRIMARY_BUTTON,
+  CashieringShellSlot,
+} from "@/packages/pms/components/cashiering/cashiering-shell-slots";
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -159,22 +164,36 @@ export function CashierControl({
 
   return (
     <div className="space-y-4" data-testid="cashier-control">
-      {/* Workspace Header */}
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#E8E1D7] pb-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8A6A24]">
-            Cashiering
-          </p>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-[#251605]">
-            Cashier Control
-          </h2>
-          <p className="mt-0.5 text-xs sm:text-sm text-[#5F554B]">
-            Manage your cash drawer and monitor current business-date activity.
-          </p>
-        </div>
+      {canOperate && !mine ? (
+        <CashieringShellSlot name="cta">
+          <Button
+            type="button"
+            className={cn(CASHIERING_SHELL_PRIMARY_BUTTON, "gap-1.5 px-3.5 text-xs font-semibold")}
+            onClick={() => setMode("open")}
+            data-testid="cashiering-open-shift"
+          >
+            Open Shift
+          </Button>
+        </CashieringShellSlot>
+      ) : null}
+      {canOperate && mine ? (
+        <CashieringShellSlot name="cta">
+          <Button
+            type="button"
+            className={cn(CASHIERING_SHELL_PRIMARY_BUTTON, "gap-1.5 px-3.5 text-xs font-semibold")}
+            onClick={() => {
+              setCloseId(mine.id);
+              setMode("close");
+            }}
+            data-testid="cashiering-close-shift"
+          >
+            Close Shift
+          </Button>
+        </CashieringShellSlot>
+      ) : null}
 
-        {/* Business Date & Historical Control */}
-        <div className="flex flex-wrap items-center gap-2 sm:self-center">
+      <header className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2.5 rounded-xl border border-[#E8E1D7] bg-white px-3.5 py-2 shadow-2xs">
             <div className="flex size-7 items-center justify-center rounded-lg bg-[#FAF5EB] text-[#8A6A24]">
               <Calendar className="size-4" />

@@ -179,10 +179,13 @@ describe("PMS RBAC phase 3 client access", () => {
     const home = readFileSync(new URL("../components/pms/pms-home-desk.tsx", import.meta.url), "utf8");
     const shell = readFileSync(new URL("../../../core/components/restaurant-shell.tsx", import.meta.url), "utf8");
     const propertyHome = readFileSync(new URL("../../../routes/restaurant/home.tsx", import.meta.url), "utf8");
+    const dashboard = readFileSync(new URL("../../../routes/restaurant/pms/dashboard.tsx", import.meta.url), "utf8");
     assert.equal(home.includes("getMyModuleAccess"), false);
-    assert.equal(home.includes("pmsModuleVisible"), true);
+    assert.equal(shell.includes("pmsModuleVisible"), true);
     assert.equal(shell.includes("canEditSet1"), false);
     assert.equal(shell.includes("pmsSettingsHubVisible"), true);
     assert.equal(propertyHome.includes("canEditSet1"), false);
+    assert.equal(dashboard.includes("PmsRouteGate"), true);
+    assert.equal(dashboard.includes("DASHBOARD_VIEW"), true);
   });
 });

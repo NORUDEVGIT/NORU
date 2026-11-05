@@ -72,6 +72,7 @@ import type {
   CashieringTabId,
 } from "@/packages/pms/lib/cashiering-shell";
 import { stayNights } from "@/packages/pms/lib/folio-workspace";
+import { addDays } from "@/packages/pms/lib/reservation-dates";
 import { remainingOnPaymentSource } from "@/packages/pms/lib/cashiering.server";
 import {
   POLISH1_PAYMENT_METHODS_HREF,
@@ -113,6 +114,20 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
+import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
+import {
+  CashieringShellExportButton,
+  CashieringShellSlot,
+  CashieringToolbarSearch,
+  downloadCsv,
+} from "@/packages/pms/components/cashiering/cashiering-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 
 const PAGE_SIZE = 10;
 const LEDGER_TYPES = [
@@ -482,6 +497,7 @@ export function CashieringDesk({
   membershipId,
   role,
   onTab,
+  weekStart,
 }: {
   restaurantId: string;
   timezone: string;
@@ -495,6 +511,7 @@ export function CashieringDesk({
   canAllocate?: boolean;
   membershipId: string;
   role: string;
+  weekStart: string | null;
   onTab: (
     tab: CashieringTabId,
     folio?: string | null,
@@ -535,7 +552,7 @@ export function CashieringDesk({
   const foliosQuery = useQuery({
     queryKey: ["cashiering-folios", restaurantId],
     queryFn: () => fetchFolios({ data: { restaurantId, status: "all" } }),
-    enabled: tab === "overview",
+    enabled: tab === "overview" || tab === "financial-activity",
     retry: false,
   });
   const ledgerQuery = useQuery({
@@ -783,86 +800,51 @@ export function CashieringDesk({
   return (
     <div className="space-y-4" data-testid={`cashiering-panel-${tab}`}>
       {tab === "overview" ? (
-        <Overview
+        <OverviewSnapshot
+          restaurantId={restaurantId}
           money={money}
           dateTime={dateTime}
-          dashboard={dashboardQuery.data}
           loading={dashboardQuery.isLoading}
           error={dashboardQuery.isError ? (dashboardQuery.error as Error).message : null}
-          folios={pageRows}
-          folioCount={filtered.length}
-          page={safePage}
-          pageCount={pageCount}
-          onPage={setPage}
           search={search}
           onSearch={(value) => {
             setSearch(value);
-            setPage(1);
+            onTab("folios", null, { q: value || undefined });
           }}
-          filter={filter}
-          onFilter={handlePresetFilter}
-          statusFilter={statusFilter}
-          onStatusFilter={(value) => {
-            setStatusFilter(value);
-            if (value === "open") setFilter("open");
-            else if (value === "closed") setFilter("closed");
-            else if (filter === "open" || filter === "closed") setFilter("all");
-            setPage(1);
-          }}
-          stayFilter={stayFilter}
-          onStayFilter={(value) => {
-            setStayFilter(value);
-            if (value === "in_house") setFilter("in_house");
-            else if (value === "departures") setFilter("departures");
-            else if (filter === "in_house" || filter === "departures") setFilter("all");
-            setPage(1);
-          }}
-          balanceFilter={balanceFilter}
-          onBalanceFilter={(value) => {
-            setBalanceFilter(value);
-            if (value === "positive") setFilter("positive");
-            else if (value === "negative") setFilter("negative");
-            else if (filter === "positive" || filter === "negative") setFilter("all");
-            setPage(1);
-          }}
-          roomFilter={roomFilter}
-          onRoomFilter={(value) => {
-            setRoomFilter(value);
-            setPage(1);
-          }}
-          sortOption={sortOption}
-          onSortOption={(value) => {
-            setSortOption(value);
-            setPage(1);
-          }}
-          onClearAll={handleClearAll}
-          recent={recentTransactions}
-          financialActivity={financialActivity}
+          onOpenShift={(shiftId) =>
+            onTab("cashier-shift", null, shiftId ? { shift: shiftId } : undefined)
+          }
+        />
+      ) : null}
+
+      {tab === "financial-activity" ? (
+        <FinancialActivityPanel
           activity={activity}
-          activityLoading={ledgerQuery.isLoading}
-          activityError={ledgerQuery.isError ? (ledgerQuery.error as Error).message : null}
-          selectedFolio={detailQuery.data ?? null}
-          depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
-          authorizerNote={correctionNoticeQuery.data?.authorizer ?? null}
-          openShift={openShift}
-          selectedId={selected?.id ?? null}
+          weekStart={weekStart}
+          rows={financialActivity}
+          loading={ledgerQuery.isLoading}
+          error={ledgerQuery.isError ? (ledgerQuery.error as Error).message : null}
+          selected={detailQuery.data ?? null}
           canOperate={canOperate}
           canManage={canManage}
           canAllocate={canAllocate}
-          onSelect={selectFolio}
+          restaurantId={restaurantId}
+          depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
+          authorizerNote={correctionNoticeQuery.data?.authorizer ?? null}
+          money={money}
+          dateTime={dateTime}
           onActivity={(next) =>
             onSearchParams({
               ...searchParams,
-              tab: "overview",
+              tab: "financial-activity",
               activity: next,
               ...(selected?.id ? { folio: selected.id } : {}),
             })
           }
-          onOpenShift={(shiftId) =>
-            onTab("cashier-shift", null, shiftId ? { shift: shiftId } : undefined)
-          }
+          onRefresh={refresh}
           openFolios={folios}
           sourceLineId={sourceLineId}
+          pendingFolioId={selected?.id ?? null}
           onChooseFolio={(folioId) => {
             const folio = folios.find((row) => row.id === folioId);
             if (folio) selectFolio(folio);
@@ -872,8 +854,7 @@ export function CashieringDesk({
             if (folio) selectFolio(folio);
             if (row.type === "payment" || row.type === "deposit") setSourceLineId(row.id);
           }}
-          restaurantId={restaurantId}
-          onRefresh={refresh}
+          dashboard={dashboardQuery.data}
           returnToTab={searchParams.returnToTab}
           onReturn={() => {
             if (searchParams.returnToTab) {
@@ -892,6 +873,7 @@ export function CashieringDesk({
           canManage={canManage}
           money={money}
           dateTime={dateTime}
+          weekStart={weekStart}
         />
       ) : null}
 
@@ -900,7 +882,12 @@ export function CashieringDesk({
       ) : null}
 
       {tab === "reports" ? (
-        <ReportsPanel restaurantId={restaurantId} money={money} timezone={timezone} />
+        <ReportsPanel
+          restaurantId={restaurantId}
+          money={money}
+          timezone={timezone}
+          weekStart={weekStart}
+        />
       ) : null}
 
       {tab === "cashier-shift" ? (
@@ -925,6 +912,62 @@ export function CashieringDesk({
           }}
         />
       ) : null}
+    </div>
+  );
+}
+
+function OverviewSnapshot({
+  restaurantId,
+  money,
+  dateTime,
+  loading,
+  error,
+  search,
+  onSearch,
+  onOpenShift,
+}: {
+  restaurantId: string;
+  money: (value: number) => string;
+  dateTime: (iso: string | null | undefined) => string;
+  loading: boolean;
+  error: string | null;
+  search: string;
+  onSearch: (value: string) => void;
+  onOpenShift: (shiftId?: string) => void;
+}) {
+  return (
+    <div className="space-y-3" data-testid="cashiering-overview">
+      <CashieringShellSlot name="search">
+        <CashieringToolbarSearch
+          value={search}
+          onChange={onSearch}
+          placeholder="Search folios…"
+          testId="cashiering-overview-search"
+        />
+      </CashieringShellSlot>
+      {loading ? (
+        <div className="rounded-lg border border-[#DDD4C5] bg-white p-4 text-sm text-muted-foreground">
+          Loading cashiering…
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      ) : null}
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.11em] text-[#756A5B]">
+          Attention
+        </h2>
+        <div className="mt-3">
+          <AttentionRequired
+            restaurantId={restaurantId}
+            money={money}
+            dateTime={dateTime}
+            onOpenShift={onOpenShift}
+          />
+        </div>
+      </section>
     </div>
   );
 }
@@ -1245,6 +1288,7 @@ function Overview({
       </div>
       <FinancialActivityPanel
         activity={activity}
+        weekStart={null}
         rows={financialActivity}
         loading={activityLoading}
         error={activityError}
@@ -1798,6 +1842,7 @@ const ACTIVITY_FILTERS: Array<{
 
 function FinancialActivityPanel({
   activity,
+  weekStart,
   rows,
   loading,
   error,
@@ -1851,8 +1896,16 @@ function FinancialActivityPanel({
   returnToTab?: CashieringTabId;
   onReturn?: () => void;
   documentProperty?: CashieringDocumentProperty | null;
+  weekStart: string | null;
 }) {
   const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
+  const [query, setQuery] = useState("");
+  const [method, setMethod] = useState("all");
+  const weekEnd = weekStart ? addDays(weekStart, 6) : "";
+  const postedDay = (value: string) => {
+    const iso = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    return iso?.[1] ?? value.slice(0, 10);
+  };
 
   useEffect(() => {
     if (!receipt) return;
@@ -1861,6 +1914,28 @@ function FinancialActivityPanel({
     return () => window.removeEventListener("afterprint", clear);
   }, [receipt]);
 
+  const methods = Array.from(
+    new Set(rows.map((row) => row.paymentMethod).filter((value): value is string => Boolean(value))),
+  ).sort();
+  const queryText = query.trim().toLowerCase();
+  const visibleRows = rows.filter((row) => {
+    if (method !== "all" && (row.paymentMethod ?? "") !== method) return false;
+    const day = postedDay(row.postedAt);
+    if (weekStart && day && day < weekStart) return false;
+    if (weekEnd && day && day > weekEnd) return false;
+    if (!queryText) return true;
+    return `${row.guestName} ${row.folioNumber} ${row.description} ${row.paymentMethod ?? ""} ${row.type}`.toLowerCase().includes(queryText);
+  });
+  const activityLabel =
+    activity === "all"
+      ? ""
+      : activity === "payment"
+        ? "Payments"
+        : activity === "deposit"
+          ? "Deposits"
+          : activity === "refund"
+            ? "Refunds"
+            : "Transfers";
   const title =
     activity === "all"
       ? "Financial Activity"
@@ -1871,44 +1946,69 @@ function FinancialActivityPanel({
           : activity === "refund"
             ? "Refunds"
             : "Transfers";
+  const filterCount = (activity !== "all" ? 1 : 0) + (method !== "all" ? 1 : 0);
+  const showInspector = Boolean(selected);
+
   return (
     <section className="space-y-3" data-testid="cashiering-financial-activity">
-      <div className="flex flex-col gap-3 rounded-xl border border-[#DDD4C5] bg-card p-3 shadow-xs sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display text-lg font-semibold text-[#251605]">Financial Activity</h2>
-          <p className="text-xs text-[#7A7167]">
-            Payments, deposits and refunds remain separate financial classifications.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Financial activity filter">
-          {ACTIVITY_FILTERS.map((item) => {
-            const Icon = item.icon;
-            const active = activity === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                aria-pressed={active}
-                data-testid={`cashiering-activity-${item.id}`}
-                onClick={() => onActivity(item.id)}
-                className={cn(
-                  "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors",
-                  active
-                    ? "border-[#C89933] bg-[#C89933] text-[#251605]"
-                    : "border-[#DDD4C5] bg-[#FAF8F4] text-[#5F554B] hover:border-[#C89933]/60 hover:bg-white",
-                )}
-              >
-                <Icon className="size-3.5" />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+      <CashieringShellSlot name="search">
+        <CashieringToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search guest, folio, method, or description…"
+          testId="cashiering-activity-search"
+        />
+      </CashieringShellSlot>
+      <CashieringShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={filterCount}
+          onClear={() => {
+            onActivity("all");
+            setMethod("all");
+          }}
+          buttonTestId="cashiering-activity-filters-button"
+          menuTestId="cashiering-activity-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Transaction Type"
+            value={activity}
+            current={activityLabel}
+            options={ACTIVITY_FILTERS.map((item) => [item.id, item.label] as const)}
+            onChange={(value) => onActivity(value as CashieringActivityFilter)}
+          />
+          <PmsFilterChoiceRow
+            label="Payment Method"
+            value={method}
+            current={method === "all" ? "" : methodLabel(method)}
+            options={[["all", "All methods"], ...methods.map((item) => [item, methodLabel(item)] as const)]}
+            onChange={setMethod}
+          />
+        </PmsFilterMenu>
+      </CashieringShellSlot>
+      <CashieringShellSlot name="export">
+        <CashieringShellExportButton
+          disabled={visibleRows.length === 0}
+          testId="cashiering-activity-export"
+          onClick={() =>
+            downloadCsv(
+              "cashiering-financial-activity.csv",
+              ["When", "Guest", "Folio", "Type", "Method", "Amount"],
+              visibleRows.map((row) => [
+                dateTime(row.postedAt),
+                row.guestName,
+                row.folioNumber,
+                row.type,
+                row.paymentMethod ?? "",
+                String(row.amount),
+              ]),
+            )
+          }
+        />
+      </CashieringShellSlot>
+      <div className={cn("grid gap-4", showInspector && "xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]")}>
         <LedgerTable
           title={title}
-          rows={rows}
+          rows={visibleRows}
           loading={loading}
           error={error}
           empty={`No ${title.toLowerCase()} recorded yet.`}
@@ -1920,38 +2020,40 @@ function FinancialActivityPanel({
             <ActivityRowActions row={row} canAllocate={canAllocate} canManage={canManage} />
           )}
         />
-        {activity === "all" ? (
-          <FinancialActivityHelp
-            selected={selected}
-            canOperate={canOperate}
-            canManage={canManage}
-            money={money}
-            onSelectActivity={onActivity}
-          />
-        ) : activity === "transfer" ? (
-          <TransferActivityHelp selected={selected} money={money} />
-        ) : (
-          <div className="space-y-4">
-            <ReceivePanel
-              kind={activity}
-              restaurantId={restaurantId}
-              folio={selected}
-              folios={openFolios}
-              preferredSourceId={sourceLineId}
-              pendingFolioId={pendingFolioId}
-              onChooseFolio={onChooseFolio}
-              canPost={activity === "refund" ? canManage : canOperate}
+        {showInspector ? (
+          activity === "all" ? (
+            <FinancialActivityHelp
+              selected={selected}
+              canOperate={canOperate}
+              canManage={canManage}
               money={money}
-              depositPolicySummary={depositPolicySummary}
-              authorizerNote={authorizerNote}
-              onPosted={onRefresh}
-              returnToTab={returnToTab}
-              onReturn={onReturn}
-              documentProperty={documentProperty}
-              onReceipt={(r) => setReceipt(r)}
+              onSelectActivity={onActivity}
             />
-          </div>
-        )}
+          ) : activity === "transfer" ? (
+            <TransferActivityHelp selected={selected} money={money} />
+          ) : (
+            <div className="space-y-4">
+              <ReceivePanel
+                kind={activity}
+                restaurantId={restaurantId}
+                folio={selected}
+                folios={openFolios}
+                preferredSourceId={sourceLineId}
+                pendingFolioId={pendingFolioId}
+                onChooseFolio={onChooseFolio}
+                canPost={activity === "refund" ? canManage : canOperate}
+                money={money}
+                depositPolicySummary={depositPolicySummary}
+                authorizerNote={authorizerNote}
+                onPosted={onRefresh}
+                returnToTab={returnToTab}
+                onReturn={onReturn}
+                documentProperty={documentProperty}
+                onReceipt={(r) => setReceipt(r)}
+              />
+            </div>
+          )
+        ) : null}
       </div>
       {activity === "transfer" ? (
         <TransfersPanel
@@ -2422,15 +2524,14 @@ function LedgerTable({
   const pageRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-card shadow-xs">
-      <div className="flex items-center justify-between border-b border-[#DDD4C5] bg-[#FAF8F4]/80 px-4 py-3">
+    <section className={ROOM_TABLE_WRAP}>
+      <div className="flex items-center justify-between border-b border-[#DDD4C5] px-3 py-2">
         <div className="flex items-center gap-2.5">
-          <h2 className="font-display text-sm font-bold text-[#251605]">{title}</h2>
+          <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
           <span className="rounded-full border border-[#DDD4C5] bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-[#765719]">
             {rows.length}
           </span>
         </div>
-        <span className="text-xs text-[#7A7167]">Click row to select folio</span>
       </div>
       {loading ? <p className="p-4 text-sm text-[#7A7167]">Loading ledger…</p> : null}
       {error ? <p className="p-4 text-sm text-destructive">{error}</p> : null}
@@ -2441,18 +2542,18 @@ function LedgerTable({
         <>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
-              <thead className="border-b border-[#DDD4C5] bg-[#F8F5F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
+              <thead className={ROOM_TABLE_HEAD}>
                 <tr>
-                  <th className="px-3.5 py-2.5 font-semibold">Reference</th>
-                  <th className="px-3.5 py-2.5 font-semibold">Guest</th>
-                  <th className="px-3.5 py-2.5 font-semibold">Folio No</th>
-                  <th className="px-3.5 py-2.5 font-semibold">Room</th>
-                  <th className="px-3.5 py-2.5 font-semibold">Method</th>
-                  <th className="px-3.5 py-2.5 text-right font-semibold">Amount</th>
-                  <th className="px-3.5 py-2.5 font-semibold">Posted At</th>
-                  <th className="px-3.5 py-2.5 font-semibold">Posted By</th>
-                  <th className="px-3.5 py-2.5 font-semibold">Status</th>
-                  <th className="px-3.5 py-2.5 text-center font-semibold">Action</th>
+                  <th className={ROOM_TABLE_TH}>Reference</th>
+                  <th className={ROOM_TABLE_TH}>Guest</th>
+                  <th className={ROOM_TABLE_TH}>Folio No</th>
+                  <th className={ROOM_TABLE_TH}>Room</th>
+                  <th className={ROOM_TABLE_TH}>Method</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Amount</th>
+                  <th className={ROOM_TABLE_TH}>Posted At</th>
+                  <th className={ROOM_TABLE_TH}>Posted By</th>
+                  <th className={ROOM_TABLE_TH}>Status</th>
+                  <th className={`${ROOM_TABLE_TH} text-center`}>Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8E1D7]/70">
@@ -2460,10 +2561,9 @@ function LedgerTable({
                   <tr
                     key={row.id}
                     className={cn(
-                      "cursor-pointer transition-colors",
-                      selectedFolioId === row.folioId
-                        ? "bg-[#C89933]/12 border-l-[3px] border-l-[#C89933]"
-                        : "hover:bg-[#FDFBF7]",
+                      ROOM_TABLE_ROW,
+                      "cursor-pointer",
+                      selectedFolioId === row.folioId && "bg-[#F4E9D0]/70",
                     )}
                     onClick={() => onSelect(row)}
                   >
@@ -2514,12 +2614,25 @@ function LedgerTable({
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-[#FAF8F4]/60 px-4 py-2.5 text-xs text-[#7A7167]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-white px-3 py-2.5 text-xs text-muted-foreground">
             <span>
               Showing {rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
               {Math.min(safePage * pageSize, rows.length)} of {rows.length}
             </span>
             <div className="flex items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPage(1);
+                }}
+                className="h-8 rounded-md border border-[#DDD4C5] bg-white px-2 text-xs text-[#251605]"
+                aria-label="Rows per page"
+              >
+                <option value={10}>10 / page</option>
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+              </select>
               <Button
                 type="button"
                 size="sm"
@@ -2528,7 +2641,6 @@ function LedgerTable({
                 disabled={safePage <= 1}
                 onClick={() => setPage(safePage - 1)}
               >
-                <ChevronLeft className="mr-1 size-3.5" />
                 Previous
               </Button>
               <span className="grid size-8 place-items-center rounded-md bg-[#C89933] text-xs font-semibold text-[#251605]">
@@ -2931,7 +3043,7 @@ function ReceivePanel({
             </p>
           ) : !canPost ? (
             <p className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs text-[#8A6A24]">
-              Your role does not have authorization to post this transaction.
+              You don't have permission to post this transaction.
             </p>
           ) : (
             <div className="space-y-3 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/60 p-3.5">

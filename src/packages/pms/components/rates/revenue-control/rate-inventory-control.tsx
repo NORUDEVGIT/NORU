@@ -15,6 +15,13 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Button } from "@/shared/components/ui/button";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 
 function SignalBadge({ signal }: { signal: RevenueControlSignal }) {
   if (signal === "Override Active") {
@@ -77,7 +84,7 @@ export function RateInventoryControl({
   const endEntry = Math.min(page * pageSize, rows.length);
 
   return (
-    <section className="flex flex-col rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+    <section className={ROOM_TABLE_WRAP}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDD4C5] px-4 py-3">
         <h2 className="font-display text-base font-semibold text-[#251605]">
           Rate & Inventory Control
@@ -95,16 +102,16 @@ export function RateInventoryControl({
         <>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-[#DDD4C5] bg-[#FAF6F0] text-xs font-semibold text-[#5A4833]">
+              <thead className={ROOM_TABLE_HEAD}>
                 <tr>
-                  <th className="h-10 px-4">Date</th>
-                  <th className="h-10 px-4 text-right">Occupancy</th>
-                  <th className="h-10 px-4 text-right">Rooms Sold</th>
-                  <th className="h-10 px-4 text-right">Rooms Available</th>
-                  <th className="h-10 px-4 text-right">Rate</th>
-                  <th className="h-10 px-4">Restriction</th>
-                  <th className="h-10 px-4">Signal</th>
-                  <th className="h-10 w-12 px-4 text-right">
+                  <th className={ROOM_TABLE_TH}>Date</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Occupancy</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Rooms Sold</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Rooms Available</th>
+                  <th className={`${ROOM_TABLE_TH} text-right`}>Rate</th>
+                  <th className={ROOM_TABLE_TH}>Restriction</th>
+                  <th className={ROOM_TABLE_TH}>Signal</th>
+                  <th className={`${ROOM_TABLE_TH} w-12 text-right`}>
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
@@ -129,17 +136,17 @@ export function RateInventoryControl({
                   return (
                     <tr
                       key={row.date}
-                      className="border-b border-[#EFECE6] transition-colors hover:bg-[#FAF6F0]/60"
+                      className={ROOM_TABLE_ROW}
                     >
-                      <td className="h-11 px-4 font-medium text-[#251605]">{row.date}</td>
-                      <td className="h-11 px-4 text-right font-medium text-[#251605]">
+                      <td className={`${ROOM_TABLE_TD} font-medium`}>{row.date}</td>
+                      <td className={`${ROOM_TABLE_TD} text-right font-medium`}>
                         {row.occupancyPercent}%
                       </td>
-                      <td className="h-11 px-4 text-right text-[#251605]">{row.soldRoomNights}</td>
-                      <td className="h-11 px-4 text-right text-[#251605]">
+                      <td className={`${ROOM_TABLE_TD} text-right`}>{row.soldRoomNights}</td>
+                      <td className={`${ROOM_TABLE_TD} text-right`}>
                         {row.availableRoomNights}
                       </td>
-                      <td className="h-11 px-4 text-right text-[#251605]">
+                      <td className={`${ROOM_TABLE_TD} text-right`}>
                         {row.effectiveRate == null ? (
                           "—"
                         ) : (
@@ -156,13 +163,13 @@ export function RateInventoryControl({
                           </span>
                         )}
                       </td>
-                      <td className="h-11 px-4 text-xs text-[#756A5B]">
+                      <td className={`${ROOM_TABLE_TD} text-xs text-[#756A5B]`}>
                         {row.restrictionLabel ?? "—"}
                       </td>
-                      <td className="h-11 px-4">
+                      <td className={ROOM_TABLE_TD}>
                         <SignalBadge signal={row.signal} />
                       </td>
-                      <td className="h-11 px-4 text-right">
+                      <td className={`${ROOM_TABLE_TD} text-right`}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button

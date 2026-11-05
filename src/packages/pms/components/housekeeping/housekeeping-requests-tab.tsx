@@ -8,6 +8,19 @@ import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import {
+  HkBusinessDate,
+  HkShellSlot,
+  HkToolbarSearch,
+} from "@/packages/pms/components/housekeeping/housekeeping-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 import {
   listHousekeepingGuestRequests,
   updateHousekeepingGuestRequest,
@@ -18,7 +31,6 @@ import {
   guestServiceRowActions,
   type GuestServiceStatus,
 } from "@/packages/pms/lib/guest-services-workspace";
-import { preferredTimeOverdue } from "@/packages/pms/lib/fo-guest-services";
 import { HK_GUEST_SERVICES_PATH, HK_FIELD_ACTION_CLASS } from "@/packages/pms/lib/housekeeping-shell";
 import { PriorityBadge, formatWhen } from "./housekeeping-bits";
 import { HkDesktopOnly, HkFieldActions, HkFieldCard, HkFieldStack } from "./housekeeping-field";
@@ -29,7 +41,7 @@ function errText(e: unknown) {
   return e instanceof Error ? e.message : "Something went wrong.";
 }
 
-export function HousekeepingRequestsTab({ restaurantId }: Props) {
+export function HousekeepingRequestsTab({ restaurantId, today }: Props) {
   const qc = useQueryClient();
   const fetchList = useServerFn(listHousekeepingGuestRequests);
   const updateFn = useServerFn(updateHousekeepingGuestRequest);
@@ -41,24 +53,22 @@ export function HousekeepingRequestsTab({ restaurantId }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<GuestServiceStatus | "open" | "all">("open");
   const [workNotes, setWorkNotes] = useState("");
+  const [query, setQuery] = useState("");
 
   const rows = list.data ?? [];
-  const now = Date.now();
+  const queryText = query.trim().toLowerCase();
   const filtered = rows.filter((row) => {
-    if (statusFilter === "all") return true;
-    if (statusFilter === "open") return row.status === "requested" || row.status === "in_progress";
-    return row.status === statusFilter;
+    if (statusFilter === "all") {
+      /* keep */
+    } else if (statusFilter === "open") {
+      if (row.status !== "requested" && row.status !== "in_progress") return false;
+    } else if (row.status !== statusFilter) {
+      return false;
+    }
+    if (!queryText) return true;
+    return `${row.requestNumber ?? ""} ${row.serviceName} ${row.roomNumber ?? ""} ${row.guestName}`.toLowerCase().includes(queryText);
   });
-  const selected = filtered.find((row) => row.id === selectedId) ?? filtered[0] ?? null;
-  const openCount = rows.filter((row) => row.status === "requested").length;
-  const progressCount = rows.filter((row) => row.status === "in_progress").length;
-  const urgentCount = rows.filter(
-    (row) => row.priority === "urgent" && (row.status === "requested" || row.status === "in_progress"),
-  ).length;
-  const overdueCount = rows.filter(
-    (row) =>
-      (row.status === "requested" || row.status === "in_progress") && preferredTimeOverdue(row.preferredAt, now),
-  ).length;
+  const selected = filtered.find((row) => row.id === selectedId) ?? null;
 
   function invalidate() {
     void qc.invalidateQueries({ queryKey: ["hk-requests", restaurantId] });
@@ -78,42 +88,51 @@ export function HousekeepingRequestsTab({ restaurantId }: Props) {
     onError: (e) => toast.error(errText(e)),
   });
 
+  const statusLabel =
+    statusFilter === "open"
+      ? "Open"
+      : statusFilter === "all"
+        ? ""
+        : GUEST_SERVICE_STATUS_LABELS[statusFilter];
+
   return (
     <div className="space-y-4" data-testid="hk-requests-workspace">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Pending", openCount, "Not started"],
-          ["In progress", progressCount, "Being handled"],
-          ["Urgent", urgentCount, "Need attention"],
-          ["Preferred time passed", overdueCount, "Display only"],
-        ].map(([label, value, hint]) => (
-          <div key={label} className="rounded-2xl border border-border bg-background px-3 py-3">
-            <p className="text-xs font-medium text-muted-foreground">{label}</p>
-            <p className="mt-1 font-display text-2xl font-semibold">{list.isLoading ? "—" : value}</p>
-            <p className="text-[11px] text-muted-foreground">{hint}</p>
-          </div>
-        ))}
-      </div>
+      <HkShellSlot name="date">
+        <HkBusinessDate today={today} />
+      </HkShellSlot>
+      <HkShellSlot name="search">
+        <HkToolbarSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search request, room, guest, or service…"
+          testId="hk-requests-search"
+        />
+      </HkShellSlot>
+      <HkShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={statusFilter !== "open" ? 1 : 0}
+          onClear={() => setStatusFilter("open")}
+          buttonTestId="hk-requests-filters-button"
+          menuTestId="hk-requests-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Status"
+            value={statusFilter}
+            current={statusLabel}
+            options={[
+              ["open", "Open"],
+              ["requested", GUEST_SERVICE_STATUS_LABELS.requested],
+              ["in_progress", GUEST_SERVICE_STATUS_LABELS.in_progress],
+              ["completed", GUEST_SERVICE_STATUS_LABELS.completed],
+              ["all", "All"],
+            ]}
+            neutralValue="open"
+            onChange={(value) => setStatusFilter(value as GuestServiceStatus | "open" | "all")}
+          />
+        </PmsFilterMenu>
+      </HkShellSlot>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1">
-          {(["open", "requested", "in_progress", "completed", "all"] as const).map((key) => (
-            <Button
-              key={key}
-              size="sm"
-              variant={statusFilter === key ? "secondary" : "ghost"}
-              onClick={() => setStatusFilter(key)}
-            >
-              {key === "open" ? "Open" : key === "all" ? "All" : GUEST_SERVICE_STATUS_LABELS[key]}
-            </Button>
-          ))}
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to={HK_GUEST_SERVICES_PATH}>Open Guest Services</Link>
-        </Button>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className={cn("grid gap-4", selected && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
         <HkFieldStack testId="hk-requests-field-worklist">
           {list.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading requests…</p>
@@ -148,28 +167,28 @@ export function HousekeepingRequestsTab({ restaurantId }: Props) {
             ))
           )}
         </HkFieldStack>
-        <HkDesktopOnly className="overflow-x-auto rounded-2xl border border-border bg-background">
+        <HkDesktopOnly className={ROOM_TABLE_WRAP}>
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={ROOM_TABLE_HEAD}>
               <tr>
-                <th className="p-3">Request</th>
-                <th className="p-3">Room</th>
-                <th className="p-3">Guest</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Priority</th>
-                <th className="p-3">Status</th>
+                <th className={ROOM_TABLE_TH}>Request</th>
+                <th className={ROOM_TABLE_TH}>Room</th>
+                <th className={ROOM_TABLE_TH}>Guest</th>
+                <th className={ROOM_TABLE_TH}>Type</th>
+                <th className={ROOM_TABLE_TH}>Priority</th>
+                <th className={ROOM_TABLE_TH}>Status</th>
               </tr>
             </thead>
             <tbody>
               {list.isLoading ? (
                 <tr>
-                  <td colSpan={6} className="p-4 text-muted-foreground">
+                  <td colSpan={6} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                     Loading requests…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-4 text-muted-foreground">
+                  <td colSpan={6} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
                     No housekeeping-routed guest requests.
                   </td>
                 </tr>
@@ -178,19 +197,20 @@ export function HousekeepingRequestsTab({ restaurantId }: Props) {
                   <tr
                     key={row.id}
                     className={cn(
-                      "cursor-pointer border-t border-border",
-                      selected?.id === row.id && "bg-[#F7F4EE]",
+                      ROOM_TABLE_ROW,
+                      "cursor-pointer",
+                      selected?.id === row.id && "bg-[#F4E9D0]/70",
                     )}
                     onClick={() => setSelectedId(row.id)}
                   >
-                    <td className="p-3 font-medium">{row.requestNumber ?? "—"}</td>
-                    <td className="p-3">{row.roomNumber ?? "—"}</td>
-                    <td className="p-3">{row.guestName}</td>
-                    <td className="p-3 text-muted-foreground">{row.serviceName}</td>
-                    <td className="p-3">
+                    <td className={`${ROOM_TABLE_TD} font-medium`}>{row.requestNumber ?? "—"}</td>
+                    <td className={ROOM_TABLE_TD}>{row.roomNumber ?? "—"}</td>
+                    <td className={ROOM_TABLE_TD}>{row.guestName}</td>
+                    <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{row.serviceName}</td>
+                    <td className={ROOM_TABLE_TD}>
                       <PriorityBadge priority={row.priority} />
                     </td>
-                    <td className="p-3">{GUEST_SERVICE_STATUS_LABELS[row.status]}</td>
+                    <td className={ROOM_TABLE_TD}>{GUEST_SERVICE_STATUS_LABELS[row.status]}</td>
                   </tr>
                 ))
               )}
@@ -198,8 +218,17 @@ export function HousekeepingRequestsTab({ restaurantId }: Props) {
           </table>
         </HkDesktopOnly>
 
+        {selected ? (
         <aside className="hidden rounded-2xl border border-border bg-background p-4 md:block">
-          {selected ? (
+            <div className="mb-2 flex justify-end">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setSelectedId(null)}
+              >
+                Close
+              </button>
+            </div>
             <RequestDetail
               row={selected}
               workNotes={workNotes}
@@ -213,10 +242,8 @@ export function HousekeepingRequestsTab({ restaurantId }: Props) {
                 })
               }
             />
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a request to see details.</p>
-          )}
         </aside>
+        ) : null}
       </div>
     </div>
   );

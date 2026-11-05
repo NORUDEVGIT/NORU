@@ -5,25 +5,15 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   BedDouble,
   CheckCircle2,
-  ClipboardCheck,
   RefreshCw,
   ShieldCheck,
   Sparkles,
   UserRound,
-  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -32,6 +22,23 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import {
+  HkBusinessDate,
+  HkShellExportButton,
+  HkShellSlot,
+  HkToolbarSearch,
+  HkViewSwitcher,
+  downloadCsv,
+  HK_SHELL_PRIMARY_BUTTON,
+} from "@/packages/pms/components/housekeeping/housekeeping-shell-slots";
+import {
+  ROOM_TABLE_HEAD,
+  ROOM_TABLE_ROW,
+  ROOM_TABLE_TD,
+  ROOM_TABLE_TH,
+  ROOM_TABLE_WRAP,
+} from "@/packages/pms/components/rooms/room-inventory-shell";
 import {
   completeHousekeepingTask,
   listHousekeepingHistory,
@@ -50,7 +57,6 @@ import {
   HK_CANONICAL_PATH,
   HK_FIELD_ACTION_CLASS,
   boardColumnForRoom,
-  deriveHkBoardKpis,
   occupancyCaption,
   type HkBoardColumn,
 } from "@/packages/pms/lib/housekeeping-shell";
@@ -157,6 +163,7 @@ export function HousekeepingBoardTab({
   const [attendant, setAttendant] = useState("all");
   const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"board" | "table">("board");
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [lockedTaskRoom, setLockedTaskRoom] = useState<RackRoom | null>(null);
   const [qvRoomId, setQvRoomId] = useState<string | null>(openRoomId ?? null);
@@ -174,8 +181,6 @@ export function HousekeepingBoardTab({
     () => Array.from(new Set(rooms.map((r) => r.assignedAttendant).filter(Boolean) as string[])).sort(),
     [rooms],
   );
-  const kpis = useMemo(() => deriveHkBoardKpis(rooms), [rooms]);
-
   const filtered = rooms.filter((r) => {
     if (floor !== "all" && r.floor !== floor) return false;
     if (attendant !== "all" && r.assignedAttendant !== attendant) return false;
@@ -216,243 +221,244 @@ export function HousekeepingBoardTab({
   const qvRoom = rooms.find((r) => r.id === qvRoomId) ?? null;
   const openMaint = (maintenance.data ?? []).filter((m) => m.status !== "resolved");
   const pendingInspect = (inspections.data ?? []).filter((i) => i.status === "pending");
-  const awaitingInspect = rooms.filter((r) => r.awaitingInspection).slice(0, 8);
+  const statusLabel =
+    status === "dirty"
+      ? "Dirty"
+      : status === "assigned"
+        ? "Assigned"
+        : status === "cleaning"
+          ? "Cleaning"
+          : status === "clean"
+            ? "Clean"
+            : status === "inspected"
+              ? "Inspected"
+              : status === "pickup"
+                ? "Pickup"
+                : status === "ready"
+                  ? "Ready"
+                  : status === "out_of_order"
+                    ? "Out of order"
+                    : "";
+  const filterCount = (floor !== "all" ? 1 : 0) + (attendant !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0);
 
-  const kpiCards = [
-    { id: "dirty", label: "Dirty Rooms", hint: "Need cleaning", value: kpis.dirty, icon: Sparkles, tone: "text-rose-700 bg-rose-50" },
-    { id: "assigned", label: "Assigned", hint: "Rooms assigned", value: kpis.assigned, icon: UserRound, tone: "text-amber-800 bg-amber-50" },
-    { id: "progress", label: "In Progress", hint: "Being cleaned", value: kpis.inProgress, icon: RefreshCw, tone: "text-sky-700 bg-sky-50" },
-    { id: "clean", label: "Clean", hint: "Awaiting inspection", value: kpis.clean, icon: CheckCircle2, tone: "text-emerald-700 bg-emerald-50" },
-    { id: "inspected", label: "Inspected", hint: "Awaiting release", value: kpis.inspected, icon: ShieldCheck, tone: "text-violet-700 bg-violet-50" },
-    { id: "ready", label: "Ready", hint: "Ready for check-in", value: kpis.ready, icon: BedDouble, tone: "text-teal-700 bg-teal-50" },
-    { id: "pickup", label: "Pickup", hint: "Public areas/rooms", value: kpis.pickup, icon: ClipboardCheck, tone: "text-orange-700 bg-orange-50" },
-    { id: "ooo", label: "Out of Order", hint: "Maintenance issue", value: kpis.outOfOrder, icon: Wrench, tone: "text-red-800 bg-red-50" },
-  ] as const;
+  function exportBoard() {
+    downloadCsv(
+      `housekeeping-board-${today}.csv`,
+      ["Room", "Type", "Floor", "Status", "Occupancy", "Attendant", "Task", "Ready"],
+      filtered.map((room) => [
+        room.roomNumber,
+        room.roomTypeName,
+        room.floor ?? "",
+        room.housekeepingStatus,
+        occupancyCaption(room),
+        room.assignedAttendant ?? "",
+        room.openTaskStatus ?? "",
+        room.ready ? "Ready" : "",
+      ]),
+    );
+  }
 
   return (
-    <div className="space-y-4" data-testid="hk-board">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-8" data-testid="hk-kpi-strip">
-        {kpiCards.map((card) => (
-          <div key={card.id} className="rounded-2xl border border-border bg-background px-3 py-3">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-xs font-medium text-muted-foreground">{card.label}</p>
-              <span className={cn("rounded-full p-1", card.tone)}>
-                <card.icon className="h-3.5 w-3.5" />
-              </span>
-            </div>
-            <p className="mt-1 font-display text-2xl font-semibold">{rack.isLoading ? "—" : card.value}</p>
-            <p className="text-[11px] text-muted-foreground">{card.hint}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background p-2">
-        <Input value={today} readOnly className="h-9 w-[132px] bg-muted/40 text-sm" aria-label="Business date" />
-        <Select value="today" disabled>
-          <SelectTrigger className="h-9 w-[120px]">
-            <SelectValue placeholder="View range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="today">Today</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={floor} onValueChange={setFloor}>
-          <SelectTrigger className="h-9 w-[140px]">
-            <SelectValue placeholder="Floor" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All floors</SelectItem>
-            {floors.map((f) => (
-              <SelectItem key={f} value={f}>
-                {f}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={attendant} onValueChange={setAttendant}>
-          <SelectTrigger className="h-9 w-[160px]">
-            <SelectValue placeholder="Attendant" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All attendants</SelectItem>
-            {attendants.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-9 w-[150px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="dirty">Dirty</SelectItem>
-            <SelectItem value="assigned">Assigned</SelectItem>
-            <SelectItem value="cleaning">Cleaning</SelectItem>
-            <SelectItem value="clean">Clean</SelectItem>
-            <SelectItem value="inspected">Inspected</SelectItem>
-            <SelectItem value="pickup">Pickup</SelectItem>
-            <SelectItem value="ready">Ready</SelectItem>
-            <SelectItem value="out_of_order">Out of order</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input
+    <div className="space-y-3" data-testid="hk-board">
+      <HkShellSlot name="date">
+        <HkBusinessDate today={today} />
+      </HkShellSlot>
+      <HkShellSlot name="search">
+        <HkToolbarSearch
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder="Search room, guest, attendant, or note…"
-          className="h-9 min-w-[200px] flex-1"
+          testId="hk-board-search"
         />
-        {scope === "supervisor" ? (
+      </HkShellSlot>
+      <HkShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={filterCount}
+          onClear={() => {
+            setFloor("all");
+            setAttendant("all");
+            setStatus("all");
+          }}
+          buttonTestId="hk-board-filters-button"
+          menuTestId="hk-board-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Floor"
+            value={floor}
+            current={floor === "all" ? "" : floor}
+            options={[["all", "All floors"], ...floors.map((item) => [item, item] as const)]}
+            onChange={setFloor}
+          />
+          <PmsFilterChoiceRow
+            label="Attendant"
+            value={attendant}
+            current={attendant === "all" ? "" : attendant}
+            options={[["all", "All attendants"], ...attendants.map((item) => [item, item] as const)]}
+            onChange={setAttendant}
+          />
+          <PmsFilterChoiceRow
+            label="Status"
+            value={status}
+            current={statusLabel}
+            options={[
+              ["all", "All statuses"],
+              ["dirty", "Dirty"],
+              ["assigned", "Assigned"],
+              ["cleaning", "Cleaning"],
+              ["clean", "Clean"],
+              ["inspected", "Inspected"],
+              ["pickup", "Pickup"],
+              ["ready", "Ready"],
+              ["out_of_order", "Out of order"],
+            ]}
+            onChange={setStatus}
+          />
+        </PmsFilterMenu>
+      </HkShellSlot>
+      <HkShellSlot name="export">
+        <HkShellExportButton onClick={exportBoard} disabled={filtered.length === 0} testId="hk-board-export" />
+      </HkShellSlot>
+      <HkShellSlot name="view">
+        <HkViewSwitcher value={viewMode} onChange={setViewMode} testId="hk-board-view-switcher" />
+      </HkShellSlot>
+      {scope === "supervisor" ? (
+        <HkShellSlot name="cta">
           <Button
-            className={cn(HK_FIELD_ACTION_CLASS, "ml-auto bg-[#C89933] text-[#251605] hover:bg-[#b8892c]")}
+            className={HK_SHELL_PRIMARY_BUTTON}
             onClick={() => {
               setLockedTaskRoom(null);
               setCreateTaskOpen(true);
             }}
             disabled={!rooms.length}
+            data-testid="hk-create-task"
           >
-            + Create Task
+            Create Task
           </Button>
-        ) : null}
-      </div>
+        </HkShellSlot>
+      ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className={HK_BOARD_LANES_DESKTOP_CLASS}>
-          <p className="border-b border-[#E6DDD0] bg-background px-3 py-2 text-sm font-medium">
-            Rooms ({filtered.length})
-          </p>
-          <div
-            className="grid min-w-[1100px] grid-cols-[128px_repeat(6,minmax(168px,1fr))]"
-            data-testid="hk-board-lanes"
-          >
-            <div className="border-r border-[#E6DDD0] bg-[#EFEAE2] px-3 py-2.5">
-              <p className="text-xs font-semibold text-muted-foreground">Floor</p>
-            </div>
-            {HK_BOARD_COLUMNS.map((col) => {
-              const count = filtered.filter((r) => boardColumnForRoom(r) === col).length;
-              const visual = LANE_VISUAL[col];
-              const Icon = visual.icon;
-              return (
-                <div
-                  key={col}
-                  className={cn(
-                    "border-r border-black/[0.04] px-2.5 py-2 last:border-r-0",
-                    visual.header,
-                  )}
-                >
-                  <div className={cn("flex items-center gap-1.5 text-xs font-semibold", visual.ink)}>
-                    <Icon className="h-3.5 w-3.5 shrink-0" />
-                    <span>{HK_BOARD_COLUMN_META[col].label}</span>
-                    <span className="ml-auto tabular-nums font-medium opacity-80">{count}</span>
+      {viewMode === "board" ? (
+        <>
+          <div className={HK_BOARD_LANES_DESKTOP_CLASS}>
+            <p className="border-b border-[#E6DDD0] bg-background px-3 py-2 text-sm font-medium">
+              Rooms ({filtered.length})
+            </p>
+            <div
+              className="grid min-w-[1100px] grid-cols-[128px_repeat(6,minmax(168px,1fr))]"
+              data-testid="hk-board-lanes"
+            >
+              <div className="border-r border-[#E6DDD0] bg-[#EFEAE2] px-3 py-2.5">
+                <p className="text-xs font-semibold text-muted-foreground">Floor</p>
+              </div>
+              {HK_BOARD_COLUMNS.map((col) => {
+                const count = filtered.filter((r) => boardColumnForRoom(r) === col).length;
+                const visual = LANE_VISUAL[col];
+                const Icon = visual.icon;
+                return (
+                  <div
+                    key={col}
+                    className={cn(
+                      "border-r border-black/[0.04] px-2.5 py-2 last:border-r-0",
+                      visual.header,
+                    )}
+                  >
+                    <div className={cn("flex items-center gap-1.5 text-xs font-semibold", visual.ink)}>
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span>{HK_BOARD_COLUMN_META[col].label}</span>
+                      <span className="ml-auto tabular-nums font-medium opacity-80">{count}</span>
+                    </div>
                   </div>
-                </div>
+                );
+              })}
+              {byFloor.map(([floorName, floorRooms]) => (
+                <FloorRow
+                  key={floorName}
+                  floorName={floorName}
+                  rooms={floorRooms}
+                  onOpen={setQvRoomId}
+                />
+              ))}
+            </div>
+            {rack.isLoading ? <p className="p-4 text-sm text-muted-foreground">Loading rooms…</p> : null}
+            {!rack.isLoading && filtered.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">No rooms match these filters.</p>
+            ) : null}
+          </div>
+
+          <div className={HK_BOARD_FIELD_STACK_CLASS} data-testid="hk-board-field-worklist">
+            {rack.isLoading ? <p className="text-sm text-muted-foreground">Loading rooms…</p> : null}
+            {!rack.isLoading && filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No rooms match these filters.</p>
+            ) : null}
+            {HK_BOARD_COLUMNS.map((col) => {
+              const list = filtered.filter((r) => boardColumnForRoom(r) === col);
+              if (list.length === 0) return null;
+              return (
+                <section key={col} className="space-y-2">
+                  <h3 className="text-sm font-semibold">
+                    {HK_BOARD_COLUMN_META[col].label}{" "}
+                    <span className="text-muted-foreground">({list.length})</span>
+                  </h3>
+                  {list.map((room) => (
+                    <RoomCard key={room.id} room={room} onOpen={() => setQvRoomId(room.id)} field />
+                  ))}
+                </section>
               );
             })}
-            {byFloor.map(([floorName, floorRooms]) => (
-              <FloorRow
-                key={floorName}
-                floorName={floorName}
-                rooms={floorRooms}
-                onOpen={setQvRoomId}
-              />
-            ))}
           </div>
-          {rack.isLoading ? <p className="p-4 text-sm text-muted-foreground">Loading rooms…</p> : null}
-          {!rack.isLoading && filtered.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">No rooms match these filters.</p>
-          ) : null}
+        </>
+      ) : (
+        <div className={ROOM_TABLE_WRAP} data-testid="hk-board-table">
+          <table className="w-full min-w-[880px] text-sm">
+            <thead className={ROOM_TABLE_HEAD}>
+              <tr>
+                <th className={ROOM_TABLE_TH}>Room</th>
+                <th className={ROOM_TABLE_TH}>Type</th>
+                <th className={ROOM_TABLE_TH}>Floor</th>
+                <th className={ROOM_TABLE_TH}>Status</th>
+                <th className={ROOM_TABLE_TH}>Occupancy</th>
+                <th className={ROOM_TABLE_TH}>Attendant</th>
+                <th className={ROOM_TABLE_TH}>Task</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rack.isLoading ? (
+                <tr>
+                  <td colSpan={7} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
+                    Loading rooms…
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
+                    No rooms match these filters.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((room) => (
+                  <tr
+                    key={room.id}
+                    className={cn(ROOM_TABLE_ROW, "cursor-pointer", qvRoomId === room.id && "bg-[#F4E9D0]/70")}
+                    onClick={() => setQvRoomId(room.id)}
+                  >
+                    <td className={`${ROOM_TABLE_TD} font-medium`}>{room.roomNumber}</td>
+                    <td className={ROOM_TABLE_TD}>{room.roomTypeName}</td>
+                    <td className={ROOM_TABLE_TD}>{room.floor ?? "—"}</td>
+                    <td className={ROOM_TABLE_TD}>
+                      <HkStatusBadge status={room.housekeepingStatus} />
+                    </td>
+                    <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{occupancyCaption(room)}</td>
+                    <td className={ROOM_TABLE_TD}>{room.assignedAttendant ?? "—"}</td>
+                    <td className={`${ROOM_TABLE_TD} capitalize text-muted-foreground`}>
+                      {room.openTaskStatus?.replace("_", " ") ?? "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
-        <div className={HK_BOARD_FIELD_STACK_CLASS} data-testid="hk-board-field-worklist">
-          {rack.isLoading ? <p className="text-sm text-muted-foreground">Loading rooms…</p> : null}
-          {!rack.isLoading && filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No rooms match these filters.</p>
-          ) : null}
-          {HK_BOARD_COLUMNS.map((col) => {
-            const list = filtered.filter((r) => boardColumnForRoom(r) === col);
-            if (list.length === 0) return null;
-            return (
-              <section key={col} className="space-y-2">
-                <h3 className="text-sm font-semibold">
-                  {HK_BOARD_COLUMN_META[col].label}{" "}
-                  <span className="text-muted-foreground">({list.length})</span>
-                </h3>
-                {list.map((room) => (
-                  <RoomCard key={room.id} room={room} onOpen={() => setQvRoomId(room.id)} field />
-                ))}
-              </section>
-            );
-          })}
-        </div>
-
-        <aside className="space-y-3">
-          <RailCard
-            title={`Today's Inspections (${isSupervisor ? awaitingInspect.length : 0})`}
-            action={
-              isSupervisor ? (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground"
-                  onClick={() =>
-                    void navigate({
-                      to: "/restaurant/pms/housekeeping",
-                      search: (prev: Record<string, unknown>) => ({ ...prev, tab: "inspections" }),
-                    })
-                  }
-                >
-                  View all
-                </button>
-              ) : null
-            }
-          >
-            {!isSupervisor ? (
-              <p className="text-xs text-muted-foreground">Inspections are supervisor-only.</p>
-            ) : awaitingInspect.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No rooms waiting for inspection.</p>
-            ) : (
-              awaitingInspect.map((room) => (
-                <button
-                  key={room.id}
-                  type="button"
-                  className="flex w-full items-start justify-between rounded-lg px-1 py-1.5 text-left text-xs hover:bg-muted/60"
-                  onClick={() => setQvRoomId(room.id)}
-                >
-                  <span>
-                    <span className="font-medium">{room.roomNumber}</span>
-                    <span className="block text-muted-foreground">{room.roomTypeName}</span>
-                  </span>
-                  <span className="text-muted-foreground">{occupancyCaption(room)}</span>
-                </button>
-              ))
-            )}
-          </RailCard>
-          <RailCard title={`Active Maintenance (${openMaint.length})`}>
-            {openMaint.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No open maintenance requests.</p>
-            ) : (
-              openMaint.slice(0, 6).map((row) => (
-                <div key={row.id} className="flex items-start justify-between py-1.5 text-xs">
-                  <span>
-                    <span className="font-medium">{row.roomNumber}</span>
-                    <span className="block text-muted-foreground">{row.description}</span>
-                  </span>
-                  <PriorityBadge priority={row.priority} />
-                </div>
-              ))
-            )}
-            <Link to="/restaurant/pms/maintenance" search={{ tab: "maintenance" }} className="text-xs text-muted-foreground">
-              View all
-            </Link>
-          </RailCard>
-          <RailCard title="Housekeeping Requests (0)">
-            <p className="text-xs text-muted-foreground">
-              Execution queue is not live yet. Guest Services remains the request owner.
-            </p>
-          </RailCard>
-        </aside>
-      </div>
+      )}
 
       <NewTaskDialog
         restaurantId={restaurantId}
@@ -583,26 +589,6 @@ function RoomCard({ room, onOpen, field = false }: { room: RackRoom; onOpen: () 
         <p className="mt-1 text-[11px] text-muted-foreground">{room.assignedAttendant}</p>
       ) : null}
     </button>
-  );
-}
-
-function RailCard({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-border bg-background p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        {action}
-      </div>
-      <div className="space-y-1">{children}</div>
-    </section>
   );
 }
 

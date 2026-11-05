@@ -1,15 +1,24 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, Ban, ShieldAlert, TriangleAlert } from "lucide-react";
+import { X } from "lucide-react";
 
-import { ReservationStatusBadge, formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import {
+  ReservationStatusBadge,
+  formatStayDate,
+} from "@/packages/pms/components/bookings/reservation-bits";
 import { VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   AssignRoomDialog,
   CheckOutDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
+import {
+  FilterGroup,
+  FilterOption,
+  MoreFiltersMenu,
+} from "@/packages/pms/components/more-filters-menu";
+import { ReservationShellSlot } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { RESERVATION_STATUSES } from "@/packages/pms/lib/reservation-dates";
 import {
@@ -40,6 +49,33 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
 type FoKind = "assign_room" | "check_out";
+
+/** Choices staged inside the More filters menu; applied with "Apply filters". */
+type ExceptionMenuDraft = {
+  severity: ReservationExceptionSeverity | "all";
+  key: ReservationExceptionKey | "all";
+  sourceModule: ReservationExceptionSourceModule | "all";
+  responsibleModule: ReservationExceptionResponsibleModule | "all";
+  status: (typeof RESERVATION_STATUSES)[number] | "all";
+  blockingOnly: boolean;
+};
+
+const DEFAULT_MENU_DRAFT: ExceptionMenuDraft = {
+  severity: "all",
+  key: "all",
+  sourceModule: "all",
+  responsibleModule: "all",
+  status: "all",
+  blockingOnly: false,
+};
+
+const SEVERITY_OPTIONS: Array<[ExceptionMenuDraft["severity"], string]> = [
+  ["all", "All severities"],
+  ["high", "Critical"],
+  ["standard", "Attention"],
+];
+
+type FilterChip = { id: string; label: string; remove: () => void };
 
 function useDesktopOverlay() {
   const [desktop, setDesktop] = useState(true);
@@ -80,12 +116,17 @@ function itemIdentity(item: ReservationExceptionItem): string {
 
 export function ReservationControlWorkspace({
   restaurantId,
+  search = "",
+  onSearchChange,
   currencyCode,
   canManage,
   onOpenReservation,
   onOpenCalendar,
 }: {
   restaurantId: string;
+  /** Search text (guest, reservation, room, type, reason). Owned by the parent so the header search can drive it too. */
+  search?: string;
+  onSearchChange?: (value: string) => void;
   currencyCode: string;
   canManage: boolean;
   onOpenReservation: (reservationId: string) => void;
@@ -95,6 +136,7 @@ export function ReservationControlWorkspace({
   const desktop = useDesktopOverlay();
   const loadExceptions = useServerFn(getReservationExceptions);
 
+  // Applied filters (these drive the query).
   const [severity, setSeverity] = useState<ReservationExceptionSeverity | "all">("all");
   const [key, setKey] = useState<ReservationExceptionKey | "all">("all");
   const [sourceModule, setSourceModule] = useState<ReservationExceptionSourceModule | "all">("all");
@@ -103,6 +145,12 @@ export function ReservationControlWorkspace({
   >("all");
   const [status, setStatus] = useState<(typeof RESERVATION_STATUSES)[number] | "all">("all");
   const [blockingOnly, setBlockingOnly] = useState(false);
+
+  // More filters menu state.
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const [menuDraft, setMenuDraft] = useState<ExceptionMenuDraft>(DEFAULT_MENU_DRAFT);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [foAction, setFoAction] = useState<{ kind: FoKind; stay: FrontOfficeStay } | null>(null);
@@ -132,14 +180,110 @@ export function ReservationControlWorkspace({
   });
 
   const snapshot = snapshotQuery.data;
+  const totals = snapshot?.totals;
+  const kpis = totals
+    ? [
+        { id: "total" as const, label: "Total Open", value: totals.total },
+        { id: "high" as const, label: "Critical", value: totals.high },
+        { id: "standard" as const, label: "Attention", value: totals.standard },
+        { id: "blocking" as const, label: "Blocking", value: totals.blocking },
+      ]
+    : [];
+
+  // Blocking filter + search run on the rows already loaded.
   const items = useMemo(() => {
     const rows = snapshot?.items ?? [];
-    return blockingOnly ? rows.filter((row) => row.blocking) : rows;
-  }, [snapshot?.items, blockingOnly]);
+    const q = search.trim().toLowerCase();
+    return rows.filter(
+      (row) =>
+        (!blockingOnly || row.blocking) &&
+        (!q ||
+          [
+            row.guest.name,
+            row.confirmationNumber,
+            row.room?.roomNumber,
+            row.room?.roomTypeName,
+            row.summary,
+            RESERVATION_EXCEPTION_KEY_LABELS[row.key],
+          ].some((field) => field?.toLowerCase().includes(q))),
+    );
+  }, [snapshot?.items, blockingOnly, search]);
   const selected = items.find((row) => itemIdentity(row) === selectedId) ?? null;
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-reservation-exceptions", restaurantId] });
+  }
+
+  /* More filters menu: choices are staged in `menuDraft` and applied together. */
+  function patchMenuDraft(patch: Partial<ExceptionMenuDraft>) {
+    setMenuDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function toggleFilterGroup(id: string) {
+    setOpenGroups((current) =>
+      current.includes(id) ? current.filter((group) => group !== id) : [...current, id],
+    );
+  }
+
+  function applyMenuFilters(next: ExceptionMenuDraft) {
+    setSeverity(next.severity);
+    setKey(next.key);
+    setSourceModule(next.sourceModule);
+    setResponsibleModule(next.responsibleModule);
+    setStatus(next.status);
+    setBlockingOnly(next.blockingOnly);
+    setFilterMenuOpen(false);
+  }
+
+  function handleFilterMenuOpenChange(open: boolean) {
+    setFilterMenuOpen(open);
+    if (open) {
+      setMenuDraft({ severity, key, sourceModule, responsibleModule, status, blockingOnly });
+    }
+  }
+
+  const filterChips: FilterChip[] = [];
+  if (severity !== "all") {
+    filterChips.push({
+      id: "severity",
+      label: severity === "high" ? "Critical" : "Attention",
+      remove: () => setSeverity("all"),
+    });
+  }
+  if (key !== "all") {
+    filterChips.push({
+      id: "key",
+      label: RESERVATION_EXCEPTION_KEY_LABELS[key],
+      remove: () => setKey("all"),
+    });
+  }
+  if (sourceModule !== "all") {
+    filterChips.push({
+      id: "source",
+      label: `Source: ${RESERVATION_EXCEPTION_SOURCE_LABELS[sourceModule]}`,
+      remove: () => setSourceModule("all"),
+    });
+  }
+  if (responsibleModule !== "all") {
+    filterChips.push({
+      id: "owner",
+      label: `Owner: ${RESERVATION_EXCEPTION_OWNER_LABELS[responsibleModule]}`,
+      remove: () => setResponsibleModule("all"),
+    });
+  }
+  if (status !== "all") {
+    filterChips.push({
+      id: "status",
+      label: status.replaceAll("_", " "),
+      remove: () => setStatus("all"),
+    });
+  }
+  if (blockingOnly) {
+    filterChips.push({
+      id: "blocking",
+      label: "Blocking only",
+      remove: () => setBlockingOnly(false),
+    });
   }
 
   function selectItem(item: ReservationExceptionItem) {
@@ -165,111 +309,210 @@ export function ReservationControlWorkspace({
     if (item.reservationId) onOpenReservation(item.reservationId);
   }
 
-  const totals = snapshot?.totals;
-  const kpis = totals
-    ? [
-        { id: "total" as const, label: "Total Open", value: totals.total, icon: <AlertTriangle className="size-4" /> },
-        { id: "high" as const, label: "Critical", value: totals.high, icon: <ShieldAlert className="size-4" /> },
-        { id: "standard" as const, label: "Attention", value: totals.standard, icon: <TriangleAlert className="size-4" /> },
-        { id: "blocking" as const, label: "Blocking", value: totals.blocking, icon: <Ban className="size-4" /> },
-      ]
-    : [];
-
   return (
-    <div className="space-y-4" data-testid="reservation-control-workspace">
-      <p className="text-xs text-muted-foreground">
-        Business date {snapshot?.businessDate ?? "—"} · derived from current Front Office state. Rows
-        clear only when the underlying issue is fixed.
-      </p>
-
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Exception totals">
-        {snapshotQuery.isLoading && !snapshot
-          ? Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-20 rounded-xl" />)
-          : kpis.map((kpi) => (
-              <button
-                key={kpi.id}
-                type="button"
-                className="text-left"
-                onClick={() => {
-                  setBlockingOnly(kpi.id === "blocking");
-                  setSeverity(kpi.id === "high" ? "high" : kpi.id === "standard" ? "standard" : "all");
-                }}
-              >
-                <KpiCard label={kpi.label} value={kpi.value} icon={kpi.icon} />
-              </button>
-            ))}
-      </section>
-
+    <div className="space-y-3" data-testid="reservation-control-workspace">
       {snapshot?.warnings.length ? (
         <p className="text-xs text-amber-800">
           {snapshot.warnings.includes("financial_signals_unavailable")
             ? "Financial exceptions are omitted because folio signals are unavailable. "
             : null}
-          {snapshot.truncated ? "This queue is truncated. " : null}
-          {snapshot.warnings.includes("blocks_unavailable") ? "Inventory blocks could not be loaded. " : null}
+          {snapshot.truncated
+            ? "This queue is truncated. Search only covers the rows loaded. "
+            : null}
+          {snapshot.warnings.includes("blocks_unavailable")
+            ? "Inventory blocks could not be loaded. "
+            : null}
         </p>
       ) : null}
 
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap items-end gap-3">
-          <FilterSelect
-            label="Severity"
-            value={severity}
-            onChange={(value) => setSeverity(value as typeof severity)}
-            options={[
-              ["all", "All severities"],
-              ["high", "Critical"],
-              ["standard", "Attention"],
-            ]}
-          />
-          <FilterSelect
-            label="Exception type"
-            value={key}
-            onChange={(value) => setKey(value as typeof key)}
-            options={[
-              ["all", "All types"],
-              ...RESERVATION_EXCEPTION_KEYS.map(
-                (value) => [value, RESERVATION_EXCEPTION_KEY_LABELS[value]] as [string, string],
-              ),
-            ]}
-          />
-          <FilterSelect
-            label="Source"
-            value={sourceModule}
-            onChange={(value) => setSourceModule(value as typeof sourceModule)}
-            options={[
-              ["all", "All sources"],
-              ...RESERVATION_EXCEPTION_SOURCE_MODULES.map(
-                (value) => [value, RESERVATION_EXCEPTION_SOURCE_LABELS[value]] as [string, string],
-              ),
-            ]}
-          />
-          <FilterSelect
-            label="Owner"
-            value={responsibleModule}
-            onChange={(value) => setResponsibleModule(value as typeof responsibleModule)}
-            options={[
-              ["all", "All owners"],
-              ...RESERVATION_EXCEPTION_RESPONSIBLE_MODULES.map(
-                (value) => [value, RESERVATION_EXCEPTION_OWNER_LABELS[value]] as [string, string],
-              ),
-            ]}
-          />
-          <FilterSelect
-            label="Reservation status"
-            value={status}
-            onChange={(value) => setStatus(value as typeof status)}
-            options={[
-              ["all", "All statuses"],
-              ...RESERVATION_STATUSES.map(
-                (value) => [value, value.replaceAll("_", " ")] as [string, string],
-              ),
-            ]}
-          />
-        </div>
-      </section>
+      <ReservationShellSlot name="filter">
+          <MoreFiltersMenu
+            iconOnly
+            open={filterMenuOpen}
+            onOpenChange={handleFilterMenuOpenChange}
+            activeCount={filterChips.length}
+            title="Filter exceptions"
+            onApply={() => applyMenuFilters(menuDraft)}
+            onClear={() => applyMenuFilters(DEFAULT_MENU_DRAFT)}
+          >
+            <FilterGroup
+              id="severity"
+              title="Severity"
+              count={menuDraft.severity !== "all" ? 1 : 0}
+              open={openGroups.includes("severity")}
+              onToggle={toggleFilterGroup}
+            >
+              {SEVERITY_OPTIONS.map(([id, label]) => (
+                <FilterOption
+                  key={id}
+                  type="radio"
+                  name="exception-filter-severity"
+                  label={label}
+                  checked={menuDraft.severity === id}
+                  onChange={() => patchMenuDraft({ severity: id })}
+                />
+              ))}
+            </FilterGroup>
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <FilterGroup
+              id="type"
+              title="Exception type"
+              count={menuDraft.key !== "all" ? 1 : 0}
+              open={openGroups.includes("type")}
+              onToggle={toggleFilterGroup}
+            >
+              <FilterOption
+                type="radio"
+                name="exception-filter-type"
+                label="All types"
+                checked={menuDraft.key === "all"}
+                onChange={() => patchMenuDraft({ key: "all" })}
+              />
+              {RESERVATION_EXCEPTION_KEYS.map((value) => (
+                <FilterOption
+                  key={value}
+                  type="radio"
+                  name="exception-filter-type"
+                  label={RESERVATION_EXCEPTION_KEY_LABELS[value]}
+                  checked={menuDraft.key === value}
+                  onChange={() => patchMenuDraft({ key: value })}
+                />
+              ))}
+            </FilterGroup>
+
+            <FilterGroup
+              id="source"
+              title="Source"
+              count={menuDraft.sourceModule !== "all" ? 1 : 0}
+              open={openGroups.includes("source")}
+              onToggle={toggleFilterGroup}
+            >
+              <FilterOption
+                type="radio"
+                name="exception-filter-source"
+                label="All sources"
+                checked={menuDraft.sourceModule === "all"}
+                onChange={() => patchMenuDraft({ sourceModule: "all" })}
+              />
+              {RESERVATION_EXCEPTION_SOURCE_MODULES.map((value) => (
+                <FilterOption
+                  key={value}
+                  type="radio"
+                  name="exception-filter-source"
+                  label={RESERVATION_EXCEPTION_SOURCE_LABELS[value]}
+                  checked={menuDraft.sourceModule === value}
+                  onChange={() => patchMenuDraft({ sourceModule: value })}
+                />
+              ))}
+            </FilterGroup>
+
+            <FilterGroup
+              id="owner"
+              title="Owner"
+              count={menuDraft.responsibleModule !== "all" ? 1 : 0}
+              open={openGroups.includes("owner")}
+              onToggle={toggleFilterGroup}
+            >
+              <FilterOption
+                type="radio"
+                name="exception-filter-owner"
+                label="All owners"
+                checked={menuDraft.responsibleModule === "all"}
+                onChange={() => patchMenuDraft({ responsibleModule: "all" })}
+              />
+              {RESERVATION_EXCEPTION_RESPONSIBLE_MODULES.map((value) => (
+                <FilterOption
+                  key={value}
+                  type="radio"
+                  name="exception-filter-owner"
+                  label={RESERVATION_EXCEPTION_OWNER_LABELS[value]}
+                  checked={menuDraft.responsibleModule === value}
+                  onChange={() => patchMenuDraft({ responsibleModule: value })}
+                />
+              ))}
+            </FilterGroup>
+
+            <FilterGroup
+              id="status"
+              title="Reservation status"
+              count={menuDraft.status !== "all" ? 1 : 0}
+              open={openGroups.includes("status")}
+              onToggle={toggleFilterGroup}
+            >
+              <FilterOption
+                type="radio"
+                name="exception-filter-status"
+                label="All statuses"
+                checked={menuDraft.status === "all"}
+                onChange={() => patchMenuDraft({ status: "all" })}
+              />
+              {RESERVATION_STATUSES.map((value) => (
+                <FilterOption
+                  key={value}
+                  type="radio"
+                  name="exception-filter-status"
+                  label={value.replaceAll("_", " ")}
+                  checked={menuDraft.status === value}
+                  onChange={() => patchMenuDraft({ status: value })}
+                />
+              ))}
+            </FilterGroup>
+
+            <FilterGroup
+              id="blocking"
+              title="Blocking"
+              count={menuDraft.blockingOnly ? 1 : 0}
+              open={openGroups.includes("blocking")}
+              onToggle={toggleFilterGroup}
+            >
+              <FilterOption
+                type="checkbox"
+                name="exception-filter-blocking"
+                label="Blocking exceptions only"
+                checked={menuDraft.blockingOnly}
+                onChange={() => patchMenuDraft({ blockingOnly: !menuDraft.blockingOnly })}
+              />
+            </FilterGroup>
+          </MoreFiltersMenu>
+      </ReservationShellSlot>
+
+      {filterChips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <ul className="flex flex-wrap gap-2" data-testid="exception-filter-chips">
+            {filterChips.map((chip) => (
+              <li key={chip.id}>
+                <button
+                  type="button"
+                  aria-label={`Remove filter ${chip.label}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#c9a24a] bg-[#f5ead0] py-0.5 pl-3 pr-2 text-xs font-bold text-[#4a2c1a]"
+                  onClick={chip.remove}
+                >
+                  {chip.label}
+                  <X className="size-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => {
+              applyMenuFilters(DEFAULT_MENU_DRAFT);
+              onSearchChange?.("");
+            }}
+          >
+            Clear all
+          </Button>
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          "grid min-w-0 gap-3",
+          selected && "xl:grid-cols-[minmax(0,1fr)_300px]",
+        )}
+      >
         <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
           {snapshotQuery.isError ? (
             <div className="space-y-2 p-4">
@@ -289,7 +532,9 @@ export function ReservationControlWorkspace({
               ))}
             </div>
           ) : items.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">{EXCEPTION_CONTROL_EMPTY}</p>
+            <p className="p-6 text-sm text-muted-foreground">
+              {search.trim() ? "No exceptions match your search." : EXCEPTION_CONTROL_EMPTY}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -327,11 +572,16 @@ export function ReservationControlWorkspace({
                         </td>
                         <td className="px-3 py-2 tabular-nums">{item.confirmationNumber ?? "—"}</td>
                         <td className="px-3 py-2">
-                          {formatStayDate(item.stay.arrivalDate)} – {formatStayDate(item.stay.departureDate)}
+                          {formatStayDate(item.stay.arrivalDate)} –{" "}
+                          {formatStayDate(item.stay.departureDate)}
                         </td>
                         <td className="px-3 py-2">{item.room?.roomNumber ?? "Unassigned"}</td>
                         <td className="px-3 py-2">
-                          {item.stay.status ? <ReservationStatusBadge status={item.stay.status} /> : "—"}
+                          {item.stay.status ? (
+                            <ReservationStatusBadge status={item.stay.status} />
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           {RESERVATION_EXCEPTION_OWNER_LABELS[item.responsibleModule]}
@@ -345,15 +595,27 @@ export function ReservationControlWorkspace({
           )}
         </section>
 
-        <aside className="hidden min-w-0 xl:block">
-          <ExceptionDrawer
-            item={selected}
-            currencyCode={currencyCode}
-            canManage={canManage}
-            onOpenReservation={onOpenReservation}
-            onLaunch={launchTarget}
-          />
-        </aside>
+        {selected ? (
+          <aside className="relative hidden min-w-0 xl:block">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 top-2 z-10 size-7"
+              aria-label="Close exception details"
+              onClick={() => setSelectedId(null)}
+            >
+              <X className="size-4" />
+            </Button>
+            <ExceptionDrawer
+              item={selected}
+              currencyCode={currencyCode}
+              canManage={canManage}
+              onOpenReservation={onOpenReservation}
+              onLaunch={launchTarget}
+            />
+          </aside>
+        ) : null}
       </div>
 
       <div className="xl:hidden">
@@ -415,8 +677,13 @@ function ExceptionDrawer({
 }) {
   if (!item) {
     return (
-      <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="exception-quick-view">
-        <p className="text-sm text-muted-foreground">Select an exception to inspect stay, room and owner actions.</p>
+      <div
+        className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+        data-testid="exception-quick-view"
+      >
+        <p className="text-sm text-muted-foreground">
+          Select an exception to inspect stay, room and owner actions.
+        </p>
       </div>
     );
   }
@@ -428,12 +695,17 @@ function ExceptionDrawer({
     Boolean(item.reservationId);
 
   return (
-    <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="exception-quick-view">
+    <div
+      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      data-testid="exception-quick-view"
+    >
       <p className="flex items-center gap-2 font-display text-lg">
         {item.guest.name}
         {item.guest.vip ? <VipBadge /> : null}
       </p>
-      <p className="text-xs text-muted-foreground">{item.confirmationNumber ?? "Property exception"}</p>
+      <p className="text-xs text-muted-foreground">
+        {item.confirmationNumber ?? "Property exception"}
+      </p>
       <dl className="mt-3 space-y-2 text-sm">
         <Field label="Type" value={RESERVATION_EXCEPTION_KEY_LABELS[item.key]} />
         <Field
@@ -443,7 +715,10 @@ function ExceptionDrawer({
         <Field label="Reason" value={item.summary} />
         <Field label="Source" value={RESERVATION_EXCEPTION_SOURCE_LABELS[item.sourceModule]} />
         <Field label="Owner" value={RESERVATION_EXCEPTION_OWNER_LABELS[item.responsibleModule]} />
-        <Field label="Status" value={item.stay.status ? item.stay.status.replaceAll("_", " ") : "—"} />
+        <Field
+          label="Status"
+          value={item.stay.status ? item.stay.status.replaceAll("_", " ") : "—"}
+        />
         <Field
           label="Stay"
           value={`${formatStayDate(item.stay.arrivalDate)} – ${formatStayDate(item.stay.departureDate)}`}
@@ -473,7 +748,8 @@ function ExceptionDrawer({
           <Button
             size="sm"
             disabled={
-              (item.actionTarget === "assign_room" || item.actionTarget === "check_out") && !canManage
+              (item.actionTarget === "assign_room" || item.actionTarget === "check_out") &&
+              !canManage
             }
             onClick={() => onLaunch(item, item.actionTarget)}
           >
@@ -481,7 +757,11 @@ function ExceptionDrawer({
           </Button>
         ) : null}
         {item.reservationId ? (
-          <Button size="sm" variant="outline" onClick={() => onOpenReservation(item.reservationId as string)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onOpenReservation(item.reservationId as string)}
+          >
             Open Reservation
           </Button>
         ) : null}
@@ -493,58 +773,24 @@ function ExceptionDrawer({
           </Button>
         ) : null}
         {item.financial.state === "available" && item.reservationId ? (
-          <Button size="sm" variant="outline" onClick={() => onOpenReservation(item.reservationId as string)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onOpenReservation(item.reservationId as string)}
+          >
             Open Folio
           </Button>
         ) : null}
         {item.reservationId ? (
-          <Button size="sm" variant="ghost" onClick={() => onOpenReservation(item.reservationId as string)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onOpenReservation(item.reservationId as string)}
+          >
             History
           </Button>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<[string, string]>;
-}) {
-  return (
-    <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-      {label}
-      <select
-        className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        aria-label={label}
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function KpiCard({ label, value, icon }: { label: string; value: number; icon: ReactNode }) {
-  return (
-    <div className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-      <div className="flex items-center justify-between gap-2 text-muted-foreground">
-        <p className="text-[11px] font-medium uppercase tracking-wide">{label}</p>
-        {icon}
-      </div>
-      <p className="mt-1 font-display text-xl tabular-nums">{value}</p>
     </div>
   );
 }

@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";

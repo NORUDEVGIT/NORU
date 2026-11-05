@@ -8,6 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 import { useEffect, type ReactNode } from "react";
 
@@ -41,13 +42,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
+function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
 
   const router = useRouter();
@@ -169,11 +164,7 @@ export const Route = createRootRouteWithContext<{
   errorComponent: ErrorComponent,
 });
 
-function RootShell({
-  children,
-}: {
-  children: ReactNode;
-}) {
+function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
@@ -195,9 +186,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <OrderProvider>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-          <Toaster position="top-center" />
+          {/* Tooltips anywhere in the app (e.g. Reservations quick view) need this provider. */}
+          <TooltipProvider delayDuration={200}>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+            <Toaster position="top-center" />
+          </TooltipProvider>
         </OrderProvider>
       </AuthProvider>
     </QueryClientProvider>

@@ -26,23 +26,9 @@ export function foGuestWorkspaceTabs(
   options?: { canReadFolio?: boolean },
 ): FoGuestWorkspaceTab[] {
   const tabs: FoGuestWorkspaceTab[] =
-    status === "pending" || status === "confirmed"
-      ? [
-          OVERVIEW,
-          EDIT_DETAILS,
-          { id: "assign_room", label: "Assign / Change Room" },
-          { id: "check_in", label: "Check-In" },
-          { id: "cancel_no_show", label: "Cancel / No-Show" },
-        ]
-      : status === "checked_in"
-        ? [
-            OVERVIEW,
-            EDIT_DETAILS,
-            { id: "move_room", label: "Move / Change Room" },
-            { id: "extend_stay", label: "Extend Stay" },
-            { id: "check_out", label: "Check-Out / Folio Review" },
-          ]
-        : [OVERVIEW];
+    status === "pending" || status === "confirmed" || status === "checked_in"
+      ? [OVERVIEW, EDIT_DETAILS]
+      : [OVERVIEW];
   return options?.canReadFolio ? [...tabs, FOLIO] : tabs;
 }
 
