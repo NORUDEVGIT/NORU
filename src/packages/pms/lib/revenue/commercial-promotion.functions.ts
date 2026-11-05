@@ -5,6 +5,8 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { rateError } from "../rates.server";
@@ -34,7 +36,7 @@ export const quoteHotelStayCommercialFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => stayQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await quoteHotelStayCommercial(supabaseAdmin, data);
@@ -53,7 +55,7 @@ export const listEligiblePromotionActivations = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const bookingBusinessDate = await loadPropertyBusinessDate(supabaseAdmin, data.restaurantId);
     const quote = data.baseRoomSubtotal == null
@@ -77,7 +79,7 @@ export const getReservationPromotionAttribution = createServerFn({ method: "POST
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadReservationPromotionAttribution(supabaseAdmin, data);
   });

@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -15,7 +17,7 @@ import {
 } from "./cashiering-account-payments";
 import type { AccountWorkspaceKind } from "./cashiering-account-workspace";
 import { allocationCapabilities } from "./cashiering-account-allocation";
-import { cashierError, requireCashieringAccess } from "./cashiering.server";
+import { cashierError, cashieringPermissionFlags } from "./cashiering.server";
 
 const idSchema = z.string().uuid();
 const METHODS = ["cash", "card", "bank_transfer", "mobile_money", "other"] as const;
@@ -42,7 +44,7 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => paymentQuery.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const account = await loadAccount(supabaseAdmin, data.restaurantId, data.accountId);
     if (!account) return null;
@@ -58,11 +60,20 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       data.restaurantId,
       data.accountId,
     );
+    const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
+    const granted = {
+      receivePayment: flags.receivePayment,
+      refund: flags.refund,
+      createInvoice: flags.createInvoice,
+      writeOff: flags.writeOff,
+      close: flags.close,
+    };
     const capabilities = accountPaymentCapabilities({
       role: me.role,
       status: account.status,
       balance,
       accountKind: account.accountKind,
+      granted,
     });
     const built = buildAccountPayments({
       rows: ledger,
@@ -107,7 +118,11 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       actorOpenCashShift: ((shift ?? []) as Array<{ id: string }>).length > 0,
       capabilities: {
         ...capabilities,
-        ...allocationCapabilities({ role: me.role, status: account.status }),
+        ...allocationCapabilities({
+          role: me.role,
+          status: account.status,
+          granted: { view: true, allocate: flags.allocate },
+        }),
       },
     };
   });
@@ -118,7 +133,7 @@ export const getFinancialAccountPaymentDetail = createServerFn({ method: "GET" }
     z.object({ restaurantId: idSchema, accountId: idSchema, transactionId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const account = await loadAccount(supabaseAdmin, data.restaurantId, data.accountId);
     if (!account) return null;
@@ -134,13 +149,26 @@ export const getFinancialAccountPaymentDetail = createServerFn({ method: "GET" }
       data.restaurantId,
       data.accountId,
     );
+    const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
+    const granted = {
+      receivePayment: flags.receivePayment,
+      refund: flags.refund,
+      createInvoice: flags.createInvoice,
+      writeOff: flags.writeOff,
+      close: flags.close,
+    };
     const capabilities = accountPaymentCapabilities({
       role: me.role,
       status: account.status,
       balance,
       accountKind: account.accountKind,
+      granted,
     });
-    const allocationRights = allocationCapabilities({ role: me.role, status: account.status });
+    const allocationRights = allocationCapabilities({
+      role: me.role,
+      status: account.status,
+      granted: { view: true, allocate: flags.allocate },
+    });
     const built = buildAccountPayments({
       rows: ledger,
       actorNames: Object.fromEntries(names),

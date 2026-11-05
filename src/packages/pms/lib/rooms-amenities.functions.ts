@@ -1,8 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager, ROOM_BUCKET, signRoomImages } from "./rooms.server";
+import { ROOM_BUCKET, signRoomImages } from "./rooms.server";
 import {
   amenityCatalogErrors,
   amenityUniqueViolationMessage,
@@ -20,12 +22,10 @@ import {
   normalizeAmenityCode,
   overrideSaveErrors,
   uncategorizedAmenityCount,
-  type AmenityOverrideKind,
-} from "./rooms-card2-amenities.server";
+  type AmenityOverrideKind } from "./rooms-card2-amenities.server";
 import {
   parsePropertySetupStatus,
-  type CustomAmenityCategoryStatus,
-} from "./pms-property-setup-card1";
+  type CustomAmenityCategoryStatus } from "./pms-property-setup-card1";
 import { bootstrapCanonicalAmenities } from "./rooms-canonical-amenities";
 
 const idSchema = z.string().uuid();
@@ -81,8 +81,7 @@ function mapAmenity(
     active: Boolean(row.active),
     complimentary: Boolean(row.complimentary),
     displayToGuest: Boolean(row.display_to_guest),
-    internalOnly: Boolean(row.internal_only),
-  };
+    internalOnly: Boolean(row.internal_only) };
 }
 
 export async function loadAmenitiesReadinessInput(supabase: DbClient, restaurantId: string) {
@@ -119,24 +118,19 @@ export async function loadAmenitiesReadinessInput(supabase: DbClient, restaurant
       id: row.id,
       name: String(row.name ?? ""),
       category: row.category ?? null,
-      code: row.code ?? null,
-    })),
+      code: row.code ?? null })),
     mappings: (mappings ?? []).map((row: any) => ({
       roomTypeId: row.room_type_id,
-      amenityId: row.amenity_id,
-    })),
+      amenityId: row.amenity_id })),
     overrides: (overrides ?? []).map((row: any) => ({
       roomId: row.room_id,
       amenityId: row.amenity_id,
-      kind: String(row.kind ?? ""),
-    })),
+      kind: String(row.kind ?? "") })),
     roomTypes: (roomTypes ?? []).map((row: any) => ({ id: row.id, active: row.active !== false })),
     rooms: (rooms ?? []).map((row: any) => ({
       id: row.id,
-      roomTypeId: row.room_type_id ?? null,
-    })),
-    customCategories,
-  };
+      roomTypeId: row.room_type_id ?? null })),
+    customCategories };
 }
 
 export async function persistCard2AmenitiesReadiness(
@@ -158,8 +152,7 @@ export async function persistCard2AmenitiesReadiness(
       amenitiesHasStarted({
         catalogCount: loaded.catalog.length,
         mappingCount: loaded.mappings.length,
-        overrideCount: loaded.overrides.length,
-      }),
+        overrideCount: loaded.overrides.length }),
     ),
   );
   await supabaseAdmin
@@ -172,7 +165,7 @@ export const listAmenities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<Card2Amenity[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     try {
       await bootstrapCanonicalAmenities(pmsDb(context.supabase), data.restaurantId);
     } catch (err) {
@@ -203,7 +196,7 @@ export const listAmenityCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: restaurant } = await supabaseAdmin
       .from("restaurants")
@@ -224,13 +217,11 @@ export const listAmenityCategories = createServerFn({ method: "POST" })
 
     const categoriesWithSigned = custom.map((c) => ({
       ...c,
-      signedUrl: c.icon && signedMap.has(c.icon) ? signedMap.get(c.icon) : null,
-    }));
+      signedUrl: c.icon && signedMap.has(c.icon) ? signedMap.get(c.icon) : null }));
 
     return {
       canonical: CANONICAL_AMENITY_CATEGORIES,
-      custom: categoriesWithSigned,
-    };
+      custom: categoriesWithSigned };
   });
 
 export const createAmenityIconUpload = createServerFn({ method: "POST" })
@@ -245,12 +236,11 @@ export const createAmenityIconUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const extMap: Record<string, string> = {
       "image/jpeg": "jpg",
       "image/png": "png",
-      "image/webp": "webp",
-    };
+      "image/webp": "webp" };
     const ext = extMap[data.contentType] ?? "png";
     const path = `${data.restaurantId}/amenities/icons/${crypto.randomUUID()}.${ext}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -269,12 +259,11 @@ export const saveCustomAmenityCategory = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         name: z.string().trim().min(1).max(60),
         icon: z.string().trim().max(500).optional().nullable(),
-        iconType: z.enum(["upload", "url", "preset", "fallback"]).optional(),
-      })
+        iconType: z.enum(["upload", "url", "preset", "fallback"]).optional() })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const trimmedName = data.name.trim();
 
@@ -301,8 +290,7 @@ export const saveCustomAmenityCategory = createServerFn({ method: "POST" })
       if (isDuplicateCategoryName(trimmedName, existingCustom, legacyUsed)) {
         return {
           ok: false as const,
-          message: "An amenity category with this name already exists.",
-        };
+          message: "An amenity category with this name already exists." };
       }
 
       const nextCustom = [
@@ -310,14 +298,12 @@ export const saveCustomAmenityCategory = createServerFn({ method: "POST" })
         {
           name: trimmedName,
           icon: data.icon?.trim() || null,
-          iconType: data.iconType ?? "fallback",
-        },
+          iconType: data.iconType ?? "fallback" },
       ];
 
       const updatedStatus = {
         ...currentStatus,
-        customAmenityCategories: nextCustom,
-      };
+        customAmenityCategories: nextCustom };
 
       const { error: writeError } = await supabaseAdmin
         .from("restaurants")
@@ -352,8 +338,7 @@ export const saveCustomAmenityCategory = createServerFn({ method: "POST" })
 
     return {
       ok: false as const,
-      message: "Could not save custom category due to concurrent updates. Please try again.",
-    };
+      message: "Could not save custom category due to concurrent updates. Please try again." };
   });
 
 const saveAmenityInput = z.object({
@@ -367,14 +352,13 @@ const saveAmenityInput = z.object({
   active: z.boolean(),
   complimentary: z.boolean(),
   displayToGuest: z.boolean(),
-  internalOnly: z.boolean(),
-});
+  internalOnly: z.boolean() });
 
 export const saveAmenity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveAmenityInput.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
 
     const { data: restaurant } = await pmsDb(context.supabase)
       .from("restaurants")
@@ -394,8 +378,7 @@ export const saveAmenity = createServerFn({ method: "POST" })
         active: data.active,
         complimentary: data.complimentary,
         displayToGuest: data.displayToGuest,
-        internalOnly: data.internalOnly,
-      },
+        internalOnly: data.internalOnly },
       customCategories,
     )[0];
     if (catalogIssue) return { ok: false as const, message: catalogIssue };
@@ -423,8 +406,7 @@ export const saveAmenity = createServerFn({ method: "POST" })
       active: data.active,
       complimentary: data.complimentary,
       display_to_guest: data.displayToGuest,
-      internal_only: data.internalOnly,
-    };
+      internal_only: data.internalOnly };
 
     const result = data.id
       ? await pmsDb(context.supabase)
@@ -439,8 +421,7 @@ export const saveAmenity = createServerFn({ method: "POST" })
     if (result.error) {
       return {
         ok: false as const,
-        message: amenityUniqueViolationMessage(result.error, "Could not save the amenity."),
-      };
+        message: amenityUniqueViolationMessage(result.error, "Could not save the amenity.") };
     }
     if (data.id && !result.data) return { ok: false as const, message: "That amenity was not found." };
     await persistCard2AmenitiesReadiness(pmsDb(context.supabase), data.restaurantId);
@@ -453,7 +434,7 @@ export const listRoomTypeAmenities = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomTypeId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { data: typeRow } = await pmsDb(context.supabase)
       .from("room_types")
       .select("id")
@@ -471,8 +452,7 @@ export const listRoomTypeAmenities = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       roomTypeId: data.roomTypeId,
-      amenityIds: (rows ?? []).map((row: { amenity_id: string }) => row.amenity_id),
-    };
+      amenityIds: (rows ?? []).map((row: { amenity_id: string }) => row.amenity_id) };
   });
 
 export const saveRoomTypeAmenities = createServerFn({ method: "POST" })
@@ -482,12 +462,11 @@ export const saveRoomTypeAmenities = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         roomTypeId: idSchema,
-        amenityIds: z.array(idSchema).max(50),
-      })
+        amenityIds: z.array(idSchema).max(50) })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const amenityIds = dedupeAmenityIds(data.amenityIds);
     const { data: typeRow } = await pmsDb(context.supabase)
       .from("room_types")
@@ -504,8 +483,7 @@ export const saveRoomTypeAmenities = createServerFn({ method: "POST" })
     const mappingIssue = mappingSaveErrors({
       roomTypeExists: Boolean(typeRow),
       amenityIds,
-      validAmenityIds: validIds,
-    });
+      validAmenityIds: validIds });
     if (mappingIssue) return { ok: false as const, message: mappingIssue };
 
     await pmsDb(context.supabase)
@@ -518,8 +496,7 @@ export const saveRoomTypeAmenities = createServerFn({ method: "POST" })
         amenityIds.map((amenityId) => ({
           restaurant_id: data.restaurantId,
           room_type_id: data.roomTypeId,
-          amenity_id: amenityId,
-        })),
+          amenity_id: amenityId })),
       );
       if (error) {
         return { ok: false as const, message: "Could not save room type amenities." };
@@ -535,7 +512,7 @@ export const getRoomAmenityOverrides = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { data: room } = await pmsDb(context.supabase)
       .from("hotel_rooms")
       .select("id")
@@ -554,15 +531,12 @@ export const getRoomAmenityOverrides = createServerFn({ method: "POST" })
       roomId: data.roomId,
       overrides: (rows ?? []).map((row: { amenity_id: string; kind: AmenityOverrideKind }) => ({
         amenityId: row.amenity_id,
-        kind: row.kind,
-      })),
-    };
+        kind: row.kind })) };
   });
 
 const overrideDraftSchema = z.object({
   amenityId: idSchema,
-  kind: z.enum(["add", "remove"]),
-});
+  kind: z.enum(["add", "remove"]) });
 
 export const saveRoomAmenityOverrides = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -572,18 +546,16 @@ export const saveRoomAmenityOverrides = createServerFn({ method: "POST" })
         z.object({
           restaurantId: idSchema,
           roomId: idSchema,
-          reset: z.literal(true),
-        }),
+          reset: z.literal(true) }),
         z.object({
           restaurantId: idSchema,
           roomId: idSchema,
-          overrides: z.array(overrideDraftSchema).max(100),
-        }),
+          overrides: z.array(overrideDraftSchema).max(100) }),
       ])
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { data: room } = await pmsDb(context.supabase)
       .from("hotel_rooms")
       .select("id")
@@ -614,8 +586,7 @@ export const saveRoomAmenityOverrides = createServerFn({ method: "POST" })
     const overrideIssue = overrideSaveErrors({
       roomExists: Boolean(room),
       drafts,
-      validAmenityIds: validIds,
-    });
+      validAmenityIds: validIds });
     if (overrideIssue) return { ok: false as const, message: overrideIssue };
 
     await pmsDb(context.supabase)
@@ -629,14 +600,12 @@ export const saveRoomAmenityOverrides = createServerFn({ method: "POST" })
           restaurant_id: data.restaurantId,
           room_id: data.roomId,
           amenity_id: row.amenityId,
-          kind: row.kind,
-        })),
+          kind: row.kind })),
       );
       if (error) {
         return {
           ok: false as const,
-          message: amenityUniqueViolationMessage(error, "Could not save room amenity overrides."),
-        };
+          message: amenityUniqueViolationMessage(error, "Could not save room amenity overrides.") };
       }
     }
     await persistCard2AmenitiesReadiness(pmsDb(context.supabase), data.restaurantId);
@@ -649,7 +618,7 @@ export const getRoomEffectiveAmenities = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { data: room } = await pmsDb(context.supabase)
       .from("hotel_rooms")
       .select("id, room_type_id")
@@ -682,9 +651,7 @@ export const getRoomEffectiveAmenities = createServerFn({ method: "POST" })
       typeAmenityIds: (mappings ?? []).map((row: { amenity_id: string }) => row.amenity_id),
       overrides: (overrideRows ?? []).map((row: { amenity_id: string; kind: AmenityOverrideKind }) => ({
         amenityId: row.amenity_id,
-        kind: row.kind,
-      })),
-    });
+        kind: row.kind })) });
     const byId = new Map((catalog ?? []).map((row: Parameters<typeof mapAmenity>[0]) => [row.id, mapAmenity(row)]));
     const pick = (ids: string[]) => ids.map((id) => byId.get(id)).filter(Boolean) as Card2Amenity[];
     return {
@@ -694,15 +661,14 @@ export const getRoomEffectiveAmenities = createServerFn({ method: "POST" })
       inherited: pick(computed.inherited),
       added: pick(computed.added),
       removed: pick(computed.removed),
-      effective: pick(computed.effective),
-    };
+      effective: pick(computed.effective) };
   });
 
 export const evaluateCard2AmenitiesReadiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const loaded = await loadAmenitiesReadinessInput(pmsDb(context.supabase), data.restaurantId);
     const readiness = evaluateAmenitiesReadiness(loaded);
     await persistCard2AmenitiesReadiness(pmsDb(context.supabase), data.restaurantId);
@@ -714,13 +680,11 @@ export const evaluateCard2AmenitiesReadiness = createServerFn({ method: "POST" }
         amenitiesHasStarted({
           catalogCount: loaded.catalog.length,
           mappingCount: loaded.mappings.length,
-          overrideCount: loaded.overrides.length,
-        }),
+          overrideCount: loaded.overrides.length }),
       ),
       catalogCount: loaded.catalog.length,
       activeCatalogCount: loaded.catalog.length,
       uncategorizedCount: uncategorizedAmenityCount(loaded.catalog, loaded.customCategories),
       typesConfigured: loaded.roomTypes.filter((row) => row.active !== false && mappedTypes.has(row.id)).length,
-      roomsWithOverrides: new Set(loaded.overrides.map((row) => row.roomId)).size,
-    };
+      roomsWithOverrides: new Set(loaded.overrides.map((row) => row.roomId)).size };
   });

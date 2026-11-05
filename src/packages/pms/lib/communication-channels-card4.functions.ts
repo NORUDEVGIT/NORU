@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -14,10 +16,8 @@ import {
   type CommunicationChannelRecord,
   type CommunicationChannelsSnapshot,
   type CommunicationChannelType,
-  type CommunicationProviderConfig,
-} from "./communication-channels-card4.server";
+  type CommunicationProviderConfig } from "./communication-channels-card4.server";
 import { INTEGRATION_AUTH_METHODS } from "./integrations-catalog";
-import { requireRoomManager } from "./rooms.server";
 
 // Generated schema predates 0089.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,8 +46,7 @@ const saveSchema = z
     replyToEmail: z.string().trim().max(254),
     signature: z.string().max(4000),
     providerConfig: providerConfigSchema,
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -103,8 +102,7 @@ function mapChannel(row: {
     providerConfig,
     active: row.active,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -119,8 +117,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-communication-channels", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-communication-channels", ...metadata } as unknown as Json });
   if (result.error) {
     console.error("[card4-communication-channels] audit", result.error.message);
   }
@@ -164,8 +161,7 @@ async function loadSnapshot(
         provider: row.provider,
         auth_method: row.authMethod,
         sender_name: propertyName,
-        active: false,
-      })),
+        active: false })),
     );
     if (inserted.error && inserted.error.code !== "23505") unavailable(inserted.error);
     result = await loadRows(db, restaurantId);
@@ -204,7 +200,7 @@ export const getPmsCard4CommunicationChannels = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -213,7 +209,7 @@ export const savePmsCard4CommunicationChannel = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -236,8 +232,7 @@ export const savePmsCard4CommunicationChannel = createServerFn({ method: "POST" 
       replyToEmail: data.channelType === "email" ? data.replyToEmail : "",
       signature: data.signature,
       providerValues: providerConfig,
-      active: data.active,
-    };
+      active: data.active };
     const errors = validateCommunicationChannelDraft(draft, snapshot.channels);
     if (errors.length > 0) {
       throw new Error(errors[0]?.message ?? "Fix the communication channel before saving.");
@@ -253,8 +248,7 @@ export const savePmsCard4CommunicationChannel = createServerFn({ method: "POST" 
       signature: data.signature.trim() || null,
       provider_config: providerConfig as unknown as Json,
       active: data.active,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = existing
       ? await db
           .from("pms_communication_channels")
@@ -282,8 +276,7 @@ export const savePmsCard4CommunicationChannel = createServerFn({ method: "POST" 
         id,
         channelType: data.channelType,
         provider: data.provider,
-        active: data.active,
-      },
+        active: data.active },
     );
     return { ok: true as const, id };
   });
@@ -295,13 +288,12 @@ export const setPmsCard4CommunicationChannelActive = createServerFn({ method: "P
       .object({
         restaurantId: idSchema,
         id: idSchema,
-        active: z.boolean(),
-      })
+        active: z.boolean() })
       .strict()
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnChannel(db, data.restaurantId, data.id);
@@ -346,7 +338,7 @@ export const testPmsCard4CommunicationChannel = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const outcome = validateConnectionTest({
       id: null,
       channelType: data.channelType,
@@ -357,8 +349,7 @@ export const testPmsCard4CommunicationChannel = createServerFn({ method: "POST" 
       replyToEmail: data.replyToEmail,
       signature: data.signature,
       providerValues: data.sessionValues,
-      active: true,
-    });
+      active: true });
     return outcome;
   });
 

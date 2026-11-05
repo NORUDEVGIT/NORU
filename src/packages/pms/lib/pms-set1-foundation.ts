@@ -593,6 +593,8 @@ export function evaluateSet1Checklist(input: {
   foundationColumnsAvailable: boolean;
   pmsSet1Live: boolean;
   role: string;
+  /** Permission capability. When set, go-live no longer depends on the Owner role name. */
+  actorCanActivate?: boolean;
   set2?: Set2ActivateInput;
   set3?: Set3ActivateInput;
   set4?: Set4ActivateInput;
@@ -708,7 +710,7 @@ export function evaluateSet1Checklist(input: {
     domains,
     mandatoryMissing,
     canActivate:
-      canActivateSet1(input.role) &&
+      (input.actorCanActivate ?? canActivateSet1(input.role)) &&
       !blocked &&
       identityMandatoryComplete(input.identity) &&
       opsMandatoryComplete(input.ops, input.foundationColumnsAvailable) &&

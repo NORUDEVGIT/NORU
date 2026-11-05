@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_PROFILE_TYPES,
   EMPTY_PROFILE_TYPE_DEFAULTS,
@@ -15,14 +16,12 @@ import {
   validateProfileTypeDraft,
   type NamedOption,
   type ProfileTypeRecord,
-  type ProfileTypeSnapshot,
-} from "./profile-types-card4.server";
+  type ProfileTypeSnapshot } from "./profile-types-card4.server";
 import { syncProfileTypeDocumentAssignments } from "./profile-type-document-sync.server";
 import {
   isCompanyFieldCode,
   isTravelAgencyFieldCode,
-  isIndividualGuestFieldCode,
-} from "./guest-creation-field-definitions";
+  isIndividualGuestFieldCode } from "./guest-creation-field-definitions";
 
 // Generated schema predates 0077.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,8 +35,7 @@ const defaultsSchema = z
     languageId: z.string().trim().max(16).nullable(),
     currencyId: z.string().trim().max(8).nullable(),
     communicationChannelId: z.string().trim().max(24).nullable(),
-    guestTypeId: z.string().trim().max(16).nullable(),
-  })
+    guestTypeId: z.string().trim().max(16).nullable() })
   .strict();
 
 const saveSchema = z
@@ -52,8 +50,7 @@ const saveSchema = z
     requiredFieldIds: z.array(idSchema).max(100),
     documentTypeIds: z.array(idSchema).max(100),
     preferenceTypeIds: z.array(z.string().max(40)).max(100),
-    defaults: defaultsSchema,
-  })
+    defaults: defaultsSchema })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -93,8 +90,7 @@ function mapRow(row: {
     ),
     defaults: normalizeProfileTypeDefaults(row.defaults),
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -109,8 +105,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-profile-types", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-profile-types", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-profile-types] audit", result.error.message);
 }
 
@@ -130,8 +125,7 @@ function defaultTypePayload(
     document_type_ids: [],
     preference_type_ids: [],
     defaults: EMPTY_PROFILE_TYPE_DEFAULTS,
-    updated_by: userId,
-  };
+    updated_by: userId };
 }
 
 async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
@@ -209,8 +203,7 @@ async function loadSnapshot(
     ? []
     : ((prefsRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => ({
         id: row.id,
-        name: row.name,
-      }));
+        name: row.name }));
 
   const activePrefList = (prefsRes.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>;
   const activePrefIds = activePrefList.map((p) => p.id);
@@ -259,8 +252,7 @@ async function loadSnapshot(
     IND: 1,
     COM: 2,
     TRA: 3,
-    GRP: 4,
-  };
+    GRP: 4 };
 
   const types = (typesRes.data ?? [])
     .map(mapRow)
@@ -283,7 +275,7 @@ export const getPmsCard4ProfileTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -292,7 +284,7 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -309,8 +301,7 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
         requiredFieldIds: data.requiredFieldIds,
         documentTypeIds: data.documentTypeIds,
         preferenceTypeIds: data.preferenceTypeIds,
-        defaults: data.defaults,
-      },
+        defaults: data.defaults },
       snapshot.types,
     );
     if (errors.length > 0)
@@ -333,8 +324,7 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
       document_type_ids: data.documentTypeIds,
       preference_type_ids: data.preferenceTypeIds,
       defaults: data.defaults,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
 
     const result = await db
       .from("pms_guest_profile_types")
@@ -350,8 +340,7 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
     if (!id) throw new Error("Could not save the profile type.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_profile_type_saved", {
       id,
-      code,
-    });
+      code });
     await syncProfileTypeDocumentAssignments(
       db,
       data.restaurantId,
@@ -429,8 +418,7 @@ export const savePmsCard4ProfileType = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       type: next.types.find((row) => row.id === id) ?? null,
-      snapshot: next,
-    };
+      snapshot: next };
   });
 
 export const setPmsCard4ProfileTypeActive = createServerFn({ method: "POST" })
@@ -439,7 +427,7 @@ export const setPmsCard4ProfileTypeActive = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await supabaseAdmin
       .from("pms_guest_profile_types")
@@ -457,8 +445,7 @@ export const setPmsCard4ProfileTypeActive = createServerFn({ method: "POST" })
       "pms_card4_profile_type_toggled",
       {
         id: data.id,
-        active: data.active,
-      },
+        active: data.active },
     );
     return { ok: true as const };
   });
@@ -469,7 +456,7 @@ export const deletePmsCard4ProfileType = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const existing = await supabaseAdmin
       .from("pms_guest_profile_types")

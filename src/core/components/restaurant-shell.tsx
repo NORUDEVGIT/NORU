@@ -57,7 +57,8 @@ import { cn } from "@/shared/lib/utils";
 import { RestaurantSettingsProvider } from "@/core/state/property-format";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
-import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
+import { pmsModuleVisible, pmsSettingsHubVisible } from "@/packages/pms/lib/pms-client-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 export type RestaurantNavLabel =
   | "Home"
@@ -576,7 +577,11 @@ export function RestaurantShell({
   // Phase 8C — package entitlement hides package-level entry points only.
   const packages = usePackageEntitlements(membership?.restaurantId);
   const pmsPackage = packages.has("pms");
-  const showSettingsNav = !pmsPackage || canEditSet1(membership?.role ?? "");
+  const pmsAccess = usePmsPermissions(pmsPackage ? membership?.restaurantId : undefined);
+  const pmsSnapshot = { isOwner: pmsAccess.isOwner, codes: pmsAccess.permissions };
+  const showSettingsNav =
+    !pmsPackage ||
+    (!pmsAccess.isLoading && !pmsAccess.isError && pmsSettingsHubVisible(pmsSnapshot));
 
   const workspace = module ?? LABEL_MODULE[active];
   // Restaurant Management is a package-level nav group: it disappears from
@@ -613,7 +618,11 @@ export function RestaurantShell({
     <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="PMS navigation">
       <ul className="space-y-1 px-1 pt-3">
         {pmsLauncherModules()
-          .filter((m) => allowedModules.includes(m.moduleKey))
+          .filter((m) =>
+            pmsPackage
+              ? !pmsAccess.isLoading && !pmsAccess.isError && pmsModuleVisible(pmsSnapshot, m.key)
+              : allowedModules.includes(m.moduleKey),
+          )
           .map((m) => (
             <li key={m.key}>
               <Link

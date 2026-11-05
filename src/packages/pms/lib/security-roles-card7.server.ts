@@ -13,7 +13,7 @@ export const CARD7_SECURITY_AUDIT_SECTION = "card7-security-roles";
 export const CARD7_SECURITY_UNAVAILABLE =
   "Security & Roles are unavailable until migration 0084 is applied.";
 export const CARD7_LIVE_AUTHZ_COPY =
-  "Live access still uses the staff role (STAFF_ROLES). Hotel roles are setup configuration only.";
+  "Moved to Staff & Access. This screen edits role definitions and permission grants. It does not assign roles to staff.";
 export const CARD7_EMPTY_CATALOGUE_COPY =
   "No permission catalogue rows. Product seed is required. This property cannot add custom permission keys.";
 
@@ -45,6 +45,10 @@ export const CARD7_PERMISSION_ACTIONS = [
   "activate",
   "override",
   "authorize",
+  "recover",
+  "assign_roles",
+  "reset_access",
+  "assign_permissions",
 ] as const;
 export type Card7PermissionAction = (typeof CARD7_PERMISSION_ACTIONS)[number];
 

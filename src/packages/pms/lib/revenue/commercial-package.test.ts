@@ -431,7 +431,7 @@ describe("P5A-03 — create, reprice, snapshot, and cashiering contracts", () =>
     assert.doesNotMatch(createFn, /from\("hotel_reservation_packages"\)[\s\S]*insert/);
     assert.doesNotMatch(supabase, /SET room_subtotal = .*applied_amount|room_subtotal = packages/);
     assert.doesNotMatch(supabase, /nightly_rate_snapshot = .*package|nightly_rate_snapshot = applied/);
-    assert.match(createFn, /requireReservationManager/);
+    assert.match(createFn, /requirePmsActor/);
     assert.doesNotMatch(createFn, /requireRateManager/);
     assert.match(packageFns, /requireReservationManager/);
     assert.doesNotMatch(packageFns, /requireRateManager/);

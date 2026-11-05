@@ -220,7 +220,7 @@ describe("check-in v2 registration completion", () => {
     assert.match(waiver, /reason: z\.string\(\)\.trim\(\)\.min\(1\)/);
     assert.match(waiver, /reservationRoomId: target\.reservationRoomId/);
     assert.match(waiver, /notes: "Check-in requirement waived\."/);
-    assert.match(waiver, /assertCheckInWaiverRole/);
+    assert.match(waiver, /FRONT_OFFICE_CHECK_IN_OVERRIDE/);
   });
 
   it("evaluates each room unit's registration snapshot on its own", () => {

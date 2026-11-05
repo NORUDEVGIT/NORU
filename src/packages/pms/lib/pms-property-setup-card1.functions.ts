@@ -6,21 +6,18 @@
  * columns never crash the hub. Completing Card 1 never flips pms_set1_live.
  * Audit insert failure does not roll back the save.
  */
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { withPmsPackage } from "./pms-package.server";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { nightAuditWindowConfigProblem } from "./night-audit-window";
 import {
-  SET1_DENIED,
-  canEditSet1,
-  isMissingColumnError,
+isMissingColumnError,
   normalizeClock,
-  optionalNumber,
-} from "./pms-set1-foundation";
+  optionalNumber } from "./pms-set1-foundation";
 import { persistCard2RoomTypesReadiness } from "./rooms.functions";
 import { loadSet2Snapshot } from "./pms-set2-structure.functions";
 import type { Set2Snapshot } from "./pms-set2-structure";
@@ -69,8 +66,7 @@ import {
   type Card1PropertyArea,
   type Card1Snapshot,
   type Card1StepId,
-  type PropertySetupStatus,
-} from "./pms-property-setup-card1";
+  type PropertySetupStatus } from "./pms-property-setup-card1";
 import { IMAGE_EXT_BY_TYPE, ROOM_BUCKET, signRoomImages } from "./rooms.server";
 
 const idSchema = z.string().uuid();
@@ -97,8 +93,7 @@ const uploadRefSchema = z.object({
     .positive()
     .max(CARD1_BRAND_IMAGE_MAX_BYTES - 1)
     .optional(),
-  viewUrl: z.string().trim().max(2000).optional(),
-});
+  viewUrl: z.string().trim().max(2000).optional() });
 const departmentSchema = z.object({
   id: idSchema.optional(),
   departmentId: idSchema.optional(),
@@ -107,12 +102,10 @@ const departmentSchema = z.object({
   phone: z.string().trim().max(30),
   email: z.string().trim().max(254),
   active: z.boolean().optional(),
-  sortOrder: z.number().int().min(0).max(9999).optional(),
-});
+  sortOrder: z.number().int().min(0).max(9999).optional() });
 const socialLinkSchema = z.object({
   platform: z.string().trim().max(40),
-  url: z.string().trim().max(200),
-});
+  url: z.string().trim().max(200) });
 const numericInputSchema = z.union([z.number(), z.string().trim().max(32), z.null()]);
 
 const draftSchema = z.object({
@@ -144,8 +137,7 @@ const draftSchema = z.object({
     showTradingNameOnDocuments: z.boolean(),
     chainProperty: z.boolean(),
     independentProperty: z.boolean(),
-    displayPublicly: z.boolean(),
-  }),
+    displayPublicly: z.boolean() }),
   brandName: z.string().trim().max(160).optional().nullable(),
   brandCode: z.string().trim().max(40).optional().nullable(),
   chainName: z.string().trim().max(160).optional().nullable(),
@@ -165,8 +157,7 @@ const draftSchema = z.object({
     googleMapsLink: z.string().trim().max(300),
     nearbyLandmark: z.string().trim().max(200),
     pinVisible: z.boolean(),
-    propertyImages: z.array(z.string().trim().max(2000)).optional().default([]),
-  }),
+    propertyImages: z.array(z.string().trim().max(2000)).optional().default([]) }),
   phone: z.string().trim().max(30).optional().nullable(),
   email: z.string().trim().max(254).optional().nullable().or(z.literal("")),
   whatsapp: z.string().trim().max(30).optional().nullable(),
@@ -175,14 +166,12 @@ const draftSchema = z.object({
     facebook: z.string().trim().max(200),
     instagram: z.string().trim().max(200),
     tripadvisor: z.string().trim().max(200),
-    links: z.array(socialLinkSchema).max(20),
-  }),
+    links: z.array(socialLinkSchema).max(20) }),
   departmentContacts: z.array(departmentSchema).max(20),
   emergency: z.object({
     name: z.string().trim().max(120),
     phone: z.string().trim().max(30),
-    notes: z.string().trim().max(500),
-  }),
+    notes: z.string().trim().max(500) }),
   checkInTime: z.string().trim().max(8).optional().nullable(),
   checkOutTime: z.string().trim().max(8).optional().nullable(),
   checkinPolicyText: z.string().trim().max(2000).optional().nullable(),
@@ -196,14 +185,12 @@ const draftSchema = z.object({
     earlyCheckin: z.object({
       allowed: z.boolean(),
       feeBasis: z.enum(["percent_stay", "fixed", "first_night"]),
-      feeValue: numericInputSchema,
-    }),
+      feeValue: numericInputSchema }),
     lateCheckoutPolicy: z.string().trim().max(80),
     lateCheckout: z.object({
       allowed: z.boolean(),
       feeBasis: z.enum(["percent_stay", "fixed", "first_night"]),
-      feeValue: numericInputSchema,
-    }),
+      feeValue: numericInputSchema }),
     dayUseAllowed: z.boolean(),
     frontDesk24h: z.boolean(),
     sameDayCutoff: z.string().trim().max(8),
@@ -215,11 +202,9 @@ const draftSchema = z.object({
       minAge: numericInputSchema,
       maxAge: numericInputSchema,
       freeUntilAge: numericInputSchema,
-      chargeFromAge: numericInputSchema,
-    }),
+      chargeFromAge: numericInputSchema }),
     extraBedAvailable: z.boolean(),
-    idRequiredAtCheckin: z.boolean(),
-  }),
+    idRequiredAtCheckin: z.boolean() }),
   businessDateConfig: z.object({
     notes: z.string().trim().max(500),
     closeBlockersEnabled: z.boolean(),
@@ -233,8 +218,7 @@ const draftSchema = z.object({
     lockDuringAudit: z.boolean(),
     reservationSellDateRule: z.string().trim().max(40),
     housekeepingBoardDate: z.string().trim().max(40),
-    frontOfficeDeskDate: z.string().trim().max(40),
-  }),
+    frontOfficeDeskDate: z.string().trim().max(40) }),
   businessDateBlockers: z.array(z.string().trim().max(120)).max(20),
   legalName: z.string().trim().max(160).optional().nullable(),
   legalEntityName: z.string().trim().max(160).optional().nullable(),
@@ -250,8 +234,7 @@ const draftSchema = z.object({
   legalUploadRefs: z.array(uploadRefSchema).max(12),
   legalExtras: z.object({
     ownershipType: z.string().trim().max(80),
-    incorporationDate: z.string().trim().max(10),
-  }),
+    incorporationDate: z.string().trim().max(10) }),
   vatRegistered: z.boolean(),
   vatNumber: z.string().trim().max(80).optional().nullable(),
   tinNumber: z.string().trim().max(80).optional().nullable(),
@@ -263,10 +246,8 @@ const draftSchema = z.object({
     floorRequired: z.boolean(),
     roomCodeFormat: z.string().trim().max(40),
     autoNumbering: z.boolean(),
-    duplicateCodePrevention: z.boolean(),
-  }),
-  propertyAreas: z.array(z.string().trim().max(40)).max(24),
-});
+    duplicateCodePrevention: z.boolean() }),
+  propertyAreas: z.array(z.string().trim().max(40)).max(24) });
 
 const saveSchema = z.object({
   restaurantId: idSchema,
@@ -275,15 +256,13 @@ const saveSchema = z.object({
     if (!normalized) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: `Invalid step: ${val}`,
-      });
+        message: `Invalid step: ${val}` });
       return z.NEVER;
     }
     return normalized;
   }),
   mode: z.enum(["draft", "continue", "finish"]),
-  draft: draftSchema,
-});
+  draft: draftSchema });
 
 function text(row: RestaurantRow | null, key: keyof RestaurantRow): string {
   const value = row?.[key];
@@ -296,8 +275,7 @@ function calendarDate(timezone: string): string {
       timeZone: timezone,
       year: "numeric",
       month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
+      day: "2-digit" }).format(new Date());
   } catch {
     return new Date().toISOString().slice(0, 10);
   }
@@ -308,8 +286,7 @@ function localTime(timezone: string): string {
     return new Intl.DateTimeFormat("en-GB", {
       timeZone: timezone,
       hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date());
+      minute: "2-digit" }).format(new Date());
   } catch {
     return new Date().toISOString().slice(11, 16);
   }
@@ -425,8 +402,7 @@ function snapshotFromRow(
     structureRules: parseStructureRules(
       card1ColumnsAvailable ? row?.structure_rules_posture : null,
     ),
-    propertyAreas: parsePropertyAreas(fidelityColumnsAvailable ? row?.property_areas : null),
-  });
+    propertyAreas: parsePropertyAreas(fidelityColumnsAvailable ? row?.property_areas : null) });
   draft.fullAddress =
     card1ColumnsAvailable && text(row, "full_address")
       ? text(row, "full_address")
@@ -451,15 +427,13 @@ function snapshotFromRow(
       systemDate: calendarDate(timezone),
       propertyLocalTime: localTime(timezone),
       status: hotelOpen ? "OPEN" : "CLOSED",
-      lastSuccessfulNightAudit,
-    }),
+      lastSuccessfulNightAudit }),
     logoPreviewUrl: isHttpOrDataAsset(draft.logoUrl) ? draft.logoUrl : "",
     coverPreviewUrl: isHttpOrDataAsset(draft.coverImageUrl) ? draft.coverImageUrl : "",
     propertyImagePreviews: {},
     departmentOptions: [],
     propertyAreaEntities: [],
-    functionalHardeningAvailable: false,
-  };
+    functionalHardeningAvailable: false };
 }
 
 async function withBrandPreviews(snapshot: Card1Snapshot): Promise<Card1Snapshot> {
@@ -474,8 +448,7 @@ async function withBrandPreviews(snapshot: Card1Snapshot): Promise<Card1Snapshot
   if (paths.length === 0) {
     return {
       ...snapshot,
-      propertyImagePreviews,
-    };
+      propertyImagePreviews };
   }
   const signed = await signRoomImages(paths);
   for (const [path, url] of signed.entries()) {
@@ -489,8 +462,7 @@ async function withBrandPreviews(snapshot: Card1Snapshot): Promise<Card1Snapshot
     coverPreviewUrl: isHttpOrDataAsset(snapshot.draft.coverImageUrl)
       ? snapshot.draft.coverImageUrl
       : (signed.get(snapshot.draft.coverImageUrl) ?? ""),
-    propertyImagePreviews,
-  };
+    propertyImagePreviews };
 }
 
 async function withFunctionalHardening(
@@ -509,8 +481,7 @@ async function withFunctionalHardening(
   const departmentOptions = ((departments.data ?? []) as Card1DepartmentOption[]).map((row) => ({
     id: row.id,
     name: row.name,
-    active: row.active !== false,
-  }));
+    active: row.active !== false }));
 
   const contactTable = "pms_property_department_contacts" as keyof Database["public"]["Tables"];
   const areaTable = "pms_property_areas" as keyof Database["public"]["Tables"];
@@ -550,8 +521,7 @@ async function withFunctionalHardening(
       phone: row.phone ?? "",
       email: row.email ?? "",
       active: row.active,
-      sortOrder: row.sort_order,
-    }));
+      sortOrder: row.sort_order }));
   }
 
   const propertyAreaEntities = areas.error
@@ -569,8 +539,7 @@ async function withFunctionalHardening(
         name: row.name,
         description: row.description ?? "",
         active: row.active,
-        sortOrder: row.sort_order,
-      }));
+        sortOrder: row.sort_order }));
 
   const documentPaths = [...snapshot.draft.legalUploadRefs, ...snapshot.draft.taxUploadRefs]
     .map((row) => row.storagePath ?? "")
@@ -580,20 +549,17 @@ async function withFunctionalHardening(
   const addViewUrls = (rows: Card1Draft["legalUploadRefs"]) =>
     rows.map((row) => ({
       ...row,
-      viewUrl: row.storagePath ? (documentUrls.get(row.storagePath) ?? "") : "",
-    }));
+      viewUrl: row.storagePath ? (documentUrls.get(row.storagePath) ?? "") : "" }));
 
   return {
     ...snapshot,
     draft: {
       ...snapshot.draft,
       legalUploadRefs: addViewUrls(snapshot.draft.legalUploadRefs),
-      taxUploadRefs: addViewUrls(snapshot.draft.taxUploadRefs),
-    },
+      taxUploadRefs: addViewUrls(snapshot.draft.taxUploadRefs) },
     departmentOptions,
     propertyAreaEntities,
-    functionalHardeningAvailable: hardeningAvailable,
-  };
+    functionalHardeningAvailable: hardeningAvailable };
 }
 
 function persistedUploadRefs(rows: Card1Draft["legalUploadRefs"]): Json {
@@ -602,8 +568,7 @@ function persistedUploadRefs(rows: Card1Draft["legalUploadRefs"]): Json {
     kind: row.kind,
     ...(row.storagePath ? { storage_path: row.storagePath } : {}),
     ...(row.mimeType ? { mime_type: row.mimeType } : {}),
-    ...(row.sizeBytes ? { size_bytes: row.sizeBytes } : {}),
-  })) as unknown as Json;
+    ...(row.sizeBytes ? { size_bytes: row.sizeBytes } : {}) })) as unknown as Json;
 }
 
 async function loadRestaurantRow(
@@ -625,8 +590,7 @@ async function loadRestaurantRow(
       row: (fidelity.data as RestaurantRow | null) ?? null,
       card1ColumnsAvailable: true,
       fidelityColumnsAvailable: true,
-      foundationColumnsAvailable: true,
-    };
+      foundationColumnsAvailable: true };
   }
   if (!isMissingColumnError(fidelity.error)) throw new Error(fidelity.error.message);
   const full = await supabaseAdmin
@@ -639,8 +603,7 @@ async function loadRestaurantRow(
       row: (full.data as RestaurantRow | null) ?? null,
       card1ColumnsAvailable: true,
       fidelityColumnsAvailable: false,
-      foundationColumnsAvailable: true,
-    };
+      foundationColumnsAvailable: true };
   }
   if (!isMissingColumnError(full.error)) throw new Error(full.error.message);
   const foundation = await supabaseAdmin
@@ -653,8 +616,7 @@ async function loadRestaurantRow(
       row: (foundation.data as RestaurantRow | null) ?? null,
       card1ColumnsAvailable: false,
       fidelityColumnsAvailable: false,
-      foundationColumnsAvailable: true,
-    };
+      foundationColumnsAvailable: true };
   }
   if (!isMissingColumnError(foundation.error)) throw new Error(foundation.error.message);
   const core = await supabaseAdmin
@@ -669,8 +631,7 @@ async function loadRestaurantRow(
     row: (core.data as RestaurantRow | null) ?? null,
     card1ColumnsAvailable: false,
     fidelityColumnsAvailable: false,
-    foundationColumnsAvailable: false,
-  };
+    foundationColumnsAvailable: false };
 }
 
 /** Read-only Card 1 source loader for Card 8 System Validation. */
@@ -716,9 +677,7 @@ async function writeAudit(
       section: params.section ?? null,
       before: params.before as Json,
       after: params.after as Json,
-      when: new Date().toISOString(),
-    },
-  });
+      when: new Date().toISOString() } });
   if (error) {
     console.error("[pms-card1] audit", error.message);
     return false;
@@ -750,8 +709,7 @@ async function syncDepartmentContacts(
       phone: row.phone.trim() || null,
       email: row.email.trim() || null,
       active: row.active !== false,
-      sort_order: row.sortOrder ?? index,
-    }));
+      sort_order: row.sortOrder ?? index }));
   if (rows.length === 0) {
     const remove = await supabaseAdmin.from(table).delete().eq("restaurant_id", restaurantId);
     if (remove.error) throw new Error(remove.error.message);
@@ -818,8 +776,7 @@ function draftFromSave(data: z.infer<typeof draftSchema>, propertyCode: string):
     registrationNumber: data.registrationNumber ?? "",
     vatNumber: data.vatNumber ?? "",
     tinNumber: data.tinNumber ?? "",
-    licenceNumber: data.licenceNumber ?? "",
-  });
+    licenceNumber: data.licenceNumber ?? "" });
   draft.fullAddress = composeFullAddress(draft);
   return draft;
 }
@@ -877,8 +834,7 @@ function card1Patch(
     licence_number: draft.licenceNumber.trim() || null,
     tax_upload_refs: persistedUploadRefs(draft.taxUploadRefs),
     structure_rules_posture: draft.structureRules as unknown as Json,
-    pms_property_setup_status: status as unknown as Json,
-  };
+    pms_property_setup_status: status as unknown as Json };
   if (fidelityColumnsAvailable) {
     patch.opening_date = draft.openingDate.trim() || null;
     patch.cover_image_url = draft.coverImageUrl.trim() || null;
@@ -914,18 +870,16 @@ function corePatch(draft: Card1Draft): RestaurantUpdate {
     country: draft.country.trim() || null,
     logo_url: draft.logoUrl.trim() || null,
     timezone: draft.timezone,
-    currency_code: draft.currencyCode.toUpperCase(),
-  };
+    currency_code: draft.currencyCode.toUpperCase() };
 }
 
 export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
+    const canEdit = hasEffectivePermission(resolved, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const set2 = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
@@ -944,7 +898,7 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
         ),
       ),
     );
-    if (canEditSet1(me.role) && loaded.card1ColumnsAvailable) {
+    if (canEdit && loaded.card1ColumnsAvailable) {
       await persistCard2RoomTypesReadiness(supabaseAdmin, data.restaurantId);
       const { data: refreshed } = await supabaseAdmin
         .from("restaurants")
@@ -957,19 +911,14 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
       snapshot,
       set2,
       role: me.role,
-      canEdit: canEditSet1(me.role),
-    };
+      canEdit: canEdit };
   });
 
 export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
@@ -1106,8 +1055,7 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
       action,
       section: data.step,
       before,
-      after,
-    });
+      after });
     return { ok: true as const, snapshot: after, set2, auditWritten, activated: false as const };
   });
 
@@ -1119,16 +1067,11 @@ export const createPropertyBrandImageUpload = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         kind: z.enum(["logo", "cover", "property"]),
         contentType: z.enum(CARD1_BRAND_IMAGE_TYPES),
-        size: z.number().int().positive().max(CARD1_BRAND_IMAGE_MAX_BYTES),
-      })
+        size: z.number().int().positive().max(CARD1_BRAND_IMAGE_MAX_BYTES) })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const ext = IMAGE_EXT_BY_TYPE[data.contentType];
     if (!ext)
       return { ok: false as const, message: "Only PNG, JPG, JPEG and WEBP images are allowed." };
@@ -1146,8 +1089,7 @@ const COMPLIANCE_TYPES = ["application/pdf", "image/png", "image/jpeg"] as const
 const COMPLIANCE_EXTENSIONS: Record<(typeof COMPLIANCE_TYPES)[number], string> = {
   "application/pdf": "pdf",
   "image/png": "png",
-  "image/jpeg": "jpg",
-};
+  "image/jpeg": "jpg" };
 const COMPLIANCE_KINDS = [
   "certificate_of_incorporation",
   "trade_license",
@@ -1167,16 +1109,11 @@ export const createPropertyComplianceDocumentUpload = createServerFn({ method: "
           .number()
           .int()
           .positive()
-          .max(CARD1_BRAND_IMAGE_MAX_BYTES - 1),
-      })
+          .max(CARD1_BRAND_IMAGE_MAX_BYTES - 1) })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const ext = COMPLIANCE_EXTENSIONS[data.contentType];
     const path = `${data.restaurantId}/compliance/${data.kind}-${crypto.randomUUID()}.${ext}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1197,11 +1134,7 @@ export const deletePropertyComplianceDocument = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     if (!data.storagePath.startsWith(`${data.restaurantId}/compliance/`)) {
       throw new Error("Document path does not belong to this property.");
     }
@@ -1217,18 +1150,13 @@ const propertyAreaSchema = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500),
   active: z.boolean(),
-  sortOrder: z.number().int().min(0).max(9999),
-});
+  sortOrder: z.number().int().min(0).max(9999) });
 
 export const saveCard1PropertyArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => propertyAreaSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const table = "pms_property_areas" as keyof Database["public"]["Tables"];
     const payload = {
@@ -1236,8 +1164,7 @@ export const saveCard1PropertyArea = createServerFn({ method: "POST" })
       name: data.name,
       description: data.description || null,
       active: data.active,
-      sort_order: data.sortOrder,
-    };
+      sort_order: data.sortOrder };
     const before = data.id
       ? await supabaseAdmin
           .from(table)
@@ -1266,8 +1193,7 @@ export const saveCard1PropertyArea = createServerFn({ method: "POST" })
       action: CARD1_AUDIT_DRAFT,
       section: "property-area",
       before: before.data,
-      after: result.data,
-    });
+      after: result.data });
     return { ok: true as const, area: result.data as unknown as Card1PropertyArea };
   });
 
@@ -1275,11 +1201,7 @@ export const deleteCard1PropertyArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const table = "pms_property_areas" as keyof Database["public"]["Tables"];
     const before = await supabaseAdmin
@@ -1301,8 +1223,7 @@ export const deleteCard1PropertyArea = createServerFn({ method: "POST" })
       action: CARD1_AUDIT_DRAFT,
       section: "delete-property-area",
       before: before.data,
-      after: null,
-    });
+      after: null });
     return { ok: true as const };
   });
 

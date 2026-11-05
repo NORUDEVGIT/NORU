@@ -9,8 +9,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import type { Json } from "@/integrations/supabase/types";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   SET6_AUDIT_ACCOUNT_TYPE,
@@ -210,14 +211,16 @@ export const getPmsSet6Snapshot = createServerFn({ method: "POST" })
       snapshot,
       activate: activateInputFromSet6Snapshot(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE),
     };
   });
 
-async function requireEditor(restaurantId: string, context: { userId: string }) {
-  const me = await withPmsPackage(restaurantId, callerMembership(context as never, restaurantId));
-  if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
-  return me;
+async function requireEditor(
+  restaurantId: string,
+  context: { userId: string },
+  permission: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS],
+) {
+  return requirePmsActor(context as never, restaurantId, permission);
 }
 
 function catalogueAvailable(snapshot: Set6Snapshot, kind: Set6CatalogueKind): boolean {
@@ -245,7 +248,7 @@ export const savePmsSet6Catalogue = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet6Snapshot(supabaseAdmin, data.restaurantId);
     if (!catalogueAvailable(before, data.kind)) throw new Error(SET6_UNAVAILABLE_SALES);
@@ -295,7 +298,7 @@ export const savePmsDistributionChannelPosture = createServerFn({ method: "POST"
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const channelPosture: DistributionChannelPosture = emptyChannelPosture({
       channels: data.channels,
       savedAt: new Date().toISOString(),
@@ -336,7 +339,7 @@ export const savePmsDistributionMappingPosture = createServerFn({ method: "POST"
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const mappingPosture: DistributionMappingPosture = {
       rateMapped: data.rateMapped,
       inventoryMapped: data.inventoryMapped,
@@ -383,7 +386,7 @@ export const savePmsReportsCataloguePosture = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const reportsCatalogue: ReportsCataloguePosture = {
       packs: data.packs,
       savedAt: new Date().toISOString(),
@@ -429,7 +432,7 @@ export const savePmsReportsScheduleAccessPosture = createServerFn({ method: "POS
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const reportsSchedule: ReportsScheduleAccessPosture = {
       scheduleEnabled: data.scheduleEnabled,
       ownerManagerAccessOnly: data.ownerManagerAccessOnly,
@@ -475,7 +478,7 @@ export const savePmsOfflineEnablementPosture = createServerFn({ method: "POST" }
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const offlineEnablement: OfflineEnablementPosture = {
       frontOfficeEnabled: data.frontOfficeEnabled,
       pmsEnabled: data.pmsEnabled,
@@ -515,7 +518,7 @@ export const savePmsOfflineSyncPosture = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const offlineSync: OfflineSyncPosture = {
       conflictLabel: data.conflictLabel,
       savedAt: new Date().toISOString(),

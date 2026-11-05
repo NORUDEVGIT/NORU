@@ -129,16 +129,16 @@ describe("guest folio settlement", () => {
       writer.indexOf("export const postFolioEntry"),
       writer.indexOf("export const closeFolio"),
     );
-    assert.match(payment, /requireCashierOperator/);
+    assert.match(payment, /CASHIERING_PAYMENT_POST/);
     const close = writer.slice(
       writer.indexOf("export const closeFolio"),
       writer.indexOf("export const listCashierShifts"),
     );
-    assert.match(close, /requireCashierManager/);
+    assert.match(close, /CASHIERING_FOLIO_CLOSE/);
     assert.match(close, /close_guest_folio/);
     const phases = read("./cashiering-phases.functions.ts");
     const writeOff = phases.slice(phases.indexOf("export const postSettlementWriteOff"));
-    assert.match(writeOff, /requireCashierManager/);
+    assert.match(writeOff, /CASHIERING_WRITE_OFF/);
     assert.match(writeOff, /post_settlement_write_off/);
   });
 });

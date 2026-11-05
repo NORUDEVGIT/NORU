@@ -2,7 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { MANAGE_ROLES } from "@/core/lib/workforce.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { loadFoStaySignals } from "./fo-exceptions.functions";
 import type { FolioSignalLane, StayMoneySignal } from "./fo-exceptions";
 import { isRoomReady, type IdDocumentType, type RegistrationDraft } from "./fo-check-in";
@@ -23,7 +28,7 @@ import {
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import type { GuestProfileRules } from "./pms-set3-rates-guest";
 import { normalizeClock } from "./pms-set1-foundation";
-import { assertDateOnly, requireReservationManager } from "./reservations.server";
+import { assertDateOnly } from "./reservations.server";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import {
   financialFromSignal,
@@ -54,7 +59,7 @@ import {
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 export type FoArrivalPropertySettings = {
   timezone: string;
@@ -386,7 +391,7 @@ export const listFrontOfficeArrivalsDesk = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string; rows: FoArrivalDeskRow[] }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadPropertySettings(supabaseAdmin, data.restaurantId);
     const date = data.date
@@ -439,7 +444,7 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoArrivalQuickView> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadPropertySettings(supabaseAdmin, data.restaurantId);
     const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
@@ -645,6 +650,9 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
       readiness: gate,
       settings,
       guestRules,
-      canWaive: (MANAGE_ROLES as readonly string[]).includes(me.role),
+      canWaive: hasEffectivePermission(
+        await resolveEffectivePermissions(context as never, data.restaurantId),
+        PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN_OVERRIDE,
+      ),
     };
   });

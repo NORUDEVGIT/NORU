@@ -359,11 +359,11 @@ describe("GB06-R01 group operational detail", () => {
     expect(loader).not.toMatch(/for\s*\([^)]+\)\s*\{[\s\S]*await db\(/);
     expect(loader).not.toContain("group_account_master_id");
     const serverFn = functions.slice(loaderEnd, loaderEnd + 600);
-    expect(serverFn).toContain("requireReservationManager");
+    expect(serverFn).toContain("requirePmsActor");
     expect(serverFn).not.toContain("requireGroupWriter");
     expect(functions).toContain("export const getGroup");
     expect(functions).toContain(
-      "await requireReservationManager(context as never, data.restaurantId)",
+      "await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW)",
     );
   });
 

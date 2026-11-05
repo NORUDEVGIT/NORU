@@ -33,7 +33,12 @@ import {
   RoomMoveDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
-import type { ReservationContextActionId } from "@/packages/pms/components/reservations/reservation-context-actions";
+import type {
+  ReservationActionCapabilities,
+  ReservationContextActionId,
+} from "@/packages/pms/components/reservations/reservation-context-actions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { ReservationContextMenu } from "@/packages/pms/components/reservations/reservation-context-menu";
 import { ReservationDeskMoreFilters } from "@/packages/pms/components/reservations/reservation-desk-more-filters";
 import { ReservationQuickViewPanel } from "@/packages/pms/components/reservations/reservation-quick-view";
@@ -108,8 +113,6 @@ type SourceFilter = DeskSourceFilter;
 type StatusFilter = DeskStatusFilter;
 
 type ReservationActionDialog = "assign_room" | "change_room" | "check_in" | "check_out";
-
-const RESERVATION_ACTION_ROLES = new Set(["owner", "manager", "receptionist"]);
 
 const RESERVATION_SECTIONS = [
   "Reservation Desk",
@@ -280,7 +283,25 @@ export function ReservationsWorkspace({
   const loadSet6 = useServerFn(getPmsSet6Snapshot);
   const submitStatus = useServerFn(setReservationStatus);
   const submitCopy = useServerFn(copyReservation);
-  const canManageActions = RESERVATION_ACTION_ROLES.has(membership.role);
+  const access = usePmsPermissions(restaurantId);
+  const reservationCapabilities: ReservationActionCapabilities = {
+    edit: access.can(PMS_PERMISSIONS.RESERVATION_EDIT),
+    create: access.can(PMS_PERMISSIONS.RESERVATION_CREATE),
+    cancel: access.can(PMS_PERMISSIONS.RESERVATION_CANCEL),
+    assign: access.can(PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT),
+    stayEdit: access.can(PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT),
+    checkIn: access.can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN),
+    checkOut: access.can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT),
+    noShow: access.can(PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW),
+    folio: access.can(PMS_PERMISSIONS.CASHIERING_VIEW),
+  };
+  const canManageActions = access.canAny([
+    PMS_PERMISSIONS.RESERVATION_CREATE,
+    PMS_PERMISSIONS.RESERVATION_EDIT,
+    PMS_PERMISSIONS.RESERVATION_CANCEL,
+    PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
+    PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
+  ]);
 
   const [view, setView] = useState<OperationalReservationView>("all");
   const [search, setSearch] = useState("");
@@ -1047,6 +1068,7 @@ export function ReservationsWorkspace({
                       selectedId={selectedId}
                       businessDate={snapshot?.businessDate ?? ""}
                       canManage={canManageActions}
+                      capabilities={reservationCapabilities}
                       onSelect={selectRow}
                       onOpen={openReservation}
                       onAction={handleReservationAction}
@@ -1093,6 +1115,7 @@ export function ReservationsWorkspace({
                     onRetry={() => void quickViewQuery.refetch()}
                     businessDate={snapshot?.businessDate ?? ""}
                     canManage={canManageActions}
+                    capabilities={reservationCapabilities}
                     sourceCodes={set6Query.data?.snapshot.sourceCodes}
                     marketSegments={set6Query.data?.snapshot.marketSegments}
                     onAction={(actionId) => {
@@ -1123,8 +1146,8 @@ export function ReservationsWorkspace({
           ) : workspaceSection === "groups" ? (
             <GroupsWorkspace
               restaurantId={restaurantId}
-              canWrite={membership.role === "owner" || membership.role === "manager"}
-              canCreateReservation={canManageActions}
+              canWrite={access.can(PMS_PERMISSIONS.RESERVATION_GROUP_EDIT)}
+              canCreateReservation={access.can(PMS_PERMISSIONS.RESERVATION_CREATE)}
               createStayActive={overlay?.type === "new-reservation" && Boolean(createGroupLink)}
               onCreateStay={(groupId, blockId) => {
                 setCreateGroupLink({ pmsGroupId: groupId, pmsGroupBlockId: blockId });
@@ -1135,7 +1158,7 @@ export function ReservationsWorkspace({
           ) : workspaceSection === "waitlist" ? (
             <WaitlistWorkspace
               restaurantId={restaurantId}
-              canWrite={membership.role === "owner" || membership.role === "manager"}
+              canWrite={access.can(PMS_PERMISSIONS.RESERVATION_WAITLIST_EDIT)}
               onOpenReservation={openReservation}
             />
           ) : (
@@ -1173,6 +1196,7 @@ export function ReservationsWorkspace({
                   onRetry={() => void quickViewQuery.refetch()}
                   businessDate={snapshot?.businessDate ?? ""}
                   canManage={canManageActions}
+                  capabilities={reservationCapabilities}
                   onAction={(actionId) => {
                     if (selectedRow) {
                       handleReservationAction(actionId, selectedRow, quickViewQuery.data);
@@ -1204,6 +1228,7 @@ export function ReservationsWorkspace({
             onRetry={() => void quickViewQuery.refetch()}
             businessDate={snapshot?.businessDate ?? ""}
             canManage={canManageActions}
+            capabilities={reservationCapabilities}
             sourceCodes={set6Query.data?.snapshot.sourceCodes}
             marketSegments={set6Query.data?.snapshot.marketSegments}
             onAction={(actionId) => {
@@ -1494,6 +1519,7 @@ function QuickViewRail({
   onRetry,
   businessDate,
   canManage,
+  capabilities,
   onAction,
   sourceCodes,
   marketSegments,
@@ -1508,6 +1534,7 @@ function QuickViewRail({
   onRetry: () => void;
   businessDate: string;
   canManage: boolean;
+  capabilities?: ReservationActionCapabilities;
   onAction: (actionId: ReservationContextActionId) => void;
   sourceCodes?: Array<{ id: string; name: string; code?: string | null }> | null;
   marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null;
@@ -1562,6 +1589,7 @@ function QuickViewRail({
         onRetry={onRetry}
         businessDate={businessDate}
         canManage={canManage}
+        capabilities={capabilities}
         onAction={onAction}
         sourceCodes={sourceCodes}
         marketSegments={marketSegments}
@@ -1639,6 +1667,7 @@ function ReservationTable({
   selectedId,
   businessDate,
   canManage,
+  capabilities,
   onSelect,
   onOpen,
   onAction,
@@ -1647,6 +1676,7 @@ function ReservationTable({
   selectedId: string | null;
   businessDate: string;
   canManage: boolean;
+  capabilities?: ReservationActionCapabilities;
   onSelect: (row: ReservationDeskRow) => void;
   onOpen: (id: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
@@ -1780,6 +1810,7 @@ function ReservationTable({
                       businessDate,
                       hints: row.hints,
                       canManage,
+                      capabilities,
                     }}
                     onAction={(actionId) => onAction(actionId, row)}
                     triggerLabel={`Actions for reservation ${row.confirmationNumber}`}

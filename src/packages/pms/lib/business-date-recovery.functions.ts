@@ -1,20 +1,17 @@
 /**
- * Owner-only Business Date recovery server action. The date change and its
- * immutable audit row are written together by adjust_business_date, which
- * locks the property row and re-checks the expected date, the active Night
- * Audit run, and closed history. It never touches night_audit_runs.
+ * Business Date recovery. adjust_business_date locks the property row and
+ * re-checks the expected date, the active Night Audit run, and closed history.
+ * It never touches night_audit_runs. The caller must hold night-audit recovery.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { requirePmsActor } from "./pms-permissions.server";
 import {
-  BUSINESS_DATE_OWNER_ONLY_MESSAGE,
   BUSINESS_DATE_REASON_MAX,
   businessDateAdjustmentError,
   businessDateAdjustmentProblem,
-  canAdjustBusinessDate,
 } from "./business-date-recovery";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -44,12 +41,11 @@ export const adjustBusinessDate = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<BusinessDateAdjustmentResult> => {
-    const me = await withPmsPackage(
+    const me = await requirePmsActor(
+      context as never,
       data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
+      PMS_PERMISSIONS.NIGHT_AUDIT_RECOVER_DATE,
     );
-    if (!canAdjustBusinessDate(me.role))
-      return { ok: false, message: BUSINESS_DATE_OWNER_ONLY_MESSAGE };
 
     const problem = businessDateAdjustmentProblem({
       currentBusinessDate: data.expectedBusinessDate,

@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { loadFoStaySignals } from "../fo-exceptions.functions";
 import {
   loadFrontOfficeArrivals,
@@ -37,7 +39,7 @@ export {
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 function applyArrivalFilters(
   stays: FrontOfficeStay[],
@@ -111,7 +113,7 @@ export const getReservationArrivalsDepartures = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationArrivalsDeparturesSnapshot> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const generatedAt = new Date().toISOString();
     const supabase: WorkspaceClient = context.supabase;
 

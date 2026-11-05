@@ -3,15 +3,15 @@
  * Rate Manager only. Generates downloadable RFC-4180 CSV reports.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRateManager } from "../rates.server";
 import {
   exportCommercialPerformance,
   exportRevenuePerformance,
-  exportUnifiedRevenueAudit,
-} from "./revenue-export.server.ts";
+  exportUnifiedRevenueAudit } from "./revenue-export.server.ts";
 import { REVENUE_EXPORT_ERROR, toRevenueReadError } from "./revenue-read-error.ts";
 
 const idSchema = z.string().uuid();
@@ -26,16 +26,14 @@ const revenuePerformanceQuerySchema = z.object({
   marketSegmentId: z.string().optional().nullable(),
   commercialSourceId: z.string().optional().nullable(),
   technicalOrigin: z.string().optional().nullable(),
-  salesChannelId: z.string().optional().nullable(),
-});
+  salesChannelId: z.string().optional().nullable() });
 
 const commercialPerformanceQuerySchema = z.object({
   restaurantId: idSchema,
   fromDate: dateSchema,
   toDate: dateSchema,
   roomTypeId: idSchema.optional().nullable(),
-  ratePlanId: idSchema.optional().nullable(),
-});
+  ratePlanId: idSchema.optional().nullable() });
 
 const auditFilterSchema = z.object({
   restaurantId: idSchema,
@@ -47,14 +45,13 @@ const auditFilterSchema = z.object({
     .nullable(),
   action: z.string().optional().nullable(),
   actorMembershipId: z.string().optional().nullable(),
-  search: z.string().optional().nullable(),
-});
+  search: z.string().optional().nullable() });
 
 export const exportRevenuePerformanceCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => revenuePerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.REPORTS_EXPORT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await exportRevenuePerformance(supabaseAdmin, data);
@@ -67,7 +64,7 @@ export const exportCommercialPerformanceCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => commercialPerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.REPORTS_EXPORT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await exportCommercialPerformance(supabaseAdmin, data);
@@ -80,7 +77,7 @@ export const exportUnifiedRevenueAuditCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => auditFilterSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.REPORTS_EXPORT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await exportUnifiedRevenueAudit(supabaseAdmin, data);

@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -6,18 +8,14 @@ import type { Json } from "@/integrations/supabase/types";
 import {
   IMAGE_EXT_BY_TYPE,
   ROOM_BUCKET,
-  requireFrontOfficeAccess,
-  requireRoomManager,
-  signRoomImages,
-} from "./rooms.server";
+signRoomImages } from "./rooms.server";
 import {
   MEAL_PLAN_TYPES,
   PACKAGE_TYPES,
   TAX_POSTURES,
   type MealPlanType,
   type PackageType,
-  type TaxPosture,
-} from "./pms-set3-rates-guest";
+  type TaxPosture } from "./pms-set3-rates-guest";
 import {
   CARD3_MEALS_AUDIT_SECTION,
   CARD3_MEALS_UNAVAILABLE,
@@ -47,8 +45,7 @@ import {
   type PackageCard3RatePlanLink,
   type PackageCard3Row,
   type PackageComponentCard3Row,
-  type PackageComponentKind,
-} from "./meals-card3.server";
+  type PackageComponentKind } from "./meals-card3.server";
 import { parsePackageInclusionType } from "./rate-plan-package-inclusion";
 import { reconcileOpenServiceEntitlements } from "./service-entitlement.server";
 
@@ -76,8 +73,7 @@ const mealPlanSchema = z.object({
   includesLunch: z.boolean(),
   includesDinner: z.boolean(),
   taxPosture: z.enum(TAX_POSTURES),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 const packageSchema = z.object({
   restaurantId: idSchema,
@@ -95,12 +91,10 @@ const packageSchema = z.object({
     .array(
       z.object({
         ratePlanId: idSchema,
-        inclusionType: z.enum(["included", "optional"]),
-      }),
+        inclusionType: z.enum(["included", "optional"]) }),
     )
     .max(200)
-    .optional(),
-});
+    .optional() });
 
 const serviceTimingSchema = z.enum(["ON_ARRIVAL", "ON_DEPARTURE", "EACH_STAY_DATE", "ONCE_PER_STAY"]);
 const componentBase = {
@@ -111,8 +105,7 @@ const componentBase = {
   sortOrder: z.number().int().min(0).max(1_000_000),
   requiresFulfillment: z.boolean().optional(),
   departmentId: idSchema.nullable().optional(),
-  serviceDateRule: serviceTimingSchema.nullable().optional(),
-};
+  serviceDateRule: serviceTimingSchema.nullable().optional() };
 const componentSchema = z
   .discriminatedUnion("kind", [
     z.object({ ...componentBase, kind: z.literal("meal_plan"), mealPlanId: idSchema }),
@@ -124,8 +117,7 @@ const componentSchema = z
       kind: value.kind,
       requiresFulfillment: value.requiresFulfillment === true,
       departmentId: value.departmentId ?? null,
-      serviceDateRule: value.serviceDateRule ?? null,
-    });
+      serviceDateRule: value.serviceDateRule ?? null });
     if (!message) return;
     ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["requiresFulfillment"] });
   });
@@ -176,8 +168,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_MEALS_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_MEALS_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-meals] audit", result.error.message);
 }
 
@@ -196,8 +187,7 @@ function mapMealPlan(row: any): MealPlanCard3Row {
     includesDinner: row.includes_dinner === true,
     taxPosture,
     taxPostureLabel: TAX_POSTURE_LABELS[taxPosture],
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapRoomType(row: any): Card3RoomTypeRef {
@@ -205,8 +195,7 @@ function mapRoomType(row: any): Card3RoomTypeRef {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapRoomAmenity(row: any): Card3RoomAmenityRef {
@@ -215,8 +204,7 @@ function mapRoomAmenity(row: any): Card3RoomAmenityRef {
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
     category: String(row.category ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapRatePlan(row: any): Card3RatePlanRef {
@@ -224,8 +212,7 @@ function mapRatePlan(row: any): Card3RatePlanRef {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapFoService(row: any): Card3FoServiceRef {
@@ -234,8 +221,7 @@ function mapFoService(row: any): Card3FoServiceRef {
     name: String(row.name ?? ""),
     defaultAmount: Number(row.default_amount ?? 0),
     sortOrder: Number(row.sort_order ?? 0),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapDepartment(row: any): Card3DepartmentRef {
@@ -243,8 +229,7 @@ function mapDepartment(row: any): Card3DepartmentRef {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCard3Snapshot> {
@@ -387,8 +372,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     const list = ratePlanLinksByPackage.get(String(row.package_id)) ?? [];
     list.push({
       ratePlanId: String(row.rate_plan_id),
-      inclusionType: parsePackageInclusionType(row.inclusion_type),
-    });
+      inclusionType: parsePackageInclusionType(row.inclusion_type) });
     ratePlanLinksByPackage.set(String(row.package_id), list);
   }
 
@@ -424,8 +408,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       ratePlanIds: ratePlanLinks.map((link) => link.ratePlanId),
       ratePlanLinks,
       coverImagePath,
-      coverUrl: coverImagePath ? (signedCovers.get(coverImagePath) ?? null) : null,
-    };
+      coverUrl: coverImagePath ? (signedCovers.get(coverImagePath) ?? null) : null };
   });
 
   const componentRows: PackageComponentCard3Row[] = (components.data ?? []).map((row: any) => {
@@ -450,8 +433,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       sortOrder: Number(row.sort_order ?? 0),
       requiresFulfillment: row.requires_fulfillment === true,
       departmentId: row.fulfillment_department_id ? String(row.fulfillment_department_id) : null,
-      serviceDateRule: isServiceDateRule(row.service_date_rule) ? row.service_date_rule : null,
-    };
+      serviceDateRule: isServiceDateRule(row.service_date_rule) ? row.service_date_rule : null };
   });
 
   return {
@@ -464,8 +446,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     ratePlans: ratePlanRows,
     foServices: foServiceRows,
     departments: (departments.data ?? []).map(mapDepartment),
-    mealPolicy: mealApplicabilityFromRow(mealPolicy.data),
-  };
+    mealPolicy: mealApplicabilityFromRow(mealPolicy.data) };
 }
 
 export { loadSnapshot as loadMealsCard3Snapshot };
@@ -483,8 +464,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 async function requireOwnedIds(
@@ -521,21 +501,20 @@ export const getMealsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateMealsCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveMealPlanCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealPlanSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(
@@ -556,8 +535,7 @@ export const saveMealPlanCard3 = createServerFn({ method: "POST" })
       includes_lunch: data.includesLunch,
       includes_dinner: data.includesDinner,
       tax_posture: data.taxPosture,
-      active: data.active,
-    };
+      active: data.active };
     const result = data.id
       ? await db
           .from("pms_meal_plans")
@@ -567,8 +545,7 @@ export const saveMealPlanCard3 = createServerFn({ method: "POST" })
       : await db.from("pms_meal_plans").insert(payload);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_meal_plan_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
   });
@@ -577,7 +554,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const roomTypeIds = [...new Set(data.roomTypeIds)];
     const ratePlanIds = [...new Set(data.ratePlanIds)];
@@ -618,8 +595,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
       description: data.description?.trim() ? data.description.trim() : null,
       package_price: data.packagePrice,
       charge_basis: data.chargeBasis,
-      active: data.active,
-    };
+      active: data.active };
     let packageId = data.id;
     if (data.id) {
       const updated = await db
@@ -657,8 +633,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
           roomTypeIds.map((roomTypeId) => ({
             restaurant_id: data.restaurantId,
             package_id: packageId,
-            room_type_id: roomTypeId,
-          })),
+            room_type_id: roomTypeId })),
         ),
       );
     }
@@ -667,8 +642,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
         restaurant_id: data.restaurantId,
         package_id: packageId,
         rate_plan_id: ratePlanId,
-        inclusion_type: inclusionByPlan.get(ratePlanId) ?? "optional",
-      }));
+        inclusion_type: inclusionByPlan.get(ratePlanId) ?? "optional" }));
       const withType = await db.from("pms_package_rate_plans").insert(rateRows);
       if (withType.error && (withType.error.code === "42703" || withType.error.code === "PGRST204")) {
         mappingWrites.push(
@@ -685,8 +659,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
     }
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_package_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
   });
@@ -695,7 +668,7 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => componentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const source =
       data.kind === "meal_plan"
@@ -744,8 +717,7 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
       service_date_rule:
         data.requiresFulfillment === true && data.kind !== "meal_plan"
           ? (data.serviceDateRule ?? null)
-          : null,
-    };
+          : null };
     if (data.requiresFulfillment === true && data.departmentId) {
       const department = await db
         .from("pms_departments")
@@ -766,8 +738,7 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
       : await db.from("pms_package_components").insert(payload);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_package_component_saved", {
-      detail: `${data.kind} ${source.id}`,
-    });
+      detail: `${data.kind} ${source.id}` });
     await refreshOperationalLists(db, data.restaurantId);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
@@ -779,7 +750,7 @@ export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedRecord(
       db,
@@ -795,8 +766,7 @@ export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_package_component_deleted", {
-      detail: data.id,
-    });
+      detail: data.id });
     await refreshOperationalLists(db, data.restaurantId);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
@@ -806,14 +776,12 @@ const packageCoverUploadSchema = z.object({
   restaurantId: idSchema,
   packageId: idSchema,
   contentType: z.enum(PACKAGE_COVER_CONTENT_TYPES),
-  size: z.number().int().positive().max(PACKAGE_COVER_MAX_BYTES),
-});
+  size: z.number().int().positive().max(PACKAGE_COVER_MAX_BYTES) });
 
 const packageCoverPathSchema = z.object({
   restaurantId: idSchema,
   packageId: idSchema,
-  storagePath: z.string().trim().min(1).max(500),
-});
+  storagePath: z.string().trim().min(1).max(500) });
 
 async function loadPackageCover(
   db: DbClient,
@@ -842,7 +810,7 @@ export const createPackageCoverUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageCoverUploadSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedRecord(
       db,
@@ -867,7 +835,7 @@ export const setPackageCoverImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageCoverPathSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!isOwnedPackageCoverPath(data.restaurantId, data.packageId, data.storagePath)) {
       throw new Error("Invalid image reference.");
     }
@@ -891,7 +859,7 @@ export const removePackageCoverImage = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, packageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const current = await loadPackageCover(db, data.restaurantId, data.packageId);
     if (!current.cover_image_path) return { ok: true as const };
@@ -909,16 +877,14 @@ const mealRuleSchema = z.object({
   includeArrival: z.boolean(),
   includeStay: z.boolean(),
   includeDeparture: z.boolean(),
-  departmentId: idSchema.nullable(),
-});
+  departmentId: idSchema.nullable() });
 
 const mealPolicySchema = z.object({
   restaurantId: idSchema,
   breakfast: mealRuleSchema,
   lunch: mealRuleSchema,
   dinner: mealRuleSchema,
-  countInfants: z.boolean(),
-});
+  countInfants: z.boolean() });
 
 async function assertActiveDepartment(
   db: DbClient,
@@ -951,7 +917,7 @@ export const getMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { policy: snapshot.mealPolicy, departments: snapshot.departments };
@@ -961,7 +927,7 @@ export const saveMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await Promise.all([
       assertActiveDepartment(db, data.restaurantId, data.breakfast.departmentId),
@@ -972,8 +938,7 @@ export const saveMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" 
       [`${prefix}_include_arrival`]: value.includeArrival,
       [`${prefix}_include_stay`]: value.includeStay,
       [`${prefix}_include_departure`]: value.includeDeparture,
-      [`${prefix}_department_id`]: value.departmentId,
-    });
+      [`${prefix}_department_id`]: value.departmentId });
     const saved = await db.from("pms_meal_applicability_policies").upsert(
       {
         restaurant_id: data.restaurantId,
@@ -981,14 +946,12 @@ export const saveMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" 
         ...rule(data.lunch, "lunch"),
         ...rule(data.dinner, "dinner"),
         count_infants: data.countInfants,
-        updated_at: new Date().toISOString(),
-      },
+        updated_at: new Date().toISOString() },
       { onConflict: "restaurant_id" },
     );
     if (saved.error) unavailable(saved.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_meal_service_rules_saved", {
-      detail: data.restaurantId,
-    });
+      detail: data.restaurantId });
     await refreshOperationalLists(db, data.restaurantId);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
@@ -1000,14 +963,13 @@ const foServiceSchema = z.object({
   name: z.string().trim().min(1).max(80),
   defaultAmount: z.number().min(0).max(10_000_000),
   active: z.boolean(),
-  sortOrder: z.number().int().min(0).max(1_000_000),
-});
+  sortOrder: z.number().int().min(0).max(1_000_000) });
 
 export const saveFoServiceCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => foServiceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(
@@ -1023,8 +985,7 @@ export const saveFoServiceCard3 = createServerFn({ method: "POST" })
       name: data.name.trim(),
       default_amount: data.defaultAmount,
       active: data.active,
-      sort_order: data.sortOrder,
-    };
+      sort_order: data.sortOrder };
     const result = data.id
       ? await db
           .from("fo_service_catalogue")
@@ -1034,8 +995,7 @@ export const saveFoServiceCard3 = createServerFn({ method: "POST" })
       : await db.from("fo_service_catalogue").insert(payload);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_fo_service_saved", {
-      detail: data.name.trim(),
-    });
+      detail: data.name.trim() });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateMealsCard3Readiness(snapshot) };
   });

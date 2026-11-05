@@ -4,7 +4,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isMissingSchemaError } from "@/packages/pms/lib/pms-set2-structure";
 import { getAssignmentEligibilityCompat } from "@/packages/pms/lib/room-inventory-compat";
-import { requireReservationManager } from "@/packages/pms/lib/reservations.server";
+import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 
 const idSchema = z.string().uuid();
 
@@ -51,7 +52,7 @@ export const listReservationRoomDisplay = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationRoomDisplay[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { data: unit, error: unitError } = await context.supabase
       .from("hotel_reservation_rooms")
       .select("id, room_type_id, arrival_date, departure_date, adults, children")

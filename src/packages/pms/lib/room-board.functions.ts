@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -61,7 +63,7 @@ export const listRoomBoardOccupancy = createServerFn({
       businessDate: string;
       rows: RoomBoardOccupancyRow[];
     }> => {
-      await requireFrontOfficeAccess(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
       const propertyDate = await getPropertyBusinessDate({
         data: {
@@ -194,7 +196,7 @@ export const listRoomBoardBlocks = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(
     async ({ data, context }): Promise<{ businessDate: string; rows: RoomBoardBlockRow[] }> => {
-      await requireFrontOfficeAccess(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
       const propertyDate = await getPropertyBusinessDate({
         data: { restaurantId: data.restaurantId },
       });

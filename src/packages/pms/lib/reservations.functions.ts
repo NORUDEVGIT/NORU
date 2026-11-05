@@ -2,15 +2,21 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
+  hasEffectivePermission,
+  requirePermission,
+  requirePmsActor,
+  requirePmsActorAll,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSION_DENIED, PMS_PERMISSIONS } from "./pms-permissions";
+import {
   MANUAL_RESERVATION_STATUSES,
   RESERVATION_STATUSES,
   assertBookingStatusTransition,
   assertStayDates,
   blankToNull,
-  canManageReservations,
   nightsBetween,
   recordReservationEvent,
-  requireReservationManager,
   reservationError,
   type ReservationEventType,
   type ReservationStatus,
@@ -44,7 +50,7 @@ async function assertExplicitOverbookingAllowed(
     };
   },
   restaurantId: string,
-  role: string,
+  context: unknown,
   reason: string | null | undefined,
 ) {
   const loaded = await db
@@ -55,8 +61,19 @@ async function assertExplicitOverbookingAllowed(
   if (loaded.error) throw new Error(loaded.error.message);
   const approvalRequired = loaded.data ? Boolean(loaded.data.manager_approval_required) : true;
   const reasonRequired = loaded.data ? Boolean(loaded.data.overbooking_reason_required) : true;
-  if (approvalRequired && role !== "owner" && role !== "manager") {
-    throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
+  if (approvalRequired) {
+    try {
+      await requirePermission(
+        context as never,
+        restaurantId,
+        PMS_PERMISSIONS.RESERVATION_OVERBOOKING_AUTHORIZE,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === PMS_PERMISSION_DENIED) {
+        throw reservationError("OVERBOOKING_APPROVAL_REQUIRED");
+      }
+      throw error;
+    }
   }
   if (reasonRequired && !reason?.trim()) {
     throw reservationError("OVERBOOKING_REASON_REQUIRED");
@@ -82,7 +99,7 @@ import {
 import { DEPOSIT_POLICY_TYPE_LABELS, type DepositPolicyCard3Row } from "./payments-card3.server";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
-import { callPostFolioTransaction, requireCashierOperator } from "./cashiering.server";
+import { callPostFolioTransaction } from "./cashiering.server";
 import { isRoomReady, mapCashierShiftError } from "./fo-check-in";
 import {
   createMoneyNeedsFolio,
@@ -494,6 +511,7 @@ export const getBookingsAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
     const me = await callerMembership(context as never, data.restaurantId);
     const { data: profile } = await context.supabase
       .from("profiles")
@@ -502,7 +520,10 @@ export const getBookingsAccess = createServerFn({ method: "POST" })
       .maybeSingle();
     return {
       role: me.role,
-      canManage: canManageReservations(me.role),
+      canManage:
+        hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_CREATE) ||
+        hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_EDIT) ||
+        hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_CANCEL),
       actorName: displayName(profile) ?? profile?.email ?? "Current user",
       membershipId: me.id,
     };
@@ -523,7 +544,7 @@ export const getRoomTypeAvailability = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomTypeAvailability[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { data: types, error } = await context.supabase
@@ -592,7 +613,7 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<AssignableRoom[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
     const { data: rooms, error } = await context.supabase
@@ -701,7 +722,7 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInRoomCandidate[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -934,7 +955,7 @@ export const listReservations = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ rows: ReservationDetail[]; total: number; page: number; pageSize: number }> => {
-      await requireReservationManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
 
       const page = data.page ?? 1;
       const pageSize = data.pageSize ?? 25;
@@ -1008,7 +1029,7 @@ export const getReservation = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ reservation: ReservationDetail; history: ReservationHistoryEntry[] }> => {
-      await requireReservationManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
 
       const stayQuery = await context.supabase
         .from("hotel_reservations")
@@ -1539,11 +1560,11 @@ const stayInputSchema = z.object({
 });
 
 async function postCreateReservationMoney(
-  context: unknown,
   supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   input: {
     restaurantId: string;
     reservationId: string;
+    membershipId: string;
     payment: CreateReceiptRequest;
     guestDeposit: CreateReceiptRequest;
   },
@@ -1552,14 +1573,12 @@ async function postCreateReservationMoney(
   if (!createMoneyNeedsFolio(input.payment, input.guestDeposit)) return result;
 
   let folioId = "";
-  let membershipId = "";
+  const membershipId = input.membershipId;
   try {
-    const cashier = await requireCashierOperator(context as never, input.restaurantId);
-    membershipId = cashier.id;
     const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
       _restaurant_id: input.restaurantId,
       _reservation_id: input.reservationId,
-      _membership_id: cashier.id,
+      _membership_id: membershipId,
     });
     if (opened.error) throw new Error(opened.error.message);
     folioId = (opened.data as { id: string }).id;
@@ -1709,7 +1728,27 @@ export const createReservation = createServerFn({ method: "POST" })
       guestDepositError: string | null;
       folioOpened: boolean;
     }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
+      const postsPayment =
+        data.paymentReceivedAmount != null &&
+        Number.isFinite(data.paymentReceivedAmount) &&
+        data.paymentReceivedAmount > 0;
+      const postsDeposit =
+        data.guestDepositAmount != null &&
+        Number.isFinite(data.guestDepositAmount) &&
+        data.guestDepositAmount > 0;
+      const reservationPermission =
+        data.source === "walk_in"
+          ? PMS_PERMISSIONS.FRONT_OFFICE_WALK_IN
+          : PMS_PERMISSIONS.RESERVATION_CREATE;
+      const gates = [
+        reservationPermission,
+        ...(postsDeposit ? [PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST] : []),
+        ...(postsPayment ? [PMS_PERMISSIONS.CASHIERING_PAYMENT_POST] : []),
+      ];
+      const me =
+        gates.length === 1
+          ? await requirePmsActor(context as never, data.restaurantId, reservationPermission)
+          : await requirePmsActorAll(context as never, data.restaurantId, gates);
       const status = data.status ?? "pending";
       assertCreateReservationPricing({
         role: me.role,
@@ -1927,7 +1966,7 @@ export const createReservation = createServerFn({ method: "POST" })
         await assertExplicitOverbookingAllowed(
           supabaseAdmin as never,
           data.restaurantId,
-          me.role,
+          context,
           data.overbookingReason,
         );
       }
@@ -2017,9 +2056,10 @@ export const createReservation = createServerFn({ method: "POST" })
         currency: row.currency,
         nightly: parseSnapshot(row.nightly_rate_snapshot),
       });
-      const money = await postCreateReservationMoney(context, supabaseAdmin, {
+      const money = await postCreateReservationMoney(supabaseAdmin, {
         restaurantId: data.restaurantId,
         reservationId: row.id,
+        membershipId: me.id,
         payment: paymentReceipt,
         guestDeposit: guestDepositReceipt,
       });
@@ -2072,7 +2112,7 @@ export const copyReservation = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; confirmationNumber: string }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_CREATE);
     const { data: row, error } = await context.supabase
       .from("hotel_reservations")
       .select(
@@ -2487,7 +2527,11 @@ export const amendReservation = createServerFn({ method: "POST" })
   )
   .handler(
     async ({ data, context }): Promise<{ id: string; amendment: StayAmendmentResult | null }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.RESERVATION_EDIT,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
       if (data.reservationRoomId !== undefined) {
@@ -2623,7 +2667,7 @@ export const amendReservation = createServerFn({ method: "POST" })
         await assertExplicitOverbookingAllowed(
           supabaseAdmin as never,
           data.restaurantId,
-          me.role,
+          context,
           data.overbookingReason,
         );
       }
@@ -2876,7 +2920,11 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT,
+    );
 
     const { data: existing, error: readError } = await context.supabase
       .from("hotel_reservations")
@@ -2985,7 +3033,11 @@ export const applyReservationRoomPackage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const { data: packageId, error } = await supabaseAdmin.rpc(
@@ -3030,7 +3082,11 @@ export const manageReservationRoomGuest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const { error } = await supabaseAdmin.rpc("manage_reservation_room_guest", {
@@ -3063,7 +3119,13 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: ReservationStatus }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      data.status === "cancelled"
+        ? PMS_PERMISSIONS.RESERVATION_CANCEL
+        : PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
 
     const { data: existing, error: readError } = await context.supabase
       .from("hotel_reservations")
@@ -3183,7 +3245,7 @@ export const getBookingsDashboard = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<BookingsDashboard> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const today = data.today;
     const monthStart = `${today.slice(0, 7)}-01`;
 
@@ -3255,7 +3317,7 @@ export const listReservationAmendments = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationAmendmentRow[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
 
     const { data: events, error } = await context.supabase
       .from("hotel_reservation_history")

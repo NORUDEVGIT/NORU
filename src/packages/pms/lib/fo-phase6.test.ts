@@ -22,8 +22,8 @@ describe("FO Phase 6 — canonical Guest Services source", () => {
     const fns = readRel("./fo-guest-services.functions.ts");
     assert.match(fns, /export const getFrontOfficeGuestServiceSummary/);
     assert.match(fns, /from\("guest_service_history"\)/);
-    assert.match(fns, /requireGuestManager/);
-    assert.match(fns, /requireReservationManager/);
+    assert.match(fns, /requirePmsActor/);
+    assert.match(fns, /FRONT_OFFICE_VIEW/);
     assert.match(fns, /slaConfigured: false/);
     assert.doesNotMatch(fns, /from\("fo_guest_requests"\)/);
     assert.doesNotMatch(fns, /\.insert\(/);

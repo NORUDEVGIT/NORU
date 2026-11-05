@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import {
   loadFrontOfficeRoomHistory,
   loadFrontOfficeRoomOpsQueue,
@@ -29,7 +30,7 @@ export const getFrontOfficeRoomQuickView = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoRoomQuickView> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     return loadFrontOfficeRoomQuickView({
       supabase: context.supabase,
       context: context as never,
@@ -46,7 +47,7 @@ export const getFrontOfficeRoomOperationsQueue = createServerFn({ method: "POST"
     z.object({ restaurantId: idSchema, businessDate: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomOpsQueueItem[]> => {
-    const membership = await requireReservationManager(context as never, data.restaurantId);
+    const membership = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     return loadFrontOfficeRoomOpsQueue({
       supabase: context.supabase,
       context: context as never,
@@ -68,7 +69,7 @@ export const getFrontOfficeRoomHistory = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoRoomHistoryRow[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     return loadFrontOfficeRoomHistory({
       supabase: context.supabase,
       restaurantId: data.restaurantId,

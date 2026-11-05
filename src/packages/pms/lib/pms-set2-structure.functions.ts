@@ -9,8 +9,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import type { Json } from "@/integrations/supabase/types";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import {
   FLOOR_1_CODE,
   FLOOR_1_NAME,
@@ -346,7 +347,7 @@ export const getPmsSet2Snapshot = createServerFn({ method: "POST" })
       snapshot,
       activate: activateInputFromSnapshot(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE),
     };
   });
 
@@ -392,11 +393,7 @@ export const saveHotelBuilding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => buildingSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.structureColumnsAvailable) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -461,11 +458,7 @@ export const saveHotelFloor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => floorSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.structureColumnsAvailable) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -532,11 +525,7 @@ export const saveHotelWing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => wingSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const parentBuildingId = data.parentBuildingId || null;
     const parentFloorId = data.parentFloorId || null;
     if (!wingParentXor(parentBuildingId, parentFloorId)) {
@@ -634,11 +623,7 @@ export const deleteStructureNode = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.structureColumnsAvailable) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -751,11 +736,7 @@ export const ensureSingleBuildingAssist = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, enabled: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.structureColumnsAvailable) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -843,11 +824,7 @@ export const bulkAssignUnassignedRooms = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.structureColumnsAvailable) throw new Error(SET2_UNAVAILABLE_STRUCTURE);
@@ -897,11 +874,7 @@ export const saveRoomAmenityCatalogue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => amenitySchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
     const core = { restaurant_id: data.restaurantId, name: data.name, active: data.active };
@@ -958,11 +931,7 @@ export const savePmsOutlet = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => outletSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     if (data.isDefaultRooms && data.type !== "rooms") {
       throw new Error("Only a Rooms outlet can be the default Rooms outlet.");
     }

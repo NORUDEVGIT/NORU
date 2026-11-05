@@ -2,6 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { GuestFolioPage } from "@/packages/pms/components/cashiering/guest-folio-page";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -53,6 +55,7 @@ function GuestFolioRoute() {
       hideTopHeader
     >
       {(membership) => (
+        <PmsRouteGate restaurantId={membership.restaurantId} allow={PMS_PERMISSIONS.CASHIERING_VIEW}>
         <GuestFolioPage
           membership={membership}
           folioId={folioId}
@@ -64,6 +67,7 @@ function GuestFolioRoute() {
           returnTo={search.returnTo}
           returnToLabel={search.returnToLabel}
         />
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

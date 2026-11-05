@@ -120,7 +120,7 @@ export function waiverFailureCopy(error: unknown): string {
       message,
     )
   ) {
-    return "An owner or manager must authorize this waiver.";
+    return "You don't have permission to authorize this waiver.";
   }
   if (message.includes("\n") || /at \S+\.(ts|js)/.test(message)) {
     return "The deposit waiver could not be saved. Try again.";

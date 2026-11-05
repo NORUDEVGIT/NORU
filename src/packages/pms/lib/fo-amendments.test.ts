@@ -148,7 +148,7 @@ describe("FO-FS4 service post honesty", () => {
     const fns = readFileSync(new URL("./fo-amendments.functions.ts", import.meta.url), "utf8");
     assert.match(fns, /callPostFolioTransaction/);
     assert.match(fns, /type: "charge"/);
-    assert.match(fns, /requireCashierManager/);
+    assert.match(fns, /CASHIERING_CHARGE_POST/);
     assert.match(fns, /category: "manual"/);
     assert.match(fns, /open_folio_for_reservation/);
     assert.match(fns, /servicePostsToFolio/);
@@ -157,7 +157,7 @@ describe("FO-FS4 service post honesty", () => {
     assert.doesNotMatch(fns, /yield|reprice|repric/i);
     const addService = fns.slice(fns.indexOf("export const addStayService"));
     assert.ok(addService.indexOf("servicePostsToFolio") < addService.indexOf("callPostFolioTransaction"));
-    assert.match(addService, /requireCashierManager/);
+    assert.match(addService, /CASHIERING_CHARGE_POST/);
   });
 });
 

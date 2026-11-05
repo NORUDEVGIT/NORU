@@ -1,10 +1,11 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   CARD3_TAXES_AUDIT_SECTION,
@@ -32,8 +33,7 @@ import {
   type TaxDepartmentOption,
   type TaxGroupRow,
   type TaxRow,
-  type TaxesCard3Snapshot,
-} from "./taxes-card3.server";
+  type TaxesCard3Snapshot } from "./taxes-card3.server";
 
 type DbClient = any;
 
@@ -58,15 +58,13 @@ const taxSchema = z
     applicabilityScope: z.enum(["all", "rate_plans", "packages", "services", "departments", "folio"] as const),
     departmentIds: z.array(idSchema).default([]),
     calculation: z.enum(TAX_CALCULATIONS),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .superRefine((value, ctx) => {
     if (value.applicabilityScope === "departments" && value.departmentIds.length === 0) {
       ctx.addIssue({
         code: "custom",
         message: "Choose at least one department.",
-        path: ["departmentIds"],
-      });
+        path: ["departmentIds"] });
     }
   });
 
@@ -76,8 +74,7 @@ const groupSchema = z.object({
   code: setupCode,
   name: z.string().trim().min(1).max(80),
   active: z.boolean(),
-  taxIds: z.array(idSchema),
-});
+  taxIds: z.array(idSchema) });
 
 const serviceSchema = z
   .object({
@@ -89,15 +86,13 @@ const serviceSchema = z
     amount: z.number().positive("Amount must be greater than zero."),
     applicabilityScope: z.enum(["all", "rate_plans", "packages", "services", "departments", "folio"] as const),
     departmentIds: z.array(idSchema).default([]),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .superRefine((value, ctx) => {
     if (value.applicabilityScope === "departments" && value.departmentIds.length === 0) {
       ctx.addIssue({
         code: "custom",
         message: "Choose at least one department.",
-        path: ["departmentIds"],
-      });
+        path: ["departmentIds"] });
     }
   });
 
@@ -109,8 +104,7 @@ const feeSchema = z.object({
   chargeType: z.enum(TAX_CHARGE_TYPES),
   amount: z.number().positive("Amount must be greater than zero."),
   basis: z.enum(FEE_BASIS),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 const exemptionSchema = z.object({
   restaurantId: idSchema,
@@ -122,8 +116,7 @@ const exemptionSchema = z.object({
   customReason: z.string().trim().max(200).nullable().optional(),
   documentationRequired: z.boolean(),
   approvalRequired: z.boolean(),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST205") {
@@ -182,8 +175,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_TAXES_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_TAXES_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-taxes] audit", result.error.message);
 }
 
@@ -199,8 +191,7 @@ function mapTax(row: any, departmentIds: string[] = []): TaxRow {
     applicabilityScope: asApplicability(row.applicability_scope, basis),
     departmentIds,
     calculation: asCalculation(row.calculation),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapService(row: any, departmentIds: string[] = []): ServiceChargeRow {
@@ -214,8 +205,7 @@ function mapService(row: any, departmentIds: string[] = []): ServiceChargeRow {
     basis,
     applicabilityScope: asApplicability(row.applicability_scope, basis),
     departmentIds,
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapFee(row: any): FeeRow {
@@ -226,8 +216,7 @@ function mapFee(row: any): FeeRow {
     chargeType: asChargeType(row.charge_type),
     amount: Number(row.amount),
     basis: asFeeBasis(row.basis),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapExemption(row: any): ExemptionRuleRow {
@@ -240,8 +229,7 @@ function mapExemption(row: any): ExemptionRuleRow {
     customReason: row.custom_reason ? String(row.custom_reason) : null,
     documentationRequired: row.documentation_required === true,
     approvalRequired: row.approval_required === true,
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 async function loadDefaultRoomTaxGroupId(
@@ -283,8 +271,7 @@ async function loadDepartmentOptions(
   return (result.data ?? []).map((row: any) => ({
     id: String(row.id),
     code: String(row.code ?? ""),
-    name: String(row.name ?? ""),
-  }));
+    name: String(row.name ?? "") }));
 }
 
 async function replaceDepartmentTargets(
@@ -319,8 +306,7 @@ async function replaceDepartmentTargets(
     uniqueIds.map((departmentId) => ({
       restaurant_id: restaurantId,
       [parentColumn]: parentId,
-      department_id: departmentId,
-    })),
+      department_id: departmentId })),
   );
   if (inserted.error) unavailable(inserted.error);
 }
@@ -429,8 +415,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<TaxesCa
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
     active: row.active !== false,
-    taxIds: taxIdsByGroup.get(row.id) ?? [],
-  }));
+    taxIds: taxIdsByGroup.get(row.id) ?? [] }));
   return {
     taxes: (taxes.data ?? []).map((row: any) =>
       mapTax(row, taxDepartments.get(String(row.id)) ?? []),
@@ -442,8 +427,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<TaxesCa
     fees: (fees.data ?? []).map(mapFee),
     exemptionRules: (rules.data ?? []).map(mapExemption),
     defaultRoomTaxGroupId,
-    departments,
-  };
+    departments };
 }
 
 export { loadSnapshot as loadTaxesCard3Snapshot };
@@ -461,8 +445,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 async function requireImmutableCode(
@@ -489,21 +472,20 @@ export const getTaxesCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateTaxesCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveTaxCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => taxSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!amountIsValid(data.chargeType, data.amount)) {
       throw new Error("Percentage amounts must be greater than 0 and at most 100.");
     }
@@ -518,8 +500,7 @@ export const saveTaxCard3 = createServerFn({ method: "POST" })
       basis: basisForApplicability(data.applicabilityScope),
       applicability_scope: data.applicabilityScope,
       calculation: data.calculation,
-      active: data.active,
-    };
+      active: data.active };
     let taxId = data.id;
     if (data.id) {
       await requireImmutableCode(db, "pms_taxes", data.restaurantId, data.id, data.code);
@@ -544,8 +525,7 @@ export const saveTaxCard3 = createServerFn({ method: "POST" })
       departmentIds,
     );
     await writeAudit(db, data.restaurantId, context.userId, "card3_tax_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };
   });
@@ -554,7 +534,7 @@ export const saveTaxGroupCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => groupSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const uniqueTaxIds = [...new Set(data.taxIds)];
     if (uniqueTaxIds.length > 0) {
@@ -574,8 +554,7 @@ export const saveTaxGroupCard3 = createServerFn({ method: "POST" })
       restaurant_id: data.restaurantId,
       code: data.code,
       name: data.name,
-      active: data.active,
-    };
+      active: data.active };
     if (data.id) {
       await requireImmutableCode(db, "pms_tax_groups", data.restaurantId, data.id, data.code);
       const updated = await db
@@ -606,15 +585,13 @@ export const saveTaxGroupCard3 = createServerFn({ method: "POST" })
         uniqueTaxIds.map((taxId) => ({
           restaurant_id: data.restaurantId,
           tax_group_id: groupId,
-          tax_id: taxId,
-        })),
+          tax_id: taxId })),
       );
       if (mapped.error) unavailable(mapped.error);
     }
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_tax_group_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };
   });
@@ -623,7 +600,7 @@ export const saveServiceChargeCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => serviceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!amountIsValid(data.chargeType, data.amount)) {
       throw new Error("Percentage amounts must be greater than 0 and at most 100.");
     }
@@ -637,8 +614,7 @@ export const saveServiceChargeCard3 = createServerFn({ method: "POST" })
       amount: data.amount,
       basis: basisForApplicability(data.applicabilityScope),
       applicability_scope: data.applicabilityScope,
-      active: data.active,
-    };
+      active: data.active };
     let serviceId = data.id;
     if (data.id) {
       await requireImmutableCode(db, "pms_service_charges", data.restaurantId, data.id, data.code);
@@ -667,8 +643,7 @@ export const saveServiceChargeCard3 = createServerFn({ method: "POST" })
       departmentIds,
     );
     await writeAudit(db, data.restaurantId, context.userId, "card3_service_charge_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };
   });
@@ -677,7 +652,7 @@ export const saveFeeCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => feeSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!amountIsValid(data.chargeType, data.amount)) {
       throw new Error("Percentage amounts must be greater than 0 and at most 100.");
     }
@@ -689,8 +664,7 @@ export const saveFeeCard3 = createServerFn({ method: "POST" })
       charge_type: data.chargeType,
       amount: data.amount,
       basis: data.basis,
-      active: data.active,
-    };
+      active: data.active };
     if (data.id) {
       await requireImmutableCode(db, "pms_fees", data.restaurantId, data.id, data.code);
       const updated = await db
@@ -704,8 +678,7 @@ export const saveFeeCard3 = createServerFn({ method: "POST" })
       if (inserted.error) unavailable(inserted.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_fee_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };
   });
@@ -714,7 +687,7 @@ export const saveExemptionRuleCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => exemptionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const isOther = data.reasonCategory === "other";
     const customReasonVal = isOther && data.customReason?.trim() ? data.customReason.trim() : null;
@@ -728,8 +701,7 @@ export const saveExemptionRuleCard3 = createServerFn({ method: "POST" })
       custom_reason: customReasonVal,
       documentation_required: data.documentationRequired,
       approval_required: data.approvalRequired,
-      active: data.active,
-    };
+      active: data.active };
 
     const executeSave = async (record: Record<string, unknown>) => {
       if (data.id) {
@@ -771,22 +743,20 @@ export const saveExemptionRuleCard3 = createServerFn({ method: "POST" })
 
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_exemption_rule_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };
   });
 
 const defaultRoomTaxGroupSchema = z.object({
   restaurantId: idSchema,
-  taxGroupId: idSchema.nullable(),
-});
+  taxGroupId: idSchema.nullable() });
 
 export const saveDefaultRoomTaxGroupCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => defaultRoomTaxGroupSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
 
     if (data.taxGroupId) {
@@ -815,8 +785,7 @@ export const saveDefaultRoomTaxGroupCard3 = createServerFn({ method: "POST" })
     }
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_default_room_tax_group_saved", {
-      detail: data.taxGroupId ?? "cleared",
-    });
+      detail: data.taxGroupId ?? "cleared" });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateTaxesCard3Readiness(snapshot) };
   });

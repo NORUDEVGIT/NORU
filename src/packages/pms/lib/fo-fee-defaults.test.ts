@@ -104,7 +104,7 @@ describe("FO-CLEAN1 fee editor source locks", () => {
     assert.match(fns, /restaurant_staff_audit_log/);
     assert.doesNotMatch(fns, /ADD COLUMN/);
     assert.doesNotMatch(fns, /FoAuditViewer/);
-    assert.match(fns, /canEditFoFeeDefaults/);
+    assert.match(fns, /CONFIG_PROPERTY_CONFIGURE/);
 
     const settings = readFileSync(
       new URL("../../../core/components/workspaces/settings-workspace.tsx", import.meta.url),

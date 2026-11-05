@@ -1,5 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_GUEST_ROUTE_PERMISSIONS } from "@/packages/pms/lib/pms-client-access";
 import { GuestProfileWorkspace } from "@/packages/pms/components/workspaces/guest-profile-workspace";
 import { parseGuestProfileSearch } from "@/packages/pms/lib/guest-profile-wave1";
 import { GUEST_PROFILE_SIDEBAR_DEFAULT_COLLAPSED } from "@/packages/pms/lib/guest-profile-listing";
@@ -52,6 +54,7 @@ function GuestProfileDirectoryRoute() {
       hideTopHeader
     >
       {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allowAny={PMS_GUEST_ROUTE_PERMISSIONS}>
         <GuestProfileWorkspace
           membership={m}
           returnCard={card}
@@ -61,6 +64,7 @@ function GuestProfileDirectoryRoute() {
           section={section}
           directorySearch={search}
         />
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

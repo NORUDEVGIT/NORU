@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_BUSINESS_CONTACT_ROLES,
   DEFAULT_BUSINESS_FIELDS,
@@ -20,8 +21,7 @@ import {
   type BusinessFieldOption,
   type BusinessProfileSettings,
   type BusinessProfileSnapshot,
-  type BusinessProfileTypeRecord,
-} from "./company-business-card4.server";
+  type BusinessProfileTypeRecord } from "./company-business-card4.server";
 
 // Generated schema predates 0082.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,8 +40,7 @@ const typeSaveSchema = z
     requiredFieldIds: z.array(idSchema).max(40),
     taxIdRequired: z.boolean(),
     contactRequired: z.boolean(),
-    creditAccountAllowed: z.boolean(),
-  })
+    creditAccountAllowed: z.boolean() })
   .strict();
 
 const settingsSaveSchema = z
@@ -49,8 +48,7 @@ const settingsSaveSchema = z
     restaurantId: idSchema,
     enabled: z.boolean(),
     defaultBusinessTypeId: idSchema.nullable(),
-    autoApproval: z.boolean(),
-  })
+    autoApproval: z.boolean() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -89,8 +87,7 @@ function mapType(
     contactRequired: row.contact_required,
     creditAccountAllowed: row.credit_account_allowed,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -105,8 +102,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-company-business", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-company-business", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-company-business] audit", result.error.message);
 }
 
@@ -150,8 +146,7 @@ async function ensureBusinessFields(
     document_type_ids: [],
     min_value: null,
     max_value: null,
-    updated_by: userId,
-  }));
+    updated_by: userId }));
   const result = await db.from("pms_guest_fields").insert(payload);
   if (result.error && result.error.code !== "23505" && result.error.code !== "42P01") {
     unavailable(result.error);
@@ -178,8 +173,7 @@ async function seedTypes(
     tax_id_required: row.taxIdRequired,
     contact_required: row.contactRequired,
     credit_account_allowed: row.creditAccountAllowed,
-    updated_by: userId,
-  }));
+    updated_by: userId }));
   const result = await db.from("pms_business_profile_types").insert(payload);
   if (result.error && result.error.code !== "23505") unavailable(result.error);
 }
@@ -199,8 +193,7 @@ async function upsertSettings(
     enabled: patch.enabled,
     default_business_type_id: patch.defaultBusinessTypeId,
     auto_approval: patch.autoApproval,
-    updated_by: userId,
-  };
+    updated_by: userId };
   const existing = await db
     .from("pms_business_profile_settings")
     .select("restaurant_id")
@@ -241,11 +234,9 @@ async function loadSnapshot(
           enabled: true,
           defaultBusinessTypeId: null,
           autoApproval: false,
-          defaultInvalid: true,
-        },
+          defaultInvalid: true },
         fields,
-        lastUpdatedAt: null,
-      };
+        lastUpdatedAt: null };
     }
     if (seeded) throw new Error("Could not seed default business types.");
     await seedTypes(db, restaurantId, userId, fields);
@@ -272,21 +263,18 @@ async function loadSnapshot(
         enabled: true,
         defaultBusinessTypeId: null,
         autoApproval: false,
-        defaultInvalid: true,
-      };
+        defaultInvalid: true };
     } else {
       await upsertSettings(db, restaurantId, userId, {
         enabled: true,
         defaultBusinessTypeId: defaultType?.id ?? null,
-        autoApproval: false,
-      });
+        autoApproval: false });
       if (!seeded) return loadSnapshot(db, restaurantId, userId, true, seedMissing);
       settings = {
         enabled: true,
         defaultBusinessTypeId: defaultType?.id ?? null,
         autoApproval: false,
-        defaultInvalid: settingsDefaultInvalid(defaultType?.id ?? null, types, true),
-      };
+        defaultInvalid: settingsDefaultInvalid(defaultType?.id ?? null, types, true) };
     }
   } else {
     settingsUpdatedAt = settingsRes.data.updated_at as string;
@@ -296,8 +284,7 @@ async function loadSnapshot(
       enabled,
       defaultBusinessTypeId,
       autoApproval: settingsRes.data.auto_approval as boolean,
-      defaultInvalid: settingsDefaultInvalid(defaultBusinessTypeId, types, enabled),
-    };
+      defaultInvalid: settingsDefaultInvalid(defaultBusinessTypeId, types, enabled) };
   }
 
   const timestamps = [
@@ -323,8 +310,7 @@ async function loadSnapshot(
           name: row.name,
           code: row.code,
           active: true,
-          updated_by: userId,
-        })),
+          updated_by: userId })),
       );
       const seeded = await db
         .from("pms_business_contact_roles")
@@ -344,8 +330,7 @@ async function loadSnapshot(
         code: row.code,
         active: row.active,
         createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+        updatedAt: row.updated_at }));
     } else {
       roles = (rolesRes.data as Array<{
         id: string;
@@ -360,8 +345,7 @@ async function loadSnapshot(
         code: row.code,
         active: row.active,
         createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+        updatedAt: row.updated_at }));
     }
   }
 
@@ -374,7 +358,7 @@ export const getPmsCard4CompanyBusiness = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -383,7 +367,7 @@ export const savePmsCard4BusinessType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => typeSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -398,8 +382,7 @@ export const savePmsCard4BusinessType = createServerFn({ method: "POST" })
       requiredFieldIds: data.requiredFieldIds,
       taxIdRequired: data.taxIdRequired,
       contactRequired: data.contactRequired,
-      creditAccountAllowed: data.creditAccountAllowed,
-    };
+      creditAccountAllowed: data.creditAccountAllowed };
     const errors = validateBusinessTypeDraft(draft, snapshot.types, snapshot.fields);
     if (errors.length > 0)
       throw new Error(errors[0]?.message ?? "Fix the business type before saving.");
@@ -420,8 +403,7 @@ export const savePmsCard4BusinessType = createServerFn({ method: "POST" })
       tax_id_required: data.taxIdRequired,
       contact_required: data.contactRequired,
       credit_account_allowed: data.creditAccountAllowed,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
 
     const result = data.id
       ? await db
@@ -440,8 +422,7 @@ export const savePmsCard4BusinessType = createServerFn({ method: "POST" })
     if (!id) throw new Error("Could not save the business type.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_business_type_saved", {
       id,
-      code,
-    });
+      code });
     return { ok: true as const, id };
   });
 
@@ -451,7 +432,7 @@ export const setPmsCard4BusinessTypeActive = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -468,8 +449,7 @@ export const setPmsCard4BusinessTypeActive = createServerFn({ method: "POST" })
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_business_type_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -479,7 +459,7 @@ export const deletePmsCard4BusinessType = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -495,8 +475,7 @@ export const deletePmsCard4BusinessType = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_business_type_deleted", {
-      id: data.id,
-    });
+      id: data.id });
     return { ok: true as const };
   });
 
@@ -504,15 +483,14 @@ export const savePmsCard4BusinessSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => settingsSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
     const errors = validateBusinessSettings(
       {
         enabled: data.enabled,
-        defaultBusinessTypeId: data.defaultBusinessTypeId,
-      },
+        defaultBusinessTypeId: data.defaultBusinessTypeId },
       snapshot.types,
     );
     if (errors.length > 0)
@@ -520,13 +498,11 @@ export const savePmsCard4BusinessSettings = createServerFn({ method: "POST" })
     await upsertSettings(db, data.restaurantId, context.userId, {
       enabled: data.enabled,
       defaultBusinessTypeId: data.enabled ? data.defaultBusinessTypeId : data.defaultBusinessTypeId,
-      autoApproval: data.autoApproval,
-    });
+      autoApproval: data.autoApproval });
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_business_settings_saved", {
       enabled: data.enabled,
       defaultBusinessTypeId: data.defaultBusinessTypeId,
-      autoApproval: data.autoApproval,
-    });
+      autoApproval: data.autoApproval });
     return { ok: true as const };
   });
 
@@ -536,15 +512,14 @@ const roleSaveSchema = z
     id: idSchema.optional(),
     name: z.string().max(80),
     code: z.string().max(12),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .strict();
 
 export const savePmsCard4ContactRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => roleSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -560,16 +535,14 @@ export const savePmsCard4ContactRole = createServerFn({ method: "POST" })
       name,
       code,
       active: data.active,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db.from("pms_business_contact_roles").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : await db.from("pms_business_contact_roles").insert(payload).select("id").single();
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_contact_role_saved", {
       id: data.id ?? (result.data as { id?: string } | null)?.id,
-      code,
-    });
+      code });
     return { ok: true as const };
   });
 
@@ -579,7 +552,7 @@ export const setPmsCard4ContactRoleActive = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -590,7 +563,6 @@ export const setPmsCard4ContactRoleActive = createServerFn({ method: "POST" })
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_contact_role_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });

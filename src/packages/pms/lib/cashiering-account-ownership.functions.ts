@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { cashierError, requireCashieringAccess } from "./cashiering.server";
+import { cashierError, cashieringPermissionFlags } from "./cashiering.server";
 import {
   buildAccountChargeGroups,
   chargeCapabilities,
@@ -307,7 +309,7 @@ export const listFinancialAccountSourceFolios = createServerFn({ method: "GET" }
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => sourceQuery.parse(input))
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const groups = await loadAccountChargeGroups(supabaseAdmin, data.restaurantId, data.accountId);
     if (!groups) return null;
@@ -365,7 +367,8 @@ export const listFinancialAccountChargeGroups = createServerFn({ method: "GET" }
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => chargeQuery.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const accountResult = await supabaseAdmin
       .from("financial_accounts")
@@ -404,6 +407,7 @@ export const listFinancialAccountChargeGroups = createServerFn({ method: "GET" }
         capabilities: chargeCapabilities({
           role: me.role,
           accountStatus: account.status,
+          canMutate: flags.adjust,
           group,
         }),
       } as ChargeListRow & { capabilities: ReturnType<typeof chargeCapabilities> };

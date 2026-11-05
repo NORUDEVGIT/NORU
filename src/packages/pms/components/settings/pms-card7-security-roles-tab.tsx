@@ -23,7 +23,6 @@ import {
   getCard7SecurityRoles,
   saveCard7ApprovalRule,
   saveCard7HotelRole,
-  saveCard7MembershipHotelRole,
   saveCard7RolePermissions,
 } from "@/packages/pms/lib/security-roles-card7.functions";
 import {
@@ -75,7 +74,6 @@ export function Card7SecurityRolesTab({
   const saveRole = useServerFn(saveCard7HotelRole);
   const saveMappings = useServerFn(saveCard7RolePermissions);
   const saveApproval = useServerFn(saveCard7ApprovalRule);
-  const saveAssignment = useServerFn(saveCard7MembershipHotelRole);
   const query = useQuery({
     queryKey: ["pms-card7-security-roles", restaurantId],
     queryFn: () => load({ data: { restaurantId } }),
@@ -83,7 +81,7 @@ export function Card7SecurityRolesTab({
   const snapshot: Card7SecuritySnapshot = query.data?.snapshot ?? emptySecuritySnapshot();
   const readiness: Card7SecurityReadiness =
     query.data?.readiness ?? evaluateCard7SecurityReadiness(snapshot);
-  const editor = canEdit && (query.data?.canEdit ?? canEdit);
+  const editor = query.data?.canEdit ?? false;
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -200,18 +198,6 @@ export function Card7SecurityRolesTab({
       invalidateHub();
       cacheSnapshot(result);
       setApprovalDraft(emptyApprovalRuleDraft());
-      setValidated(null);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const assignmentMutation = useMutation({
-    mutationFn: (input: { membershipId: string; hotelRoleId: string | null }) =>
-      saveAssignment({ data: { restaurantId, ...input } }),
-    onSuccess: (result) => {
-      toast.success("Hotel role assigned. Staff role was not changed.");
-      invalidateHub();
-      cacheSnapshot(result);
       setValidated(null);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -580,32 +566,7 @@ export function Card7SecurityRolesTab({
                   <tr key={row.membershipId} className="border-t">
                     <td className="py-2 pr-3">{row.name}</td>
                     <td className="py-2 pr-3">{staffRoleLabel(row.staffRole)}</td>
-                    <td className="py-2 pr-3">
-                      <Select
-                        value={row.hotelRoleId ?? "none"}
-                        onValueChange={(value) =>
-                          assignmentMutation.mutate({
-                            membershipId: row.membershipId,
-                            hotelRoleId: noneToNull(value),
-                          })
-                        }
-                        disabled={!editor || assignmentMutation.isPending || !row.active}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {snapshot.roles
-                            .filter((role) => role.active || role.id === row.hotelRoleId)
-                            .map((role) => (
-                              <SelectItem key={role.id} value={role.id}>
-                                {role.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">Moved to Staff & Access</td>
                   </tr>
                 ))}
               </tbody>

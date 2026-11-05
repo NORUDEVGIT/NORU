@@ -3,6 +3,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { SettingsWorkspace } from "@/core/components/workspaces/settings-workspace";
 import { PmsSet1Hub } from "@/packages/pms/components/settings/pms-set1-hub";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_SETTINGS_HUB_PERMISSIONS } from "@/packages/pms/lib/pms-client-access";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,6 +68,12 @@ function RestaurantSettings() {
 function PropertySettingsPage({ membership }: { membership: RestaurantMembership }) {
   const packages = usePackageEntitlements(membership.restaurantId);
   if (packages.loading) return <p className="text-sm text-muted-foreground">Loading settings…</p>;
-  if (packages.has("pms")) return <PmsSet1Hub membership={membership} />;
+  if (packages.has("pms")) {
+    return (
+      <PmsRouteGate restaurantId={membership.restaurantId} allowAny={PMS_SETTINGS_HUB_PERMISSIONS}>
+        <PmsSet1Hub membership={membership} />
+      </PmsRouteGate>
+    );
+  }
   return <SettingsWorkspace membership={membership} />;
 }

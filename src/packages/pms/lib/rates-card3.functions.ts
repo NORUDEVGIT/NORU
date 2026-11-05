@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import { ratePlanOccupancyValidationError } from "./occupancy-allocation";
 import { saveRateCancellationPolicyCard2 } from "./rates-card2.functions";
 import {
@@ -16,8 +17,7 @@ import {
   type RateCancellationPolicyRow,
   type RatePlanRow,
   type RateRefundabilityRow,
-  type RatesCard3Snapshot,
-} from "./rates-card3.server";
+  type RatesCard3Snapshot } from "./rates-card3.server";
 
 type DbClient = any;
 
@@ -34,8 +34,7 @@ const categorySchema = z.object({
   id: idSchema.optional(),
   code: setupCode,
   name: z.string().trim().min(1).max(80),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 const planSchema = z.object({
   restaurantId: idSchema,
@@ -55,21 +54,18 @@ const planSchema = z.object({
   includedOccupancy: z.number().int().min(1).max(20).nullable().optional(),
   extraAdultRate: z.number().min(0).max(10_000_000).nullable().optional(),
   extraChildRate: z.number().min(0).max(10_000_000).nullable().optional(),
-  active: z.boolean(),
-}).superRefine((value, ctx) => {
+  active: z.boolean() }).superRefine((value, ctx) => {
   if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["validTo"],
-      message: "Valid until cannot be before valid from.",
-    });
+      message: "Valid until cannot be before valid from." });
   }
   if (value.minAdvanceDays != null && value.maxAdvanceDays != null && value.maxAdvanceDays < value.minAdvanceDays) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["maxAdvanceDays"],
-      message: "Maximum advance booking cannot be before the minimum.",
-    });
+      message: "Maximum advance booking cannot be before the minimum." });
   }
 });
 
@@ -78,8 +74,7 @@ const overrideSchema = z.object({
   id: idSchema.optional(),
   ratePlanId: idSchema,
   rateDate: dateSchema,
-  nightlyRate: z.number().min(0).max(10_000_000),
-});
+  nightlyRate: z.number().min(0).max(10_000_000) });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST205") {
@@ -104,8 +99,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_RATES_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_RATES_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-rates] audit", result.error.message);
 }
 
@@ -128,8 +122,7 @@ function mapRoomType(row: any): Card2RoomTypeRef {
       row.extra_child_rate_default == null || row.extra_child_rate_default === ""
         ? null
         : Number(row.extra_child_rate_default),
-    maxOccupancy: row.max_occupancy == null || row.max_occupancy === "" ? null : Number(row.max_occupancy),
-  };
+    maxOccupancy: row.max_occupancy == null || row.max_occupancy === "" ? null : Number(row.max_occupancy) };
 }
 
 function mapCategory(row: any): RateCategoryRow {
@@ -137,8 +130,7 @@ function mapCategory(row: any): RateCategoryRow {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCard3Snapshot> {
@@ -220,8 +212,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       ? row.penalty_type
       : "none") as RateCancellationPolicyRow["penaltyType"],
     penaltyValue: Number(row.penalty_value ?? 0),
-    active: row.active !== false,
-  }));
+    active: row.active !== false }));
   const refundabilityCodes: RateRefundabilityRow[] = (refundability.data ?? []).map((row: any) => ({
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
@@ -230,8 +221,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
     kind: (["refundable", "non_refundable", "partial"].includes(String(row.kind))
       ? row.kind
       : "refundable") as RateRefundabilityRow["kind"],
-    active: row.active !== false,
-  }));
+    active: row.active !== false }));
   const planRows: RatePlanRow[] = (planData ?? []).map((row: any) => {
     const type = typeById.get(row.room_type_id);
     const category = categoryById.get(row.rate_category_id);
@@ -256,8 +246,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
       includedOccupancy: row.included_occupancy == null ? null : Number(row.included_occupancy),
       extraAdultRate: row.extra_adult_rate == null ? null : Number(row.extra_adult_rate),
       extraChildRate: row.extra_child_rate == null ? null : Number(row.extra_child_rate),
-      active: row.active !== false,
-    };
+      active: row.active !== false };
   });
   const planById = new Map(planRows.map((row) => [row.id, row]));
   const calendarRows: RateCalendarRow[] = (calendar.data ?? []).map((row: any) => ({
@@ -265,16 +254,14 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<RatesCa
     ratePlanId: row.rate_plan_id,
     ratePlanCode: planById.get(row.rate_plan_id)?.code ?? "",
     rateDate: String(row.rate_date ?? ""),
-    nightlyRate: Number(row.nightly_rate ?? 0),
-  }));
+    nightlyRate: Number(row.nightly_rate ?? 0) }));
   return {
     roomTypes,
     categories: categoryRows,
     plans: planRows,
     calendar: calendarRows,
     cancellationPolicies,
-    refundabilityCodes,
-  };
+    refundabilityCodes };
 }
 
 export { loadSnapshot as loadRatesCard3Snapshot };
@@ -292,36 +279,33 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 export const getRatesCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateRatesCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveRateCategoryCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => categorySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const payload = {
       restaurant_id: data.restaurantId,
       code: data.code,
       name: data.name,
-      active: data.active,
-    };
+      active: data.active };
     if (data.id) {
       const updated = await db
         .from("hotel_rate_categories")
@@ -334,8 +318,7 @@ export const saveRateCategoryCard3 = createServerFn({ method: "POST" })
       if (inserted.error) unavailable(inserted.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_rate_category_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
   });
@@ -344,7 +327,7 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => planSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const [category, roomType, restaurant] = await Promise.all([
       db.from("hotel_rate_categories").select("id").eq("id", data.categoryId).eq("restaurant_id", data.restaurantId).maybeSingle(),
@@ -362,8 +345,7 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
       maxOccupancy:
         (roomType.data as { max_occupancy?: number | null }).max_occupancy == null
           ? null
-          : Number((roomType.data as { max_occupancy?: number | null }).max_occupancy),
-    });
+          : Number((roomType.data as { max_occupancy?: number | null }).max_occupancy) });
     if (occupancyError) throw new Error(occupancyError);
 
     const payload = {
@@ -384,8 +366,7 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
       included_occupancy: data.includedOccupancy ?? null,
       extra_adult_rate: data.extraAdultRate ?? null,
       extra_child_rate: data.extraChildRate ?? null,
-      active: data.active,
-    };
+      active: data.active };
     const occupancyConfigured =
       data.includedOccupancy != null || data.extraAdultRate != null || data.extraChildRate != null;
     const written = data.id
@@ -409,8 +390,7 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
       unavailable(written.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_rate_plan_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
   });
@@ -420,7 +400,7 @@ export const saveRateOverrideCard3 = createServerFn({ method: "POST" })
   .validator((input: unknown) => overrideSchema.parse(input))
   .handler(async ({ data, context }) => {
     // Duplicate calendar writer vs rates.functions saveRateOverride. Keep until Settings adapter.
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const plan = await db
       .from("hotel_rate_plans")
@@ -435,16 +415,14 @@ export const saveRateOverrideCard3 = createServerFn({ method: "POST" })
       restaurant_id: data.restaurantId,
       rate_plan_id: data.ratePlanId,
       rate_date: data.rateDate,
-      nightly_rate: data.nightlyRate,
-    };
+      nightly_rate: data.nightlyRate };
     const result = data.id
       ? await db.from("hotel_rate_calendar").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : await db.from("hotel_rate_calendar").upsert(payload, { onConflict: "rate_plan_id,rate_date" });
     if (result.error) unavailable(result.error);
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_rate_override_saved", {
-      detail: `${data.rateDate} ${data.nightlyRate}`,
-    });
+      detail: `${data.rateDate} ${data.nightlyRate}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
   });
@@ -458,14 +436,13 @@ const refundabilitySchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).nullable().optional(),
   kind: z.enum(["refundable", "non_refundable", "partial"]),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 export const saveRateRefundabilityCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => refundabilitySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const payload = {
       restaurant_id: data.restaurantId,
@@ -473,15 +450,13 @@ export const saveRateRefundabilityCard3 = createServerFn({ method: "POST" })
       name: data.name,
       description: data.description?.trim() ? data.description.trim() : null,
       kind: data.kind,
-      active: data.active,
-    };
+      active: data.active };
     const result = data.id
       ? await db.from("pms_rate_refundability_codes").update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : await db.from("pms_rate_refundability_codes").insert(payload);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_rate_refundability_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard3Readiness(snapshot) };
   });

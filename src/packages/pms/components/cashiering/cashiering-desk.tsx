@@ -478,6 +478,7 @@ export function CashieringDesk({
   moduleSearch,
   canOperate,
   canManage,
+  canAllocate = false,
   membershipId,
   role,
   onTab,
@@ -491,6 +492,7 @@ export function CashieringDesk({
   moduleSearch: string;
   canOperate: boolean;
   canManage: boolean;
+  canAllocate?: boolean;
   membershipId: string;
   role: string;
   onTab: (
@@ -846,7 +848,7 @@ export function CashieringDesk({
           selectedId={selected?.id ?? null}
           canOperate={canOperate}
           canManage={canManage}
-          canAllocate={role === "owner" || role === "manager" || role === "accountant"}
+          canAllocate={canAllocate}
           onSelect={selectFolio}
           onActivity={(next) =>
             onSearchParams({

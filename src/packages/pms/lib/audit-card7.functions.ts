@@ -9,7 +9,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard7Overall } from "./card7-readiness.functions";
 import { emptyAuditRetention } from "./pms-set5-depts-guestsvc";
@@ -560,8 +561,8 @@ export const getCard7Audit = createServerFn({ method: "POST" })
       snapshot,
       readiness: evaluateCard7AuditReadiness(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
-      canViewEvents: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE),
+      canViewEvents: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE),
       viewerLimitations: [...CARD7_AUDIT_VIEWER_LIMITATIONS],
     };
   });
@@ -570,11 +571,7 @@ export const saveCard7AuditPolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => policySchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     if (!retentionDaysValid(data.retentionDays)) {
       throw new Error("Retention days must be between 1 and 3650.");
     }
@@ -621,11 +618,7 @@ export const saveCard7AuditCategorySettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => categoriesSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7AuditSnapshot(db, data.restaurantId);
@@ -660,11 +653,7 @@ export const saveCard7AuditSensitiveCoverage = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => coverageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7AuditSnapshot(db, data.restaurantId);
@@ -704,7 +693,7 @@ export const getCard7AuditEvents = createServerFn({ method: "POST" })
       data.restaurantId,
       callerMembership(context as never, data.restaurantId),
     );
-    if (!canEditSet1(me.role)) {
+    if (!await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE)) {
       return {
         events: [] as Card7AuditEvent[],
         canViewEvents: false,

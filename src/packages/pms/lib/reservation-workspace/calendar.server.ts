@@ -7,9 +7,10 @@ import { getRoomTypeAvailabilityCompat } from "../room-inventory-compat";
 import { isMissingSchemaError } from "../pms-set2-structure";
 import { checkedInRoomIds, expandStayRooms } from "../reservation-room-units";
 import { addDays } from "../reservation-dates";
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import {
   nightsBetween,
-  requireReservationManager,
   RESERVATION_STATUSES,
   type ReservationStatus,
 } from "../reservations.server";
@@ -40,7 +41,7 @@ const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 const locationSchema = z.string().trim().min(1).max(80);
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 export const calendarReadInputSchema = z
   .object({
@@ -544,7 +545,7 @@ export const getReservationCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => calendarReadInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<CalendarRead> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const generatedAt = new Date().toISOString();
     const supabase: WorkspaceClient = context.supabase;
 

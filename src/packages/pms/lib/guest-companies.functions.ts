@@ -3,6 +3,8 @@
  * Operational rows stay on guest_account_masters. Settings stay Card 4.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -170,7 +172,7 @@ export const getCompanyBusinessWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const snapshot = await loadBusinessSnapshot(data.restaurantId);
     const listing = await loadGuestWorkspaceConfig(data.restaurantId);
     const listingOk = listingCreateAllowed("company", listing);
@@ -233,7 +235,7 @@ export const listCompanyWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => listInput.parse(input))
   .handler(async ({ data, context }): Promise<CompanyWorkspacePage> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const term = (data.search ?? "").trim();
@@ -397,7 +399,7 @@ export const findCompanyDuplicates = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     return findCompanyDuplicateRows(data.restaurantId, data, data.excludeId);
   });
 
@@ -413,7 +415,7 @@ export const setCompanyStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const updated = await admin(supabaseAdmin)
       .from("guest_account_masters")
@@ -447,7 +449,7 @@ export const createCompanyLogoUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const existing = await admin(supabaseAdmin)
       .from("guest_account_masters")
@@ -470,7 +472,7 @@ export const saveCompanyLogo = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, companyId: idSchema, path: z.string().min(1) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const prefix = `${data.restaurantId}/companies/${data.companyId}/`;
     if (!data.path.startsWith(prefix)) throw new Error("That logo path is not valid for this company.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -505,7 +507,7 @@ export const exportCompaniesCsv = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => listInput.parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.REPORTS_EXPORT);
     const page = await listCompanyWorkspace({ data: { ...data, limit: 200, offset: 0 } });
     const lines = [COMPANY_CSV_COLUMNS.join(",")];
     for (const row of page.items) {
@@ -536,7 +538,7 @@ export const previewCompanyImport = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     if (/\.xlsx?$/i.test(data.filename)) throw new Error(COMPANY_IMPORT_XLSX);
     const snapshot = await loadBusinessSnapshot(data.restaurantId);
     if (!snapshot) throw new Error("Company & Business settings are unavailable.");
@@ -607,7 +609,7 @@ export const confirmCompanyImport = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const preview = await previewCompanyImport({ data });
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const status = createStatusFromAutoApproval(preview.autoApproval);

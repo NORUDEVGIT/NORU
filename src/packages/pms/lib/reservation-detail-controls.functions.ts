@@ -2,13 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireGuestManager } from "@/packages/pms/lib/guests.server";
 import { companionProfileNotes } from "@/packages/pms/lib/reservation-detail-guest";
-import { rateError, requireRateManager } from "@/packages/pms/lib/rates.server";
+import { rateError } from "@/packages/pms/lib/rates.server";
+import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 import {
   recordReservationEvent,
-  requireReservationManager,
   reservationError,
 } from "@/packages/pms/lib/reservations.server";
 
@@ -77,7 +77,7 @@ export const saveStayCompanionProfile = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const existing = await supabaseAdmin
       .from("guest_profiles")
@@ -128,7 +128,11 @@ export const releaseReservationRoomPackage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const { error } = await supabaseAdmin.rpc("release_hotel_reservation_room_package", {
@@ -155,7 +159,11 @@ export const applyReservationPromotion = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const { error } = await supabaseAdmin.rpc("sync_hotel_reservation_promotion", {
@@ -182,7 +190,11 @@ export const removeReservationPromotion = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const { error } = await supabaseAdmin.rpc("remove_hotel_reservation_promotion", {
@@ -207,7 +219,11 @@ export const saveAssignmentNotes = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const current = await supabaseAdmin
@@ -251,7 +267,11 @@ export const saveRateNotes = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const current = await supabaseAdmin
@@ -292,7 +312,11 @@ export const setReservationNotePin = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ pinned: boolean }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const current = await supabaseAdmin
@@ -327,7 +351,7 @@ export const listReservationTraces = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationTrace[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("reservation_traces")
@@ -358,7 +382,11 @@ export const createReservationTrace = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const inserted = await supabaseAdmin
@@ -407,7 +435,11 @@ export const updateReservationTrace = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
     const current = await supabaseAdmin

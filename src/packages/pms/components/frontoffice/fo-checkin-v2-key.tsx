@@ -3,12 +3,12 @@
  * Recording and waiver use the existing unit-scoped commands.
  */
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { KeyRound } from "lucide-react";
 
-import { useAuth } from "@/core/state/auth-store";
-import { getMyRestaurants } from "@/core/lib/restaurant.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   KEY_ACCESS_LABELS,
   KEY_ACCESS_TYPES,
@@ -21,7 +21,6 @@ import {
   agreementStaffReference,
   formatAgreementTimestamp,
 } from "@/packages/pms/lib/fo-checkin-v2-agreement-model";
-import { canAuthorizeCheckInDepositWaiver } from "@/packages/pms/lib/fo-checkin-v2-payment-model";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -37,7 +36,7 @@ function keyActionFailureCopy(error: unknown, action: "record" | "waive"): strin
     )
   ) {
     return action === "waive"
-      ? "An owner or manager must authorize this waiver."
+      ? "You don't have permission to authorize this waiver."
       : "You don't have permission to record this key.";
   }
   if (/which room/i.test(message)) return "Choose which room this key applies to.";
@@ -59,8 +58,7 @@ export function FoCheckInV2Key({
   onRefresh: () => void;
 }) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const fetchRestaurants = useServerFn(getMyRestaurants);
+  const permissions = usePmsPermissions(restaurantId);
   const recordKey = useServerFn(recordCheckInKey);
   const waiveKey = useServerFn(waiveCheckInKey);
   const [accessType, setAccessType] = useState<KeyAccessType>("physical_key");
@@ -68,14 +66,10 @@ export function FoCheckInV2Key({
   const [reason, setReason] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
-  const membershipQuery = useQuery({
-    queryKey: ["my-restaurants", user?.id],
-    queryFn: () => fetchRestaurants(),
-    enabled: Boolean(user?.id),
-    retry: false,
-  });
-  const role = membershipQuery.data?.find((row) => row.restaurantId === restaurantId)?.role ?? null;
-  const canWaive = canAuthorizeCheckInDepositWaiver(role);
+  const canWaive =
+    !permissions.isLoading &&
+    !permissions.isError &&
+    permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN_OVERRIDE);
   const progress = unit.progress;
   const recorded = isKeyRecorded({
     accessType: progress.keyAccessType,
@@ -221,7 +215,7 @@ export function FoCheckInV2Key({
             <p className="mt-1 text-xs text-[#6B5E4E]">
               A waiver clears only this room&apos;s key requirement.
             </p>
-            {membershipQuery.isLoading ? (
+            {permissions.isLoading ? (
               <p className="mt-2 text-sm text-[#6B5E4E]">Checking who can authorize this waiver…</p>
             ) : canWaive ? (
               <div className="mt-3 space-y-2">
@@ -250,7 +244,7 @@ export function FoCheckInV2Key({
               </div>
             ) : (
               <p className="mt-2 text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-key-waiver-denied">
-                An owner or manager must authorize a key waiver for this room.
+                You don't have permission to waive the key for this room.
               </p>
             )}
           </div>

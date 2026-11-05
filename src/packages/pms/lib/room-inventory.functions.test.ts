@@ -20,9 +20,9 @@ describe("Room & Inventory operational block server functions", () => {
     expect(source).not.toMatch(/membershipId\s*:\s*idSchema/);
   });
 
-  it("restricts operational block managers to owner or manager", () => {
-    expect(source).toContain('membership.role !== "owner"');
-    expect(source).toContain('membership.role !== "manager"');
+  it("restricts operational block writes to room.block.edit", () => {
+    expect(source).toContain("PMS_PERMISSIONS.ROOM_BLOCK_EDIT");
+    expect(source).not.toContain('membership.role !== "owner"');
   });
 
   it("lists blocks from the canonical operational block table", () => {

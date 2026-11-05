@@ -3,20 +3,19 @@
  * Rate Manager only. Does not mutate Property Setup masters.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRateManager } from "../rates.server";
 import {
   loadCommercialOverviewWorkspace,
   loadPromotionPerformanceSummary,
-  loadPromotionsWorkspace,
-} from "./commercial-overview.server.ts";
+  loadPromotionsWorkspace } from "./commercial-overview.server.ts";
 import {
   COMMERCIAL_OVERVIEW_LOAD_ERROR,
   COMMERCIAL_PROMOTIONS_LOAD_ERROR,
-  toRevenueReadError,
-} from "./revenue-read-error.ts";
+  toRevenueReadError } from "./revenue-read-error.ts";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -26,14 +25,13 @@ const workspaceSchema = z.object({
   fromDate: dateSchema.optional().nullable(),
   toDate: dateSchema.optional().nullable(),
   roomTypeId: idSchema.optional().nullable(),
-  ratePlanId: idSchema.optional().nullable(),
-});
+  ratePlanId: idSchema.optional().nullable() });
 
 export const getCommercialOverviewWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => workspaceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCommercialOverviewWorkspace(supabaseAdmin, data);
@@ -46,7 +44,7 @@ export const getPromotionsWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => workspaceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadPromotionsWorkspace(supabaseAdmin, data);
@@ -61,7 +59,7 @@ export const getPromotionPerformanceSummary = createServerFn({ method: "POST" })
     workspaceSchema.extend({ activationId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadPromotionPerformanceSummary(supabaseAdmin, data);

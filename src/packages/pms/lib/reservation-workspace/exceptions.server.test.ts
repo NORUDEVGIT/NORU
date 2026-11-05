@@ -328,7 +328,7 @@ describe("DB-04I-06 Reservation Exceptions / Control read model", () => {
   });
 
   it("does not persist exceptions, invent guarantee errors, or add writes", () => {
-    assert.match(source, /requireReservationManager/);
+    assert.match(source, /requirePmsActor/);
     assert.match(source, /\.eq\("restaurant_id", restaurantId\)/);
     assert.doesNotMatch(
       source,

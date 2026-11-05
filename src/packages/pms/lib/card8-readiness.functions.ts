@@ -20,6 +20,7 @@ export async function loadCard8ReadinessSnapshot(
   restaurantId: string,
   userId: string,
   role: string,
+  actorCanActivate?: boolean,
 ): Promise<Card8ReadinessSnapshot> {
   const [
     { loadCard8OfflineSnapshot },
@@ -36,7 +37,7 @@ export async function loadCard8ReadinessSnapshot(
     loadCard8OfflineSnapshot(db, restaurantId),
     loadCard8ValidationReport(db, restaurantId, userId),
     loadCard8GoliveSnapshot(db, restaurantId, false),
-    loadSet1ActivationState(db, restaurantId, role),
+    loadSet1ActivationState(db, restaurantId, role, actorCanActivate),
   ]);
   const activation = await loadCard8ActivationEligibility(
     db,
@@ -45,6 +46,7 @@ export async function loadCard8ReadinessSnapshot(
     role,
     set1.checklist.mandatoryMissing.length === 0,
     { validation, golive },
+    actorCanActivate,
   );
   return { offline, validation, golive, activation };
 }
@@ -54,9 +56,10 @@ export async function loadCard8ReadinessReport(
   restaurantId: string,
   userId: string,
   role: string,
+  actorCanActivate?: boolean,
 ) {
   return buildCard8ReadinessReport(
-    await loadCard8ReadinessSnapshot(db, restaurantId, userId, role),
+    await loadCard8ReadinessSnapshot(db, restaurantId, userId, role, actorCanActivate),
   );
 }
 

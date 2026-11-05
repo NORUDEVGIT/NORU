@@ -9,8 +9,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isPermissionDeniedMessage } from "./front-office-shell";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { assertDateOnly, requireReservationManager } from "./reservations.server";
-import { requireGuestManager } from "./guests.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { assertDateOnly } from "./reservations.server";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { loadFrontOfficeArrivals, loadFrontOfficeDepartures, loadFrontOfficeInHouse, type FrontOfficeStay } from "./frontoffice.functions";
 import { loadFoStaySignals } from "./fo-exceptions.functions";
@@ -108,7 +109,7 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<FoControlSnapshot> => {
     let membership;
     try {
-      membership = await requireReservationManager(context as never, data.restaurantId);
+      membership = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     } catch (error) {
       if (isPermissionDeniedMessage(error)) {
         return {
@@ -318,7 +319,7 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
 
     const guestServices: Array<{ stay: FoControlStayContext; signals: ReturnType<typeof foGuestServiceSignals> }> = [];
     try {
-      await requireGuestManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
       const ids = stays.map((stay) => stay.id);
       if (ids.length > 0) {
         const result = await context.supabase

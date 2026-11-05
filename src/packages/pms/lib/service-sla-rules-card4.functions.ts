@@ -1,16 +1,16 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import type { ServiceCategoryRecord } from "./service-categories-card4.server";
 import {
   parsePositiveMinutes,
   validateServiceSlaRuleDraft,
   type ServiceSlaRuleRecord,
-  type ServiceSlaRuleSnapshot,
-} from "./service-sla-rules-card4.server";
+  type ServiceSlaRuleSnapshot } from "./service-sla-rules-card4.server";
 import type { ServiceTypeRecord } from "./service-types-card4.server";
 
 // Generated schema predates 0087.
@@ -25,8 +25,7 @@ const saveSchema = z
     serviceTypeId: idSchema,
     responseMinutes: z.string().trim().min(1).max(10),
     resolutionMinutes: z.string().trim().min(1).max(10),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -54,8 +53,7 @@ function mapCategory(row: {
     active: row.active,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapServiceType(row: {
@@ -79,8 +77,7 @@ function mapServiceType(row: {
     chargeableToFolio: false,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapRule(row: {
@@ -99,8 +96,7 @@ function mapRule(row: {
     resolutionMinutes: Number(row.resolution_minutes),
     active: row.active,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -115,8 +111,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-service-sla-rules", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-service-sla-rules", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-service-sla-rules] audit", result.error.message);
 }
 
@@ -165,7 +160,7 @@ export const getPmsCard4ServiceSlaRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -174,7 +169,7 @@ export const savePmsCard4ServiceSlaRule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -184,8 +179,7 @@ export const savePmsCard4ServiceSlaRule = createServerFn({ method: "POST" })
         serviceTypeId: data.serviceTypeId,
         responseMinutes: data.responseMinutes,
         resolutionMinutes: data.resolutionMinutes,
-        active: data.active,
-      },
+        active: data.active },
       snapshot.rules,
       snapshot.serviceTypes,
     );
@@ -204,8 +198,7 @@ export const savePmsCard4ServiceSlaRule = createServerFn({ method: "POST" })
       response_minutes: responseMinutes,
       resolution_minutes: resolutionMinutes,
       active: data.active,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_guest_service_sla_rules")
@@ -231,8 +224,7 @@ export const savePmsCard4ServiceSlaRule = createServerFn({ method: "POST" })
       id,
       serviceTypeId: data.serviceTypeId,
       responseMinutes,
-      resolutionMinutes,
-    });
+      resolutionMinutes });
     return { ok: true as const, id };
   });
 
@@ -242,7 +234,7 @@ export const setPmsCard4ServiceSlaRuleActive = createServerFn({ method: "POST" }
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -253,8 +245,7 @@ export const setPmsCard4ServiceSlaRuleActive = createServerFn({ method: "POST" }
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_sla_rule_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -264,7 +255,7 @@ export const deletePmsCard4ServiceSlaRule = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -277,7 +268,6 @@ export const deletePmsCard4ServiceSlaRule = createServerFn({ method: "POST" })
     }
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_sla_rule_deleted", {
-      id: data.id,
-    });
+      id: data.id });
     return { ok: true as const };
   });

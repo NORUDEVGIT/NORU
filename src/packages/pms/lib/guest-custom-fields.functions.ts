@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,7 +30,7 @@ export const listGuestCustomFieldValues = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ResolvedCustomFieldValue[]> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Load active & configured fields catalogue
@@ -218,7 +220,7 @@ export const saveGuestCustomFieldValues = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true; savedCount: number }> => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return persistGuestCustomFieldValues(
       supabaseAdmin,
@@ -236,7 +238,7 @@ export const hasOperationalFieldValues = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, fieldId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ hasValues: boolean }> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const res = await supabaseAdmin

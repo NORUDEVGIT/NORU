@@ -1,21 +1,20 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   loadTravelAgencyTypes,
   saveTravelAgencyTypesFallback,
-  type TravelAgencyTypeRow,
-} from "./guest-travel-agency-types";
+  type TravelAgencyTypeRow } from "./guest-travel-agency-types";
 import {
   normalizeTravelAgencyTypeCode,
   normalizeTravelAgencyTypeName,
   validateTravelAgencyTypeDraft,
-  type TravelAgencyTypeRecord,
-} from "./travel-agency-types-card4.server";
+  type TravelAgencyTypeRecord } from "./travel-agency-types-card4.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbClient = any;
@@ -30,8 +29,7 @@ const saveSchema = z
     name: z.string().max(120),
     description: z.string().max(400).optional().default(""),
     active: z.boolean(),
-    sortOrder: z.number().int().min(0).max(999),
-  })
+    sortOrder: z.number().int().min(0).max(999) })
   .strict();
 
 function toRecord(row: TravelAgencyTypeRow): TravelAgencyTypeRecord {
@@ -41,8 +39,7 @@ function toRecord(row: TravelAgencyTypeRow): TravelAgencyTypeRecord {
     name: row.name,
     description: row.description,
     active: row.active,
-    sortOrder: row.sortOrder,
-  };
+    sortOrder: row.sortOrder };
 }
 
 async function writeAudit(
@@ -57,8 +54,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-travel-agency-types", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-travel-agency-types", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-travel-agency-types] audit", result.error.message);
 }
 
@@ -71,15 +67,14 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<TravelA
   const types = (await loadTravelAgencyTypes(restaurantId, db)).map(toRecord);
   return {
     types,
-    lastUpdatedAt: types.length > 0 ? new Date().toISOString() : null,
-  };
+    lastUpdatedAt: types.length > 0 ? new Date().toISOString() : null };
 }
 
 export const getPmsCard4TravelAgencyTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -88,7 +83,7 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -101,8 +96,7 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
         name,
         description: data.description ?? "",
         active: data.active,
-        sortOrder: data.sortOrder,
-      },
+        sortOrder: data.sortOrder },
       snapshot.types,
     );
     if (errors.length > 0) throw new Error(errors[0]!.message);
@@ -114,8 +108,7 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       description: data.description ? data.description.trim() : null,
       active: data.active,
       sort_order: data.sortOrder,
-      updated_at: new Date().toISOString(),
-    };
+      updated_at: new Date().toISOString() };
 
     const rawId = data.id && data.id.trim() ? data.id.trim() : null;
     let targetId = rawId;
@@ -152,8 +145,7 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       active: data.active,
       sortOrder: data.sortOrder,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      updatedAt: new Date().toISOString() };
     if (existingIndex >= 0) {
       nextList[existingIndex] = newRecord;
     } else {
@@ -168,8 +160,7 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
         name: r.name,
         description: r.description,
         active: r.active,
-        sortOrder: r.sortOrder,
-      })),
+        sortOrder: r.sortOrder })),
     );
 
     await writeAudit(
@@ -180,8 +171,7 @@ export const savePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       {
         id: createdId,
         code,
-        name,
-      },
+        name },
     );
     return { id: createdId };
   });
@@ -194,12 +184,11 @@ export const setPmsCard4TravelAgencyTypeActive = createServerFn({ method: "POST"
         .object({
           restaurantId: idSchema,
           id: z.string(),
-          active: z.boolean(),
-        })
+          active: z.boolean() })
         .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
 
@@ -230,14 +219,12 @@ export const setPmsCard4TravelAgencyTypeActive = createServerFn({ method: "POST"
         name: r.name,
         description: r.description,
         active: r.active,
-        sortOrder: r.sortOrder,
-      })),
+        sortOrder: r.sortOrder })),
     );
 
     await writeAudit(db, data.restaurantId, context.userId, "travel_agency_type.active_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -248,12 +235,11 @@ export const deletePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
       z
         .object({
           restaurantId: idSchema,
-          id: z.string(),
-        })
+          id: z.string() })
         .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     if (!data.id.startsWith("default-ta-type-")) {
@@ -283,8 +269,7 @@ export const deletePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
         name: r.name,
         description: r.description,
         active: r.active,
-        sortOrder: r.sortOrder,
-      })),
+        sortOrder: r.sortOrder })),
     );
 
     await writeAudit(db, data.restaurantId, context.userId, "travel_agency_type.deleted", { id: data.id });

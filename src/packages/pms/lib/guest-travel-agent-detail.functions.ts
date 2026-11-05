@@ -4,6 +4,8 @@
  * Contacts/documents reuse guest_company_* tables. Reservations reuse hotel_reservations.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -277,7 +279,7 @@ export const getTravelAgentDetailWorkspace = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const agency = await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -400,7 +402,7 @@ export const setTravelAgentStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -434,7 +436,7 @@ export const createTravelAgentLogoUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadTravelAgentMaster(admin(supabaseAdmin), data.restaurantId, data.agencyId);
     const ext = GUEST_IMAGE_EXT_BY_TYPE[data.contentType] ?? "jpg";
@@ -450,7 +452,7 @@ export const saveTravelAgentLogo = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, agencyId: idSchema, path: z.string().min(1).max(400) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -542,7 +544,7 @@ export const listTravelAgentContacts = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -641,7 +643,7 @@ export const saveTravelAgentContact = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -721,7 +723,7 @@ export const setTravelAgentContactPrimary = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, agencyId: idSchema, contactId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -770,7 +772,7 @@ export const createTravelAgentContactPhotoUpload = createServerFn({ method: "POS
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadTravelAgentMaster(admin(supabaseAdmin), data.restaurantId, data.agencyId);
     const ext = GUEST_IMAGE_EXT_BY_TYPE[data.contentType] ?? "jpg";
@@ -799,7 +801,7 @@ export const listTravelAgentReservations = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -891,7 +893,7 @@ export const addTravelAgentNote = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const agency = await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -933,7 +935,7 @@ export const listTravelAgentNotes = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1004,7 +1006,7 @@ export const updateTravelAgentNote = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     await loadTravelAgentMaster(
       admin((await import("@/integrations/supabase/client.server")).supabaseAdmin),
       data.restaurantId,
@@ -1032,7 +1034,7 @@ export const archiveTravelAgentNote = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, agencyId: idSchema, noteId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
       masterId: data.agencyId,
@@ -1075,7 +1077,7 @@ export const listTravelAgentDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1147,7 +1149,7 @@ export const createTravelAgentDocumentUpload = createServerFn({ method: "POST" }
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadTravelAgentMaster(admin(supabaseAdmin), data.restaurantId, data.agencyId);
     const ext = data.contentType === "application/pdf" ? "pdf" : (GUEST_IMAGE_EXT_BY_TYPE[data.contentType] ?? "jpg");
@@ -1175,7 +1177,7 @@ export const saveTravelAgentDocument = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1239,7 +1241,7 @@ export const reviewTravelAgentDocument = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1271,7 +1273,7 @@ export const deleteTravelAgentDocument = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, agencyId: idSchema, documentId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadTravelAgentMaster(admin(supabaseAdmin), data.restaurantId, data.agencyId);
     const result = await admin(supabaseAdmin)
@@ -1297,7 +1299,7 @@ export const listTravelAgentAgreements = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const agency = await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1417,7 +1419,7 @@ export const saveTravelAgentAgreement = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1477,7 +1479,7 @@ export const expireTravelAgentAgreement = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, agencyId: idSchema, agreementId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1511,7 +1513,7 @@ export const listTravelAgentBilling = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const agency = await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1690,7 +1692,7 @@ export const updateTravelAgentSettings = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1792,7 +1794,7 @@ export const listTravelAgentSettingsCatalogues = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1828,7 +1830,7 @@ export const listTravelAgentCommissionPlans = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1916,7 +1918,7 @@ export const saveTravelAgentCommissionPlan = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -1968,7 +1970,7 @@ export const listTravelAgentCommissionEntries = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -2059,9 +2061,9 @@ export const updateTravelAgentCommissionStatus = createServerFn({ method: "POST"
   )
   .handler(async ({ data, context }) => {
     if (data.status === "settled") {
-      await requireCashieringAccess(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST);
     } else {
-      await requireGuestManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
@@ -2087,7 +2089,7 @@ export const listTravelAgentAllotments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -2149,7 +2151,7 @@ export const saveTravelAgentAllotment = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -2190,7 +2192,7 @@ export const listTravelAgentNotificationPrefs = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, agencyId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -2231,7 +2233,7 @@ export const saveTravelAgentNotificationPrefs = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadTravelAgentMaster(db, data.restaurantId, data.agencyId);
@@ -2289,7 +2291,7 @@ export const getTravelAgentWorkspaceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
 

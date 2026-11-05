@@ -1,11 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { withPmsPackage } from "./pms-package.server";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { requireReservationManager } from "./reservations.server";
 import type { ContextPickOption } from "./create-reservation-phase1";
 
 const idSchema = z.string().uuid();
@@ -44,7 +42,7 @@ export const listPurposeOfStay = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<{ items: PurposeOfStayRow[]; available: boolean }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { data: rows, error } = await context.supabase
       .from("pms_purpose_of_stay")
       .select("id, code, name, description, active")
@@ -70,8 +68,11 @@ export const savePurposeOfStay = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const payload = {
       restaurant_id: data.restaurantId,

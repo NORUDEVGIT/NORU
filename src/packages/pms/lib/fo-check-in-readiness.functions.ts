@@ -31,7 +31,8 @@ import {
 import { loadGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { loadCard2HousekeepingSnapshot } from "@/packages/pms/lib/housekeeping-card2.functions";
 import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
-import { requireReservationManager } from "@/packages/pms/lib/reservations.server";
+import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { getAssignmentEligibilityCompat } from "@/packages/pms/lib/room-inventory-compat";
 
 const idSchema = z.string().uuid();
@@ -79,7 +80,7 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInReadiness> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     let target;
     try {
       target = await loadCheckInUnitTarget({

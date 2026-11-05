@@ -76,7 +76,7 @@ export function FoAuthorizationCard({
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {label}. An owner or manager must authorize this from their session. Front Office will not queue a request.
+          {label}. You don't have permission to authorize this. Front Office will not queue a request.
         </p>
       )}
     </div>

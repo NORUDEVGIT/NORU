@@ -1,21 +1,25 @@
 /**
- * Card 7 Phase 1 — Security & Roles load/save.
- * Writes hotel roles, mappings, approval rules, and restaurant_users.hotel_role_id.
- * Does not write restaurant_users.role, staff_module_access, or RLS helpers.
+ * Card 7 role catalogue.
+ * Live authority is administration.roles.*.
+ * Membership assignment is not done here. Staff & Access writes pms_membership_roles.
+ * This file does not update restaurant_users.hotel_role_id.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { withPmsPackage } from "./pms-package.server";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
+import {
+  PMS_PERMISSION_DENIED,
+  PMS_PERMISSIONS,
+  actorMayGrantPermissions,
+  isPmsPermissionCode,
+} from "./pms-permissions";
+import { requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard7Overall } from "./card7-readiness.functions";
 import {
   CARD7_APPROVAL_AUDIT,
-  CARD7_ASSIGNMENT_AUDIT,
   CARD7_DATA_SCOPES,
   CARD7_MAPPING_AUDIT,
   CARD7_SECURITY_AUDIT,
@@ -281,17 +285,25 @@ export const getCard7SecurityRoles = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const snapshot = await loadCard7SecuritySnapshot(pmsDb(supabaseAdmin), data.restaurantId);
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
+    const allow = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+      resolved.isOwner || resolved.codes.has(code);
     return {
       snapshot,
       readiness: evaluateCard7SecurityReadiness(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit:
+        allow(PMS_PERMISSIONS.ROLES_EDIT) ||
+        allow(PMS_PERMISSIONS.ROLES_CREATE) ||
+        allow(PMS_PERMISSIONS.ROLES_ACTIVATE) ||
+        allow(PMS_PERMISSIONS.ROLES_ASSIGN_PERMISSIONS),
+      canCreateRoles: allow(PMS_PERMISSIONS.ROLES_CREATE),
+      canEditRoles: allow(PMS_PERMISSIONS.ROLES_EDIT),
+      canActivateRoles: allow(PMS_PERMISSIONS.ROLES_ACTIVATE),
+      canAssignPermissions: allow(PMS_PERMISSIONS.ROLES_ASSIGN_PERMISSIONS),
     };
   });
 
@@ -299,14 +311,19 @@ export const saveCard7HotelRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => roleSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
+    const creating = !data.id;
+    await requirePmsActor(
+      context as never,
       data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
+      creating ? PMS_PERMISSIONS.ROLES_CREATE : PMS_PERMISSIONS.ROLES_EDIT,
     );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7SecuritySnapshot(db, data.restaurantId);
+    const previous = data.id ? before.roles.find((row) => row.id === data.id) : undefined;
+    if (previous && previous.active !== data.active) {
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_ACTIVATE);
+    }
     const departmentId = data.departmentId ?? null;
     assertDepartment(before.departments, departmentId);
     const payload = {
@@ -346,6 +363,15 @@ export const saveCard7HotelRole = createServerFn({ method: "POST" })
       before: before.roles,
       after: after.roles,
     });
+    await db.from("restaurant_staff_audit_log").insert({
+      restaurant_id: data.restaurantId,
+      actor_user_id: context.userId,
+      action: creating
+        ? "role_created"
+        : previous && previous.active && !data.active
+          ? "role_deactivated"
+          : "role_updated",
+    });
     return {
       ok: true as const,
       snapshot: after,
@@ -357,24 +383,32 @@ export const saveCard7RolePermissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mappingsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
+    await requirePmsActor(
+      context as never,
       data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
+      PMS_PERMISSIONS.ROLES_ASSIGN_PERMISSIONS,
     );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7SecuritySnapshot(db, data.restaurantId);
     const role = before.roles.find((row) => row.id === data.roleId);
     if (!role) throw new Error("Hotel role is not on this property.");
-    const permissionIds = new Set(before.permissions.map((row) => row.id));
-    for (const row of data.mappings) {
-      if (!permissionIds.has(row.permissionId)) {
-        throw new Error("Mappings must use the global permission catalogue.");
-      }
+    const permissionById = new Map(before.permissions.map((row) => [row.id, row.code]));
+    const canonical = data.mappings.filter((row) => {
+      const code = permissionById.get(row.permissionId);
+      return code != null && isPmsPermissionCode(code);
+    });
+    for (const row of canonical) {
       if (row.dataScope === "department" && row.allowed && !role.departmentId) {
         throw new Error("Department scope requires a department on this hotel role.");
       }
+    }
+    const granted = canonical
+      .filter((row) => row.allowed)
+      .map((row) => permissionById.get(row.permissionId) ?? "");
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
+    if (!actorMayGrantPermissions({ isOwner: resolved.isOwner, codes: resolved.codes }, granted)) {
+      throw new Error(PMS_PERMISSION_DENIED);
     }
     const removed = await db
       .from("pms_role_permissions")
@@ -382,9 +416,9 @@ export const saveCard7RolePermissions = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .eq("role_id", data.roleId);
     if (removed.error) unavailable(removed.error);
-    if (data.mappings.length > 0) {
+    if (canonical.length > 0) {
       const inserted = await db.from("pms_role_permissions").insert(
-        data.mappings.map((row) => ({
+        canonical.map((row) => ({
           restaurant_id: data.restaurantId,
           role_id: data.roleId,
           permission_id: row.permissionId,
@@ -401,6 +435,11 @@ export const saveCard7RolePermissions = createServerFn({ method: "POST" })
       before: before.mappings,
       after: after.mappings,
     });
+    await db.from("restaurant_staff_audit_log").insert({
+      restaurant_id: data.restaurantId,
+      actor_user_id: context.userId,
+      action: "role_permissions_updated",
+    });
     return {
       ok: true as const,
       snapshot: after,
@@ -412,11 +451,7 @@ export const saveCard7ApprovalRule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => approvalSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7SecuritySnapshot(db, data.restaurantId);
@@ -469,36 +504,6 @@ export const saveCard7MembershipHotelRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => assignmentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = pmsDb(supabaseAdmin);
-    const before = await loadCard7SecuritySnapshot(db, data.restaurantId);
-    const membership = before.memberships.find((row) => row.membershipId === data.membershipId);
-    if (!membership) throw new Error("Membership is not on this property.");
-    if (data.hotelRoleId && !before.roles.some((row) => row.id === data.hotelRoleId && row.active)) {
-      throw new Error("Assign an active hotel role, or clear the assignment.");
-    }
-    const result = await db
-      .from("restaurant_users")
-      .update({ hotel_role_id: data.hotelRoleId })
-      .eq("id", data.membershipId)
-      .eq("restaurant_id", data.restaurantId);
-    if (result.error) unavailable(result.error);
-    const after = await loadCard7SecuritySnapshot(db, data.restaurantId);
-    await persistCard7Overall(db, data.restaurantId);
-    await writeAudit(db, data.restaurantId, context.userId, CARD7_ASSIGNMENT_AUDIT, {
-      membershipId: data.membershipId,
-      before: membership.hotelRoleId,
-      after: data.hotelRoleId,
-      staffRoleUnchanged: membership.staffRole,
-    });
-    return {
-      ok: true as const,
-      snapshot: after,
-      readiness: evaluateCard7SecurityReadiness(after),
-    };
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
+    throw new Error("Moved to Staff & Access.");
   });

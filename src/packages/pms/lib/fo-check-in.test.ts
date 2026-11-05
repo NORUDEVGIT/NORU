@@ -182,12 +182,12 @@ describe("FO-FS1 deposit policy A", () => {
       fns.indexOf("export const ensureCheckInFolio"),
     );
     assert.equal(readinessFn.includes("open_folio_for_reservation"), false);
-    assert.match(readinessFn, /requireReservationManager/);
+    assert.match(readinessFn, /requirePmsActor/);
     const postFn = fns.slice(
       fns.indexOf("export const postCheckInDeposit"),
       fns.indexOf("export const waiveCheckInDeposit"),
     );
-    assert.match(postFn, /requireCashierOperator/);
+    assert.match(postFn, /requirePmsActorAll/);
     assert.equal(DEPOSIT_REQUIRED_BANNER, "Deposit required before check-in can finish.");
     assert.equal(mapDepositMethod("transfer"), "bank_transfer");
     assert.equal(mapCashierShiftError("SHIFT_NOT_FOUND"), "Open a cashier shift to post.");

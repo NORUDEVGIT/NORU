@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
@@ -537,7 +539,7 @@ export const getRoomsAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireFrontOfficeAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
     return {
       role: me.role,
       canManage: canAccessFrontOffice(me.role),
@@ -551,7 +553,7 @@ export const listRoomAmenities = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomAmenity[]> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
 
     const withExtras = await pmsDb(context.supabase)
       .from("room_amenities")
@@ -598,7 +600,7 @@ export const listRoomTypes = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, includeInactive: z.boolean().optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomType[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     let query = pmsDb(context.supabase)
       .from("room_types")
@@ -758,7 +760,7 @@ export const saveRoomType = createServerFn({ method: "POST" })
   .validator((input: unknown) => roomTypeInput.parse(input))
   .handler(async ({ data, context }) => {
     // Type row then room_type_beds: sequential, fail-closed on beds (ROOM_TYPE_BEDS_SEQUENTIAL_LIMITATION).
-    const me = await requireRoomManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const occupancy = {
       standardOccupancy: data.standardOccupancy ?? data.maxOccupancy,
       maxOccupancy: data.maxOccupancy,
@@ -959,7 +961,7 @@ export const checkRoomTypeCodeAvailable = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomTypeCodeAvailability> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
     const code = data.code.trim().toUpperCase();
     const { data: row } = await pmsDb(context.supabase)
       .from("room_types")
@@ -1001,7 +1003,7 @@ export const checkRoomNumberAvailable = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomNumberAvailability> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
     const roomNumber = data.roomNumber.trim();
     const { data: row } = await pmsDb(context.supabase)
       .from("hotel_rooms")
@@ -1035,7 +1037,7 @@ export const setRoomTypeActive = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { error } = await pmsDb(context.supabase)
       .from("room_types")
       .update({ active: data.active })
@@ -1063,7 +1065,7 @@ export const listRooms = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<HotelRoom[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     let query = pmsDb(context.supabase)
       .from("hotel_rooms")
@@ -1167,7 +1169,7 @@ export const saveRoom = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => roomInput.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireRoomManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
       (await import("@/integrations/supabase/client.server")).supabaseAdmin,
       data.restaurantId,
@@ -1384,7 +1386,7 @@ export const setRoomActive = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { error } = await pmsDb(context.supabase)
       .from("hotel_rooms")
       .update({ active: data.active })
@@ -1407,7 +1409,7 @@ export const releaseRoomFromRoomType = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { data: room } = await pmsDb(context.supabase)
       .from("hotel_rooms")
       .select("id, room_number, room_type_id")
@@ -1482,7 +1484,7 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       conflicts: { roomNumbers: [] as string[], roomCodes: [] as string[] },
       validationErrors: [] as string[],
     };
-    const me = await requireRoomManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const housekeepingPolicy = await loadCard2HousekeepingSnapshot(
       (await import("@/integrations/supabase/client.server")).supabaseAdmin,
       data.restaurantId,
@@ -1628,7 +1630,7 @@ export const evaluateCard2RoomTypesReadiness = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const [{ data: types }, { data: beds }, { data: rooms }, { data: floors }, { data: wings }] =
       await Promise.all([
         pmsDb(context.supabase)
@@ -1705,7 +1707,7 @@ export const listRoomTypeImages = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomTypeId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomTypeImage[]> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { data: rows } = await pmsDb(context.supabase)
       .from("room_type_images")
       .select("id, storage_path, display_order, is_cover, alt_text")
@@ -1754,7 +1756,7 @@ export const createRoomTypeImageUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { data: type } = await pmsDb(context.supabase)
       .from("room_types")
       .select("id")
@@ -1790,7 +1792,7 @@ export const registerRoomTypeImage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireRoomManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     // The path must sit inside this property's namespace for this room type.
     const prefix = `${data.restaurantId}/room-types/${data.roomTypeId}/`;
     if (!data.storagePath.startsWith(prefix)) {
@@ -1825,7 +1827,7 @@ export const setRoomTypeImageCover = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomTypeId: idSchema, imageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     await pmsDb(context.supabase)
       .from("room_type_images")
       .update({ is_cover: false })
@@ -1849,7 +1851,7 @@ export const reorderRoomTypeImages = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     for (const [index, imageId] of data.imageIds.entries()) {
       await pmsDb(context.supabase)
         .from("room_type_images")
@@ -1868,7 +1870,7 @@ export const deleteRoomTypeImage = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomTypeId: idSchema, imageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
 
     const { data: row } = await pmsDb(context.supabase)
       .from("room_type_images")
@@ -1923,7 +1925,7 @@ export const getRoomsDashboard = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomsDashboard> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     const [{ data: rooms }, { data: types }] = await Promise.all([
       pmsDb(context.supabase)
@@ -1982,7 +1984,7 @@ export const listRoomClassifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomClassificationsResult> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     const [{ data: restaurant }, { data: existingTypes }] = await Promise.all([
       pmsDb(context.supabase)
@@ -2127,7 +2129,7 @@ export const addCustomRoomCategory = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return saveCustomClassificationWithRetry(
       supabaseAdmin,
@@ -2148,7 +2150,7 @@ export const addCustomRoomClass = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return saveCustomClassificationWithRetry(
       supabaseAdmin,

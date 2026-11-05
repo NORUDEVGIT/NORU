@@ -287,10 +287,10 @@ describe("Create Reservation Phase 1 Section 8 lock — AC-CR8-1…22", () => {
     const set3Fns = readRel("./pms-set3-rates-guest.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     const createStart = functions.indexOf("export const createReservation");
     const createFn = functions.slice(createStart, functions.indexOf("export const amendReservation"));
-    assert.match(createFn, /await requireReservationManager/);
+    assert.match(createFn, /await requirePmsActor/);
     assert.match(set3Fns, /canEdit: canEditSet1\(me\.role\)/);
     assert.match(page, /canEditSet3=\{set3Query\.data\?\.canEdit \?\? false\}/);
     assert.match(gate, /canShowPackagesSettingsLink\(canEditSet3\)/);

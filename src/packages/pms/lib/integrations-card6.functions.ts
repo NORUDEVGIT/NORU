@@ -1,11 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { requireRoomManager } from "./rooms.server";
-import { withPmsPackage } from "./pms-package.server";
 import {
   INTEGRATION_ENVIRONMENTS,
   INTEGRATION_TEST_RESULTS,
@@ -18,15 +17,13 @@ import {
   type IntegrationActivityRecord,
   type IntegrationRecord,
   type IntegrationStatus,
-  type IntegrationsCard6Snapshot,
-} from "./integrations-card6.server";
+  type IntegrationsCard6Snapshot } from "./integrations-card6.server";
 import {
   INTEGRATION_AUTH_METHODS,
   INTEGRATION_CATEGORIES,
   categoryEventValues,
   integrationProvider,
-  persistableFieldIds,
-} from "./integrations-catalog";
+  persistableFieldIds } from "./integrations-catalog";
 
 type DbClient = any;
 
@@ -56,8 +53,7 @@ const saveSchema = z.object({
   enabled: z.boolean(),
   description: z.string().trim().max(400),
   events: z.array(z.string().trim().min(1).max(60)).max(20),
-  config: configSchema,
-});
+  config: configSchema });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST205") {
@@ -103,8 +99,7 @@ function mapIntegration(row: any): IntegrationRecord {
     lastTestAt: row.last_test_at ?? null,
     lastTestResult: row.last_test_result ?? null,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapActivity(row: any): IntegrationActivityRecord {
@@ -115,8 +110,7 @@ function mapActivity(row: any): IntegrationActivityRecord {
     event: row.event,
     detail: row.detail ?? null,
     simulated: row.simulated === true,
-    createdAt: row.created_at,
-  };
+    createdAt: row.created_at };
 }
 
 async function logActivity(
@@ -138,8 +132,7 @@ async function logActivity(
     event: entry.event,
     detail: entry.detail,
     simulated: entry.simulated,
-    actor_user_id: userId,
-  });
+    actor_user_id: userId });
   if (result.error) console.error("[card6-integrations] activity", result.error.message);
 }
 
@@ -155,8 +148,7 @@ async function writeSetupAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card6-integrations", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card6-integrations", ...metadata } as unknown as Json });
   if (result.error) console.error("[card6-integrations] audit", result.error.message);
 }
 
@@ -181,8 +173,7 @@ export async function loadCard6IntegrationsSnapshot(
   if (activity.error) unavailable(activity.error);
   return {
     integrations: (integrations.data ?? []).map(mapIntegration),
-    activity: (activity.data ?? []).map(mapActivity),
-  };
+    activity: (activity.data ?? []).map(mapActivity) };
 }
 
 async function requireOwnIntegration(db: DbClient, restaurantId: string, id: string) {
@@ -201,7 +192,7 @@ export const getPmsCard6Integrations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadCard6IntegrationsSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -210,7 +201,7 @@ export const savePmsCard6Integration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const providerDef = integrationProvider(data.category, data.provider);
     if (!providerDef) throw new Error("That provider is not available for this integration type.");
     if (!providerDef.authMethods.includes(data.authMethod)) {
@@ -236,8 +227,7 @@ export const savePmsCard6Integration = createServerFn({ method: "POST" })
       description: data.description.length > 0 ? data.description : null,
       auth_method: data.authMethod,
       config: config as unknown as Json,
-      events,
-    };
+      events };
 
     let saved: IntegrationRecord;
     if (existing) {
@@ -278,14 +268,12 @@ export const savePmsCard6Integration = createServerFn({ method: "POST" })
       integrationName: saved.name,
       event: existing ? "updated" : "created",
       detail: `${saved.provider} · ${saved.environment}`,
-      simulated: false,
-    });
+      simulated: false });
     await writeSetupAudit(db, data.restaurantId, context.userId, "pms_card6_integration_saved", {
       integrationId: saved.id,
       category: saved.category,
       provider: saved.provider,
-      created: !existing,
-    });
+      created: !existing });
     return { ok: true as const, integration: saved };
   });
 
@@ -295,7 +283,7 @@ export const setPmsCard6IntegrationEnabled = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema, enabled: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnIntegration(db, data.restaurantId, data.id);
@@ -313,8 +301,7 @@ export const setPmsCard6IntegrationEnabled = createServerFn({ method: "POST" })
       integrationName: saved.name,
       event: data.enabled ? "enabled" : "disabled",
       detail: null,
-      simulated: false,
-    });
+      simulated: false });
     return { ok: true as const, integration: saved };
   });
 
@@ -324,7 +311,7 @@ export const deletePmsCard6Integration = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnIntegration(db, data.restaurantId, data.id);
@@ -340,12 +327,10 @@ export const deletePmsCard6Integration = createServerFn({ method: "POST" })
       integrationName: existing.name,
       event: "deleted",
       detail: null,
-      simulated: false,
-    });
+      simulated: false });
     await writeSetupAudit(db, data.restaurantId, context.userId, "pms_card6_integration_deleted", {
       category: existing.category,
-      provider: existing.provider,
-    });
+      provider: existing.provider });
     return { ok: true as const };
   });
 
@@ -361,12 +346,11 @@ export const recordPmsCard6IntegrationTest = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         id: idSchema,
         result: z.enum(INTEGRATION_TEST_RESULTS),
-        detail: z.string().trim().max(400),
-      })
+        detail: z.string().trim().max(400) })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnIntegration(db, data.restaurantId, data.id);
@@ -376,8 +360,7 @@ export const recordPmsCard6IntegrationTest = createServerFn({ method: "POST" })
       .update({
         status,
         last_test_at: new Date().toISOString(),
-        last_test_result: data.result,
-      })
+        last_test_result: data.result })
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId)
       .select("*")
@@ -388,7 +371,6 @@ export const recordPmsCard6IntegrationTest = createServerFn({ method: "POST" })
       integrationName: existing.name,
       event: data.result === "passed" ? "test_passed" : "test_failed",
       detail: data.detail.length > 0 ? data.detail : null,
-      simulated: true,
-    });
+      simulated: true });
     return { ok: true as const, integration: mapIntegration(saved.data) };
   });

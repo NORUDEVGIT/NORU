@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireCashieringAccess } from "./cashiering.server";
 import {
   departuresRequiringSettlement,
   propertyDayBounds,
@@ -33,7 +34,7 @@ export const getCashieringBusinessDateActivity = createServerFn({ method: "GET" 
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadCashierProperty(supabaseAdmin, data.restaurantId);
     const viewedBusinessDate = data.viewDate ?? property.businessDate;
@@ -107,7 +108,7 @@ export const getCashierShiftActivity = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: txns, error } = await supabaseAdmin

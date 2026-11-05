@@ -180,13 +180,13 @@ export function otherOpenShifts<T extends { membershipId: string; status: string
   return shifts.filter((shift) => shift.status === "open" && shift.membershipId !== membershipId);
 }
 
-/** Cashiers see their own history. Accountant, manager, and owner see the property list. */
+/** Without shift authorize, history is limited to the caller's own shifts. */
 export function visibleShiftHistory<T extends { membershipId: string }>(
   shifts: T[],
   membershipId: string,
-  role: string,
+  seeAll: boolean,
 ): T[] {
-  if (role === "cashier") return shifts.filter((shift) => shift.membershipId === membershipId);
+  if (!seeAll) return shifts.filter((shift) => shift.membershipId === membershipId);
   return shifts;
 }
 

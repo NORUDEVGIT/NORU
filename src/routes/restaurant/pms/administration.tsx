@@ -1,5 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_ADMIN_ROUTE_PERMISSIONS } from "@/packages/pms/lib/pms-client-access";
 import { PmsAdministrationWorkspace } from "@/packages/pms/components/workspaces/pms-administration-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -37,10 +39,14 @@ export const Route = createFileRoute("/restaurant/pms/administration")({
 function AdministrationPmsRoute() {
   return (
     <RestaurantShell active="Staff" module="staff" pms pmsModule="administration">
-      {(m) => <div className="space-y-8">
-          <PmsAdministrationWorkspace membership={m} />
-          <SharedModuleLinks restaurantId={m.restaurantId} modules={["human_resources"]} />
-        </div>}
+      {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allowAny={PMS_ADMIN_ROUTE_PERMISSIONS}>
+          <div className="space-y-8">
+            <PmsAdministrationWorkspace membership={m} />
+            <SharedModuleLinks restaurantId={m.restaurantId} modules={["human_resources"]} />
+          </div>
+        </PmsRouteGate>
+      )}
     </RestaurantShell>
   );
 }

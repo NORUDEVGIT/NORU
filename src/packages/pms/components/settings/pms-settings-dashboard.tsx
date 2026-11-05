@@ -171,13 +171,17 @@ function progressCopy(progress: SettingsDashboardProgress): string {
 export function SettingsPropertySetupCards({
   statuses,
   summaries,
+  visibleCard,
 }: {
   statuses: readonly PropertySetupCardStatus[];
   summaries: readonly (readonly string[])[];
+  /** When set, cards the caller cannot view are omitted. Index stays aligned with the full catalogue. */
+  visibleCard?: (cardNumber: number) => boolean;
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="property-setup-cards">
       {PROPERTY_SETUP_CARDS.map((card, index) => {
+        if (visibleCard && !visibleCard(card.number)) return null;
         const status = statuses[index] ?? "not_started";
         const Icon = propertySetupCardIcon(card.number);
         const rows = summaries[index] ?? [];

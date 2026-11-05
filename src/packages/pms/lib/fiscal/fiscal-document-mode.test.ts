@@ -440,7 +440,7 @@ describe("manual charge fiscal identity", () => {
     assert.match(manual, /amount: z\.number\(\)\.finite\(\)/);
     assert.match(manual, /natureOfSupplies: z\.enum\(\["goods", "service"\]\)/);
     assert.equal(manual.includes("serviceTypeId"), false);
-    assert.match(manual, /requireCashierManager/);
+    assert.match(manual, /CASHIERING_CHARGE_POST/);
     assert.match(entry, /post_folio_manual_charge/);
     assert.match(service, /serviceTypeId: idSchema/);
   });

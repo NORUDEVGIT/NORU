@@ -1,12 +1,12 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   CHANNEL_STATUSES,
   blankToNull,
-  canManageDistribution,
-  requireDistributionManager,
-} from "./distribution.server";
+  canManageDistribution } from "./distribution.server";
 import { callerMembership } from "@/core/lib/workforce.server";
 
 const idSchema = z.string().uuid();
@@ -68,8 +68,7 @@ export const getDistributionOverview = createServerFn({ method: "POST" })
   .handler(
     async ({
       data,
-      context,
-    }): Promise<{
+      context }): Promise<{
       channels: DistributionChannel[];
       roomMappings: RoomMapping[];
       rateMappings: RateMapping[];
@@ -79,7 +78,7 @@ export const getDistributionOverview = createServerFn({ method: "POST" })
       ratePlans: { id: string; name: string }[];
       directBookings: number;
     }> => {
-      await requireDistributionManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
       const db = context.supabase;
 
       const [channels, rooms, rates, logs, property, roomTypes, ratePlans, direct] = await Promise.all([
@@ -133,42 +132,36 @@ export const getDistributionOverview = createServerFn({ method: "POST" })
           code: c.code,
           name: c.name,
           status: c.status,
-          notes: c.notes,
-        })),
+          notes: c.notes })),
         roomMappings: (rooms.data ?? []).map((m) => ({
           id: m.id,
           channelId: m.channel_id,
           roomTypeId: m.room_type_id,
           roomTypeName: (m.room_types as { name: string } | null)?.name ?? "Room type",
           externalCode: m.external_room_code,
-          active: m.active,
-        })),
+          active: m.active })),
         rateMappings: (rates.data ?? []).map((m) => ({
           id: m.id,
           channelId: m.channel_id,
           ratePlanId: m.rate_plan_id,
           ratePlanName: (m.hotel_rate_plans as { name: string } | null)?.name ?? "Rate plan",
           externalCode: m.external_rate_code,
-          active: m.active,
-        })),
+          active: m.active })),
         logs: (logs.data ?? []).map((l) => ({
           id: l.id,
           eventType: l.event_type,
           status: l.status,
           message: l.message,
-          createdAt: l.created_at,
-        })),
+          createdAt: l.created_at })),
         settings: {
           slug: property.data?.slug ?? "",
           enabled: property.data?.direct_booking_enabled ?? true,
           contactEmail: property.data?.booking_contact_email ?? null,
           contactPhone: property.data?.booking_contact_phone ?? null,
-          bookingMessage: property.data?.booking_message ?? null,
-        },
+          bookingMessage: property.data?.booking_message ?? null },
         roomTypes: roomTypes.data ?? [],
         ratePlans: ratePlans.data ?? [],
-        directBookings: direct.count ?? 0,
-      };
+        directBookings: direct.count ?? 0 };
     },
   );
 
@@ -181,20 +174,18 @@ export const saveDirectBookingSettings = createServerFn({ method: "POST" })
         enabled: z.boolean(),
         contactEmail: z.string().trim().max(160).nullable().optional(),
         contactPhone: z.string().trim().max(40).nullable().optional(),
-        bookingMessage: z.string().trim().max(500).nullable().optional(),
-      })
+        bookingMessage: z.string().trim().max(500).nullable().optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requireDistributionManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase
       .from("restaurants")
       .update({
         direct_booking_enabled: data.enabled,
         booking_contact_email: blankToNull(data.contactEmail),
         booking_contact_phone: blankToNull(data.contactPhone),
-        booking_message: blankToNull(data.bookingMessage),
-      })
+        booking_message: blankToNull(data.bookingMessage) })
       .eq("id", data.restaurantId);
     if (error) return { ok: false, message: error.message };
     return { ok: true };
@@ -208,7 +199,7 @@ export const setChannelStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requireDistributionManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase
       .from("distribution_channels")
       .update({ status: data.status })
@@ -227,20 +218,18 @@ export const saveRoomMapping = createServerFn({ method: "POST" })
         channelId: idSchema,
         roomTypeId: idSchema,
         externalCode: z.string().trim().max(80).nullable().optional(),
-        active: z.boolean().optional(),
-      })
+        active: z.boolean().optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requireDistributionManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase.from("distribution_room_mappings").upsert(
       {
         restaurant_id: data.restaurantId,
         channel_id: data.channelId,
         room_type_id: data.roomTypeId,
         external_room_code: blankToNull(data.externalCode),
-        active: data.active ?? true,
-      },
+        active: data.active ?? true },
       { onConflict: "channel_id,room_type_id" },
     );
     if (error) return { ok: false, message: error.message };
@@ -256,20 +245,18 @@ export const saveRateMapping = createServerFn({ method: "POST" })
         channelId: idSchema,
         ratePlanId: idSchema,
         externalCode: z.string().trim().max(80).nullable().optional(),
-        active: z.boolean().optional(),
-      })
+        active: z.boolean().optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requireDistributionManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase.from("distribution_rate_mappings").upsert(
       {
         restaurant_id: data.restaurantId,
         channel_id: data.channelId,
         rate_plan_id: data.ratePlanId,
         external_rate_code: blankToNull(data.externalCode),
-        active: data.active ?? true,
-      },
+        active: data.active ?? true },
       { onConflict: "channel_id,rate_plan_id" },
     );
     if (error) return { ok: false, message: error.message };

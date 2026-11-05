@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -8,8 +10,7 @@ import {
   COMMUNICATION_TEMPLATE_CATEGORIES,
   validateCommunicationTemplateDraft,
   type CommunicationTemplateCategory,
-  type CommunicationTemplateRecord,
-} from "./communication-templates-card4.server";
+  type CommunicationTemplateRecord } from "./communication-templates-card4.server";
 import { testPmsCard4CommunicationTemplate } from "./communication-templates-card4.functions";
 import {
   NOTIFICATION_EVENT_MODULES,
@@ -20,9 +21,7 @@ import {
   type NotificationEventModule,
   type NotificationEventRecord,
   type NotificationEventsSnapshot,
-  type NotificationEventTemplateCompatibility,
-} from "./notification-events-card4.server";
-import { requireRoomManager } from "./rooms.server";
+  type NotificationEventTemplateCompatibility } from "./notification-events-card4.server";
 
 // Generated schema predates 0091.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,8 +39,7 @@ const saveSchema = z
     description: z.string().max(500),
     defaultChannelType: z.enum(COMMUNICATION_CHANNEL_TYPES),
     defaultTemplateId: idSchema.nullable(),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -80,8 +78,7 @@ function mapEvent(row: {
     active: row.active,
     isSystem: row.is_system,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -96,8 +93,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-notification-events", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-notification-events", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-notification-events] audit", result.error.message);
 }
 
@@ -124,8 +120,7 @@ async function ensureSystemEvents(db: DbClient, restaurantId: string): Promise<v
       default_channel_type: "email",
       default_template_id: null,
       active: false,
-      is_system: true,
-    })),
+      is_system: true })),
     { onConflict: "restaurant_id,code", ignoreDuplicates: true },
   );
   if (result.error) unavailable(result.error);
@@ -217,8 +212,7 @@ async function loadOwnTemplate(
     allowManualSending: row.allow_manual_sending,
     attachPdf: row.attach_pdf,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
   return {
     record,
     compatibility: {
@@ -226,16 +220,14 @@ async function loadOwnTemplate(
       category: record.category,
       eventTrigger: record.eventTrigger,
       channelType: record.channelType,
-      active: record.active,
-    },
-  };
+      active: record.active } };
 }
 
 export const getPmsCard4NotificationEvents = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -244,7 +236,7 @@ export const savePmsCard4NotificationEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -259,8 +251,7 @@ export const savePmsCard4NotificationEvent = createServerFn({ method: "POST" })
       defaultChannelType: data.defaultChannelType,
       defaultTemplateId: data.defaultTemplateId,
       active: data.active,
-      isSystem: existing?.isSystem ?? false,
-    });
+      isSystem: existing?.isSystem ?? false });
     await requireOwnChannel(db, data.restaurantId, draft.defaultChannelType, draft.active);
     const template = await loadOwnTemplate(db, data.restaurantId, draft.defaultTemplateId);
     const errors = validateNotificationEventDraft(
@@ -283,8 +274,7 @@ export const savePmsCard4NotificationEvent = createServerFn({ method: "POST" })
       default_template_id: draft.defaultTemplateId,
       active: draft.active,
       is_system: existing?.isSystem ?? false,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = existing
       ? await db
           .from("pms_communication_notification_events")
@@ -320,7 +310,7 @@ export const setPmsCard4NotificationEventActive = createServerFn({ method: "POST
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnEvent(db, data.restaurantId, data.id);
@@ -363,7 +353,7 @@ export const deletePmsCard4NotificationEvent = createServerFn({ method: "POST" }
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnEvent(db, data.restaurantId, data.id);
@@ -400,7 +390,7 @@ export const testPmsCard4NotificationEvent = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const event = await requireOwnEvent(db, data.restaurantId, data.id);
@@ -417,8 +407,7 @@ export const testPmsCard4NotificationEvent = createServerFn({ method: "POST" })
       return {
         result: "failed" as const,
         message:
-          eventErrors[0]?.message ?? "Choose a compatible active template before testing the event.",
-      };
+          eventErrors[0]?.message ?? "Choose a compatible active template before testing the event." };
     }
     const templateErrors = validateCommunicationTemplateDraft(
       {
@@ -433,15 +422,13 @@ export const testPmsCard4NotificationEvent = createServerFn({ method: "POST" })
         message: template.record.message,
         active: template.record.active,
         allowManualSending: template.record.allowManualSending,
-        attachPdf: template.record.attachPdf,
-      },
+        attachPdf: template.record.attachPdf },
       [template.record],
     );
     if (templateErrors.length > 0) {
       return {
         result: "failed" as const,
-        message: templateErrors[0]?.message ?? "The selected template is invalid.",
-      };
+        message: templateErrors[0]?.message ?? "The selected template is invalid." };
     }
     return testPmsCard4CommunicationTemplate({
       data: {
@@ -456,9 +443,7 @@ export const testPmsCard4NotificationEvent = createServerFn({ method: "POST" })
         message: template.record.message,
         active: template.record.active,
         allowManualSending: template.record.allowManualSending,
-        attachPdf: template.record.attachPdf,
-      },
-    });
+        attachPdf: template.record.attachPdf } });
   });
 
 export { loadSnapshot as loadPmsCard4NotificationEventsSnapshot };

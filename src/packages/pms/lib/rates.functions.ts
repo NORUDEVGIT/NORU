@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -10,14 +12,10 @@ import {
   rateError,
   requireRateManager,
   toQuote,
-  type StayQuote,
-} from "./rates.server";
+  type StayQuote } from "./rates.server";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
-import { requireModuleRole } from "@/core/lib/module-access.server";
-import { REPORTS_ROLES } from "@/core/lib/module-access";
 import { selectCompanyBookingDefaults } from "./create-reservation-step3";
-import { requireReservationManager } from "./reservations.server";
 import { computeBookedRevenueOverview } from "./revenue/revenue-metrics";
 import { loadQuoteMerchandising } from "./rate-quote-read-model.server";
 import { breakfastLabelFromMealPlan, deriveCancellationDisplay } from "./cancellation-deadline";
@@ -127,7 +125,7 @@ export const listRateCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RateCategory[]> => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { data: rows, error } = await context.supabase
       .from("hotel_rate_categories")
       .select("id, code, name, description, active")
@@ -139,8 +137,7 @@ export const listRateCategories = createServerFn({ method: "POST" })
       code: r.code,
       name: r.name,
       description: r.description,
-      active: r.active,
-    }));
+      active: r.active }));
   });
 
 export const saveRateCategory = createServerFn({ method: "POST" })
@@ -153,19 +150,17 @@ export const saveRateCategory = createServerFn({ method: "POST" })
         code: z.string().min(1).max(20),
         name: z.string().min(1).max(80),
         description: z.string().max(500).nullable().optional(),
-        active: z.boolean().optional(),
-      })
+        active: z.boolean().optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<SaveResult> => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const payload = {
       restaurant_id: data.restaurantId,
       code: data.code.trim().toUpperCase(),
       name: data.name.trim(),
       description: blankToNull(data.description),
-      active: data.active ?? true,
-    };
+      active: data.active ?? true };
 
     if (data.categoryId) {
       const { error } = await context.supabase
@@ -265,8 +260,7 @@ function toPlan(row: PlanRow): RatePlan {
     minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
     maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
     packages: [],
-    active: row.active,
-  };
+    active: row.active };
 }
 
 async function hydrateRatePlanMerchandising(
@@ -435,8 +429,7 @@ async function hydrateRatePlanMerchandising(
       earlyDeparturePenaltyValue:
         earlyDeparture?.penalty_value == null ? null : Number(earlyDeparture.penalty_value),
       earlyDepartureDescription: earlyDeparture?.description?.trim() || null,
-      packages: packagesByPlan.get(plan.id) ?? [],
-    };
+      packages: packagesByPlan.get(plan.id) ?? [] };
   });
 }
 
@@ -559,8 +552,7 @@ async function loadRatePlanPackageLinks(
         (mealPlanId && mealName.get(mealPlanId)) ||
         (row.room_amenity_id && amenityName.get(row.room_amenity_id)) ||
         (row.fo_service_id && serviceName.get(row.fo_service_id)) ||
-        row.component_kind,
-    });
+        row.component_kind });
     componentsByPackage.set(row.package_id, list);
   }
 
@@ -572,8 +564,7 @@ async function loadRatePlanPackageLinks(
       packageId: row.package_id,
       packageName: pkg.name,
       inclusionType: parsePackageInclusionType(row.inclusion_type),
-      components: componentsByPackage.get(row.package_id) ?? [],
-    });
+      components: componentsByPackage.get(row.package_id) ?? [] });
     byPlan.set(row.rate_plan_id, list);
   }
   return byPlan;
@@ -615,12 +606,11 @@ export const listRatePlans = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         roomTypeId: idSchema.optional(),
-        activeOnly: z.boolean().optional(),
-      })
+        activeOnly: z.boolean().optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RatePlan[]> => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     return loadRatePlans(context.supabase, data.restaurantId, (query) => {
       let next = query;
       if (data.roomTypeId) next = next.eq("room_type_id", data.roomTypeId);
@@ -654,12 +644,11 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         includedOccupancy: z.number().int().min(1).max(20).nullable().optional(),
         extraAdultRate: z.number().min(0).max(10_000_000).nullable().optional(),
         extraChildRate: z.number().min(0).max(10_000_000).nullable().optional(),
-        active: z.boolean().optional(),
-      })
+        active: z.boolean().optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<SaveResult> => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
 
     // Category and room type must both belong to this property.
     const [{ data: category }, { data: roomType }, { data: restaurant }] = await Promise.all([
@@ -691,8 +680,7 @@ export const saveRatePlan = createServerFn({ method: "POST" })
       maxOccupancy:
         (roomType as { max_occupancy?: number | null }).max_occupancy == null
           ? null
-          : Number((roomType as { max_occupancy?: number | null }).max_occupancy),
-    });
+          : Number((roomType as { max_occupancy?: number | null }).max_occupancy) });
     if (occupancyError) return { ok: false, message: occupancyError };
 
     const [depositLookup, noShowLookup, earlyDepartureLookup] = await Promise.all([
@@ -763,8 +751,7 @@ export const saveRatePlan = createServerFn({ method: "POST" })
         : {}),
       ...(data.includedOccupancy !== undefined ? { included_occupancy: data.includedOccupancy } : {}),
       ...(data.extraAdultRate !== undefined ? { extra_adult_rate: data.extraAdultRate } : {}),
-      ...(data.extraChildRate !== undefined ? { extra_child_rate: data.extraChildRate } : {}),
-    };
+      ...(data.extraChildRate !== undefined ? { extra_child_rate: data.extraChildRate } : {}) };
 
     const occupancyWriteRequested =
       data.includedOccupancy !== undefined ||
@@ -804,7 +791,7 @@ export const setRatePlanActive = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, ratePlanId: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; active: boolean }> => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_ACTIVATE);
     const { error } = await context.supabase
       .from("hotel_rate_plans")
       .update({ active: data.active })
@@ -851,7 +838,7 @@ export const listRateCalendar = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RateCalendarRow[]> => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const plan = await assertPlan(context as never, data.restaurantId, data.ratePlanId);
 
     const { data: rows, error } = await context.supabase
@@ -872,8 +859,7 @@ export const listRateCalendar = createServerFn({ method: "POST" })
         date,
         baseRate: plan.baseRate,
         overrideRate: override,
-        effectiveRate: override ?? plan.baseRate,
-      };
+        effectiveRate: override ?? plan.baseRate };
     });
   });
 
@@ -885,8 +871,7 @@ export const saveRateOverride = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         ratePlanId: idSchema,
         date: dateSchema,
-        nightlyRate: z.number().min(0).max(10_000_000).nullable(),
-      })
+        nightlyRate: z.number().min(0).max(10_000_000).nullable() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string }> => {
@@ -894,7 +879,7 @@ export const saveRateOverride = createServerFn({ method: "POST" })
     // (RPC apply_hotel_rate_changes + hotel_rate_change_events). UI-03 should migrate
     // this path after 0101 is applied. Do not loop this function for bulk apply.
     // Card 3 also writes hotel_rate_calendar via saveRateOverrideCard3.
-    const me = await requireRateManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE);
     await assertPlan(context as never, data.restaurantId, data.ratePlanId);
 
     if (data.nightlyRate === null) {
@@ -914,8 +899,7 @@ export const saveRateOverride = createServerFn({ method: "POST" })
         rate_plan_id: data.ratePlanId,
         rate_date: data.date,
         nightly_rate: data.nightlyRate,
-        created_by_membership_id: me.id,
-      },
+        created_by_membership_id: me.id },
       { onConflict: "rate_plan_id,rate_date" },
     );
     if (error) throw rateError(error.message);
@@ -932,7 +916,7 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RateRestrictionRow[]> => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     await assertPlan(context as never, data.restaurantId, data.ratePlanId);
 
     const { data: rows, error } = await context.supabase
@@ -954,8 +938,7 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
         maxStay: r.max_stay,
         closedToArrival: r.closed_to_arrival,
         closedToDeparture: r.closed_to_departure,
-        stopSell: r.stop_sell,
-      });
+        stopSell: r.stop_sell });
     }
 
     return eachDate(data.from, data.to).map(
@@ -966,8 +949,7 @@ export const listRateRestrictions = createServerFn({ method: "POST" })
           maxStay: null,
           closedToArrival: false,
           closedToDeparture: false,
-          stopSell: false,
-        },
+          stopSell: false },
     );
   });
 
@@ -984,12 +966,11 @@ export const saveRateRestriction = createServerFn({ method: "POST" })
         maxStay: z.number().int().min(1).max(365).nullable(),
         closedToArrival: z.boolean(),
         closedToDeparture: z.boolean(),
-        stopSell: z.boolean(),
-      })
+        stopSell: z.boolean() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string }> => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_RESTRICTION_CONFIGURE);
     await assertPlan(context as never, data.restaurantId, data.ratePlanId);
 
     if (data.minStay !== null && data.maxStay !== null && data.maxStay < data.minStay) {
@@ -1024,8 +1005,7 @@ export const saveRateRestriction = createServerFn({ method: "POST" })
         closed_to_arrival: data.closedToArrival,
         closed_to_departure: data.closedToDeparture,
         stop_sell: data.stopSell,
-        created_by_membership_id: me.id,
-      },
+        created_by_membership_id: me.id },
       { onConflict: "rate_plan_id,restriction_date" },
     );
     if (error) throw rateError(error.message);
@@ -1078,12 +1058,11 @@ export const quoteStay = createServerFn({ method: "POST" })
           .toUpperCase()
           .regex(/^[A-Z]{3}$/)
           .nullable()
-          .optional(),
-      })
+          .optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RatePlanQuote[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
 
     const plans = await loadRatePlans(context.supabase, data.restaurantId, (query) => {
@@ -1167,8 +1146,7 @@ export const quoteStay = createServerFn({ method: "POST" })
             cutoffTime: cancel.cutoff_time,
             deadlineHours: cancel.deadline_hours == null ? null : Number(cancel.deadline_hours),
             arrivalDate: data.arrival,
-            timeZone,
-          })
+            timeZone })
         : null;
       policyLabels.set(plan.id, {
         cancellationLabel: derived?.label ?? (cancel?.name || "—"),
@@ -1177,8 +1155,7 @@ export const quoteStay = createServerFn({ method: "POST" })
           : "—",
         refundabilityKind: plan.refundabilityId
           ? refundKinds.get(plan.refundabilityId) || null
-          : null,
-      });
+          : null });
     }
 
     const merchandising = await loadQuoteMerchandising(
@@ -1209,8 +1186,7 @@ export const quoteStay = createServerFn({ method: "POST" })
         _adults: data.adults ?? 1,
         _children: data.children ?? 0,
         _infants: data.infants ?? 0,
-        _quote_currency: data.quoteCurrency ?? undefined,
-      });
+        _quote_currency: data.quoteCurrency ?? undefined });
       if (priceError) {
         out.push({
           plan,
@@ -1232,8 +1208,7 @@ export const quoteStay = createServerFn({ method: "POST" })
           earlyDeparturePolicyName: plan.earlyDeparturePolicyName || "",
           earlyDeparturePenaltyType: plan.earlyDeparturePenaltyType,
           earlyDeparturePenaltyValue: plan.earlyDeparturePenaltyValue,
-          earlyDepartureDescription: plan.earlyDepartureDescription,
-        });
+          earlyDepartureDescription: plan.earlyDepartureDescription });
         continue;
       }
       const priced = toQuote(pricing);
@@ -1247,8 +1222,7 @@ export const quoteStay = createServerFn({ method: "POST" })
         quote: {
           ...priced,
           guestTotal: guest.total,
-          guestCharges: guest.lines,
-        },
+          guestCharges: guest.lines },
         unavailableReason: null,
         breakfastLabel: breakfastLabelFromMealPlan(plan),
         includedServicesLabel: extra?.includedServicesLabel ?? "—",
@@ -1266,8 +1240,7 @@ export const quoteStay = createServerFn({ method: "POST" })
         earlyDeparturePolicyName: plan.earlyDeparturePolicyName || "",
         earlyDeparturePenaltyType: plan.earlyDeparturePenaltyType,
         earlyDeparturePenaltyValue: plan.earlyDeparturePenaltyValue,
-        earlyDepartureDescription: plan.earlyDepartureDescription,
-      });
+        earlyDepartureDescription: plan.earlyDepartureDescription });
     }
     return out;
   });
@@ -1302,12 +1275,11 @@ export const quoteFlexibleStay = createServerFn({ method: "POST" })
           .toUpperCase()
           .regex(/^[A-Z]{3}$/)
           .nullable()
-          .optional(),
-      })
+          .optional() })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ windows: FlexibleStayWindow[] }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
     const { addDaysIso, FLEXIBLE_DATE_OFFSETS } = await import("./create-reservation-step3");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1325,8 +1297,7 @@ export const quoteFlexibleStay = createServerFn({ method: "POST" })
         _adults: data.adults ?? 1,
         _children: data.children ?? 0,
         _infants: data.infants ?? 0,
-        _quote_currency: data.quoteCurrency ?? undefined,
-      });
+        _quote_currency: data.quoteCurrency ?? undefined });
       const quote = error || pricing == null ? null : toQuote(pricing);
       windows.push({
         arrival,
@@ -1334,8 +1305,7 @@ export const quoteFlexibleStay = createServerFn({ method: "POST" })
         offsetDays,
         subtotal: quote?.subtotal ?? null,
         currency: quote?.currency ?? null,
-        available: quote != null,
-      });
+        available: quote != null });
     }
     return { windows };
   });
@@ -1367,20 +1337,18 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         accountId: idSchema,
         roomTypeId: idSchema.optional(),
-        arrival: dateSchema.optional(),
-      })
+        arrival: dateSchema.optional() })
       .parse(input),
   )
   .handler(
     async ({
       data,
-      context,
-    }): Promise<{
+      context }): Promise<{
       hints: AccountRatePlanHint[];
       defaultBillingRuleId: string | null;
       agreementLabel: string | null;
     }> => {
-      await requireReservationManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       let accountResult = await supabaseAdmin
         .from("guest_account_masters")
@@ -1492,17 +1460,14 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
           pricingMethod: row.pricing_method == null ? null : String(row.pricing_method),
           ratePlanScope: row.rate_plan_scope == null ? null : String(row.rate_plan_scope),
           discountType: row.discount_type == null ? null : String(row.discount_type),
-          discountValue: row.discount_value == null ? null : Number(row.discount_value),
-        })),
+          discountValue: row.discount_value == null ? null : Number(row.discount_value) })),
         contractRates: contractRateRows
           .filter((row) => row.active !== false && typeof row.room_type_id === "string")
           .map((row) => ({
             roomTypeId: String(row.room_type_id),
             roomTypeName: roomNames.get(String(row.room_type_id)) ?? "",
             amount: Number(row.amount ?? 0),
-            currency: currencyByAgreement.get(String(row.agreement_id ?? "")) ?? "",
-          })),
-      });
+            currency: currencyByAgreement.get(String(row.agreement_id ?? "")) ?? "" })) });
       const agencyDefaultsResult = await supabaseAdmin
         .from("pms_agency_rate_defaults")
         .select("room_type_id, rate_plan_id, active")
@@ -1525,8 +1490,7 @@ export const listAccountRatePlanHints = createServerFn({ method: "POST" })
         selected.hints.push({
           planId: savedDefault.rate_plan_id,
           label: plan ? `${plan.code} · ${plan.name}` : "Agency default rate plan",
-          matched: true,
-        });
+          matched: true });
         existingHintIds.add(savedDefault.rate_plan_id);
       }
       return selected;
@@ -1543,15 +1507,13 @@ export const repriceReservation = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         reservationId: idSchema,
         ratePlanId: idSchema,
-        reservationRoomId: idSchema.optional(),
-      })
+        reservationRoomId: idSchema.optional() })
       .parse(input),
   )
   .handler(
     async ({
       data,
-      context,
-    }): Promise<
+      context }): Promise<
       | {
           ok: true;
           id: string;
@@ -1562,7 +1524,11 @@ export const repriceReservation = createServerFn({ method: "POST" })
         }
       | { ok: false; message: string }
     > => {
-      const me = await requireRateManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.RESERVATION_RATE_OVERRIDE,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
 
@@ -1580,14 +1546,12 @@ export const repriceReservation = createServerFn({ method: "POST" })
             _reservation_id: data.reservationId,
             _reservation_room_id: data.reservationRoomId,
             _rate_plan_id: data.ratePlanId,
-            _membership_id: me.id,
-          })
+            _membership_id: me.id })
         : await supabaseAdmin.rpc("reprice_hotel_reservation", {
             _restaurant_id: data.restaurantId,
             _reservation_id: data.reservationId,
             _rate_plan_id: data.ratePlanId,
-            _membership_id: me.id,
-          });
+            _membership_id: me.id });
       // Restriction / rate-plan rejections are expected outcomes, not server faults.
       if (error) return { ok: false, message: rateError(error.message).message };
 
@@ -1596,8 +1560,7 @@ export const repriceReservation = createServerFn({ method: "POST" })
         await import("./revenue/commercial-promotion.server");
       const attribution = await getReservationPromotionAttribution(supabaseAdmin, {
         restaurantId: data.restaurantId,
-        reservationId: row.id,
-      });
+        reservationId: row.id });
       const subtotal = Number(row.room_subtotal ?? 0);
       return {
         ok: true,
@@ -1605,8 +1568,7 @@ export const repriceReservation = createServerFn({ method: "POST" })
         subtotal,
         promotionDiscount: attribution?.discountAmount ?? 0,
         roomSubtotalAfterPromotion: attribution?.roomSubtotalAfterPromotion ?? subtotal,
-        promotionDropped: !attribution,
-      };
+        promotionDropped: !attribution };
     },
   );
 
@@ -1618,13 +1580,7 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, from: dateSchema, to: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RevenueOverview> => {
-    await requireModuleRole(
-      context as never,
-      data.restaurantId,
-      "reports_analytics",
-      REPORTS_ROLES,
-      "You don't have access to Reports & Analytics for this property.",
-    );
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.REPORTS_VIEW);
     // Phase 8E2 — hotel revenue reporting is a PMS-owned read.
     const { requirePmsPackage } = await import("./pms-package.server");
     await requirePmsPackage(data.restaurantId);
@@ -1680,13 +1636,11 @@ export const getRevenueOverview = createServerFn({ method: "POST" })
       soldRoomNights: soldNights,
       availableRoomNights,
       bookedRoomRevenue: revenue,
-      pricedNights,
-    });
+      pricedNights });
 
     return {
       from,
       to,
       currency: restaurant?.currency_code ?? "USD",
-      ...metrics,
-    };
+      ...metrics };
   });

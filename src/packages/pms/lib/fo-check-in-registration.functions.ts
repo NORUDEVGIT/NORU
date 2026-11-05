@@ -4,6 +4,8 @@
  * amend occupancy, merge duplicates, or create a guest.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -27,10 +29,7 @@ import {
   reviewGuestDocument,
   saveGuestDocument,
 } from "@/packages/pms/lib/guests.functions";
-import {
-  recordReservationEvent,
-  requireReservationManager,
-} from "@/packages/pms/lib/reservations.server";
+import { recordReservationEvent } from "@/packages/pms/lib/reservations.server";
 
 const idSchema = z.string().uuid();
 
@@ -81,7 +80,7 @@ export const getCheckInRegistration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object(targetSchema).parse(input))
   .handler(async ({ data, context }): Promise<CheckInRegistrationRead> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const target = await loadCheckInUnitTarget({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
@@ -176,7 +175,7 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true; guestId: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN);
     const target = await loadCheckInUnitTarget({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
@@ -296,7 +295,7 @@ export const searchCheckInGuestDuplicates = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     return findGuestDuplicates({
       data: {
         restaurantId: data.restaurantId,

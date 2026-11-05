@@ -471,7 +471,7 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     );
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(CREATE_RESERVATION_SECTION7_PERMISSION_DOC, /no RLS/);
     assert.match(migration, /RLS model: UNCHANGED/);
     assert.match(migration, /Flag Abel: NOT required/);

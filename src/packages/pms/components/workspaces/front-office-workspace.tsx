@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { toast } from "sonner";
 
 import { FrontOfficeChrome } from "@/packages/pms/components/frontoffice/front-office-chrome";
@@ -213,6 +215,7 @@ export function FrontOfficeWorkspace({
   search: FoSearch;
 }) {
   const restaurantId = membership.restaurant.id;
+  const permissions = usePmsPermissions(restaurantId);
   const timezone = useRestaurantTimezone();
   const today = usePropertyBusinessDate(restaurantId, timezone);
   const navigate = useNavigate();
@@ -875,7 +878,11 @@ export function FrontOfficeWorkspace({
             canOpenCashiering={canOpenCashiering}
             staffRole={membership.role}
             onRackSearchChange={onRackSearchChange}
-            onWalkIn={() => openWalkInCreate()}
+            onWalkIn={
+              permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_WALK_IN)
+                ? () => openWalkInCreate()
+                : undefined
+            }
           />
         </div>
       ) : null}

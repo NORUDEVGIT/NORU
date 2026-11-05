@@ -31,9 +31,9 @@ describe("DB-04I-03 Reservation Quick View read model", () => {
   it("scopes reads to restaurantId + reservationId and rejects missing rows", () => {
     assert.match(
       qv,
-      /import \{ requireReservationManager, RESERVATION_STATUSES \} from "\.\.\/reservations\.server"/,
+      /import \{ requirePmsActor \} from "\.\.\/pms-permissions\.server"/,
     );
-    assert.match(qv, /requireReservationManager/);
+    assert.match(qv, /requirePmsActor/);
     assert.match(qv, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(qv, /\.eq\("id", data\.reservationId\)/);
     assert.match(qv, /Reservation not found for this property/);
@@ -120,7 +120,7 @@ describe("DB-04I-03 Reservation Quick View read model", () => {
   });
 
   it("loads financial signal without failing Quick View when Cashiering is denied", () => {
-    assert.match(qv, /requireCashieringAccess/);
+    assert.match(qv, /CASHIERING_VIEW/);
     assert.match(qv, /permission_denied/);
     assert.match(qv, /not_available/);
     assert.match(qv, /from\("guest_folios"\)/);

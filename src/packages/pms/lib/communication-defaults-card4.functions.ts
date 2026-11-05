@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -6,8 +8,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { AUTOMATION_TIME_OF_DAY_PATTERN } from "./automation-rules-card4.server";
 import {
   COMMUNICATION_CHANNEL_TYPES,
-  type CommunicationChannelType,
-} from "./communication-channels-card4.server";
+  type CommunicationChannelType } from "./communication-channels-card4.server";
 import { COMMUNICATION_TEMPLATE_CATEGORIES } from "./communication-templates-card4.server";
 import {
   COMMUNICATION_DATE_FORMATS,
@@ -22,9 +23,7 @@ import {
   type CommunicationDefaultsRecord,
   type CommunicationDefaultsSnapshot,
   type CommunicationDateFormat,
-  type CommunicationTimeFormat,
-} from "./communication-defaults-card4.server";
-import { requireRoomManager } from "./rooms.server";
+  type CommunicationTimeFormat } from "./communication-defaults-card4.server";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "../../../shared/lib/property-time";
 
 // Generated schema predates 0094.
@@ -61,8 +60,7 @@ const saveSchema = z
       .trim()
       .regex(/^[A-Z]{3}$/),
     templateCategory: z.enum(COMMUNICATION_TEMPLATE_CATEGORIES),
-    deliveryTime: z.string().regex(AUTOMATION_TIME_OF_DAY_PATTERN),
-  })
+    deliveryTime: z.string().regex(AUTOMATION_TIME_OF_DAY_PATTERN) })
   .strict();
 
 const DEFAULTS_SELECT =
@@ -101,8 +99,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-communication-defaults", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-communication-defaults", ...metadata } as unknown as Json });
   if (result.error) {
     console.error("[card4-communication-defaults] audit", result.error.message);
   }
@@ -157,8 +154,7 @@ function mapDefaults(row: {
     templateCategory: category,
     deliveryTime: row.delivery_time,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function loadLookups(db: DbClient, restaurantId: string) {
@@ -191,15 +187,13 @@ async function loadLookups(db: DbClient, restaurantId: string) {
         .trim()
         .toUpperCase() || DEFAULT_CURRENCY,
     language: String(propertyRes.data.default_language ?? "").trim() || "en",
-    hasLogo: Boolean(String(propertyRes.data.logo_url ?? "").trim()),
-  };
+    hasLogo: Boolean(String(propertyRes.data.logo_url ?? "").trim()) };
   const channels: CommunicationDefaultsLookupChannel[] = (channelsRes.data ?? [])
     .filter((row: { channel_type: string }) => isChannelType(row.channel_type))
     .map((row: { id: string; channel_type: CommunicationChannelType; active: boolean }) => ({
       id: row.id,
       channelType: row.channel_type,
-      active: row.active,
-    }));
+      active: row.active }));
   const senders: CommunicationDefaultsLookupSender[] = (sendersRes.data ?? [])
     .filter((row: { channel_type: string }) => isChannelType(row.channel_type))
     .map(
@@ -212,8 +206,7 @@ async function loadLookups(db: DbClient, restaurantId: string) {
         id: row.id,
         channelType: row.channel_type,
         senderName: row.sender_name,
-        active: row.active,
-      }),
+        active: row.active }),
     );
   return { inherited, channels, senders };
 }
@@ -239,8 +232,7 @@ function payloadFromDraft(restaurantId: string, userId: string, draft: Communica
     currency_code: draft.currencyCode,
     template_category: draft.templateCategory,
     delivery_time: draft.deliveryTime,
-    updated_by: userId,
-  };
+    updated_by: userId };
 }
 
 async function loadSnapshot(
@@ -282,15 +274,14 @@ async function loadSnapshot(
     channels: lookups.channels,
     senders: lookups.senders,
     inherited: lookups.inherited,
-    lastUpdatedAt: defaults.updatedAt,
-  };
+    lastUpdatedAt: defaults.updatedAt };
 }
 
 export const getPmsCard4CommunicationDefaults = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -299,7 +290,7 @@ export const savePmsCard4CommunicationDefaults = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -322,8 +313,7 @@ export const savePmsCard4CommunicationDefaults = createServerFn({ method: "POST"
       attachBranding: data.attachBranding,
       currencyCode: data.currencyCode,
       templateCategory: data.templateCategory,
-      deliveryTime: data.deliveryTime,
-    };
+      deliveryTime: data.deliveryTime };
     const errors = validateCommunicationDefaultsDraft(draft, snapshot.channels, snapshot.senders);
     if (errors.length > 0) {
       throw new Error(errors[0]?.message ?? "Fix communication defaults before saving.");
@@ -349,8 +339,7 @@ export const savePmsCard4CommunicationDefaults = createServerFn({ method: "POST"
       context.userId,
       "pms_card4_communication_defaults_saved",
       {
-        id: data.id,
-      },
+        id: data.id },
     );
     return { ok: true as const, id: data.id };
   });

@@ -3,19 +3,18 @@
  * Rate Manager only. Pure read models over authoritative stay-date snapshot allocations.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRateManager } from "../rates.server";
 import {
   loadCommercialPerformance,
-  loadRevenuePerformanceOverview,
-} from "./revenue-analytics.server.ts";
+  loadRevenuePerformanceOverview } from "./revenue-analytics.server.ts";
 import {
   COMMERCIAL_PERFORMANCE_LOAD_ERROR,
   REVENUE_ANALYTICS_LOAD_ERROR,
-  toRevenueReadError,
-} from "./revenue-read-error.ts";
+  toRevenueReadError } from "./revenue-read-error.ts";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -29,22 +28,20 @@ const revenuePerformanceQuerySchema = z.object({
   marketSegmentId: z.string().optional().nullable(),
   commercialSourceId: z.string().optional().nullable(),
   technicalOrigin: z.string().optional().nullable(),
-  salesChannelId: z.string().optional().nullable(),
-});
+  salesChannelId: z.string().optional().nullable() });
 
 const commercialPerformanceQuerySchema = z.object({
   restaurantId: idSchema,
   fromDate: dateSchema,
   toDate: dateSchema,
   roomTypeId: idSchema.optional().nullable(),
-  ratePlanId: idSchema.optional().nullable(),
-});
+  ratePlanId: idSchema.optional().nullable() });
 
 export const getRevenuePerformanceOverview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => revenuePerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadRevenuePerformanceOverview(supabaseAdmin, data);
@@ -57,7 +54,7 @@ export const getCommercialPerformance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => commercialPerformanceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCommercialPerformance(supabaseAdmin, data);

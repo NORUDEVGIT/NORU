@@ -267,8 +267,9 @@ describe("allocation permissions", () => {
     assert.match(roles, /CASHIER_ALLOCATE_ROLES = \["owner", "manager", "accountant"\]/);
     assert.match(roles, /CASHIER_MANAGE_ROLES = \["owner", "manager"\]/);
     assert.doesNotMatch(roles, /CASHIER_MANAGE_ROLES = \[[^\]]*accountant/);
-    assert.match(poster, /requireCashierOperator/);
-    assert.match(poster, /requireCashierManager/);
+    assert.match(poster, /CASHIERING_PAYMENT_POST/);
+    assert.match(poster, /CASHIERING_CHARGE_POST/);
+    assert.match(poster, /CASHIERING_ALLOCATION_EDIT/);
     assert.doesNotMatch(poster, /requireCashierAllocator/);
   });
 });

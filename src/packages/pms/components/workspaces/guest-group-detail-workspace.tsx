@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -51,6 +53,7 @@ export function GuestGroupDetailWorkspace({
 }) {
   const navigate = useNavigate();
   const restaurantId = membership.restaurant.id;
+  const access = usePmsPermissions(restaurantId);
   const canonicalNavId = resolveCanonicalGroupNavId(navProp);
   const [editOpen, setEditOpen] = useState(false);
 
@@ -88,9 +91,8 @@ export function GuestGroupDetailWorkspace({
 
   const data = query.data as any;
   const cancelled = isGroupCancelled(data.group.accountStatus);
-  const canWrite = (membership.role === "owner" || membership.role === "manager") && !cancelled;
-  const canManageRes =
-    (membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist") && !cancelled;
+  const canWrite = access.can(PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT) && !cancelled;
+  const canManageRes = access.can(PMS_PERMISSIONS.RESERVATION_GROUP_EDIT) && !cancelled;
 
   const isMoreActive = isMoreGroupView(canonicalNavId);
   const activeMoreItem = GROUP_DETAIL_MORE_ITEMS.find((item) => item.id === canonicalNavId);
@@ -104,7 +106,7 @@ export function GuestGroupDetailWorkspace({
         reservationCount={data.kpis.reservations}
         onEdit={() => setEditOpen(true)}
         onNavigate={selectNav}
-        canWrite={membership.role === "owner" || membership.role === "manager"}
+        canWrite={access.can(PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT)}
         canManageRes={canManageRes}
       />
 

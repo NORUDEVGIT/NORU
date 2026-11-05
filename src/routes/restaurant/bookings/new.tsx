@@ -2,6 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 // fetchPrefillGuest handled in CreateReservationPage for guest/master prefill
 // applyPreferenceDefaults and getGuestReservationPreferenceDefaults handled in CreateReservationPage
 // setReservationType("travel_agency") and setReservationType("corporate") and accountType !== "travel_agent" handled in CreateReservationPage
@@ -69,7 +71,11 @@ function NewReservationRoute() {
       active="New Reservation"
       sidebarDefaultCollapsed={CREATE_RESERVATION_SIDEBAR_DEFAULT_COLLAPSED}
     >
-      {(m) => <CreateReservationPage membership={m} />}
+      {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.RESERVATION_CREATE}>
+          <CreateReservationPage membership={m} />
+        </PmsRouteGate>
+      )}
     </RestaurantShell>
   );
 }

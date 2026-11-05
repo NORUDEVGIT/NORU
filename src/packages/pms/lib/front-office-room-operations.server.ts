@@ -2,7 +2,12 @@
  * Front Office Phase 1 — Room Quick View / queue / history loaders.
  * Joins existing tables only. No new writers.
  */
-import { canManageHousekeeping } from "./housekeeping.server";
+import {
+  hasEffectivePermission,
+  resolveEffectivePermissions,
+  type requirePmsActor,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 import { deriveExceptionRows, isOooOrOos, OVERBOOKING_HORIZON_DAYS } from "./fo-exceptions";
 import { loadOverbookingNights, overbookingShortageRows } from "./overbooking.functions";
@@ -31,7 +36,6 @@ import {
 import { signRoomImages } from "./rooms.server";
 import type { ReservationStatus } from "./reservation-dates";
 import type { Membership } from "@/core/lib/workforce.server";
-import type { requireReservationManager } from "./reservations.server";
 
 type Db = {
   from: (table: string) => any;
@@ -260,7 +264,7 @@ async function loadGuestPreferenceRequests(
 }
 
 async function loadFolioSnapshot(params: {
-  context?: Parameters<typeof requireReservationManager>[0];
+  context?: Parameters<typeof requirePmsActor>[0];
   restaurantId: string;
   reservationId: string | null;
 }): Promise<FoRoomFolioSnapshot> {
@@ -347,7 +351,7 @@ async function actorNames(
 
 export async function loadFrontOfficeRoomQuickView(params: {
   supabase: Db;
-  context?: Parameters<typeof requireReservationManager>[0];
+  context?: Parameters<typeof requirePmsActor>[0];
   restaurantId: string;
   roomId: string;
   businessDate: string;
@@ -645,12 +649,15 @@ export async function loadFrontOfficeRoomOpsQueue(params: {
   restaurantId: string;
   businessDate: string;
 }): Promise<RoomOpsQueueItem[]> {
-  const { supabase, restaurantId, businessDate, membership, context } = params;
+  const { supabase, restaurantId, businessDate, context } = params;
   const feeds = await loadFoExceptionFeeds({
     context,
     restaurantId,
     businessDate,
-    canResolveDiscrepancy: canManageHousekeeping(membership.role),
+    canResolveDiscrepancy: hasEffectivePermission(
+      await resolveEffectivePermissions(context as never, restaurantId),
+      PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT,
+    ),
   });
 
   const [

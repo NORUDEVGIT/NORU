@@ -69,10 +69,11 @@ describe("Cashiering Phase 0 ledger safety", () => {
 
   it("uses the Cashiering manager gate for FO charges", () => {
     const fee = cancel.slice(cancel.indexOf("export const postCancelOrNoShowFee"));
-    assert.match(fee, /requireCashierManager/);
+    // FO charge posts are outside this cashiering migration; they now require the charge permission.
+    assert.match(fee, /CASHIERING_CHARGE_POST/);
     assert.doesNotMatch(fee, /requireCashierOperator/);
     const service = amend.slice(amend.indexOf("export const addStayService"));
-    assert.match(service, /requireCashierManager/);
+    assert.match(service, /CASHIERING_CHARGE_POST/);
     assert.doesNotMatch(service, /requireCashierOperator/);
   });
 

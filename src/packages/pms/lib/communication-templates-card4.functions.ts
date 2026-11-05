@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -15,10 +17,8 @@ import {
   validateCommunicationTemplateDraft,
   type CommunicationTemplateRecord,
   type CommunicationTemplatesSnapshot,
-  type CommunicationTemplateCategory,
-} from "./communication-templates-card4.server";
+  type CommunicationTemplateCategory } from "./communication-templates-card4.server";
 import { platformEmailTransportConfigured } from "./guest-profile-wave5";
-import { requireRoomManager } from "./rooms.server";
 
 // Generated schema predates 0090.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,8 +44,7 @@ const saveSchema = z
     message: z.string().min(1).max(TEMPLATE_MESSAGE_MAX),
     active: z.boolean(),
     allowManualSending: z.boolean(),
-    attachPdf: z.boolean(),
-  })
+    attachPdf: z.boolean() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -87,8 +86,7 @@ function mapTemplate(row: {
     allowManualSending: row.allow_manual_sending,
     attachPdf: row.attach_pdf,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -103,8 +101,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-communication-templates", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-communication-templates", ...metadata } as unknown as Json });
   if (result.error) {
     console.error("[card4-communication-templates] audit", result.error.message);
   }
@@ -165,8 +162,7 @@ function normalizeDraft(data: z.infer<typeof saveSchema>) {
     message: sanitizeTemplateHtml(data.message),
     active: data.active,
     allowManualSending: data.allowManualSending,
-    attachPdf: data.attachPdf,
-  };
+    attachPdf: data.attachPdf };
 }
 
 async function sendTestEmail(to: string, subject: string, text: string): Promise<void> {
@@ -177,10 +173,8 @@ async function sendTestEmail(to: string, subject: string, text: string): Promise
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from, to: [to], subject: `[TEST] ${subject}`, text }),
-  });
+      "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [to], subject: `[TEST] ${subject}`, text }) });
   if (!response.ok) {
     const body = await response.text();
     console.error("[card4-communication-templates] test email", response.status, body);
@@ -192,7 +186,7 @@ export const getPmsCard4CommunicationTemplates = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -201,7 +195,7 @@ export const savePmsCard4CommunicationTemplate = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -226,8 +220,7 @@ export const savePmsCard4CommunicationTemplate = createServerFn({ method: "POST"
       active: draft.active,
       allow_manual_sending: draft.allowManualSending,
       attach_pdf: draft.attachPdf,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_communication_templates")
@@ -252,8 +245,7 @@ export const savePmsCard4CommunicationTemplate = createServerFn({ method: "POST"
         id,
         code: draft.code,
         channelType: draft.channelType,
-        active: draft.active,
-      },
+        active: draft.active },
     );
     return { ok: true as const, id };
   });
@@ -264,7 +256,7 @@ export const setPmsCard4CommunicationTemplateActive = createServerFn({ method: "
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnTemplate(db, data.restaurantId, data.id);
@@ -302,7 +294,7 @@ export const deletePmsCard4CommunicationTemplate = createServerFn({ method: "POS
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     await requireOwnTemplate(db, data.restaurantId, data.id);
@@ -330,13 +322,12 @@ export const previewPmsCard4CommunicationTemplate = createServerFn({ method: "PO
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const draft = normalizeDraft({
       ...data,
       active: false,
       allowManualSending: false,
-      attachPdf: false,
-    });
+      attachPdf: false });
     const errors = validateCommunicationTemplateDraft(draft, []);
     if (errors.length > 0) {
       throw new Error(errors[0]?.message ?? "Fix the template before previewing.");
@@ -344,36 +335,32 @@ export const previewPmsCard4CommunicationTemplate = createServerFn({ method: "PO
     return {
       subject: renderTemplateText(draft.subject),
       message: renderTemplateText(draft.message),
-      plainText: renderTemplateText(stripTemplateHtml(draft.message)),
-    };
+      plainText: renderTemplateText(stripTemplateHtml(draft.message)) };
   });
 
 export const testPmsCard4CommunicationTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.omit({ id: true }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const draft = normalizeDraft(data);
     const errors = validateCommunicationTemplateDraft(draft, []);
     if (errors.length > 0) {
       return {
         result: "failed" as const,
-        message: errors[0]?.message ?? "Fix the template before sending a test.",
-      };
+        message: errors[0]?.message ?? "Fix the template before sending a test." };
     }
     if (draft.channelType !== "email") {
       return {
         result: "unsupported" as const,
         message:
-          "Configuration is valid, but this channel has no live test adapter. No production notification was sent.",
-      };
+          "Configuration is valid, but this channel has no live test adapter. No production notification was sent." };
     }
     if (!platformEmailTransportConfigured()) {
       return {
         result: "unsupported" as const,
         message:
-          "Email test sending uses the platform transport. It is not configured, and property SMTP was not used.",
-      };
+          "Email test sending uses the platform transport. It is not configured, and property SMTP was not used." };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const user = await supabaseAdmin.auth.admin.getUserById(context.userId);
@@ -381,8 +368,7 @@ export const testPmsCard4CommunicationTemplate = createServerFn({ method: "POST"
     if (!to) {
       return {
         result: "failed" as const,
-        message: "Your account has no email address for a test send.",
-      };
+        message: "Your account has no email address for a test send." };
     }
     await sendTestEmail(
       to,
@@ -391,6 +377,5 @@ export const testPmsCard4CommunicationTemplate = createServerFn({ method: "POST"
     );
     return {
       result: "sent" as const,
-      message: `Test email sent to ${to}. This was not a guest or production notification.`,
-    };
+      message: `Test email sent to ${to}. This was not a guest or production notification.` };
   });

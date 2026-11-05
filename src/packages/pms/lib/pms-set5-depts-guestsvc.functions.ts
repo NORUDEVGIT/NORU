@@ -9,8 +9,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import type { Json } from "@/integrations/supabase/types";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   SET5_AUDIT_ADMIN,
@@ -218,7 +219,7 @@ export const getPmsSet5Snapshot = createServerFn({ method: "POST" })
       snapshot,
       activate: activateInputFromSet5Snapshot(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE),
     };
   });
 
@@ -230,17 +231,19 @@ const catalogueItemSchema = z.object({
   active: z.boolean(),
 });
 
-async function requireEditor(restaurantId: string, context: { userId: string }) {
-  const me = await withPmsPackage(restaurantId, callerMembership(context as never, restaurantId));
-  if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
-  return me;
+async function requireEditor(
+  restaurantId: string,
+  context: { userId: string },
+  permission: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS],
+) {
+  return requirePmsActor(context as never, restaurantId, permission);
 }
 
 export const savePmsDepartment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet5Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.departmentsAvailable) throw new Error(SET5_UNAVAILABLE_DEPTS);
@@ -276,7 +279,7 @@ export const savePmsWorkCenter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => workCenterSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet5Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.workCentersAvailable || !before.departmentsAvailable) throw new Error(SET5_UNAVAILABLE_DEPTS);
@@ -322,7 +325,7 @@ export const savePmsRoutingDefaults = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const routing: RoutingDefaults = {
       defaultDepartmentId: data.defaultDepartmentId ?? null,
       folioPostingUsesDepartment: data.folioPostingUsesDepartment,
@@ -357,7 +360,7 @@ export const savePmsGuestRequestType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => requestTypeSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet5Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.requestTypesAvailable) throw new Error(SET5_UNAVAILABLE_REQUESTS);
@@ -405,7 +408,7 @@ export const savePmsNotificationChannels = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const channels: NotificationChannels = {
       email: data.email,
       sms: data.sms,
@@ -450,7 +453,7 @@ export const savePmsNotificationTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => templateSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet5Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.notificationsAvailable) throw new Error(SET5_UNAVAILABLE_NOTIFY);
@@ -503,7 +506,7 @@ export const savePmsNotificationEventRules = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const eventRules: NotificationEventRules = {
       rules: data.rules,
       savedAt: new Date().toISOString(),
@@ -545,7 +548,7 @@ export const savePmsAdminControls = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const adminControls: AdminControls = {
       reservationPrefix: data.reservationPrefix,
       folioPrefix: data.folioPrefix,
@@ -589,7 +592,7 @@ export const savePmsSessionAccess = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const sessionAccess: SessionAccessPosture = {
       idleTimeoutMinutes: data.idleTimeoutMinutes,
       reauthForSensitive: data.reauthForSensitive,
@@ -631,7 +634,7 @@ export const savePmsAuditRetention = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireEditor(data.restaurantId, context);
+    await requireEditor(data.restaurantId, context, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const auditRetention: AuditRetentionPosture = {
       retentionDays: data.retentionDays,
       maskIdNumbers: data.maskIdNumbers,

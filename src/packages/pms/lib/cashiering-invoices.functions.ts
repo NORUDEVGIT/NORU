@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor, requirePmsActorAny } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   assertIdempotencyKey,
   cashierError,
-  requireCashierManager,
-  requireCashieringAccess,
 } from "./cashiering.server";
 import {
   mapCashieringDocumentProperty,
@@ -85,7 +85,10 @@ export const getCashieringDocumentProperty = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<CashieringDocumentProperty | null> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.CASHIERING_VIEW,
+      PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadCashieringDocumentProperty(supabaseAdmin, data.restaurantId);
   });
@@ -164,7 +167,7 @@ export const issueGuestFolioInvoice = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<InvoiceActionResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("issue_guest_folio_invoice", {
       _restaurant_id: data.restaurantId,
@@ -182,7 +185,7 @@ export const reprintGuestFolioInvoice = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<InvoiceActionResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("reprint_guest_folio_invoice", {
       _restaurant_id: data.restaurantId,
@@ -199,7 +202,7 @@ export const getGuestFolioInvoice = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<IssuedFolioInvoiceRow | null> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadGuestFolioInvoice(supabaseAdmin, data.restaurantId, data.folioId);
   });
@@ -285,7 +288,7 @@ export const getGuestFolioInvoiceBoard = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<InvoiceBoard> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: board, error } = await supabaseAdmin.rpc("list_guest_folio_invoice_groups", {
       _restaurant_id: data.restaurantId,
@@ -331,7 +334,7 @@ export const previewGuestFolioInvoiceSelection = createServerFn({ method: "POST"
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<InvoiceSelectionPreview> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: preview, error } = await supabaseAdmin.rpc(
       "preview_guest_folio_invoice_selection",
@@ -370,7 +373,7 @@ export const createGuestFolioInvoiceDraft = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, folioId: idSchema, notes: draftNotes }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("create_guest_folio_invoice_draft", {
       _restaurant_id: data.restaurantId,
@@ -395,7 +398,7 @@ export const updateGuestFolioInvoiceDraft = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("update_guest_folio_invoice_draft", {
       _restaurant_id: data.restaurantId,
@@ -414,7 +417,7 @@ export const deleteGuestFolioInvoiceDraft = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, draftId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("delete_guest_folio_invoice_draft", {
       _restaurant_id: data.restaurantId,
@@ -437,7 +440,7 @@ export const issueGuestFolioInvoiceDraft = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<InvoiceActionResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("issue_guest_folio_invoice_draft", {
       _restaurant_id: data.restaurantId,

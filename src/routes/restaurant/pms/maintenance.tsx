@@ -1,5 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { HousekeepingWorkspace } from "@/packages/pms/components/workspaces/housekeeping-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -47,11 +49,13 @@ function MaintenancePmsRoute() {
       hideTopHeader
     >
       {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.MAINTENANCE_VIEW}>
         <HousekeepingWorkspace
           membership={m}
           initialTab={searchTab ?? "maintenance"}
           defaultArea="maintenance"
         />
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

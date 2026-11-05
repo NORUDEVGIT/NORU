@@ -22,9 +22,15 @@ import {
 } from "@/core/lib/module-access";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 export function PmsAdministrationWorkspace({ membership }: { membership: RestaurantMembership }) {
-  const canManage = membership.role === "owner" || membership.role === "manager";
+  const access = usePmsPermissions(membership.restaurantId);
+  const canManage = access.canAny([
+    PMS_PERMISSIONS.STAFF_VIEW,
+    PMS_PERMISSIONS.ROLES_VIEW,
+  ]);
 
   return (
     <div className="space-y-6">

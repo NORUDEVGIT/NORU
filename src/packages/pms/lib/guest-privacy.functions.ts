@@ -5,6 +5,8 @@
  * Not a second guest master. Not a marketing cloud.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
@@ -168,7 +170,7 @@ export const getGuestActivityHub = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestActivityHub> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const guestRes = await db(supabaseAdmin)
@@ -259,7 +261,7 @@ export const getGuestAccountActivityHub = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestActivityHub> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     const client = db(context.supabase);
     const account = await client
       .from("guest_account_masters")
@@ -319,7 +321,7 @@ export const recordGuestCommunication = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const guest = await db(supabaseAdmin)
       .from("guest_profiles")
@@ -360,7 +362,7 @@ export const recordGuestAccountCommunication = createServerFn({ method: "POST" }
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const client = db(context.supabase);
     const account = await client
       .from("guest_account_masters")
@@ -396,7 +398,7 @@ export const sendGuestMessage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const channel = await loadSendChannel(data.restaurantId);
     if (!channel) throw new Error("No send channel is configured.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -441,7 +443,7 @@ export const sendGuestAccountMessage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
     const channel = await loadSendChannel(data.restaurantId);
     if (!channel) throw new Error("No send channel is configured.");
     const client = db(context.supabase);
@@ -476,7 +478,7 @@ export const listGuestPrivacyAudit = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPrivacyAuditEntry[]> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const history = await supabaseAdmin
       .from("guest_profile_history")
@@ -512,7 +514,7 @@ export const listGuestAccountPrivacyAudit = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPrivacyAuditEntry[]> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     const history = await db(context.supabase)
       .from("guest_account_history")
       .select("id, event_type, notes, actor_membership_id, created_at")
@@ -547,7 +549,7 @@ export const exportGuestProfile = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestHeldExport> => {
-    const me = await requireGuestPrivacyOfficer(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const guest = await supabaseAdmin
       .from("guest_profiles")
@@ -639,7 +641,7 @@ export const exportGuestAccount = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestHeldExport> => {
-    const me = await requireGuestPrivacyOfficer(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT);
     const admin = db((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const account = await admin
       .from("guest_account_masters")
@@ -691,7 +693,7 @@ export const anonymiseGuest = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestPrivacyOfficer(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const existing = await db(supabaseAdmin)
       .from("guest_profiles")
@@ -810,7 +812,7 @@ export const anonymiseGuestAccount = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestPrivacyOfficer(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE);
     const admin = db((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const existing = await admin
       .from("guest_account_masters")
@@ -929,7 +931,7 @@ export const listGuestUnmergeCandidates = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestUnmergeCandidate[]> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const history = await supabaseAdmin
       .from("guest_profile_history")
@@ -1024,7 +1026,7 @@ export const unmergeGuests = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestPrivacyOfficer(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE);
     const assessment = await assessUnmerge(data.restaurantId, data.survivorId, data.retiredId);
     if (assessment.status === "blocked") {
       await recordGuestEvent({

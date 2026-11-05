@@ -62,17 +62,25 @@ export function accountWorkspaceCapabilities(input: {
   status: "open" | "closed";
   balance: number;
   accountKind: AccountWorkspaceKind;
+  granted?: {
+    receivePayment: boolean;
+    refund: boolean;
+    createInvoice: boolean;
+    writeOff: boolean;
+    close: boolean;
+  };
 }): AccountWorkspaceCapabilities {
   const manage = input.role === "owner" || input.role === "manager";
   const operate = manage || input.role === "cashier";
   const open = input.status === "open";
   const profile = input.accountKind === "company" || input.accountKind === "group";
+  const granted = input.granted;
   return {
-    canReceivePayment: open && operate,
-    canRefund: open && manage,
-    canCreateInvoice: open && manage,
-    canWriteOff: open && manage && input.balance > 0.009,
-    canClose: open && manage && Math.abs(input.balance) < 0.01,
+    canReceivePayment: open && (granted ? granted.receivePayment : operate),
+    canRefund: open && (granted ? granted.refund : manage),
+    canCreateInvoice: open && (granted ? granted.createInvoice : manage),
+    canWriteOff: open && (granted ? granted.writeOff : manage) && input.balance > 0.009,
+    canClose: open && (granted ? granted.close : manage) && Math.abs(input.balance) < 0.01,
     canViewProfile: profile,
   };
 }

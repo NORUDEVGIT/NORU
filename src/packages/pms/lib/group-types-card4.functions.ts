@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { GROUP_WORKSPACE_UNAVAILABLE } from "./guest-group-detail-workspace";
 import { loadGroupTypes, type GroupTypeRow } from "./guest-group-types";
@@ -11,8 +12,7 @@ import {
   normalizeGroupTypeCode,
   normalizeGroupTypeName,
   validateGroupTypeDraft,
-  type GroupTypeRecord,
-} from "./group-types-card4.server";
+  type GroupTypeRecord } from "./group-types-card4.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DbClient = any;
@@ -27,8 +27,7 @@ const saveSchema = z
     name: z.string().max(120),
     description: z.string().max(400).optional().default(""),
     active: z.boolean(),
-    sortOrder: z.number().int().min(0).max(999),
-  })
+    sortOrder: z.number().int().min(0).max(999) })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -46,8 +45,7 @@ function toRecord(row: GroupTypeRow): GroupTypeRecord {
     name: row.name,
     description: row.description,
     active: row.active,
-    sortOrder: row.sortOrder,
-  };
+    sortOrder: row.sortOrder };
 }
 
 async function writeAudit(
@@ -62,8 +60,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-group-types", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-group-types", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-group-types] audit", result.error.message);
 }
 
@@ -76,15 +73,14 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<GroupTy
   const types = (await loadGroupTypes(restaurantId, db)).map(toRecord);
   return {
     types,
-    lastUpdatedAt: types.length > 0 ? new Date().toISOString() : null,
-  };
+    lastUpdatedAt: types.length > 0 ? new Date().toISOString() : null };
 }
 
 export const getPmsCard4GroupTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -93,7 +89,7 @@ export const savePmsCard4GroupType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -106,8 +102,7 @@ export const savePmsCard4GroupType = createServerFn({ method: "POST" })
         code,
         description: data.description,
         active: data.active,
-        sortOrder: data.sortOrder,
-      },
+        sortOrder: data.sortOrder },
       snapshot.types,
     );
     if (errors.length > 0) throw new Error(errors[0]?.message ?? "Fix the group type before saving.");
@@ -118,8 +113,7 @@ export const savePmsCard4GroupType = createServerFn({ method: "POST" })
       name,
       description: data.description.trim(),
       active: data.active,
-      sort_order: data.sortOrder,
-    };
+      sort_order: data.sortOrder };
 
     let id = data.id;
     if (data.id) {
@@ -149,8 +143,7 @@ export const savePmsCard4GroupType = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       type: next.types.find((row) => row.id === id) ?? null,
-      snapshot: next,
-    };
+      snapshot: next };
   });
 
 export const setPmsCard4GroupTypeActive = createServerFn({ method: "POST" })
@@ -159,7 +152,7 @@ export const setPmsCard4GroupTypeActive = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await supabaseAdmin
       .from("pms_group_types")
@@ -172,8 +165,7 @@ export const setPmsCard4GroupTypeActive = createServerFn({ method: "POST" })
     if (!result.data) throw new Error("That group type no longer exists.");
     await writeAudit(supabaseAdmin, data.restaurantId, context.userId, "pms_card4_group_type_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -183,7 +175,7 @@ export const deletePmsCard4GroupType = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await supabaseAdmin
       .from("pms_group_types")
@@ -192,7 +184,6 @@ export const deletePmsCard4GroupType = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
     await writeAudit(supabaseAdmin, data.restaurantId, context.userId, "pms_card4_group_type_deleted", {
-      id: data.id,
-    });
+      id: data.id });
     return { ok: true as const };
   });

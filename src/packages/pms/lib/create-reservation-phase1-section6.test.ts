@@ -337,17 +337,17 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     const rooms = readRel("./rooms.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     const listStart = functions.indexOf("export const listAssignableRooms");
     const listFn = functions.slice(listStart, functions.indexOf("export const listReservations"));
-    assert.match(listFn, /await requireReservationManager/);
+    assert.match(listFn, /await requirePmsActor/);
     assert.doesNotMatch(listFn, /requireRoomManager/);
     const createStart = functions.indexOf("export const createReservation");
     const createFn = functions.slice(
       createStart,
       functions.indexOf("export const amendReservation"),
     );
-    assert.match(createFn, /await requireReservationManager/);
+    assert.match(createFn, /await requirePmsActor/);
     assert.doesNotMatch(createFn, /requireRoomManager/);
     assert.match(rooms, /export const saveRoom/);
     assert.match(CREATE_RESERVATION_SECTION6_PERMISSION_DOC, /requireReservationManager/);

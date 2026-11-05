@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { toast } from "sonner";
 import {
   ArrowDownLeft,
@@ -73,7 +75,7 @@ const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-2xs";
 export function CashierControl({
   restaurantId,
   membershipId,
-  role,
+  role: _role,
   canOperate,
   canManage,
   money,
@@ -96,6 +98,9 @@ export function CashierControl({
   onShiftDetailChange: (shiftId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
+  const permissions = usePmsPermissions(restaurantId);
+  const canAuthorizeShifts = permissions.can(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE);
+  void _role;
   const [now, setNow] = useState(() => Date.now());
   const [mode, setMode] = useState<"desk" | "open" | "close">("desk");
   const [closeId, setCloseId] = useState<string | null>(null);
@@ -142,8 +147,8 @@ export function CashierControl({
   const mine = selectOwnOpenShift(shifts, membershipId);
   const activity = activityQuery.data;
   const businessDate = activity?.canonicalBusinessDate ?? "—";
-  const history = visibleShiftHistory(shifts, membershipId, role);
-  const others = canManage ? otherOpenShifts(shifts, membershipId) : [];
+  const history = visibleShiftHistory(shifts, membershipId, canAuthorizeShifts);
+  const others = canManage ? (canAuthorizeShifts ? otherOpenShifts(shifts, membershipId) : []) : [];
   const isHistorical = Boolean(viewDate && viewDate !== activity?.canonicalBusinessDate);
 
   function refresh() {
@@ -281,16 +286,18 @@ export function CashierControl({
           <NeedsAttentionCard rows={activity?.departuresDue ?? []} money={money} />
 
           {canManage ? (
-            <OtherShiftsCard
-              rows={others}
-              money={money}
-              dateTime={dateTime}
-              now={now}
-              onClose={(id) => {
-                setCloseId(id);
-                setMode("close");
-              }}
-            />
+            canAuthorizeShifts ? (
+              <OtherShiftsCard
+                rows={others}
+                money={money}
+                dateTime={dateTime}
+                now={now}
+                onClose={(id) => {
+                  setCloseId(id);
+                  setMode("close");
+                }}
+              />
+            ) : null
           ) : null}
         </div>
 
@@ -310,7 +317,7 @@ export function CashierControl({
             rows={history}
             money={money}
             dateTime={dateTime}
-            ownOnly={role === "cashier"}
+            ownOnly={!canAuthorizeShifts}
             onSelect={(shift) => onShiftDetailChange(shift.id)}
           />
         </div>

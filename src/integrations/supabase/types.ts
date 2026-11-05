@@ -14693,6 +14693,69 @@ export type Database = {
           },
         ]
       }
+      pms_membership_roles: {
+        Row: {
+          assigned_by_membership_id: string | null
+          created_at: string
+          id: string
+          membership_id: string
+          restaurant_id: string
+          role_id: string
+        }
+        Insert: {
+          assigned_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          membership_id: string
+          restaurant_id: string
+          role_id: string
+        }
+        Update: {
+          assigned_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          membership_id?: string
+          restaurant_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_membership_roles_assigned_by_fk"
+            columns: ["assigned_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_membership_roles_assigned_by_tenant_fk"
+            columns: ["assigned_by_membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_membership_roles_membership_fk"
+            columns: ["membership_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_users"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+          {
+            foreignKeyName: "pms_membership_roles_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_membership_roles_role_fk"
+            columns: ["role_id", "restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "pms_hotel_roles"
+            referencedColumns: ["id", "restaurant_id"]
+          },
+        ]
+      }
       pms_market_segments: {
         Row: {
           active: boolean
@@ -18623,6 +18686,7 @@ export type Database = {
           first_name: string | null
           id: string
           last_name: string | null
+          must_change_password: boolean
           phone: string | null
           updated_at: string
         }
@@ -18633,6 +18697,7 @@ export type Database = {
           first_name?: string | null
           id: string
           last_name?: string | null
+          must_change_password?: boolean
           phone?: string | null
           updated_at?: string
         }
@@ -18643,6 +18708,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          must_change_password?: boolean
           phone?: string | null
           updated_at?: string
         }
@@ -19296,6 +19362,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          /** @deprecated Legacy Card 7 single-role setup. Live PMS RBAC uses pms_membership_roles. */
           hotel_role_id: string | null
           id: string
           restaurant_id: string

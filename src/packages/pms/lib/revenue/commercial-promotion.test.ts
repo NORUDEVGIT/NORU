@@ -302,7 +302,7 @@ describe("P5A-02 — create, reprice, snapshot, and performance contracts", () =
     assert.match(supabase, /base_room_subtotal/);
     assert.doesNotMatch(supabase, /SET room_subtotal = after_promo|room_subtotal = discount/);
     assert.doesNotMatch(supabase, /nightly_rate_snapshot = .*promotion|nightly_rate_snapshot = after_promo/);
-    assert.match(createFn, /requireReservationManager/);
+    assert.match(createFn, /requirePmsActor/);
     assert.doesNotMatch(createFn, /requireRateManager/);
     assert.match(quoteFns, /requireReservationManager/);
     assert.doesNotMatch(quoteFns, /requireRateManager/);

@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { cashierError, requireCashieringAccess } from "./cashiering.server";
+import { cashierError, cashieringPermissionFlags } from "./cashiering.server";
 import {
   accountWorkspaceCapabilities,
   countIssuedInvoices,
@@ -59,7 +61,8 @@ export const getFinancialAccountWorkspace = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FinancialAccountWorkspace | null> => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const accountResult = await supabaseAdmin
@@ -348,6 +351,13 @@ export const getFinancialAccountWorkspace = createServerFn({ method: "GET" })
         status: account.status,
         balance,
         accountKind: kind,
+        granted: {
+          receivePayment: flags.receivePayment,
+          refund: flags.refund,
+          createInvoice: flags.createInvoice,
+          writeOff: flags.writeOff,
+          close: flags.close,
+        },
       }),
     };
   });

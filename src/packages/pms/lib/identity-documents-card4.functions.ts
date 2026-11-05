@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_IDENTITY_DOCUMENT_TYPES,
   identityDocumentFlagsForActiveChange,
@@ -13,8 +14,7 @@ import {
   type IdentityDocumentGlobalSettings,
   type IdentityDocumentProfileTypeOption,
   type IdentityDocumentTypeRecord,
-  type IdentityDocumentTypeSnapshot,
-} from "./identity-documents-card4.server";
+  type IdentityDocumentTypeSnapshot } from "./identity-documents-card4.server";
 import { syncDocumentTypeProfileAssignments } from "./profile-type-document-sync.server";
 
 // Generated database types predate migration 0079.
@@ -44,8 +44,7 @@ const saveSchema = z
     requiredAtCheckIn: z.boolean(),
     active: z.boolean(),
     validForProfileTypeIds: z.array(idSchema).max(80),
-    displayOrder: z.number().int().min(1).max(999),
-  })
+    displayOrder: z.number().int().min(1).max(999) })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -103,8 +102,7 @@ function mapRow(row: {
     validForProfileTypeIds: row.valid_for_profile_type_ids ?? [],
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -119,8 +117,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-identity-documents", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-identity-documents", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-identity-documents] audit", result.error.message);
 }
 
@@ -165,8 +162,7 @@ async function seedDefaults(
     active: true,
     valid_for_profile_type_ids: profileTypeIds,
     display_order: index + 1,
-    updated_by: userId,
-  }));
+    updated_by: userId }));
   const result = await db.from("pms_guest_id_types").insert(payload).select("id");
   if (result.error && result.error.code !== "23505") unavailable(result.error);
 
@@ -210,11 +206,9 @@ async function loadSnapshot(
         identityGlobalSettings: {
           active: true,
           checkIn: true,
-          reservation: false,
-        },
+          reservation: false },
         identityDocumentRequired: false,
-        lastUpdatedAt: null,
-      };
+        lastUpdatedAt: null };
     }
     if (seeded) throw new Error("Could not seed default identity document types.");
     await seedDefaults(db, restaurantId, userId, profileTypes);
@@ -224,8 +218,7 @@ async function loadSnapshot(
   let identityGlobalSettings: IdentityDocumentGlobalSettings = {
     active: true,
     checkIn: true,
-    reservation: false,
-  };
+    reservation: false };
   let identityDocumentRequired = false;
   try {
     const idDocField = await db
@@ -238,16 +231,14 @@ async function loadSnapshot(
       identityGlobalSettings = {
         active: Boolean(idDocField.data.active),
         checkIn: Boolean(idDocField.data.check_in),
-        reservation: Boolean(idDocField.data.reservation),
-      };
+        reservation: Boolean(idDocField.data.reservation) };
       identityDocumentRequired = Boolean(idDocField.data.required && idDocField.data.active);
     }
   } catch {
     identityGlobalSettings = {
       active: true,
       checkIn: true,
-      reservation: false,
-    };
+      reservation: false };
     identityDocumentRequired = false;
   }
 
@@ -269,13 +260,12 @@ export const setPmsCard4IdentityGlobalSettings = createServerFn({ method: "POST"
         restaurantId: idSchema,
         active: z.boolean().optional(),
         checkIn: z.boolean().optional(),
-        reservation: z.boolean().optional(),
-      })
+        reservation: z.boolean().optional() })
       .strict()
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
 
@@ -290,8 +280,7 @@ export const setPmsCard4IdentityGlobalSettings = createServerFn({ method: "POST"
       ...(data.active !== undefined ? { active: data.active } : {}),
       ...(data.checkIn !== undefined ? { check_in: data.checkIn } : {}),
       ...(data.reservation !== undefined ? { reservation: data.reservation } : {}),
-      updated_at: new Date().toISOString(),
-    };
+      updated_at: new Date().toISOString() };
 
     if (existing?.data) {
       const updateResult = await db
@@ -310,8 +299,7 @@ export const setPmsCard4IdentityGlobalSettings = createServerFn({ method: "POST"
         reservation: data.reservation ?? false,
         active: data.active ?? true,
         display_order: 7,
-        updated_by: context.userId,
-      });
+        updated_by: context.userId });
       if (insertResult.error) unavailable(insertResult.error);
     }
     return { ok: true };
@@ -323,7 +311,7 @@ export const getPmsCard4IdentityDocumentTypes = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -332,7 +320,7 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -359,8 +347,7 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
         data.validForProfileTypeIds && data.validForProfileTypeIds.length > 0
           ? data.validForProfileTypeIds
           : snapshot.profileTypes.map((p) => p.id),
-      displayOrder: data.displayOrder,
-    };
+      displayOrder: data.displayOrder };
     const errors = validateIdentityDocumentTypeDraft(
       draft,
       snapshot.documentTypes,
@@ -389,8 +376,7 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
       active: data.active,
       valid_for_profile_type_ids: draft.validForProfileTypeIds,
       display_order: data.displayOrder,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_guest_id_types")
@@ -409,8 +395,7 @@ export const savePmsCard4IdentityDocumentType = createServerFn({ method: "POST" 
     if (!id) throw new Error("Could not save the document type.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_document_type_saved", {
       id,
-      code: payload.code,
-    });
+      code: payload.code });
     await syncDocumentTypeProfileAssignments(
       db,
       data.restaurantId,
@@ -427,7 +412,7 @@ export const setPmsCard4IdentityDocumentTypeActive = createServerFn({ method: "P
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const current = await db
@@ -447,15 +432,13 @@ export const setPmsCard4IdentityDocumentTypeActive = createServerFn({ method: "P
       .update({
         active: flags.active,
         required_at_check_in: flags.requiredAtCheckIn,
-        updated_by: context.userId,
-      })
+        updated_by: context.userId })
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_document_type_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -468,7 +451,7 @@ export const reorderPmsCard4IdentityDocumentTypes = createServerFn({ method: "PO
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     if (new Set(data.ids).size !== data.ids.length)
       throw new Error("Document order must be unique.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -488,8 +471,7 @@ const OPERATIONAL_CODE_BY_CONFIG_CODE: Record<string, string> = {
   PAS: "passport",
   NID: "national_id",
   DL: "driving_licence",
-  OID: "other",
-};
+  OID: "other" };
 
 export const deletePmsCard4IdentityDocumentType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -497,7 +479,7 @@ export const deletePmsCard4IdentityDocumentType = createServerFn({ method: "POST
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const current = await db
@@ -552,7 +534,6 @@ export const deletePmsCard4IdentityDocumentType = createServerFn({ method: "POST
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_document_type_deleted", {
-      id: data.id,
-    });
+      id: data.id });
     return { ok: true as const };
   });

@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireCashieringAccess } from "@/packages/pms/lib/cashiering.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
 import { formatDateTimeInZone } from "@/shared/lib/property-time";
 import {
   CASHIER_DOCUMENT_TYPES,
@@ -70,7 +71,14 @@ export const getCashierInvoiceReport = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<CashierInvoiceReportResult> => {
     const db = await cashierTrustedDb();
     return guardedPoliceRelease({
-      authorize: () => authorizeCashier(context, data.restaurantId),
+      authorize: () =>
+        authorizeCashier(
+          context,
+          data.restaurantId,
+          data.export === true && data.action === "excel_export"
+            ? PMS_PERMISSIONS.REPORTS_EXPORT
+            : PMS_PERMISSIONS.REPORTS_VIEW,
+        ),
       release: (actor) =>
         releaseCashierDelivery({
           exporting: data.export === true,
@@ -116,7 +124,8 @@ export const exportCashierInvoiceWorkbook = createServerFn({ method: "POST" })
       ...(data.issuerId ? { issuerId: data.issuerId } : {}),
     };
     return guardedPoliceRelease({
-      authorize: () => authorizeCashier(context, data.restaurantId),
+      authorize: () =>
+        authorizeCashier(context, data.restaurantId, PMS_PERMISSIONS.REPORTS_EXPORT),
       release: (actor) =>
         releaseCashierWorkbook({
           load: () => loadCashierInvoiceReport(db, data.restaurantId, filters),
@@ -157,8 +166,9 @@ async function cashierTrustedDb(): Promise<CashierInvoiceDb & PoliceAccessDb> {
 async function authorizeCashier(
   context: { userId?: string },
   restaurantId: string,
+  permission: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS],
 ): Promise<{ id: string; userId: string | null }> {
-  const membership = await requireCashieringAccess(context as never, restaurantId);
+  const membership = await requirePmsActor(context as never, restaurantId, permission);
   return { id: membership.id, userId: context.userId ?? null };
 }
 

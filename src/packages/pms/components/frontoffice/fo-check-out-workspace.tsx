@@ -13,6 +13,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { CheckCircle2, Printer, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -99,6 +101,7 @@ export function FoCheckOutWorkspace({
   initialReservationRoomId?: string;
 }) {
   const queryClient = useQueryClient();
+  const permissions = usePmsPermissions(restaurantId);
   const money = useMoney();
   const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
 
@@ -455,7 +458,10 @@ export function FoCheckOutWorkspace({
     contract?.businessDate ?? null,
   );
   const remaining = outstandingAmount(balance);
-  const canPostPay = paymentAmountAllowed(Number(payAmount), remaining) && Boolean(payMethod);
+  const canPostPay =
+    paymentAmountAllowed(Number(payAmount), remaining) &&
+    Boolean(payMethod) &&
+    permissions.can(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST);
   const overrideKind = overrideKindForBalance(balance);
 
   return (

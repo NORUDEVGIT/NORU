@@ -11,18 +11,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { MANAGE_ROLES } from "@/core/lib/workforce.server";
 import {
   blankToNull,
   recordReservationEvent,
-  requireReservationManager,
   reservationError,
 } from "./reservations.server";
 import {
-  callPostFolioTransaction,
-  cashierError,
-  requireCashierOperator,
-} from "./cashiering.server";
+  hasEffectivePermission,
+  requirePmsActor,
+  requirePmsActorAll,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { callPostFolioTransaction, cashierError } from "./cashiering.server";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { diffFields, recordGuestEvent } from "./guests.server";
@@ -416,7 +417,7 @@ export const getCheckInContext = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInContext> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
     const progress = await loadProgress(supabaseAdmin, data.restaurantId, data.reservationId);
@@ -488,7 +489,10 @@ export const getCheckInContext = createServerFn({ method: "POST" })
       },
       progress,
       folio,
-      canWaive: (MANAGE_ROLES as readonly string[]).includes(me.role),
+      canWaive: hasEffectivePermission(
+        await resolveEffectivePermissions(context as never, data.restaurantId),
+        PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN_OVERRIDE,
+      ),
       actorName,
       checkInTime: property?.check_in_time ? String(property.check_in_time) : null,
       timezone: property?.timezone || "UTC",
@@ -504,7 +508,7 @@ export const startWalkInCheckIn = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_WALK_IN);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error: sourceError } = await supabaseAdmin
       .from("hotel_reservations")
@@ -541,7 +545,11 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => registrationSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
     const names = splitName(data.fullName);
@@ -698,7 +706,7 @@ export const getCheckInDepositReadiness = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInDepositReadiness> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: stay, error: stayError } = await supabaseAdmin
       .from("hotel_reservations")
@@ -786,14 +794,14 @@ function storedMoney(value: unknown): number | null {
   return Math.round(amount * 100) / 100;
 }
 
-/** Reservation ledger summary for Check-In. Front Office uses the reservation manager gate. */
+/** Reservation ledger summary for Check-In. Folio rows require cashiering view. */
 export const getReservationCashieringSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationCashieringSummary> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: stay, error: stayError } = await supabaseAdmin
       .from("hotel_reservations")
@@ -850,8 +858,11 @@ export const ensureCheckInFolio = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInFolioStrip> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("open_folio_for_reservation", {
       _restaurant_id: data.restaurantId,
@@ -884,8 +895,10 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInFolioStrip> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
+      PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST,
+    ]);
     const target = await loadCheckInUnitTarget({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
@@ -1009,7 +1022,11 @@ export const recordCheckInKey = createServerFn({ method: "POST" })
       issuedBy: string;
       reservationRoomId: string | null;
     }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
+      );
       const target = await loadCheckInUnitTarget({
         restaurantId: data.restaurantId,
         reservationId: data.reservationId,
@@ -1118,7 +1135,11 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       outcome: "completed" | "checked_in_stamp_pending";
       servicePosting: ReservationServicePosting;
     }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
+      );
       const target = await loadCheckInUnitTarget({
         restaurantId: data.restaurantId,
         reservationId: data.reservationId,

@@ -5,6 +5,8 @@ import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { PmsHomeDesk } from "@/packages/pms/components/pms/pms-home-desk";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 
 export const Route = createFileRoute("/restaurant/pms/")({
@@ -51,7 +53,13 @@ function PmsHomeRoute() {
           helpLabel="PMS home"
           shellTestId="pms-home-command-shell"
         >
-          <PmsHomeDesk membership={membership} moduleQuery={moduleQuery} />
+          <PmsRouteGate
+            restaurantId={membership.restaurantId}
+            allow={PMS_PERMISSIONS.DASHBOARD_VIEW}
+            fallback="first-module"
+          >
+            <PmsHomeDesk membership={membership} moduleQuery={moduleQuery} />
+          </PmsRouteGate>
         </RoomInventoryChrome>
       )}
     </RestaurantShell>

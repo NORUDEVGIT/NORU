@@ -313,7 +313,7 @@ describe("RF-QV01 Quick View projection", () => {
     expect(view.identity.guestName).toBe("Ada Lovelace");
     expect(view.actionHints.canOpenFolio).toBe(false);
     expect(quickView).toContain("permission_denied");
-    expect(quickView).toContain("requireReservationManager");
+    expect(quickView).toContain("requirePmsActor");
   });
 
   it("shows the selected room unit without replacing the reservation read", () => {

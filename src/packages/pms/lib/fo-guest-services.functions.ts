@@ -8,8 +8,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isPermissionDeniedMessage } from "./front-office-shell";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { requireReservationManager } from "./reservations.server";
-import { requireGuestManager } from "./guests.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import {
   isGuestServiceStatus,
   type GuestServicePriority,
@@ -79,8 +79,7 @@ export const getFrontOfficeGuestServiceSummary = createServerFn({ method: "POST"
   )
   .handler(async ({ data, context }): Promise<FoGuestServiceSummary> => {
     try {
-      await requireReservationManager(context as never, data.restaurantId);
-      await requireGuestManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     } catch (error) {
       if (isPermissionDeniedMessage(error)) return emptySummary({ permissionDenied: true });
       throw error;

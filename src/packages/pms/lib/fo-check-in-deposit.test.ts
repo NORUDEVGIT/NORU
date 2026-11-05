@@ -32,8 +32,8 @@ describe("postCheckInDeposit tender", () => {
     expect(deposit.indexOf("Deposit ${txnId} was posted.")).toBeLessThan(
       deposit.indexOf("recordReservationEvent"),
     );
-    expect(deposit).toContain("requireReservationManager");
-    expect(deposit).toContain("requireCashierOperator");
+    expect(deposit).toContain("requirePmsActorAll");
+    expect(deposit).toContain("CASHIERING_DEPOSIT_POST");
     expect(deposit).toContain('rpc("open_folio_for_reservation"');
     expect(deposit.match(/open_folio_for_reservation/g)).toHaveLength(1);
   });

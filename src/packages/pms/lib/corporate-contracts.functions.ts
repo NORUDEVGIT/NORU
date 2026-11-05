@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -30,7 +32,7 @@ export const listPmsContractTypes = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<ContractTypeRecord[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const db: DbClient = context.supabase;
 
     let query = db
@@ -76,7 +78,7 @@ export const savePmsContractType = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<ContractTypeRecord> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
     const { draft } = data;
 
@@ -153,7 +155,7 @@ export const setPmsContractTypeActive = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ success: boolean }> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
 
     const { error } = await db
@@ -183,7 +185,7 @@ export const listPmsNoShowPolicies = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<NoShowPolicyRecord[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const db: DbClient = context.supabase;
 
     let query = db
@@ -232,7 +234,7 @@ export const savePmsNoShowPolicy = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<NoShowPolicyRecord> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
     const { draft } = data;
 
@@ -326,7 +328,7 @@ export const setPmsNoShowPolicyActive = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ success: boolean }> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
 
     const { error } = await db
@@ -374,7 +376,7 @@ export const listPmsCompanyDocumentTypes = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CompanyDocumentTypeRecord[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const db: DbClient = context.supabase;
 
     let query = db
@@ -444,7 +446,7 @@ export const savePmsCompanyDocumentType = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CompanyDocumentTypeRecord> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
 
     const appliesToCompany = Boolean(data.appliesToCompany);
@@ -513,7 +515,7 @@ export const setPmsCompanyDocumentTypeActive = createServerFn({ method: "POST" }
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ success: boolean }> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
 
     const { error } = await db
@@ -540,7 +542,7 @@ export const setPmsCompanyDocumentTypeRequired = createServerFn({ method: "POST"
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ success: boolean }> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
 
     const { error } = await db
@@ -566,7 +568,7 @@ export const deletePmsCompanyDocumentType = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ success: boolean }> => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const db: DbClient = context.supabase;
 
     const { error } = await db
@@ -673,7 +675,7 @@ export const getCompanyContractCreateConfig = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CompanyContractCreateConfig> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     let db: any = context.supabase;
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

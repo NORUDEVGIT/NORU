@@ -8,12 +8,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { FO_FEE_DEFAULTS_AUDIT_ACTION, normalizeFoFeeDefaults, validateFoFeeDefaults, type FoFeeDefaults } from "./fo-fee-defaults";
-import { SET1_ACTIVATE_DENIED, SET1_AUDIT_ACTION, SET1_DENIED, canActivateSet1, canEditSet1, emptyIdentity, emptyOps, emptyPolicies, emptyTaxes, evaluateSet1Checklist, isMissingColumnError, normalizeClock, optionalInt, optionalNumber, parseDepositType, parseFeeBasis, parsePropertyType, parseTaxIdentities, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1SectionId, type Set1TaxesDraft, type TaxIdentity } from "./pms-set1-foundation";
+import { SET1_ACTIVATE_DENIED, SET1_AUDIT_ACTION, emptyIdentity, emptyOps, emptyPolicies, emptyTaxes, evaluateSet1Checklist, isMissingColumnError, normalizeClock, optionalInt, optionalNumber, parseDepositType, parseFeeBasis, parsePropertyType, parseTaxIdentities, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1SectionId, type Set1TaxesDraft, type TaxIdentity } from "./pms-set1-foundation";
 import { SET2_AUDIT_AMENITY, SET2_AUDIT_OUTLET, SET2_AUDIT_STRUCTURE, activateInputFromSnapshot } from "./pms-set2-structure";
 import { loadSet2Snapshot } from "./pms-set2-structure.functions";
 import { SET3_AUDIT_ACTIONS, activateInputFromSet3Snapshot } from "./pms-set3-rates-guest";
@@ -146,7 +146,12 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
+    const actorCanActivate = await hasPmsPermission(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CONFIG_PROPERTY_ACTIVATE,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { row, foundationColumnsAvailable } = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
     const snapshot = snapshotFromRow(row, foundationColumnsAvailable);
@@ -159,6 +164,7 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
       foundationColumnsAvailable,
       pmsSet1Live: snapshot.pmsSet1Live,
       role: me.role,
+      actorCanActivate,
       set2: activateInputFromSnapshot(set2),
       set3: activateInputFromSet3Snapshot(set3),
       set4: activateInputFromSet4Snapshot(set4),
@@ -176,8 +182,8 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
       polish1,
       checklist,
       role: me.role,
-      canEdit: canEditSet1(me.role),
-      canActivate: canActivateSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE),
+      canActivate: actorCanActivate,
     };
   });
 
@@ -312,8 +318,7 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
@@ -417,7 +422,7 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
     };
   });
 
-export async function loadSet1ActivationState(supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], restaurantId: string, role: string) {
+export async function loadSet1ActivationState(supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"], restaurantId: string, role: string, actorCanActivate?: boolean) {
   const loaded = await loadRestaurantRow(supabaseAdmin, restaurantId);
   if (!loaded.foundationColumnsAvailable) {
     throw new Error("Activate is unavailable until foundation columns are applied.");
@@ -432,6 +437,7 @@ export async function loadSet1ActivationState(supabaseAdmin: Awaited<typeof impo
     foundationColumnsAvailable: true,
     pmsSet1Live: snapshot.pmsSet1Live,
     role,
+    actorCanActivate,
     set2: activateInputFromSnapshot(set2),
     set3: activateInputFromSet3Snapshot(set3),
     set4: activateInputFromSet4Snapshot(set4),
@@ -453,13 +459,24 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canActivateSet1(me.role)) throw new Error(SET1_ACTIVATE_DENIED);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CONFIG_PROPERTY_ACTIVATE,
+    );
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const activationState = await loadSet1ActivationState(supabaseAdmin, data.restaurantId, me.role);
+    const activationState = await loadSet1ActivationState(supabaseAdmin, data.restaurantId, me.role, true);
     const before = activationState.snapshot;
-    const eligibility = await loadCard8ActivationEligibility(supabaseAdmin, data.restaurantId, context.userId, me.role, activationState.checklist.canActivate);
+    const eligibility = await loadCard8ActivationEligibility(
+      supabaseAdmin,
+      data.restaurantId,
+      context.userId,
+      me.role,
+      activationState.checklist.canActivate,
+      undefined,
+      true,
+    );
     const blockers = [...eligibility.blockers];
     if (!data.explicitConfirmation) {
       blockers.push("Explicit activation confirmation is required.");
@@ -531,7 +548,7 @@ export const listPmsSet1Audit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<Set1AuditRow[]> => {
-    await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("restaurant_staff_audit_log")

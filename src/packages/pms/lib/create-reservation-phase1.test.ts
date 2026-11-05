@@ -221,7 +221,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
     assert.match(page, /getGuestsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(guests, /requireGuestManager/);
     assert.match(page, /canCreateGuest=\{guestAccessQuery\.data\?\.canManage/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
@@ -630,7 +630,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
     assert.match(page, /getGuestsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(accounts, /requireGuestManager/);
     assert.match(page, /canCreateMaster=\{guestAccessQuery\.data\?\.canManage/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
@@ -903,7 +903,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
     assert.match(CREATE_RESERVATION_SECTION3_MIGRATION_REASON, /Flag Abel: NOT required/);
   });
@@ -1222,7 +1222,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
     assert.match(page, /getGuestsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(accounts, /requireGuestManager/);
     assert.match(page, /canCreateMaster=\{guestAccessQuery\.data\?\.canManage/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);

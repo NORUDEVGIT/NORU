@@ -66,7 +66,8 @@ describe("structured guest-service folio charges", () => {
       poster.indexOf("export const listChargeableGuestServices"),
       poster.indexOf("export const closeFolio"),
     );
-    assert.match(block, /requireCashierManager/);
+    assert.match(block, /CASHIERING_VIEW/);
+    assert.match(block, /CASHIERING_CHARGE_POST/);
     assert.match(block, /list_chargeable_guest_services/);
     assert.match(block, /preview_folio_service_charge/);
     assert.match(block, /post_folio_service_charge/);

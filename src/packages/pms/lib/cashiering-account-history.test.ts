@@ -381,7 +381,8 @@ describe("financial account history and statement", () => {
       true,
     );
     const reader = read("./cashiering-account-history.functions.ts");
-    assert.match(reader, /requireCashieringAccess/);
+    assert.match(reader, /requirePmsActor/);
+    assert.match(reader, /CASHIERING_VIEW/);
     assert.doesNotMatch(reader, /requireCashierManager/);
     assert.doesNotMatch(reader, /guest_profile_history|company phone|tin changed/i);
     assert.match(reader, /listFinancialAccountHistory/);

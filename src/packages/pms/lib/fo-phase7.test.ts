@@ -41,7 +41,7 @@ describe("FO Phase 7 — aggregator and ownership", () => {
     assert.match(fns, /foDepartureExceptionKeys/);
     assert.match(fns, /loadFrontOfficeRoomOpsQueue/);
     assert.match(fns, /foGuestServiceSignals/);
-    assert.match(fns, /requireReservationManager/);
+    assert.match(fns, /requirePmsActor/);
     assert.match(frame, /getFrontOfficeExceptions/);
     assert.doesNotMatch(fns, /listArrivals\(/);
   });

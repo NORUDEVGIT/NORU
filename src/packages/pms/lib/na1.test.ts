@@ -207,7 +207,7 @@ describe("NA-1 reuse locks", () => {
   it("reuses close_business_date and does not add a migration or night_auditor", () => {
     const fns = readRel("./nightaudit.functions.ts");
     assert.match(fns, /rpc\("close_business_date"/);
-    assert.match(fns, /requireCashierManager/);
+    assert.match(fns, /NIGHT_AUDIT_CLOSE_DATE/);
     assert.match(fns, /evaluateNa1Blockers/);
     assert.doesNotMatch(fns, /night_auditor/);
     assert.doesNotMatch(fns, /CREATE OR REPLACE FUNCTION public\.close_business_date/);

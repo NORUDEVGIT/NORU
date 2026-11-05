@@ -472,8 +472,8 @@ describe("company B2B fiscal invoice", () => {
     assert.match(server, /sendStoredFiscalRequest\(db, row, fetchImpl, "invoice"\)/);
     assert.match(server, /requireCashierManager|source_type: "account_invoice"/);
     const functions = readFileSync(new URL("./fiscal.functions.ts", import.meta.url), "utf8");
-    assert.match(functions, /getCompanyInvoiceFiscal[\s\S]{0,400}requireCashieringAccess/);
-    assert.match(functions, /registerCompanyInvoiceFiscal[\s\S]{0,500}requireCashierManager/);
+    assert.match(functions, /getCompanyInvoiceFiscal[\s\S]{0,800}FISCAL_VIEW/);
+    assert.match(functions, /registerCompanyInvoiceFiscal[\s\S]{0,800}FISCAL_DOCUMENT_AUTHORIZE/);
   });
 
   it("leaves a failed company request snapshot unchanged on retry", async () => {

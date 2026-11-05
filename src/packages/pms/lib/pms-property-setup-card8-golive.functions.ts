@@ -11,10 +11,11 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { checkedInRoomIds, expandStayRooms } from "./reservation-room-units";
 import { persistCard8Overall } from "./card8-readiness.functions";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import {
   CARD8_GOLIVE_PLAN_STATUSES,
   CARD8_GOLIVE_TASK_CATALOGUE,
@@ -307,7 +308,7 @@ export const getCard8Golive = createServerFn({ method: "POST" })
       snapshot: await loadCard8GoliveSnapshot(
         supabaseAdmin as DbClient,
         data.restaurantId,
-        canEditSet1(me.role),
+        await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE),
       ),
     };
   });
@@ -316,11 +317,7 @@ export const saveCard8Golive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const before = await loadCard8GoliveSnapshot(db, data.restaurantId, true);

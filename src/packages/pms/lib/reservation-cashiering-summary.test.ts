@@ -158,7 +158,7 @@ describe("getReservationCashieringSummary auth", () => {
     const start = server.indexOf("export const getReservationCashieringSummary");
     expect(start).toBeGreaterThan(-1);
     const body = server.slice(start, start + 1800);
-    expect(body).toContain("requireReservationManager");
+    expect(body).toContain("requirePmsActor");
     expect(body).not.toContain("requireCashieringAccess");
     expect(body).not.toContain("requireCashierOperator");
   });

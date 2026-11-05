@@ -9,8 +9,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import type { Json } from "@/integrations/supabase/types";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   POLISH1_AUDIT_PAYMENT_METHOD,
@@ -154,14 +155,12 @@ export const getPmsPolish1Snapshot = createServerFn({ method: "POST" })
       snapshot,
       activate: activateInputFromPolish1Snapshot(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE),
     };
   });
 
 async function requireEditor(restaurantId: string, context: { userId: string }) {
-  const me = await withPmsPackage(restaurantId, callerMembership(context as never, restaurantId));
-  if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
-  return me;
+  return requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
 }
 
 export const savePmsPaymentMethod = createServerFn({ method: "POST" })

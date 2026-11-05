@@ -274,6 +274,7 @@ export function CashierInvoiceReportScreen({
 
   return (
     <ReportPageShell
+      restaurantId={restaurantId}
       definition={definition}
       phase={phase}
       businessDate={businessDate}

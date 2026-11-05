@@ -20,8 +20,9 @@ import {
 } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { getFrontOfficeDashboard } from "@/packages/pms/lib/frontoffice.functions";
+import { pmsKpiVisible, pmsModuleVisible } from "@/packages/pms/lib/pms-client-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { PMS_MODULE_NAV, type PmsModuleNavId } from "@/packages/pms/lib/pms-module-nav";
 import { pmsLauncherModules } from "@/packages/pms/lib/pms-modules";
 import { getPmsPropertySetupCard1 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
@@ -103,25 +104,22 @@ export function PmsHomeDesk({
 }) {
   const restaurantId = membership.restaurant.id;
   const businessDate = usePropertyBusinessDate(restaurantId, membership.restaurant.timezone);
-  const fetchModules = useServerFn(getMyModuleAccess);
+  const permissions = usePmsPermissions(restaurantId);
+  const permissionSnapshot = { isOwner: permissions.isOwner, codes: permissions.permissions };
   const fetchCard1 = useServerFn(getPmsPropertySetupCard1);
   const fetchFrontOffice = useServerFn(getFrontOfficeDashboard);
+  const showStayKpis =
+    !permissions.isLoading && !permissions.isError && pmsKpiVisible(permissionSnapshot, "stay");
 
-  const moduleAccess = useQuery({
-    queryKey: ["pms-home-modules", restaurantId],
-    queryFn: () => fetchModules({ data: { restaurantId } }),
-  });
   const card1 = useQuery({
     queryKey: ["pms-card1", restaurantId],
     queryFn: () => fetchCard1({ data: { restaurantId } }),
     retry: false,
   });
-  const allowed = moduleAccess.data?.modules ?? [];
-  const canReadFrontOffice = allowed.includes("front_office");
   const frontOffice = useQuery({
     queryKey: ["pms-home-front-office", restaurantId, businessDate],
     queryFn: () => fetchFrontOffice({ data: { restaurantId, today: businessDate } }),
-    enabled: canReadFrontOffice,
+    enabled: showStayKpis,
     retry: false,
   });
 
@@ -129,7 +127,8 @@ export function PmsHomeDesk({
   const propertyName = configuredName || membership.restaurant.name;
   const needle = moduleQuery.trim().toLowerCase();
   const cards = pmsLauncherModules().filter((module) => {
-    if (moduleAccess.data && !allowed.includes(module.moduleKey)) return false;
+    if (permissions.isLoading || permissions.isError) return false;
+    if (!pmsModuleVisible(permissionSnapshot, module.key)) return false;
     const nav = PMS_MODULE_NAV.find((item) => item.catalogueKey === module.key);
     if (!nav) return false;
     if (!needle) return true;
@@ -180,6 +179,7 @@ export function PmsHomeDesk({
         aria-label="Today"
         className="relative z-10 -mt-8 grid grid-cols-1 overflow-hidden rounded-2xl border border-[#E7E0D4] bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-4"
         data-testid="pms-home-kpis"
+        hidden={!showStayKpis}
       >
         <Kpi
           icon={Users}
@@ -215,7 +215,7 @@ export function PmsHomeDesk({
         </div>
         {cards.length === 0 ? (
           <p className="text-sm text-[#6B6256]">
-            {moduleAccess.isLoading
+            {permissions.isLoading
               ? "Loading modules…"
               : needle
                 ? "No module matches that search."

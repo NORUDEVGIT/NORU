@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_PREFERENCE_CATEGORIES,
   DEFAULT_PREFERENCE_TYPES,
@@ -19,8 +20,7 @@ import {
   type PreferenceOption,
   type PreferenceSnapshot,
   type PreferenceTypeRecord,
-  type PreferenceValueType,
-} from "./preferences-card4.server";
+  type PreferenceValueType } from "./preferences-card4.server";
 
 // Generated schema predates 0081.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,8 +34,7 @@ const optionSchema = z
     label: z.string().max(80),
     value: z.string().max(80),
     active: z.boolean(),
-    displayOrder: z.number().int().min(0).max(999),
-  })
+    displayOrder: z.number().int().min(0).max(999) })
   .strict();
 
 const categorySaveSchema = z
@@ -46,8 +45,7 @@ const categorySaveSchema = z
     code: z.string().max(20),
     description: z.string().max(400).optional().default(""),
     active: z.boolean(),
-    displayOrder: z.number().int().min(1).max(999),
-  })
+    displayOrder: z.number().int().min(1).max(999) })
   .strict();
 
 const typeSaveSchema = z
@@ -61,8 +59,7 @@ const typeSaveSchema = z
     options: z.array(optionSchema).max(80),
     required: z.boolean(),
     active: z.boolean(),
-    displayOrder: z.number().int().min(1).max(999),
-  })
+    displayOrder: z.number().int().min(1).max(999) })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -90,8 +87,7 @@ function mapCategory(row: {
     active: row.active,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapType(row: {
@@ -118,8 +114,7 @@ function mapType(row: {
     active: row.active,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -134,8 +129,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-preferences", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-preferences", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-preferences] audit", result.error.message);
 }
 
@@ -145,8 +139,7 @@ function seedOptionRows(options: Array<{ label: string; value: string }>): Prefe
     label: row.label,
     value: row.value,
     active: true,
-    displayOrder: index,
-  }));
+    displayOrder: index }));
 }
 
 async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
@@ -157,8 +150,7 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
     description: row.description,
     active: true,
     display_order: index + 1,
-    updated_by: userId,
-  }));
+    updated_by: userId }));
   const categoryResult = await db
     .from("pms_guest_preference_categories")
     .insert(categoryPayload)
@@ -198,18 +190,15 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
     if (row.code === "ROOM_TYPE" && (roomTypesRes.data ?? []).length > 0) {
       optionsToSeed = (roomTypesRes.data as Array<{ id: string; name: string }>).map((rt) => ({
         label: rt.name,
-        value: rt.id,
-      }));
+        value: rt.id }));
     } else if (row.code === "RATE_PLAN" && (ratePlansRes.data ?? []).length > 0) {
       optionsToSeed = (ratePlansRes.data as Array<{ id: string; name: string }>).map((rp) => ({
         label: rp.name,
-        value: rp.id,
-      }));
+        value: rp.id }));
     } else if (row.code === "MEAL_PLAN" && (mealPlansRes.data ?? []).length > 0) {
       optionsToSeed = (mealPlansRes.data as Array<{ id: string; name: string }>).map((mp) => ({
         label: mp.name,
-        value: mp.id,
-      }));
+        value: mp.id }));
     }
 
     return [
@@ -223,8 +212,7 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
         required: row.required,
         active: true,
         display_order: displayOrder,
-        updated_by: userId,
-      },
+        updated_by: userId },
     ];
   });
   if (typePayload.length === 0) return;
@@ -303,18 +291,15 @@ async function loadSnapshot(
       if (def.code === "ROOM_TYPE" && (rtRes.data ?? []).length > 0) {
         opts = (rtRes.data as Array<{ id: string; name: string }>).map((rt) => ({
           label: rt.name,
-          value: rt.id,
-        }));
+          value: rt.id }));
       } else if (def.code === "RATE_PLAN" && (rpRes.data ?? []).length > 0) {
         opts = (rpRes.data as Array<{ id: string; name: string }>).map((rp) => ({
           label: rp.name,
-          value: rp.id,
-        }));
+          value: rp.id }));
       } else if (def.code === "MEAL_PLAN" && (mpRes.data ?? []).length > 0) {
         opts = (mpRes.data as Array<{ id: string; name: string }>).map((mp) => ({
           label: mp.name,
-          value: mp.id,
-        }));
+          value: mp.id }));
       }
       insertPayload.push({
         restaurant_id: restaurantId,
@@ -326,8 +311,7 @@ async function loadSnapshot(
         required: def.required,
         active: true,
         display_order: def.code === "ROOM_TYPE" ? 1 : def.code === "RATE_PLAN" ? 2 : 3,
-        updated_by: userId,
-      });
+        updated_by: userId });
     }
     if (insertPayload.length > 0) {
       await db.from("pms_guest_preference_types").insert(insertPayload);
@@ -385,7 +369,7 @@ export const getPmsCard4Preferences = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -394,7 +378,7 @@ export const savePmsCard4PreferenceCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => categorySaveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -404,8 +388,7 @@ export const savePmsCard4PreferenceCategory = createServerFn({ method: "POST" })
       code: data.code,
       description: data.description,
       active: data.active,
-      displayOrder: data.displayOrder,
-    };
+      displayOrder: data.displayOrder };
     const errors = validatePreferenceCategoryDraft(draft, snapshot.categories);
     if (errors.length > 0) throw new Error(errors[0]?.message ?? "Invalid category.");
     const payload = {
@@ -415,8 +398,7 @@ export const savePmsCard4PreferenceCategory = createServerFn({ method: "POST" })
       description: data.description.trim() || null,
       active: data.active,
       display_order: data.displayOrder,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_guest_preference_categories")
@@ -434,8 +416,7 @@ export const savePmsCard4PreferenceCategory = createServerFn({ method: "POST" })
     if (!id) throw new Error("Could not save the category.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_preference_category_saved", {
       id,
-      code: payload.code,
-    });
+      code: payload.code });
     return { ok: true as const, id };
   });
 
@@ -445,7 +426,7 @@ export const setPmsCard4PreferenceCategoryActive = createServerFn({ method: "POS
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -461,8 +442,7 @@ export const setPmsCard4PreferenceCategoryActive = createServerFn({ method: "POS
       "pms_card4_preference_category_toggled",
       {
         id: data.id,
-        active: data.active,
-      },
+        active: data.active },
     );
     return { ok: true as const };
   });
@@ -471,7 +451,7 @@ export const savePmsCard4PreferenceType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => typeSaveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -486,8 +466,7 @@ export const savePmsCard4PreferenceType = createServerFn({ method: "POST" })
       options,
       required: flags.required,
       active: flags.active,
-      displayOrder: data.displayOrder,
-    };
+      displayOrder: data.displayOrder };
     const errors = validatePreferenceTypeDraft(
       draft,
       snapshot.types,
@@ -504,8 +483,7 @@ export const savePmsCard4PreferenceType = createServerFn({ method: "POST" })
       required: flags.required,
       active: flags.active,
       display_order: data.displayOrder,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_guest_preference_types")
@@ -523,8 +501,7 @@ export const savePmsCard4PreferenceType = createServerFn({ method: "POST" })
     if (!id) throw new Error("Could not save the preference type.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_preference_type_saved", {
       id,
-      code: payload.code,
-    });
+      code: payload.code });
     return { ok: true as const, id };
   });
 
@@ -536,13 +513,12 @@ export const setPmsCard4PreferenceTypeFlags = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         id: idSchema,
         required: z.boolean().optional(),
-        active: z.boolean().optional(),
-      })
+        active: z.boolean().optional() })
       .strict()
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const current = await db
@@ -562,8 +538,7 @@ export const setPmsCard4PreferenceTypeFlags = createServerFn({ method: "POST" })
       .update({
         active: flags.active,
         required: flags.required,
-        updated_by: context.userId,
-      })
+        updated_by: context.userId })
       .eq("id", data.id)
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
@@ -579,7 +554,7 @@ export const reorderPmsCard4PreferenceTypes = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     if (new Set(data.ids).size !== data.ids.length) {
       throw new Error("Preference order must be unique.");
     }
@@ -605,7 +580,7 @@ export const reorderPmsCard4PreferenceCategories = createServerFn({ method: "POS
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     if (new Set(data.ids).size !== data.ids.length) {
       throw new Error("Category order must be unique.");
     }
@@ -628,7 +603,7 @@ export const deletePmsCard4PreferenceType = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const referenced = await db
@@ -648,7 +623,6 @@ export const deletePmsCard4PreferenceType = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_preference_type_deleted", {
-      id: data.id,
-    });
+      id: data.id });
     return { ok: true as const };
   });

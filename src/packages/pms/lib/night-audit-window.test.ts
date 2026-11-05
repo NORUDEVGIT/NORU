@@ -379,7 +379,8 @@ const lifecycleFnBody = recoveryLifecycleMigration.slice(
 describe("Owner Business Date recovery", () => {
   it("16. owner sees Adjust Business Date", () => {
     assert.equal(canAdjustBusinessDate("owner"), true);
-    assert.match(dialogSrc, /if \(!canAdjustBusinessDate\(role\)\) return null;/);
+    assert.match(dialogSrc, /NIGHT_AUDIT_RECOVER_DATE/);
+    assert.match(dialogSrc, /if \(!canRecover\) return null;/);
     assert.match(dialogSrc, /Adjust Business Date/);
   });
 
@@ -396,10 +397,10 @@ describe("Owner Business Date recovery", () => {
 
   it("21. a direct non-owner server request is rejected before the RPC", () => {
     assert.ok(
-      recoveryFnSrc.indexOf("if (!canAdjustBusinessDate(me.role))") <
+      recoveryFnSrc.indexOf("NIGHT_AUDIT_RECOVER_DATE") <
         recoveryFnSrc.indexOf('rpc("adjust_business_date"'),
     );
-    assert.match(recoveryFnSrc, /callerMembership\(context as never, data\.restaurantId\)/);
+    assert.match(recoveryFnSrc, /requirePmsActor/);
     assert.match(recoveryFnSrc, /requireSupabaseAuth/);
     assert.match(
       migration,

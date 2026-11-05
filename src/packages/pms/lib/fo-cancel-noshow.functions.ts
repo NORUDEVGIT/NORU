@@ -11,20 +11,21 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { MANAGE_ROLES } from "@/core/lib/workforce.server";
 import {
   blankToNull,
   recordReservationEvent,
-  requireReservationManager,
   reservationError,
   type ReservationEventType,
 } from "./reservations.server";
 import {
-  callPostFolioTransaction,
-  cashierError,
-  requireCashierManager,
-  requireCashierOperator,
-} from "./cashiering.server";
+  hasEffectivePermission,
+  requirePmsActor,
+  requirePmsActorAll,
+  requirePmsActorAny,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { callPostFolioTransaction, cashierError } from "./cashiering.server";
 import { parseSnapshot } from "./rates.server";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import { nightsBetween } from "./reservation-dates";
@@ -146,10 +147,11 @@ function totals(rows: { amount: number }[]): { charges: number; credits: number;
   };
 }
 
-function requireSupervisor(role: string): void {
-  if (!(MANAGE_ROLES as readonly string[]).includes(role)) {
-    throw new Error("You don't have permission to waive this fee.");
-  }
+async function mayWaiveFee(context: unknown, restaurantId: string): Promise<boolean> {
+  return hasEffectivePermission(
+    await resolveEffectivePermissions(context as never, restaurantId),
+    PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+  );
 }
 
 function isFeeWaiver(values: unknown, kind: CancelNoShowKind): values is { reason?: string } {
@@ -404,7 +406,7 @@ export async function buildCancelNoShowContext(
   reservationId: string,
   kind: CancelNoShowKind,
   membershipId: string,
-  role: string,
+  canWaive: boolean,
   reservationRoomId?: string,
 ): Promise<CancelNoShowContext> {
   const loaded = await loadStay(supabaseAdmin, restaurantId, reservationId);
@@ -427,7 +429,7 @@ export async function buildCancelNoShowContext(
     posted: folioHasPostedFee(folio.transactions, kind),
     waived: waiver.waived,
     waiveReason: waiver.reason,
-    canWaive: (MANAGE_ROLES as readonly string[]).includes(role),
+    canWaive,
     rateMissing: loaded.rateMissing,
     actorName,
   };
@@ -446,7 +448,7 @@ export const getCancelNoShowContext = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CancelNoShowContext> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return buildCancelNoShowContext(
       supabaseAdmin,
@@ -454,7 +456,7 @@ export const getCancelNoShowContext = createServerFn({ method: "POST" })
       data.reservationId,
       data.kind,
       me.id,
-      me.role,
+      await mayWaiveFee(context, data.restaurantId),
       data.reservationRoomId,
     );
   });
@@ -465,8 +467,10 @@ export const ensureCancelNoShowFolio = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CancelNoShowFolioState> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_CANCEL,
+      PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const existing = await loadFolioState(supabaseAdmin, data.restaurantId, data.reservationId);
     if (existing.folioId) return existing;
@@ -499,8 +503,12 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CancelNoShowFolioState> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActorAll(context as never, data.restaurantId, [
+      data.kind === "cancel"
+        ? PMS_PERMISSIONS.FRONT_OFFICE_CANCEL
+        : PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW,
+      PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
@@ -598,8 +606,11 @@ export const waiveCancelOrNoShowFee = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    requireSupervisor(me.role);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const noShowPenalty =
       data.kind === "noshow"
@@ -646,7 +657,11 @@ export const completeFoCancel = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.FRONT_OFFICE_CANCEL,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ctx = await buildCancelNoShowContext(
       supabaseAdmin,
@@ -654,7 +669,7 @@ export const completeFoCancel = createServerFn({ method: "POST" })
       data.reservationId,
       "cancel",
       me.id,
-      me.role,
+      await mayWaiveFee(context, data.restaurantId),
     );
 
     const reasonOk = isReasonComplete(data.reason);
@@ -802,7 +817,11 @@ export const completeFoNoShow = createServerFn({ method: "POST" })
       businessDate: string;
       historyId: string;
     }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const ctx = await buildCancelNoShowContext(
         supabaseAdmin,
@@ -810,7 +829,7 @@ export const completeFoNoShow = createServerFn({ method: "POST" })
         data.reservationId,
         "noshow",
         me.id,
-        me.role,
+        await mayWaiveFee(context, data.restaurantId),
         data.reservationRoomId,
       );
 
@@ -916,7 +935,7 @@ export const listWalkInsHistory = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<WalkInHistoryListItem[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const completion: WalkInCompletionFilter = data.completion ?? "all";
 

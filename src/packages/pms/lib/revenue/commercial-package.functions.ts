@@ -5,6 +5,8 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { rateError } from "../rates.server";
@@ -32,7 +34,7 @@ export const listEligiblePackageActivations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => stayQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await listStoredEligiblePackages(supabaseAdmin, data);
@@ -47,7 +49,7 @@ export const getReservationPackageAttributions = createServerFn({ method: "POST"
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadReservationPackageAttributions(supabaseAdmin, data);
   });
@@ -64,7 +66,7 @@ export const getReservationUnitPackages = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await getReservationUnitPackageRead(supabaseAdmin, data);
@@ -85,7 +87,7 @@ export const getReservationCommercialAttribution = createServerFn({ method: "POS
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadReservationCommercialAttribution(supabaseAdmin, data);
   });

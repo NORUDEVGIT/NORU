@@ -3,6 +3,10 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
+ * F&B and POS staff & role management.
+ * PMS hotel staff uses src/packages/pms/lib/pms-staff.functions.ts.
+ * Do not point PMS authorization at STAFF_ROLES from this file.
+ *
  * Staff & role management.
  *
  * Every mutation here runs server-side only. The browser never writes to

@@ -436,8 +436,7 @@ export function FinancialAccountWorkspacePage({
                           </DropdownMenuItem>
                         ) : null}
 
-                        {workspace.account.status === "open" &&
-                        (membership.role === "owner" || membership.role === "manager") ? (
+                        {workspace.account.status === "open" && workspace.capabilities.canClose ? (
                           <>
                             <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
                             <DropdownMenuItem
@@ -799,9 +798,7 @@ export function FinancialAccountWorkspacePage({
                       </div>
                     ) : null}
 
-                    {workspace.account.status === "open" &&
-                    (membership.role === "owner" || membership.role === "manager") &&
-                    !workspace.capabilities.canClose ? (
+                    {workspace.account.status === "open" && !workspace.capabilities.canClose ? (
                       <div className="rounded-xl border border-[#E8E1D7] bg-[#FAF8F4] p-3 text-xs text-[#7A7167]">
                         <p
                           className="text-[11px] text-[#A89F91]"

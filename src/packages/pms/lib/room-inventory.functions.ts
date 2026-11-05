@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireHousekeepingManager } from "./housekeeping.server";
-import { requireFrontOfficeAccess } from "./rooms.server";
 import {
   getAssignmentEligibilityCompat,
   getRoomTypeAvailabilityCompat,
@@ -241,13 +241,7 @@ function blockError(error: unknown, fallback: string): Error {
  * the block RPCs themselves.
  */
 async function requireOperationalBlockManager(context: never, restaurantId: string) {
-  const membership = await requireHousekeepingManager(context, restaurantId);
-
-  if (membership.role !== "owner" && membership.role !== "manager") {
-    throw new Error("You don't have permission to manage operational inventory blocks.");
-  }
-
-  return membership;
+  return requirePmsActor(context, restaurantId, PMS_PERMISSIONS.ROOM_BLOCK_EDIT);
 }
 
 /* ------------------------------------------------------------------ reads */
@@ -299,7 +293,7 @@ export const listRoomTypeInventoryAvailability = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => availabilityReadSchema.parse(input))
   .handler(async ({ data, context }): Promise<RoomTypeInventoryAvailability[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     const roomTypeResult = await looseDb(context.supabase)
       .from("room_types")
@@ -352,7 +346,7 @@ export const listRoomInventoryEvents = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomInventoryEvent[]> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW);
 
     const result = await looseDb(context.supabase)
       .from("pms_room_inventory_events")
@@ -820,7 +814,7 @@ export const evaluateRoomAssignment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => evaluateRoomAssignmentSchema.parse(input))
   .handler(async ({ data, context }): Promise<AssignmentEligibilityResult> => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT);
 
     const legacyFallback = async (): Promise<AssignmentEligibilityResult> => {
       const { data: room, error: roomError } = await context.supabase

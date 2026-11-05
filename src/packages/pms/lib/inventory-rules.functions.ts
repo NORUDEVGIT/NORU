@@ -1,8 +1,9 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   OVERBOOKING_CAPACITY_NOTE,
   defaultInventoryRules,
@@ -15,8 +16,7 @@ import {
   card2InventoryStepStatus,
   normalizeInventoryRules,
   type InventoryBlockTypeRule,
-  type InventoryRulesDraft,
-} from "./inventory-rules-card2.server";
+  type InventoryRulesDraft } from "./inventory-rules-card2.server";
 
 const idSchema = z.string().uuid();
 
@@ -32,8 +32,7 @@ const blockTypeSchema = z.object({
   blockType: z.string(),
   enabled: z.boolean(),
   approvalRequired: z.boolean(),
-  inventoryImpact: z.string(),
-});
+  inventoryImpact: z.string() });
 
 const saveInventoryRulesInput = z.object({
   restaurantId: idSchema,
@@ -59,8 +58,7 @@ const saveInventoryRulesInput = z.object({
   overridePermissionRequired: z.boolean(),
   overbookingReasonRequired: z.boolean(),
   overbookingAlertEnabled: z.boolean(),
-  blockTypes: z.array(blockTypeSchema),
-});
+  blockTypes: z.array(blockTypeSchema) });
 
 type ParentRow = Record<string, unknown>;
 
@@ -77,8 +75,7 @@ function mapBlockRow(row: {
     blockType,
     enabled: Boolean(row.enabled),
     approvalRequired: Boolean(row.approval_required),
-    inventoryImpact,
-  };
+    inventoryImpact };
 }
 
 function mapParent(row: ParentRow, blockTypes: InventoryBlockTypeRule[]): InventoryRulesDraft {
@@ -105,8 +102,7 @@ function mapParent(row: ParentRow, blockTypes: InventoryBlockTypeRule[]): Invent
     overridePermissionRequired: Boolean(row.override_permission_required),
     overbookingReasonRequired: Boolean(row.overbooking_reason_required),
     overbookingAlertEnabled: Boolean(row.overbooking_alert_enabled),
-    blockTypes: mergeBlockTypeRules(blockTypes),
-  };
+    blockTypes: mergeBlockTypeRules(blockTypes) };
 }
 
 function parentPayload(restaurantId: string, rules: InventoryRulesDraft) {
@@ -133,15 +129,13 @@ function parentPayload(restaurantId: string, rules: InventoryRulesDraft) {
     manager_approval_required: rules.managerApprovalRequired,
     override_permission_required: rules.overridePermissionRequired,
     overbooking_reason_required: rules.overbookingReasonRequired,
-    overbooking_alert_enabled: rules.overbookingAlertEnabled,
-  };
+    overbooking_alert_enabled: rules.overbookingAlertEnabled };
 }
 
 function overbookingMeta() {
   return {
     configuredButNotOperational: false,
-    capacityNote: OVERBOOKING_CAPACITY_NOTE,
-  };
+    capacityNote: OVERBOOKING_CAPACITY_NOTE };
 }
 
 async function loadRules(supabase: DbClient, restaurantId: string) {
@@ -179,8 +173,7 @@ export async function persistCard2InventoryReadiness(
     : defaultInventoryRules();
   const readiness = evaluateInventoryRulesReadiness({
     persisted: Boolean(loaded.parent),
-    rules,
-  });
+    rules });
   const next = mergeCard2InventoryStatus(
     restaurant?.pms_property_setup_status,
     card2InventoryStepStatus(readiness.ready, Boolean(loaded.parent)),
@@ -195,29 +188,27 @@ export const getInventoryRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const loaded = await loadRules(pmsDb(context.supabase), data.restaurantId);
     if (!loaded.parent) {
       const rules = defaultInventoryRules();
       return {
         persisted: false,
         rules,
-        overbooking: overbookingMeta(),
-      };
+        overbooking: overbookingMeta() };
     }
     const rules = mapParent(loaded.parent, loaded.blockTypes);
     return {
       persisted: true,
       rules,
-      overbooking: overbookingMeta(),
-    };
+      overbooking: overbookingMeta() };
   });
 
 export const saveInventoryRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveInventoryRulesInput.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const mappedBlocks: InventoryBlockTypeRule[] = [];
     for (const row of data.blockTypes) {
       if (!isInventoryBlockType(row.blockType) || !isInventoryImpact(row.inventoryImpact)) {
@@ -227,13 +218,11 @@ export const saveInventoryRules = createServerFn({ method: "POST" })
         blockType: row.blockType,
         enabled: row.enabled,
         approvalRequired: row.approvalRequired,
-        inventoryImpact: row.inventoryImpact,
-      });
+        inventoryImpact: row.inventoryImpact });
     }
     const normalized = normalizeInventoryRules({
       ...data,
-      blockTypes: mappedBlocks,
-    });
+      blockTypes: mappedBlocks });
     const issue = inventoryRulesErrors(normalized)[0];
     if (issue) return { ok: false as const, message: issue };
 
@@ -252,8 +241,7 @@ export const saveInventoryRules = createServerFn({ method: "POST" })
       block_type: row.blockType,
       enabled: row.enabled,
       approval_required: row.approvalRequired,
-      inventory_impact: row.inventoryImpact,
-    }));
+      inventory_impact: row.inventoryImpact }));
     const childResult = await db
       .from("pms_inventory_block_type_rules")
       .upsert(childRows, { onConflict: "restaurant_id,block_type" });
@@ -265,15 +253,14 @@ export const saveInventoryRules = createServerFn({ method: "POST" })
     return {
       ok: true as const,
       rules: normalized,
-      overbooking: overbookingMeta(),
-    };
+      overbooking: overbookingMeta() };
   });
 
 export const getInventorySummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const db = pmsDb(context.supabase);
     const [{ data: rooms }, { data: types }] = await Promise.all([
       db
@@ -314,8 +301,7 @@ export const getInventorySummary = createServerFn({ method: "POST" })
       roomLevelSellableNote:
         "hotel_rooms.sellable is a room-level flag and is not the booking-engine sellable count.",
       canonicalEngineNote:
-        "canonicalEngineSellableRoomCount uses the same predicates as count_sellable_rooms (active, status=available, type active and sellable).",
-    };
+        "canonicalEngineSellableRoomCount uses the same predicates as count_sellable_rooms (active, status=available, type active and sellable)." };
   });
 
 /** Read-only Card 2 Inventory Rules evaluator for Card 8. */
@@ -330,7 +316,7 @@ export const evaluateCard2InventoryReadiness = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const db = pmsDb(context.supabase);
     await persistCard2InventoryReadiness(db, data.restaurantId);
     const loaded = await loadRules(db, data.restaurantId);
@@ -340,6 +326,5 @@ export const evaluateCard2InventoryReadiness = createServerFn({ method: "POST" }
     return {
       ...readiness,
       persisted,
-      stepStatus: card2InventoryStepStatus(readiness.ready, persisted),
-    };
+      stepStatus: card2InventoryStepStatus(readiness.ready, persisted) };
   });

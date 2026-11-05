@@ -40,7 +40,8 @@ import {
   type Card7ImportValidationRule,
 } from "./import-card7.server";
 import { withPmsPackage } from "./pms-package.server";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -311,12 +312,7 @@ export async function loadCard7ImportSnapshot(
 }
 
 async function requireEditor(restaurantId: string, context: unknown) {
-  const me = await withPmsPackage(
-    restaurantId,
-    callerMembership(context as never, restaurantId),
-  );
-  if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
-  return me;
+  return requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 }
 
 function assertSupportedTypes(snapshot: Card7ImportSnapshot, importTypeIds: string[]) {
@@ -340,7 +336,7 @@ export const getCard7Import = createServerFn({ method: "POST" })
       snapshot,
       readiness: evaluateCard7ImportReadiness(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE),
     };
   });
 

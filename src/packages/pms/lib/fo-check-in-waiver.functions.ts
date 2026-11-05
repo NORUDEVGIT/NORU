@@ -1,5 +1,5 @@
 /**
- * B06 — one waiver on one unit. Owner or manager only.
+ * B06 — one waiver on one unit. Check-in override permission.
  * Guest field rules, documents, rooms, agreement, and signature are not waivable.
  */
 import { createServerFn } from "@tanstack/react-start";
@@ -7,18 +7,16 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
-  assertCheckInWaiverRole,
   checkInWaiverPatch,
   type CheckInWaiverRequirement,
 } from "@/packages/pms/lib/fo-check-in-waiver";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
 import {
   loadCheckInUnitTarget,
   writeCheckInUnitProgress,
 } from "@/packages/pms/lib/fo-check-in-unit.functions";
-import {
-  recordReservationEvent,
-  requireReservationManager,
-} from "@/packages/pms/lib/reservations.server";
+import { recordReservationEvent } from "@/packages/pms/lib/reservations.server";
 
 const idSchema = z.string().uuid();
 
@@ -37,8 +35,11 @@ export async function commitCheckInUnitWaiver(input: {
   reason: string;
   context: unknown;
 }): Promise<{ ok: true; reservationRoomId: string | null }> {
-  const me = await requireReservationManager(input.context as never, input.restaurantId);
-  assertCheckInWaiverRole(me.role);
+  const me = await requirePmsActor(
+    input.context as never,
+    input.restaurantId,
+    PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN_OVERRIDE,
+  );
   const target = await loadCheckInUnitTarget({
     restaurantId: input.restaurantId,
     reservationId: input.reservationId,
