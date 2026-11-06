@@ -17,7 +17,6 @@ import type {
 import type { RoomInventoryEvent } from "@/packages/pms/lib/room-inventory.functions";
 import type { HotelRoom, RoomType } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { ROOM_STATE_LABELS, roomBoardPrimaryState, roomStateClasses } from "./room-board-utils";
 import { dateLabel } from "./room-inventory-utils";
 
@@ -195,7 +194,6 @@ export function RoomDetailPanel({
                 <ActionWithPermission
                   allowed={canManageRestrictions}
                   label="Set OOS / OOO"
-                  explanation="Restriction changes require manager access."
                   icon={<Ban className="mr-2 size-4" />}
                   onClick={() => onSetRestriction("out_of_order")}
                 />
@@ -203,7 +201,6 @@ export function RoomDetailPanel({
                   <ActionWithPermission
                     allowed={canManageRestrictions}
                     label="Return to Service"
-                    explanation="Returning a room to service requires manager access."
                     icon={<Play className="mr-2 size-4" />}
                     onClick={() => onSetRestriction("available")}
                   />
@@ -346,35 +343,20 @@ function Info({ label, value }: { label: string; value: ReactNode }) {
 function ActionWithPermission({
   allowed,
   label,
-  explanation,
   icon,
   onClick,
 }: {
   allowed: boolean;
   label: string;
-  explanation: string;
   icon: ReactNode;
   onClick: () => void;
 }) {
-  if (allowed)
-    return (
-      <Button variant="outline" size="sm" className="h-9 justify-start text-xs font-semibold" onClick={onClick}>
-        {icon}
-        {label}
-      </Button>
-    );
+  if (!allowed) return null;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span>
-          <Button disabled variant="outline" size="sm" className="h-9 w-full justify-start text-xs font-semibold">
-            {icon}
-            {label}
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{explanation}</TooltipContent>
-    </Tooltip>
+    <Button variant="outline" size="sm" className="h-9 justify-start text-xs font-semibold" onClick={onClick}>
+      {icon}
+      {label}
+    </Button>
   );
 }
 

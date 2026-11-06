@@ -466,7 +466,7 @@ export function ReservationDetailStayTab({
                 </div>
                 {lateApproval.data?.policyNeedsApproval ? (
                   <p className="text-xs text-[#765719]">
-                    Property policy requires owner or manager approval for late checkout.
+                    Property policy requires approval before late checkout.
                   </p>
                 ) : null}
                 <div className="flex flex-wrap items-center gap-2 pt-0.5">

@@ -20,8 +20,10 @@ import {
   listMembershipRoles,
   removeMembershipRole,
   requirePmsActor,
+  requirePmsActorAny,
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
+import { passwordColumnUnavailable } from "@/core/lib/password-lifecycle";
 import { PMS_STAFF_MEMBERSHIP_CATEGORY, assertActivePmsStaffHasRole } from "./pms-staff-rules";
 
 const idSchema = z.string().uuid();
@@ -109,7 +111,7 @@ async function loadMembership(
 
 async function markPasswordChange(admin: StaffDb, userId: string) {
   const result = await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
-  if (result.error && !/must_change_password|schema cache|column/i.test(result.error.message ?? "")) {
+  if (result.error && !passwordColumnUnavailable(result.error.message)) {
     throw new Error(result.error.message);
   }
 }
@@ -126,9 +128,20 @@ export const listPmsStaff = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId)
       .order("created_at", { ascending: true });
     if (error) throw new Error("We couldn't load hotel staff right now.");
+    const userIds = [...new Set((rows ?? []).map((row) => row.user_id))];
+    const { data: profiles } = userIds.length
+      ? await supabaseAdmin.from("profiles").select("id, first_name, last_name, email, phone").in("id", userIds)
+      : { data: [] };
+    const { data: hotelRoles } = await supabaseAdmin
+      .from("pms_hotel_roles")
+      .select("id, name, active")
+      .eq("restaurant_id", data.restaurantId);
+    const profileById = new Map((profiles ?? []).map((row) => [row.id, row]));
+    const roleName = new Map((hotelRoles ?? []).map((row) => [row.id, row]));
     const staff = [];
     for (const row of rows ?? []) {
       const roles = await listMembershipRoles(supabaseAdmin as never, data.restaurantId, row.id);
+      const profile = profileById.get(row.user_id);
       staff.push({
         membershipId: row.id,
         userId: row.user_id,
@@ -136,7 +149,15 @@ export const listPmsStaff = createServerFn({ method: "POST" })
         active: row.active,
         isOwner: row.role === "owner",
         isSelf: row.user_id === context.userId,
-        roles,
+        firstName: profile?.first_name ?? "",
+        lastName: profile?.last_name ?? "",
+        email: profile?.email ?? "",
+        phone: profile?.phone ?? "",
+        roles: roles.map((assignment) => ({
+          ...assignment,
+          name: roleName.get(assignment.roleId)?.name ?? "Role",
+          roleActive: roleName.get(assignment.roleId)?.active ?? false,
+        })),
       });
     }
     return { actorMembershipId: me.id, staff };
@@ -150,6 +171,7 @@ export const createPmsStaff = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         fullName: z.string().trim().min(2).max(120),
         email: emailSchema,
+        phone: z.string().trim().max(40).optional(),
         roleIds: z.array(idSchema).max(20),
         active: z.boolean().optional(),
       })
@@ -221,6 +243,7 @@ export const createPmsStaff = createServerFn({ method: "POST" })
         first_name: firstName,
         last_name: lastName,
         email: data.email,
+        phone: data.phone?.trim() || null,
         account_type: "restaurant_user",
       },
       { onConflict: "id" },
@@ -229,7 +252,7 @@ export const createPmsStaff = createServerFn({ method: "POST" })
       if (createdAuthUser && userId) await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => undefined);
       throw new Error("We couldn't create that staff account. Please try again.");
     }
-    await markPasswordChange(staffDb(supabaseAdmin), userId!);
+    if (password) await markPasswordChange(staffDb(supabaseAdmin), userId!);
 
     let membershipId = existingMembership?.id as string | undefined;
     if (membershipId) {
@@ -296,6 +319,7 @@ export const updatePmsStaffProfile = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         membershipId: idSchema,
         fullName: z.string().trim().min(2).max(120),
+        phone: z.string().trim().max(40).optional(),
       })
       .parse(input),
   )
@@ -308,7 +332,11 @@ export const updatePmsStaffProfile = createServerFn({ method: "POST" })
     const parts = data.fullName.split(/\s+/);
     const { error } = await supabaseAdmin
       .from("profiles")
-      .update({ first_name: parts[0], last_name: parts.slice(1).join(" ") || null })
+      .update({
+        first_name: parts[0],
+        last_name: parts.slice(1).join(" ") || null,
+        ...(data.phone !== undefined ? { phone: data.phone.trim() || null } : {}),
+      })
       .eq("id", membership.user_id);
     if (error) throw new Error(error.message);
     await audit(supabaseAdmin as never, {
@@ -455,4 +483,130 @@ export const resetPmsStaffAccess = createServerFn({ method: "POST" })
       action: "password_reset_initiated",
     });
     return { ok: true as const, tempPassword: password };
+  });
+
+export const listPmsAssignableRoles = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.STAFF_ASSIGN_ROLES,
+      PMS_PERMISSIONS.ROLES_VIEW,
+    ]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: roles, error } = await supabaseAdmin
+      .from("pms_hotel_roles")
+      .select("id, name, description, active")
+      .eq("restaurant_id", data.restaurantId)
+      .order("name", { ascending: true });
+    if (error) throw new Error("We couldn't load roles right now.");
+    const { data: grants, error: grantError } = await supabaseAdmin
+      .from("pms_role_permissions")
+      .select("role_id, permission_id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("allowed", true);
+    if (grantError) throw new Error("We couldn't load roles right now.");
+    const permissionIds = [...new Set((grants ?? []).map((row) => row.permission_id))];
+    const { data: permissions, error: permissionError } = permissionIds.length
+      ? await supabaseAdmin.from("pms_permissions").select("id, code").in("id", permissionIds)
+      : { data: [] as Array<{ id: string; code: string }>, error: null };
+    if (permissionError) throw new Error("We couldn't load roles right now.");
+    const codeById = new Map((permissions ?? []).map((row) => [row.id, row.code]));
+    const codes = new Map<string, string[]>();
+    for (const row of grants ?? []) {
+      const code = codeById.get(row.permission_id);
+      if (!code) continue;
+      const list = codes.get(row.role_id) ?? [];
+      list.push(code);
+      codes.set(row.role_id, list);
+    }
+    return {
+      roles: (roles ?? []).map((role) => ({
+        id: role.id,
+        name: role.name,
+        description: role.description ?? "",
+        active: role.active,
+        codes: codes.get(role.id) ?? [],
+      })),
+    };
+  });
+
+export const listPmsRoleUsage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: links, error } = await supabaseAdmin
+      .from("pms_membership_roles")
+      .select("role_id, membership_id")
+      .eq("restaurant_id", data.restaurantId);
+    if (error) throw new Error("We couldn't load role usage right now.");
+    const { data: members, error: memberError } = await supabaseAdmin
+      .from("restaurant_users")
+      .select("id, active")
+      .eq("restaurant_id", data.restaurantId);
+    if (memberError) throw new Error("We couldn't load role usage right now.");
+    const activeById = new Map((members ?? []).map((row) => [row.id, row.active]));
+    const counts = new Map<string, { activeStaff: number; totalStaff: number }>();
+    for (const link of links ?? []) {
+      const current = counts.get(link.role_id) ?? { activeStaff: 0, totalStaff: 0 };
+      current.totalStaff += 1;
+      if (activeById.get(link.membership_id)) current.activeStaff += 1;
+      counts.set(link.role_id, current);
+    }
+    return {
+      counts: [...counts.entries()].map(([roleId, count]) => ({ roleId, ...count })),
+      includesDisabled: true,
+    };
+  });
+
+export const listPmsAccessAudit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        targetUserId: idSchema.optional(),
+        kind: z.enum(["staff", "role"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      data.kind === "staff" ? PMS_PERMISSIONS.STAFF_VIEW : PMS_PERMISSIONS.ROLES_VIEW,
+    ]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let query = supabaseAdmin
+      .from("restaurant_staff_audit_log")
+      .select("id, action, created_at, target_user_id")
+      .eq("restaurant_id", data.restaurantId)
+      .order("created_at", { ascending: false })
+      .limit(40);
+    if (data.targetUserId) query = query.eq("target_user_id", data.targetUserId);
+    const { data: rows, error } = await query;
+    if (error) return { entries: [] as Array<{ id: string; action: string; createdAt: string }> };
+    const staffActions = new Set([
+      "staff_created",
+      "staff_profile_updated",
+      "roles_assigned",
+      "roles_removed",
+      "staff_deactivated",
+      "staff_reactivated",
+      "password_reset_initiated",
+    ]);
+    const roleActions = new Set([
+      "role_created",
+      "role_updated",
+      "role_activated",
+      "role_deactivated",
+      "role_permissions_updated",
+    ]);
+    const allowed = data.kind === "staff" ? staffActions : roleActions;
+    return {
+      entries: (rows ?? [])
+        .filter((row) => allowed.has(row.action))
+        .slice(0, 12)
+        .map((row) => ({ id: row.id, action: row.action, createdAt: row.created_at })),
+    };
   });

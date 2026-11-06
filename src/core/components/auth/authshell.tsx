@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import { NoruLogo } from "@/core/components/noru-logo";
 import { cn } from "@/shared/lib/utils";
 
@@ -78,6 +78,9 @@ export function AuthField({
   onChange,
   type = "text",
   autoComplete,
+  invalid = false,
+  describedBy,
+  inputRef,
 }: {
   id: string;
   label: string;
@@ -85,6 +88,9 @@ export function AuthField({
   onChange: (value: string) => void;
   type?: string;
   autoComplete?: string;
+  invalid?: boolean;
+  describedBy?: string;
+  inputRef?: Ref<HTMLInputElement>;
 }) {
   const [show, setShow] = useState(false);
   const isPassword = type === "password";
@@ -95,10 +101,13 @@ export function AuthField({
       </label>
       <div className="relative">
         <input
+          ref={inputRef}
           id={id}
           type={isPassword && show ? "text" : type}
           value={value}
           autoComplete={autoComplete ?? ""}
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
           onChange={(event) => onChange(event.target.value)}
           className={cn(
             "h-12 w-full rounded-[10px] border border-white/20 bg-[#3a2413] px-3.5 text-base text-white outline-none transition placeholder:text-white/40 hover:border-[#C89933] focus:border-[#C89933] focus:ring-4 focus:ring-[#C89933]/25",
@@ -110,6 +119,7 @@ export function AuthField({
             type="button"
             onClick={() => setShow((s) => !s)}
             aria-pressed={show}
+            aria-label={show ? `Hide ${label}` : `Show ${label}`}
             className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md px-2.5 py-1.5 text-sm font-semibold text-[#d9ad4f] hover:bg-white/10"
           >
             {show ? "Hide" : "Show"}

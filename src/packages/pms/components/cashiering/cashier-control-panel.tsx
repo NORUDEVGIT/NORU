@@ -81,7 +81,7 @@ export function CashierControl({
   restaurantId,
   membershipId,
   role: _role,
-  canOperate,
+  canOperate: _canOperate,
   canManage,
   money,
   dateTime,
@@ -104,8 +104,15 @@ export function CashierControl({
 }) {
   const queryClient = useQueryClient();
   const permissions = usePmsPermissions(restaurantId);
-  const canAuthorizeShifts = permissions.can(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE);
+  const permissionsReady = !permissions.isLoading && !permissions.isError;
+  const canShiftEdit = permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT);
+  const canAuthorizeShifts = permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE);
+  const canPostPayment = permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST);
+  const canPostDeposit = permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST);
+  const canPostCharge = permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_CHARGE_POST);
+  const canEditInvoice = permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT);
   void _role;
+  void _canOperate;
   const [now, setNow] = useState(() => Date.now());
   const [mode, setMode] = useState<"desk" | "open" | "close">("desk");
   const [closeId, setCloseId] = useState<string | null>(null);
@@ -153,7 +160,7 @@ export function CashierControl({
   const activity = activityQuery.data;
   const businessDate = activity?.canonicalBusinessDate ?? "—";
   const history = visibleShiftHistory(shifts, membershipId, canAuthorizeShifts);
-  const others = canManage ? (canAuthorizeShifts ? otherOpenShifts(shifts, membershipId) : []) : [];
+  const others = canAuthorizeShifts ? otherOpenShifts(shifts, membershipId) : [];
   const isHistorical = Boolean(viewDate && viewDate !== activity?.canonicalBusinessDate);
 
   function refresh() {
@@ -164,7 +171,7 @@ export function CashierControl({
 
   return (
     <div className="space-y-4" data-testid="cashier-control">
-      {canOperate && !mine ? (
+      {canShiftEdit && !mine ? (
         <CashieringShellSlot name="cta">
           <Button
             type="button"
@@ -176,7 +183,7 @@ export function CashierControl({
           </Button>
         </CashieringShellSlot>
       ) : null}
-      {canOperate && mine ? (
+      {canShiftEdit && mine ? (
         <CashieringShellSlot name="cta">
           <Button
             type="button"
@@ -255,7 +262,7 @@ export function CashierControl({
           businessDate={activity?.canonicalBusinessDate ?? businessDate}
           money={money}
           dateTime={dateTime}
-          canOperate={canOperate}
+          canOperate={canShiftEdit}
           onOpen={() => {
             setClosedSummary(null);
             setMode("open");
@@ -274,7 +281,7 @@ export function CashierControl({
             money={money}
             dateTime={dateTime}
             now={now}
-            canOperate={canOperate}
+            canOperate={canShiftEdit}
             restaurantId={restaurantId}
             onOpen={() => setMode("open")}
             onClose={() => {
@@ -287,7 +294,13 @@ export function CashierControl({
         </div>
 
         <div className="lg:col-span-4 flex flex-col">
-          <QuickActionsCard onNavigate={onNavigate} />
+          <QuickActionsCard
+            onNavigate={onNavigate}
+            allowPayment={canPostPayment}
+            allowDeposit={canPostDeposit}
+            allowCharge={canPostCharge}
+            allowInvoice={canEditInvoice}
+          />
         </div>
 
         {/* ROW 2: Business Date Activity (8 Cols) & Operational Attention (4 Cols) */}
@@ -304,8 +317,7 @@ export function CashierControl({
         <div className="lg:col-span-4 flex flex-col gap-4">
           <NeedsAttentionCard rows={activity?.departuresDue ?? []} money={money} />
 
-          {canManage ? (
-            canAuthorizeShifts ? (
+          {canAuthorizeShifts ? (
               <OtherShiftsCard
                 rows={others}
                 money={money}
@@ -316,7 +328,6 @@ export function CashierControl({
                   setMode("close");
                 }}
               />
-            ) : null
           ) : null}
         </div>
 
@@ -347,7 +358,11 @@ export function CashierControl({
         shiftId={selectedShiftId}
         shift={shifts.find((row) => row.id === selectedShiftId) ?? null}
         shiftsLoading={shiftsQuery.isLoading}
-        canOperate={canOperate}
+        canOperate={
+          (shifts.find((row) => row.id === selectedShiftId)?.membershipId ?? "") === membershipId
+            ? canShiftEdit
+            : canAuthorizeShifts
+        }
         onInitiateClose={(id) => {
           setCloseId(id);
           setMode("close");
@@ -359,7 +374,7 @@ export function CashierControl({
       />
 
       {/* Modal: Open Shift */}
-      {canOperate ? (
+      {canShiftEdit ? (
         <Dialog open={mode === "open"} onOpenChange={(open) => !open && setMode("desk")}>
           <DialogContent className="max-w-2xl bg-white border border-[#E8E1D7] rounded-xl p-0 overflow-hidden shadow-lg">
             <OpenShiftForm
@@ -656,8 +671,16 @@ function MyShiftCard({
 
 function QuickActionsCard({
   onNavigate,
+  allowPayment,
+  allowDeposit,
+  allowCharge,
+  allowInvoice,
 }: {
   onNavigate: (tab: CashieringTabId, extra?: Partial<CashieringSearchParams>) => void;
+  allowPayment: boolean;
+  allowDeposit: boolean;
+  allowCharge: boolean;
+  allowInvoice: boolean;
 }) {
   return (
     <section className={`${CARD} flex flex-col h-full`}>
@@ -679,7 +702,7 @@ function QuickActionsCard({
           <span>Find Folio</span>
         </button>
 
-        {/* Receive Payment: Opens Overview payment panel and returns to cashier-shift after posting */}
+        {allowPayment ? (
         <button
           type="button"
           onClick={() =>
@@ -690,8 +713,9 @@ function QuickActionsCard({
           <CreditCard className="size-3.5 text-[#146C43]" />
           <span>Receive Payment</span>
         </button>
+        ) : null}
 
-        {/* Record Deposit: Opens Overview deposit panel and returns to cashier-shift after posting */}
+        {allowDeposit ? (
         <button
           type="button"
           onClick={() =>
@@ -702,8 +726,9 @@ function QuickActionsCard({
           <PiggyBank className="size-3.5 text-[#0369A1]" />
           <span>Record Deposit</span>
         </button>
+        ) : null}
 
-        {/* Post Charge: Navigates to Folios with return context */}
+        {allowCharge ? (
         <button
           type="button"
           onClick={() => onNavigate("folios", { returnToTab: "cashier-shift" })}
@@ -712,8 +737,9 @@ function QuickActionsCard({
           <PlusCircle className="size-3.5 text-[#8A6A24]" />
           <span>Post Charge</span>
         </button>
+        ) : null}
 
-        {/* Create Invoice: Navigates to Folios for billing */}
+        {allowInvoice ? (
         <button
           type="button"
           onClick={() => onNavigate("folios", { returnToTab: "cashier-shift" })}
@@ -722,8 +748,9 @@ function QuickActionsCard({
           <FileText className="size-3.5 text-[#5F554B]" />
           <span>Create Invoice</span>
         </button>
+        ) : null}
 
-        {/* Company Invoice: Navigates to Accounts workspace */}
+        {allowInvoice ? (
         <button
           type="button"
           onClick={() => onNavigate("accounts", { returnToTab: "cashier-shift" })}
@@ -732,6 +759,7 @@ function QuickActionsCard({
           <Building2 className="size-3.5 text-[#4338CA]" />
           <span>Company Invoice</span>
         </button>
+        ) : null}
 
         {/* Settlement: Navigates to Open Folios with return context */}
         <button

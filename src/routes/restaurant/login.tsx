@@ -13,6 +13,12 @@ import {
 
 import loginImage from "@/core/components/noru-site/assets/login.png";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  PASSWORD_STATUS_UNCONFIRMED,
+  SET_PASSWORD_PATH,
+  passwordChangeRequired,
+  passwordColumnUnavailable,
+} from "@/core/lib/password-lifecycle";
 
 export const Route = createFileRoute("/restaurant/login")({
   ssr: false,
@@ -110,6 +116,20 @@ function HotelLogin() {
         setError(
           "This account isn't linked to an active hotel. Please contact your hotel administrator.",
         );
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("must_change_password")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      if (profileError && !passwordColumnUnavailable(profileError.message)) {
+        setError(PASSWORD_STATUS_UNCONFIRMED);
+        return;
+      }
+      if (passwordChangeRequired(profile)) {
+        await navigate({ to: SET_PASSWORD_PATH, replace: true });
         return;
       }
 

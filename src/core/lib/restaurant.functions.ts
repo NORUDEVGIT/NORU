@@ -198,6 +198,8 @@ export interface RestaurantMembership {
 export const getMyRestaurants = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<RestaurantMembership[]> => {
+    const { assertPasswordChangeComplete } = await import("./password-lifecycle.server");
+    await assertPasswordChangeComplete(context as never);
     const { data, error } = await context.supabase
       .from("restaurant_users")
       .select(

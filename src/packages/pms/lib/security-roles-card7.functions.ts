@@ -312,16 +312,23 @@ export const saveCard7HotelRole = createServerFn({ method: "POST" })
   .validator((input: unknown) => roleSchema.parse(input))
   .handler(async ({ data, context }) => {
     const creating = !data.id;
-    await requirePmsActor(
-      context as never,
-      data.restaurantId,
-      creating ? PMS_PERMISSIONS.ROLES_CREATE : PMS_PERMISSIONS.ROLES_EDIT,
-    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7SecuritySnapshot(db, data.restaurantId);
     const previous = data.id ? before.roles.find((row) => row.id === data.id) : undefined;
-    if (previous && previous.active !== data.active) {
+    const detailsChanged =
+      !previous ||
+      previous.code !== data.code ||
+      previous.name !== data.name ||
+      previous.description !== (data.description ?? "").trim() ||
+      (previous.departmentId ?? null) !== (data.departmentId ?? null);
+    const activeChanged = Boolean(previous && previous.active !== data.active);
+    if (creating) {
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_CREATE);
+    } else if (detailsChanged || !activeChanged) {
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_EDIT);
+    }
+    if (activeChanged) {
       await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_ACTIVATE);
     }
     const departmentId = data.departmentId ?? null;
@@ -370,7 +377,9 @@ export const saveCard7HotelRole = createServerFn({ method: "POST" })
         ? "role_created"
         : previous && previous.active && !data.active
           ? "role_deactivated"
-          : "role_updated",
+          : previous && !previous.active && data.active
+            ? "role_activated"
+            : "role_updated",
     });
     return {
       ok: true as const,

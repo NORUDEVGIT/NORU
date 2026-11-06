@@ -204,8 +204,8 @@ export function OverbookingDecision({
         </div>
       ) : (
         <p className="mt-2">
-          {roomName} has no physical availability. Owner or Manager authorization is required to
-          overbook while Manager Approval Required is on.
+          {roomName} has no physical availability. Overbooking permission is required while
+          approval is turned on for this property.
         </p>
       )}
     </section>

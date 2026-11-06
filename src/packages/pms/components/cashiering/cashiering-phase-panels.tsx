@@ -258,9 +258,7 @@ export function TransfersPanel({
           note="Move part of a charge between open guest folios. The original charge line stays posted."
           borderTone="transfer"
         >
-          {!canManage ? (
-            <p className="text-sm text-amber-800">Only an owner or manager can post transfers.</p>
-          ) : null}
+          {canManage ? (
           <div className="space-y-3">
             <div>
               <Label>Source folio</Label>
@@ -394,6 +392,7 @@ export function TransfersPanel({
               Post transfer pair
             </Button>
           </div>
+          ) : null}
         </DeskActionPanel>
       </DeskTwoColumn>
     </div>
@@ -403,10 +402,14 @@ export function TransfersPanel({
 export function AccountsPanel({
   restaurantId,
   canManage,
+  canWriteOff = canManage,
+  canCloseAccount = canManage,
   money,
 }: {
   restaurantId: string;
   canManage: boolean;
+  canWriteOff?: boolean;
+  canCloseAccount?: boolean;
   money: (n: number) => string;
 }) {
   const queryClient = useQueryClient();
@@ -723,7 +726,7 @@ export function AccountsPanel({
 
                                 <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
 
-                                {Math.abs(row.balance) >= 0.01 ? (
+                                {canWriteOff && Math.abs(row.balance) >= 0.01 ? (
                                   <DropdownMenuItem
                                     className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#B91C1C] hover:bg-[#FEF2F2]"
                                     onClick={() =>
@@ -736,7 +739,8 @@ export function AccountsPanel({
                                     <Coins className="size-3.5 text-[#B91C1C]" />
                                     <span>Write Off Balance</span>
                                   </DropdownMenuItem>
-                                ) : (
+                                ) : null}
+                                {canCloseAccount && Math.abs(row.balance) < 0.01 ? (
                                   <DropdownMenuItem
                                     className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#7A7167] hover:bg-[#FAF8F4]"
                                     onClick={() => closeMutation.mutate(row.id)}
@@ -744,7 +748,7 @@ export function AccountsPanel({
                                     <Lock className="size-3.5 text-[#7A7167]" />
                                     <span>Close Account</span>
                                   </DropdownMenuItem>
-                                )}
+                                ) : null}
                               </>
                             ) : null}
                           </DropdownMenuContent>
@@ -968,7 +972,7 @@ export function DepositAllocationForm({
             <p className="text-xs text-muted-foreground">{selected.folioNumber}</p>
           </div>
           {!canManage ? (
-            <p className="text-xs text-amber-800">Only an owner or manager can allocate.</p>
+            <p className="text-xs text-amber-800">Allocation permission is required.</p>
           ) : null}
           <div>
             <Label>Deposit line</Label>

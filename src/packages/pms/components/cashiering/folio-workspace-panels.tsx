@@ -1804,11 +1804,7 @@ export function SettlementTab({
                       <Button type="button" size="sm" variant="outline" onClick={onRefund}>
                         <Undo2 className="size-4" /> Refund payment
                       </Button>
-                    ) : (
-                      <p className="text-muted-foreground">
-                        An owner or manager posts the refund here.
-                      </p>
-                    )}
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -1900,13 +1896,13 @@ export function SettlementTab({
         />
       ) : null}
 
-      {open && workspace.canManage ? (
+      {open && (workspace.grants.writeOff || workspace.grants.close) ? (
         <SectionCard
           title="Close folio"
           description="This action financially closes the folio. Guest checkout remains a Front Office action."
           testId="settlement-close"
           action={
-            caps.canWriteOff ? (
+            workspace.grants.writeOff && caps.canWriteOff ? (
               <Button type="button" size="sm" variant="outline" onClick={onWriteOff}>
                 <SlidersHorizontal className="size-4" /> Post write-off
               </Button>
@@ -1926,9 +1922,11 @@ export function SettlementTab({
                 Current balance is zero. Closing does not check the guest out or change the room.
               </p>
             )}
-            <Button type="button" size="sm" disabled={!caps.canClose} onClick={onClose}>
-              Close folio
-            </Button>
+            {workspace.grants.close ? (
+              <Button type="button" size="sm" disabled={!caps.canClose} onClick={onClose}>
+                Close folio
+              </Button>
+            ) : null}
           </div>
         </SectionCard>
       ) : null}

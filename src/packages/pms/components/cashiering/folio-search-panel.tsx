@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import { FolioActionMenu } from "@/packages/pms/components/cashiering/folio-action-menu";
+import type { FolioPermissionGrants } from "@/packages/pms/lib/folio-workspace";
+import type { FolioPermissionGrants } from "@/packages/pms/lib/folio-workspace";
 import {
   FolioSearchFolioStatusBadge,
   FolioSearchStayStatusBadge,
@@ -373,6 +375,7 @@ export function FolioSearchPanel({
   onSearchParams,
   canOperate,
   canManage,
+  grants = null,
   money,
   dateTime,
   weekStart,
@@ -382,6 +385,7 @@ export function FolioSearchPanel({
   onSearchParams: (next: CashieringSearchParams) => void;
   canOperate: boolean;
   canManage: boolean;
+  grants?: Partial<FolioPermissionGrants> | null;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   weekStart: string | null;
@@ -752,6 +756,7 @@ export function FolioSearchPanel({
           money={money}
           canOperate={canOperate}
           canManage={canManage}
+          grants={grants}
           onSelectRow={selectAllAccountRow}
           onPage={(next) => patchSearchParams({ page: next })}
           onPageSize={(next) => patchSearchParams({ pageSize: next, page: 1 })}
@@ -778,6 +783,7 @@ export function FolioSearchPanel({
           money={money}
           canOperate={canOperate}
           canManage={canManage}
+          grants={grants}
           onSelect={selectRow}
           onPage={(next) => patchSearchParams({ page: next })}
           onPageSize={(next) => patchSearchParams({ pageSize: next, page: 1 })}
@@ -812,6 +818,7 @@ export function FolioSearchPanel({
             dateTime={dateTime}
             canOperate={canOperate}
             canManage={canManage}
+            grants={grants}
             onClose={closeDrawer}
           />
         </SheetContent>
@@ -948,6 +955,7 @@ function AllAccountsTable({
   money,
   canOperate,
   canManage,
+  grants = null,
   onSelectRow,
   onPage,
   onPageSize,
@@ -972,6 +980,7 @@ function AllAccountsTable({
   money: (value: number) => string;
   canOperate: boolean;
   canManage: boolean;
+  grants?: Partial<FolioPermissionGrants> | null;
   onSelectRow: (row: AllAccountSearchRow) => void;
   onPage: (page: number) => void;
   onPageSize: (size: number) => void;
@@ -1152,6 +1161,7 @@ function AllAccountsTable({
                             }}
                             canOperate={canOperate}
                             canManage={canManage}
+                            grants={grants}
                           />
                         </div>
                       ) : (
@@ -1213,6 +1223,7 @@ function GuestFolioTable({
   money,
   canOperate,
   canManage,
+  grants = null,
   onSelect,
   onPage,
   onPageSize,
@@ -1237,6 +1248,7 @@ function GuestFolioTable({
   money: (value: number) => string;
   canOperate: boolean;
   canManage: boolean;
+  grants?: Partial<FolioPermissionGrants> | null;
   onSelect: (row: GuestFolioSearchRow) => void;
   onPage: (page: number) => void;
   onPageSize: (size: number) => void;
@@ -1362,7 +1374,12 @@ function GuestFolioTable({
                             Open
                           </Link>
                         </Button>
-                        <FolioActionMenu folio={folio} canOperate={canOperate} canManage={canManage} />
+                        <FolioActionMenu
+                          folio={folio}
+                          canOperate={canOperate}
+                          canManage={canManage}
+                          grants={grants}
+                        />
                       </div>
                     </td>
                   </tr>
@@ -1398,6 +1415,7 @@ function FolioDetailsDrawer({
   dateTime,
   canOperate,
   canManage,
+  grants = null,
   onClose,
 }: {
   row: GuestFolioSearchRow | null;
@@ -1409,6 +1427,7 @@ function FolioDetailsDrawer({
   dateTime: (iso: string | null | undefined) => string;
   canOperate: boolean;
   canManage: boolean;
+  grants?: Partial<FolioPermissionGrants> | null;
   onClose: () => void;
 }) {
   const folio = detail ?? row;
@@ -1476,6 +1495,7 @@ function FolioDetailsDrawer({
                 folio={{ id: folio.id, folioNumber: folio.folioNumber, status: folio.status }}
                 canOperate={canOperate}
                 canManage={canManage}
+                grants={grants}
               />
             ) : null}
             <Button type="button" variant="ghost" size="icon" className="size-8" onClick={onClose}>

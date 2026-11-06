@@ -11,6 +11,7 @@
 export { LATE_GRACE_MINUTES, isLate, shiftMoment, shiftState, todayIso, addDaysIso } from "./workforce-rules";
 import { shiftMoment, shiftState, todayIso, addDaysIso } from "./workforce-rules";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
+import { assertPasswordChangeComplete } from "./password-lifecycle.server";
 
 
 
@@ -31,6 +32,7 @@ export interface Membership {
 
 /** The caller's own active membership in this restaurant. Throws when absent. */
 export async function callerMembership(context: AuthedCtx, restaurantId: string): Promise<Membership> {
+  await assertPasswordChangeComplete(context);
   const { data } = await context.supabase
     .from("restaurant_users")
     .select("id, role, restaurant_id")

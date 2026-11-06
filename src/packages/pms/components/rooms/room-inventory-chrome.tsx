@@ -5,7 +5,9 @@ import { ArrowLeft, CalendarDays, ChevronDown, HelpCircle, MoreHorizontal, Searc
 import { NoruLogo } from "@/core/components/noru-logo";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
+import { getFirstAccessiblePmsRoute, pmsModuleVisible } from "@/packages/pms/lib/pms-client-access";
 import { PMS_MODULE_NAV, type PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import {
@@ -30,8 +32,6 @@ export const PMS_MODULE_NAV_ITEMS = [
 
 export type PmsModuleName = (typeof PMS_MODULE_NAV_ITEMS)[number]["label"];
 
-const NAV_ITEMS = PMS_MODULE_NAV_ITEMS;
-
 type PmsModuleNavItemId = (typeof PMS_MODULE_NAV)[number]["id"];
 
 /** Collapses into More on laptop widths. Wide desktops keep these in the bar. */
@@ -41,9 +41,6 @@ const PMS_NAV_MORE_IDS = new Set<PmsModuleNavItemId>([
   "reports",
   "settings",
 ]);
-
-const PMS_NAV_PRIMARY = PMS_MODULE_NAV.filter((item) => !PMS_NAV_MORE_IDS.has(item.id));
-const PMS_NAV_MORE = PMS_MODULE_NAV.filter((item) => PMS_NAV_MORE_IDS.has(item.id));
 
 function moduleNavItemClass(active: boolean): string {
   return active
@@ -92,6 +89,15 @@ export function RoomInventoryChrome({
   children: ReactNode;
 }) {
   const navigate = useNavigate();
+  const permissions = usePmsPermissions(membership.restaurantId);
+  const access = { isOwner: permissions.isOwner, codes: permissions.permissions };
+  const navReady = !permissions.isLoading && !permissions.isError;
+  const NAV_ITEMS = navReady
+    ? PMS_MODULE_NAV.filter((item) => pmsModuleVisible(access, item.catalogueKey))
+    : [];
+  const primaryNav = NAV_ITEMS.filter((item) => !PMS_NAV_MORE_IDS.has(item.id));
+  const moreNav = NAV_ITEMS.filter((item) => PMS_NAV_MORE_IDS.has(item.id));
+  const homePath = (navReady ? getFirstAccessiblePmsRoute(access) : "/restaurant/pms") ?? "/restaurant/home";
   const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
     returnTo,
     returnToLabel,
@@ -118,7 +124,7 @@ export function RoomInventoryChrome({
     .map((part) => part[0])
     .join("")
     .toUpperCase();
-  const moreContainsActive = PMS_NAV_MORE.some((item) => item.label === activeModule);
+  const moreContainsActive = moreNav.some((item) => item.label === activeModule);
 
   return (
     <PmsCommandChrome
@@ -130,7 +136,7 @@ export function RoomInventoryChrome({
       onQuickAction={() => undefined}
       nav={
         <div className="flex min-w-0 items-center gap-4">
-          <Link to="/restaurant/pms" className="shrink-0">
+          <Link to={homePath as never} className="shrink-0">
             <NoruLogo size="sm" wordmarkClassName="text-white" />
           </Link>
           {showReturnButton ? (
@@ -149,7 +155,7 @@ export function RoomInventoryChrome({
             aria-label="PMS modules"
             data-testid="pms-module-nav"
           >
-            {PMS_NAV_PRIMARY.map((item) => (
+            {primaryNav.map((item) => (
               <Link
                 key={item.label}
                 to={item.to}
@@ -159,45 +165,49 @@ export function RoomInventoryChrome({
                 {item.label}
               </Link>
             ))}
-            {PMS_NAV_MORE.map((item) => (
-              <Link
-                key={item.label}
-                to={item.to}
-                aria-current={item.label === activeModule ? "page" : undefined}
-                className={`${moduleNavItemClass(item.label === activeModule)} hidden min-[1680px]:inline`}
-              >
-                {item.label}
-              </Link>
-            ))}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  data-testid="pms-module-nav-more"
-                  aria-current={moreContainsActive ? "page" : undefined}
-                  aria-label="More modules"
-                  className={`${moduleNavItemClass(moreContainsActive)} inline-flex items-center gap-1 min-[1680px]:hidden`}
-                >
-                  More
-                  <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="z-50">
-                {PMS_NAV_MORE.map((item) => (
-                  <DropdownMenuItem key={item.label} asChild>
-                    <Link
-                      to={item.to}
-                      aria-current={item.label === activeModule ? "page" : undefined}
-                      className={
-                        item.label === activeModule ? "font-medium text-[#8A6A24]" : undefined
-                      }
-                    >
-                      {item.label}
-                    </Link>
-                  </DropdownMenuItem>
+            {moreNav.length > 0 ? (
+              <>
+                {moreNav.map((item) => (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    aria-current={item.label === activeModule ? "page" : undefined}
+                    className={`${moduleNavItemClass(item.label === activeModule)} hidden min-[1680px]:inline`}
+                  >
+                    {item.label}
+                  </Link>
                 ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="pms-module-nav-more"
+                      aria-current={moreContainsActive ? "page" : undefined}
+                      aria-label="More modules"
+                      className={`${moduleNavItemClass(moreContainsActive)} inline-flex items-center gap-1 min-[1680px]:hidden`}
+                    >
+                      More
+                      <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="z-50">
+                    {moreNav.map((item) => (
+                      <DropdownMenuItem key={item.label} asChild>
+                        <Link
+                          to={item.to}
+                          aria-current={item.label === activeModule ? "page" : undefined}
+                          className={
+                            item.label === activeModule ? "font-medium text-[#8A6A24]" : undefined
+                          }
+                        >
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : null}
           </nav>
         </div>
       }
@@ -216,11 +226,8 @@ export function RoomInventoryChrome({
           ) : null}
           <PmsSelect
             aria-label="PMS module"
-            value={
-              PMS_MODULE_NAV.find((item) => item.label === activeModule)?.to ??
-              NAV_ITEMS.find((item) => item.label === activeModule)?.to ??
-              ""
-            }
+            disabled={!navReady}
+            value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
             onChange={(val) => window.location.assign(val)}
             className="h-9 w-full rounded-lg border-input bg-background px-3 text-sm"
             options={NAV_ITEMS.map((item) => [item.to, item.label])}
@@ -297,7 +304,7 @@ export function RoomInventoryChrome({
                   {item.label}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuItem onSelect={() => void navigate({ to: "/restaurant/pms" })}>
+              <DropdownMenuItem onSelect={() => void navigate({ to: homePath as never })}>
                 PMS home
               </DropdownMenuItem>
             </DropdownMenuContent>

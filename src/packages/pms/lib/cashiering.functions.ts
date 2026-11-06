@@ -38,6 +38,7 @@ import {
   groupChargeRows,
   recentPayments,
   summarizeFolioLedger,
+  type FolioPermissionGrants,
   type FolioAllocationInput,
   type FolioCapabilities,
   type FolioChargeGroup,
@@ -291,21 +292,31 @@ async function cashieringCapability(
   const resolved = await resolveEffectivePermissions(context, restaurantId);
   const has = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
     hasEffectivePermission(resolved, code);
+  const grants: FolioPermissionGrants = {
+    charge: has(PMS_PERMISSIONS.CASHIERING_CHARGE_POST),
+    payment: has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST),
+    deposit: has(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST),
+    refund: has(PMS_PERMISSIONS.CASHIERING_REFUND),
+    adjustment: has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST),
+    discount: has(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST),
+    transfer: has(PMS_PERMISSIONS.CASHIERING_TRANSFER_POST),
+    writeOff: has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF),
+    close: has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE),
+    invoiceEdit: has(PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT),
+    invoiceAuthorize: has(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE),
+  };
   return {
-    canOperate:
-      has(PMS_PERMISSIONS.CASHIERING_CHARGE_POST) ||
-      has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST) ||
-      has(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST) ||
-      has(PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT),
+    canOperate: grants.charge || grants.payment || grants.deposit || has(PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT),
     canManage:
-      has(PMS_PERMISSIONS.CASHIERING_REFUND) ||
-      has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST) ||
-      has(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST) ||
-      has(PMS_PERMISSIONS.CASHIERING_TRANSFER_POST) ||
-      has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF) ||
-      has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE) ||
+      grants.refund ||
+      grants.adjustment ||
+      grants.discount ||
+      grants.transfer ||
+      grants.writeOff ||
+      grants.close ||
       has(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE),
     canAllocate: has(PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT),
+    grants,
   };
 }
 
@@ -1059,6 +1070,7 @@ export interface FolioWorkspace {
   invoiceSettingsAvailable: boolean;
   canManage: boolean;
   canOperate: boolean;
+  grants: FolioPermissionGrants;
   capabilities: FolioCapabilities;
 }
 
@@ -1137,6 +1149,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       invoiceSettingsAvailable,
       canManage,
       canOperate,
+      grants: access.grants,
       capabilities: folioCapabilities({
         open: folio.status === "open",
         balance: folio.balance,
@@ -1146,6 +1159,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
         hasLines: folio.transactions.length > 0,
         invoiceSettingsAvailable,
         legacyFolioInvoice: folio.legacyFolioInvoice,
+        grants: access.grants,
       }),
     };
   });

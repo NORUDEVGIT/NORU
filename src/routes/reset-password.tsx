@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { SiteHeader } from "@/packages/restaurant-management/components/site-header";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { clearMyPasswordChange } from "@/core/lib/password-lifecycle.functions";
+import {
+  PASSWORD_FLAG_CLEAR_FAILED,
+  PASSWORD_UPDATE_FAILED,
+  validateNewPassword,
+} from "@/core/lib/password-lifecycle";
 
 export const Route = createFileRoute("/reset-password")({
   ssr: false,
@@ -23,7 +30,10 @@ export const Route = createFileRoute("/reset-password")({
 
 function ResetPasswordPage() {
   const navigate = useNavigate();
+  const clearFlag = useServerFn(clearMyPasswordChange);
   const [ready, setReady] = useState(false);
+  const [passwordUpdated, setPasswordUpdated] = useState(false);
+  const [resume, setResume] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -41,23 +51,45 @@ function ResetPasswordPage() {
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
-    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      setError("Use at least 8 characters, including a letter and a number.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Those passwords don't match.");
-      return;
+    if (!passwordUpdated) {
+      const issue = validateNewPassword(password, confirm);
+      if (issue) {
+        setError(issue.message);
+        return;
+      }
     }
     setBusy(true);
-    const { error: updateError } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (updateError) {
-      setError("We couldn't update your password. Please request a new reset link.");
-      return;
+    try {
+      const result = await clearFlag({ data: passwordUpdated ? { resume: resume ?? "" } : { password } });
+      try {
+        if (result.accessToken && result.refreshToken) {
+          await supabase.auth.setSession({
+            access_token: result.accessToken,
+            refresh_token: result.refreshToken,
+          });
+        } else {
+          await supabase.auth.refreshSession();
+        }
+      } catch {
+        // The recovery session remains usable when the provider keeps the current token.
+      }
+      if (!result.ok) {
+        setResume(result.resume);
+        setPasswordUpdated(true);
+        setPassword("");
+        setConfirm("");
+        setError(PASSWORD_FLAG_CLEAR_FAILED);
+        return;
+      }
+      setPassword("");
+      setConfirm("");
+      setDone(true);
+      setTimeout(() => void navigate({ to: "/account", replace: true }), 1200);
+    } catch {
+      setError(passwordUpdated ? PASSWORD_FLAG_CLEAR_FAILED : PASSWORD_UPDATE_FAILED);
+    } finally {
+      setBusy(false);
     }
-    setDone(true);
-    setTimeout(() => void navigate({ to: "/account", replace: true }), 1200);
   }
 
   return (

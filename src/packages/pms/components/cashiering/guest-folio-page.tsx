@@ -717,7 +717,7 @@ function FolioWorkspaceBody({
                       Reprint Invoice
                     </ActionItem>
                   ) : null}
-                  {workspace.canManage && open ? (
+                  {workspace.grants.close && open ? (
                     <>
                       <DropdownMenuSeparator />
                       <ActionItem

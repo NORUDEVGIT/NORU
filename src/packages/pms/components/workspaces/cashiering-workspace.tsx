@@ -339,6 +339,16 @@ export function CashieringWorkspace({
               canOperate={accessQuery.data.canOperate}
               canManage={accessQuery.data.canManage}
               canAllocate={accessQuery.data.canAllocate}
+              grants={{
+                charge: accessQuery.data.canCharge,
+                payment: accessQuery.data.canPayment,
+                deposit: accessQuery.data.canDeposit,
+                refund: accessQuery.data.canRefund,
+                discount: accessQuery.data.canDiscount,
+                adjustment: accessQuery.data.canAdjustment,
+                close: accessQuery.data.canClose,
+                transfer: accessQuery.data.canTransfer,
+              }}
               membershipId={accessQuery.data.membershipId}
               role={accessQuery.data.role}
               onTab={go}

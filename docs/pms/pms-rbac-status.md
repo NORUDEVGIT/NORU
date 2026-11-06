@@ -51,7 +51,7 @@ After apply, confirm the catalogue matches `PMS_PERMISSIONS`, `pms_membership_ro
 - `requireReservationManager` stays exported. Tests source-lock that import string.
 - `canEditSet1` and `canActivateSet1` stay for F&B and Set 1 tests. Card 8 go-live still falls back to `canActivateSet1(role)` on the server when the permission flag is absent. The client go-live control also requires `configuration.property.activate` and the server checklist.
 - Housekeeping assignment override still reads `me.role` when the stored Card 2 policy is `owner_manager` or `housekeeping_supervisor`. That is the saved policy enum, not a staff grant. Housekeeping route access is `housekeeping.board.view` and `housekeeping.task.edit`. `resolveHousekeepingDataScope` is legacy data scope, not authorization.
-- `ROLE_MODULES` remains display inside the administration workspace and the F&B map in `module-access.ts`. It does not filter the PMS sidebar.
+- `ROLE_MODULES` remains the F&B map in `module-access.ts`. The PMS administration screen no longer renders it. It does not filter the PMS sidebar.
 - Guest relationship roles (`employer`, `bill_to`, `booker_ta`) are not staff authorization.
 - `hotel_role_id` is not written. Card 7 membership assignment shows “Moved to Staff & Access”.
 
@@ -71,17 +71,15 @@ The site was not started, so these screens were not clicked through in a browser
 
 ## What Phase 4 is
 
-Phase 4 is Staff & Access. It is not built.
+Phase 4 is the Staff & Access workspace. The UI is in the working tree and is not committed.
 
-It should add:
+Settings → Card 5 → Step 1 is Staff & Access, ahead of Departments, Outlets & Facilities, and Sales & Events. The step is visible with `administration.staff.view` or `administration.roles.view`. Each tab follows its own view permission. Add Staff requires both create and assign-roles. Profile edit and role assignment stay separate. Role name/description edit and permission mapping stay separate. An active-only role change uses `administration.roles.activate` and does not also require role edit.
 
-- a role editor and a permission matrix over the existing catalogue
-- staff creation that stores the non-grant `"receptionist"` role and assigns one or more PMS roles
-- email invite
-- multi-role assignment on a membership
-- cache refresh through the existing `usePmsPermissions` / `invalidatePmsPermissions` layer
+Templates only preselect permissions. Full Access selects low, medium, and high actions and leaves critical actions off until they are confirmed. Owner rows show Owner · Full Access and do not take custom roles. Card 7 and `/restaurant/pms/administration` point at Staff & Access. `/restaurant/staff` is unchanged.
 
-It should not put permissions in the JWT, fall back to legacy role checks, equate view with edit, use `configuration.security.configure` as the Card 7 gate, or change POS / F&B navigation.
+Create and reset already set `profiles.must_change_password`. The first-login password screen is Phase 5. There is no email invite.
+
+`0193` and `0194` are still not applied. Browser UAT was not run. Do not treat runtime access as proven until those migrations are applied and the staff and role screens are clicked through.
 
 ## UAT to run after the migrations are applied
 

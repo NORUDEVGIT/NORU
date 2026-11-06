@@ -72,7 +72,7 @@ export const PMS_ADMIN_ROUTE_PERMISSIONS = [
  * Settings card numbers match PROPERTY_SETUP_CARDS.
  * Card 7 is Security, Data & Reports. It opens for property view or roles view.
  * configuration.security.configure is not a gate.
- * Card 5 stays organization view. Staff & Access is not a card yet.
+ * Card 5 opens for organization view, or for Staff & Access (staff view or roles view).
  */
 const SETTINGS_SECTION_CARD: Record<string, number> = {
   identity: 1,
@@ -148,7 +148,11 @@ export function pmsSettingsCardVisible(access: PmsAccessSnapshot, cardNumber: nu
     case 4:
       return pmsCan(access, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     case 5:
-      return pmsCan(access, PMS_PERMISSIONS.CONFIG_ORGANIZATION_VIEW);
+      return pmsCanAny(access, [
+        PMS_PERMISSIONS.CONFIG_ORGANIZATION_VIEW,
+        PMS_PERMISSIONS.STAFF_VIEW,
+        PMS_PERMISSIONS.ROLES_VIEW,
+      ]);
     case 6:
       return pmsCan(access, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     case 7:

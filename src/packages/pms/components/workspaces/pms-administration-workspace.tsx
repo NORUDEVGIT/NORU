@@ -11,16 +11,9 @@ import { ArrowRight, type LucideIcon, BedDouble, TrendingUp, Users, Wallet } fro
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { FoundationPanel } from "@/packages/pms/components/pms/foundation-panel";
-import { StaffManager } from "@/core/components/workspaces/staff-workspace";
 import { BackOfficeHrLink } from "@/packages/back-office/components/hr-link";
-import {
-  MODULE_LABELS,
-  OVERRIDABLE_MODULES,
-  ROLE_LABELS,
-  ROLE_MODULES,
-  SELECTABLE_STAFF_ROLES,
-} from "@/core/lib/module-access";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { STAFF_ACCESS_HREF } from "@/packages/pms/lib/pms-property-setup-card5";
 import { PageHeading } from "@/core/state/pms-context";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
@@ -39,8 +32,8 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
           <PageHeading fallback="Administration" />
         </h1>
         <p className="text-sm text-muted-foreground">
-          PMS users, roles, permissions and configuration for {membership.restaurant.name}. People
-          records, departments, schedules and attendance are managed in Human Resources.
+          PMS staff, roles, and permissions for {membership.restaurant.name} are managed in Staff
+          & Access. People records, departments, schedules and attendance stay in Human Resources.
         </p>
       </div>
 
@@ -60,61 +53,14 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
             <TabsTrigger value="master-data">Master data</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="users" className="mt-6 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Property staff who can sign in and use the PMS. Adding someone here gives them access;
-              their employment details stay in Human Resources.
-            </p>
-            <div className="flex justify-end">
-              <BackOfficeHrLink restaurantId={membership.restaurantId} />
-            </div>
-            <StaffManager membership={membership} embedded />
+          <TabsContent value="users" className="mt-6">
+            <AccessGuide restaurantId={membership.restaurantId} />
           </TabsContent>
-
-          <TabsContent value="roles" className="mt-6 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Each user holds one role. A role decides which modules they can open by default.
-            </p>
-            <div className="overflow-hidden rounded-2xl border border-border bg-card">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Role</th>
-                    <th className="px-4 py-3 font-semibold">Default module access</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SELECTABLE_STAFF_ROLES.map((role) => (
-                    <tr key={role} className="border-t border-border align-top">
-                      <td className="px-4 py-3 font-medium">{ROLE_LABELS[role]}</td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {ROLE_MODULES[role].map((m) => MODULE_LABELS[m]).join(", ")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <TabsContent value="roles" className="mt-6">
+            <AccessGuide restaurantId={membership.restaurantId} />
           </TabsContent>
-
-          <TabsContent value="permissions" className="mt-6 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Per-person permissions are set from the Users tab — open a staff member and adjust
-              their module access. Configuration, property settings and Human Resources stay tied to
-              owners and managers so access can never be escalated by an override.
-            </p>
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Modules that can be granted per person
-              </p>
-              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                {OVERRIDABLE_MODULES.map((m) => (
-                  <li key={m} className="text-sm">
-                    {MODULE_LABELS[m]}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <TabsContent value="permissions" className="mt-6">
+            <AccessGuide restaurantId={membership.restaurantId} />
           </TabsContent>
 
           <TabsContent value="configuration" className="mt-6 space-y-4">
@@ -169,6 +115,23 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
           </TabsContent>
         </Tabs>
       )}
+    </div>
+  );
+}
+
+function AccessGuide({ restaurantId }: { restaurantId: string }) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
+      <p className="text-sm text-muted-foreground">
+        Staff members, roles, and permissions have moved to Settings. Open Staff & Access to manage
+        them. Employment records stay in Human Resources.
+      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <a href={STAFF_ACCESS_HREF} className="text-sm font-medium text-primary">
+          Open Staff & Access
+        </a>
+        <BackOfficeHrLink restaurantId={restaurantId} />
+      </div>
     </div>
   );
 }

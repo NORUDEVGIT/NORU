@@ -53,6 +53,8 @@ import { RM_GROUPS, RM_MODULES } from "@/packages/restaurant-management/lib/rest
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/packages/back-office/lib/back-office-modules";
 import { POS_MODULES, getPosModule } from "@/packages/standalone-pos/lib/standalone-pos-modules";
 import { useAuth } from "@/core/state/auth-store";
+import { SET_PASSWORD_PATH } from "@/core/lib/password-lifecycle";
+import { usePasswordGate } from "@/core/lib/use-password-gate";
 import { cn } from "@/shared/lib/utils";
 import { RestaurantSettingsProvider } from "@/core/state/property-format";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
@@ -533,7 +535,8 @@ export function RestaurantShell({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { session, user } = useAuth();
+  const { session, user, loading: authLoading } = useAuth();
+  const passwordGate = usePasswordGate(Boolean(session && user?.id));
   const fetchRestaurants = useServerFn(getMyRestaurants);
   const fetchModules = useServerFn(getMyModuleAccess);
   const [navOpen, setNavOpen] = useState(false);
@@ -541,12 +544,16 @@ export function RestaurantShell({
   useEffect(() => {
     if (sidebarDefaultCollapsed) setSidebarCollapsed(true);
   }, [sidebarDefaultCollapsed]);
+  useEffect(() => {
+    if (!passwordGate.data?.mustChangePassword) return;
+    void navigate({ to: SET_PASSWORD_PATH, replace: true });
+  }, [navigate, passwordGate.data?.mustChangePassword]);
   const search = useSearch({ strict: false }) as { tab?: string };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["my-restaurants", user?.id],
     queryFn: () => fetchRestaurants(),
-    enabled: !!session && !!user?.id,
+    enabled: Boolean(session && user?.id && passwordGate.isSuccess && !passwordGate.data?.mustChangePassword),
     retry: false,
   });
 
@@ -962,6 +969,31 @@ export function RestaurantShell({
       </div>
     </div>
   );
+
+  if (authLoading || (session && passwordGate.isLoading)) {
+    return (
+      <p className="p-6 text-sm text-muted-foreground" data-testid="password-gate-checking">
+        Checking access…
+      </p>
+    );
+  }
+  if (session && passwordGate.isError) {
+    return (
+      <div className="mx-auto max-w-md p-6" data-testid="password-gate-error">
+        <p className="text-sm text-destructive">We couldn't confirm your sign-in status. Refresh and try again.</p>
+        <Button type="button" variant="outline" className="mt-4" onClick={() => void signOut()}>
+          Sign out
+        </Button>
+      </div>
+    );
+  }
+  if (session && passwordGate.data?.mustChangePassword) {
+    return (
+      <p className="p-6 text-sm text-muted-foreground" data-testid="password-gate-redirect">
+        Set a new password before continuing.
+      </p>
+    );
+  }
 
   return (
     <div className={cn("min-h-dvh", hidePackageRail ? "bg-background" : "bg-muted/30")}>

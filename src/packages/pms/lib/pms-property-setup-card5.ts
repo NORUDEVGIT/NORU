@@ -39,9 +39,12 @@ export const CARD5_TABS = [
 
 export type Card5TabId = (typeof CARD5_TABS)[number]["id"];
 
+export const STAFF_ACCESS_HASH = "staff-access";
+export const STAFF_ACCESS_HREF = `${SET1_HUB_HREF}#${STAFF_ACCESS_HASH}`;
+
 export function isCard5WorkspaceHash(hash: string): boolean {
   const raw = hash.replace(/^#/, "");
-  return raw === CARD5_HASH || raw === "card-5" || raw === "card5";
+  return raw === CARD5_HASH || raw === "card-5" || raw === "card5" || raw === STAFF_ACCESS_HASH;
 }
 
 export function resolveCard5Hash(hash: string): typeof CARD5_HASH | null {

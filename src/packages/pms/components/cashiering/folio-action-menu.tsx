@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { type ComponentType, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
@@ -22,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import type { FolioPermissionGrants } from "@/packages/pms/lib/folio-workspace";
 import { cn } from "@/shared/lib/utils";
 
 type FolioActionTarget = {
@@ -87,16 +88,21 @@ export function FolioActionMenu({
   folio,
   canOperate,
   canManage,
+  grants,
   onOpenChange,
   triggerClassName,
 }: {
   folio: FolioActionTarget;
   canOperate: boolean;
   canManage: boolean;
+  grants?: Partial<FolioPermissionGrants> | null;
   onOpenChange?: (open: boolean) => void;
   triggerClassName?: string;
 }) {
   const open = folio.status === "open";
+  const allow = (key: keyof FolioPermissionGrants, bundled: boolean) =>
+    grants ? grants[key] === true : bundled;
+  const item = (shown: boolean, node: ReactNode) => (shown ? node : null);
   return (
     <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -115,67 +121,83 @@ export function FolioActionMenu({
       <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
         <FolioPageItem folioId={folio.id} label="Open Folio" icon={Eye} />
         <DropdownMenuSeparator />
-        <FolioPageItem
-          folioId={folio.id}
-          action="charge"
-          label="Post Charge"
-          icon={Receipt}
-          disabled={!canManage || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="payment"
-          label="Receive Payment"
-          icon={CreditCard}
-          disabled={!canOperate || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="deposit"
-          label="Add Deposit"
-          icon={Landmark}
-          disabled={!canOperate || !open}
-        />
+        {item(allow("charge", canManage), (
+          <FolioPageItem
+            folioId={folio.id}
+            action="charge"
+            label="Post Charge"
+            icon={Receipt}
+            disabled={!open}
+          />
+        ))}
+        {item(allow("payment", canOperate), (
+          <FolioPageItem
+            folioId={folio.id}
+            action="payment"
+            label="Receive Payment"
+            icon={CreditCard}
+            disabled={!open}
+          />
+        ))}
+        {item(allow("deposit", canOperate), (
+          <FolioPageItem
+            folioId={folio.id}
+            action="deposit"
+            label="Add Deposit"
+            icon={Landmark}
+            disabled={!open}
+          />
+        ))}
         <DropdownMenuSeparator />
-        <FolioPageItem
-          folioId={folio.id}
-          action="adjustment"
-          label="Adjust"
-          icon={Pencil}
-          disabled={!canManage || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="refund"
-          label="Refund"
-          icon={MinusCircle}
-          disabled={!canManage || !open}
-          destructive
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="discount"
-          label="Discount"
-          icon={Percent}
-          disabled={!canManage || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          toTab="transfers"
-          label="Transfer Charge"
-          icon={ArrowLeftRight}
-          disabled={!canManage || !open}
-        />
+        {item(allow("adjustment", canManage), (
+          <FolioPageItem
+            folioId={folio.id}
+            action="adjustment"
+            label="Adjust"
+            icon={Pencil}
+            disabled={!open}
+          />
+        ))}
+        {item(allow("refund", canManage), (
+          <FolioPageItem
+            folioId={folio.id}
+            action="refund"
+            label="Refund"
+            icon={MinusCircle}
+            disabled={!open}
+            destructive
+          />
+        ))}
+        {item(allow("discount", canManage), (
+          <FolioPageItem
+            folioId={folio.id}
+            action="discount"
+            label="Discount"
+            icon={Percent}
+            disabled={!open}
+          />
+        ))}
+        {item(allow("transfer", canManage), (
+          <FolioPageItem
+            folioId={folio.id}
+            toTab="transfers"
+            label="Transfer Charge"
+            icon={ArrowLeftRight}
+            disabled={!open}
+          />
+        ))}
         <DropdownMenuSeparator />
         <FolioPageItem folioId={folio.id} label="View Transactions" icon={ScrollText} />
-        <FolioPageItem
-          folioId={folio.id}
-          action="close"
-          label="Close Folio"
-          icon={Lock}
-          disabled={!canManage || !open}
-          destructive
-        />
+        {item(allow("close", canManage), (
+          <FolioPageItem
+            folioId={folio.id}
+            action="close"
+            label="Close Folio"
+            icon={Lock}
+            disabled={!open}
+            destructive
+          />
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
