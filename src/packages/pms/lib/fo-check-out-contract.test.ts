@@ -208,7 +208,7 @@ describe("FO-10R1 settlement eligibility", () => {
     assert.equal(e.overrideAllowedForRole, false);
     assert.equal(e.overrideAvailable, false);
     assert.equal(e.checkoutAllowed, false);
-    assert.match(server, /requireSupervisor\(me\.role\)/);
+    assert.match(server, /FRONT_OFFICE_CHECK_OUT/);
     assert.match(server, /reason: z\.string\(\)\.trim\(\)\.min\(1\)/);
   });
 });

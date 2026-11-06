@@ -160,6 +160,13 @@ export function accountPaymentCapabilities(input: {
   status: "open" | "closed";
   balance: number;
   accountKind: AccountWorkspaceKind;
+  granted?: {
+    receivePayment: boolean;
+    refund: boolean;
+    createInvoice: boolean;
+    writeOff: boolean;
+    close: boolean;
+  };
 }) {
   return accountWorkspaceCapabilities(input);
 }

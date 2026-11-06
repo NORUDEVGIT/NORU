@@ -394,7 +394,7 @@ describe("RR-P4-04 — UI-15 Demand Calendar + UI-14 Demand Detail", () => {
     const view = readRel("../../components/rates/demand-calendar/demand-calendar-view.tsx");
     const toolbar = readRel("../../components/rates/demand-calendar/demand-calendar-toolbar.tsx");
     assert.match(functions, /getRevenueDemandCalendar/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(functions, /DEMAND_CALENDAR_LOAD_ERROR/);
     assert.match(server, /loadRevenueDemandOverview/);
     assert.match(server, /loadRevenueRateCalendar/);

@@ -57,7 +57,9 @@ describe("invoice-specific payment settlement", () => {
     assert.ok(guestPost >= 0 && guestPost < guestAllocate);
     assert.ok(companyPost >= 0 && companyPost < companyAllocate);
     assert.match(orchestration, /stage: "allocation",\s*paymentId/);
-    assert.match(orchestration, /requireCashierOperator/);
+    assert.match(orchestration, /requirePmsActorAll/);
+    assert.match(orchestration, /CASHIERING_PAYMENT_POST/);
+    assert.match(orchestration, /CASHIERING_ALLOCATION_EDIT/);
     assert.doesNotMatch(orchestration, /\.from\(["']folio_transactions["']\)\.insert/);
   });
 

@@ -3,16 +3,16 @@
  * Rate Manager only.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRateManager } from "../rates.server";
 import { COMMERCIAL_ACTION_TYPES, COMMERCIAL_ENTITY_TYPES } from "./commercial-engine.ts";
 import { getCommercialOperationDetail as loadCommercialOperationDetail, listCommercialChangeHistory as loadCommercialChangeHistory } from "./commercial-history.server.ts";
 import {
   getCommercialHistoryOperationDetail as loadCommercialHistoryOperationDetail,
-  getCommercialHistoryWorkspace as loadCommercialHistoryWorkspace,
-} from "./commercial-history-ui.server.ts";
+  getCommercialHistoryWorkspace as loadCommercialHistoryWorkspace } from "./commercial-history-ui.server.ts";
 import { sanitizeCommercialHistorySearch } from "./commercial-history.ts";
 import { COMMERCIAL_HISTORY_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error.ts";
 
@@ -30,8 +30,7 @@ const historyQuerySchema = z.object({
   masterId: idSchema.optional(),
   entityId: idSchema.optional(),
   page: z.number().int().min(1).optional(),
-  pageSize: z.number().int().min(1).max(100).optional(),
-});
+  pageSize: z.number().int().min(1).max(100).optional() });
 
 const workspaceQuerySchema = z.object({
   restaurantId: idSchema,
@@ -42,20 +41,18 @@ const workspaceQuerySchema = z.object({
   actorId: idSchema.optional(),
   search: z.string().max(80).optional(),
   page: z.number().int().min(1).optional(),
-  pageSize: z.number().int().min(1).max(100).optional(),
-});
+  pageSize: z.number().int().min(1).max(100).optional() });
 
 export const listCommercialChangeHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => historyQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCommercialChangeHistory(supabaseAdmin, {
         ...data,
-        search: sanitizeCommercialHistorySearch(data.search),
-      });
+        search: sanitizeCommercialHistorySearch(data.search) });
     } catch (error) {
       throw toRevenueReadError(error, COMMERCIAL_HISTORY_LOAD_ERROR);
     }
@@ -67,7 +64,7 @@ export const getCommercialOperationDetail = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, operationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCommercialOperationDetail(supabaseAdmin, data);
@@ -80,7 +77,7 @@ export const getCommercialHistoryWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => workspaceQuerySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCommercialHistoryWorkspace(supabaseAdmin, data);
@@ -95,7 +92,7 @@ export const getCommercialHistoryOperationDetail = createServerFn({ method: "POS
     z.object({ restaurantId: idSchema, operationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCommercialHistoryOperationDetail(supabaseAdmin, data);

@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   DUAL_DIMENSION_NOTE,
   card2MaintenanceStepStatus,
@@ -247,7 +248,7 @@ export const getMaintenanceRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const loaded = await loadRules(pmsDb(context.supabase), data.restaurantId);
     if (!loaded.parent) {
       return {
@@ -267,7 +268,7 @@ export const saveMaintenanceRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveMaintenanceRulesInput.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     if (!isMaintenanceFrequency(data.defaultMaintenanceFrequency)) {
       return { ok: false as const, message: "Unknown preventive maintenance frequency." };
     }
@@ -345,7 +346,7 @@ export const getMaintenanceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const db = pmsDb(context.supabase);
     const loaded = await loadRules(db, data.restaurantId);
     const rules = loaded.parent
@@ -391,7 +392,7 @@ export const evaluateCard2MaintenanceReadiness = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const db = pmsDb(context.supabase);
     await persistCard2MaintenanceReadiness(db, data.restaurantId);
     const loaded = await loadRules(db, data.restaurantId);
@@ -416,7 +417,7 @@ export const listMaintenanceDepartments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { data: rows, error } = await pmsDb(context.supabase)
       .from("pms_departments")
       .select("id, name, active")

@@ -2,7 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { cashierError, requireCashieringAccess, type FolioStatus } from "./cashiering.server";
+import { cashierError, type FolioStatus } from "./cashiering.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { requirePmsActor } from "./pms-permissions.server";
 import {
   FOLIO_SEARCH_DEFAULT_PAGE_SIZE,
   FOLIO_SEARCH_FILTER_ALL,
@@ -251,7 +253,7 @@ export const searchGuestFolios = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: GuestFolioSearchInput) => guestFolioSearchInputSchema.parse(data))
   .handler(async ({ data, context }): Promise<GuestFolioSearchPage> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return searchGuestFoliosQuery(supabaseAdmin, data);
   });
@@ -366,7 +368,7 @@ export const searchAllAccounts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: GuestFolioSearchInput) => guestFolioSearchInputSchema.parse(data))
   .handler(async ({ data, context }): Promise<AllAccountSearchPage> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return searchAllAccountsQuery(supabaseAdmin, data);
   });

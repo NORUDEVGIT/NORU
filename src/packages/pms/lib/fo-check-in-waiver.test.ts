@@ -37,7 +37,7 @@ describe("check-in waiver command", () => {
   it("stores the waiver on the target unit and records that requirement", () => {
     const source = read("src/packages/pms/lib/fo-check-in-waiver.functions.ts");
     const writer = read("src/packages/pms/lib/fo-check-in-unit.functions.ts");
-    expect(source.indexOf("assertCheckInWaiverRole")).toBeLessThan(
+    expect(source.indexOf("FRONT_OFFICE_CHECK_IN_OVERRIDE")).toBeLessThan(
       source.indexOf("writeCheckInUnitProgress"),
     );
     expect(source).toContain("reservationRoomId: target.reservationRoomId");

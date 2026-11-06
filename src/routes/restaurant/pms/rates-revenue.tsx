@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { RatesWorkspace } from "@/packages/pms/components/workspaces/rates-workspace";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import type { RevenueSearchParams } from "@/packages/pms/lib/revenue/revenue-context";
@@ -99,7 +101,11 @@ function RatesRevenuePmsRoute() {
       hidePackageRail
       hideTopHeader
     >
-      {(m) => <RatesWorkspace membership={m} search={search} />}
+      {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.RATES_VIEW}>
+          <RatesWorkspace membership={m} search={search} />
+        </PmsRouteGate>
+      )}
     </RestaurantShell>
   );
 }

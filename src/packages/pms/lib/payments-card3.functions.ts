@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   CARD3_PAYMENTS_AUDIT_SECTION,
   CARD3_PAYMENTS_UNAVAILABLE,
@@ -16,8 +17,7 @@ import {
   type DepositPolicyType,
   type PaymentMethodCard3Row,
   type PaymentTypeClass,
-  type PaymentsCard3Snapshot,
-} from "./payments-card3.server";
+  type PaymentsCard3Snapshot } from "./payments-card3.server";
 
 // 0073 is intentionally not represented in generated types.ts until its approved apply.
 // Keep the untyped database boundary isolated to this functions module.
@@ -42,8 +42,7 @@ const paymentMethodSchema = z.object({
     .optional()
     .nullable(),
   notes: z.string().trim().max(240).optional(),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 const depositPolicySchema = z
   .object({
@@ -56,22 +55,19 @@ const depositPolicySchema = z
     depositType: z.enum(DEPOSIT_POLICY_TYPES),
     depositValue: z.number().min(0, "Deposit value cannot be negative.").max(10_000_000),
     isDefault: z.boolean(),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .superRefine((data, ctx) => {
     if (data.depositType === "none" && data.depositValue !== 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "A none deposit must have value 0.",
-        path: ["depositValue"],
-      });
+        path: ["depositValue"] });
     }
     if (data.depositType === "percent" && data.depositValue > 100) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Percent deposits cannot exceed 100.",
-        path: ["depositValue"],
-      });
+        path: ["depositValue"] });
     }
   });
 
@@ -115,8 +111,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_PAYMENTS_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_PAYMENTS_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-payments] audit", result.error.message);
 }
 
@@ -129,8 +124,7 @@ function mapPaymentMethod(row: any): PaymentMethodCard3Row {
     typeClass,
     typeClassLabel: typeClass ? PAYMENT_TYPE_CLASS_LABELS[typeClass] : "—",
     notes: String(row.notes ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapDepositPolicy(row: any): DepositPolicyCard3Row {
@@ -145,8 +139,7 @@ function mapDepositPolicy(row: any): DepositPolicyCard3Row {
     depositTypeLabel: DEPOSIT_POLICY_TYPE_LABELS[depositType],
     depositValue: Number(row.deposit_value ?? 0),
     isDefault: row.is_default === true,
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<PaymentsCard3Snapshot> {
@@ -172,8 +165,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Payment
   return {
     currencyCode: String(restaurant.data?.currency_code ?? ""),
     paymentMethods: (methods.data ?? []).map(mapPaymentMethod),
-    depositPolicies: (policies.data ?? []).map(mapDepositPolicy),
-  };
+    depositPolicies: (policies.data ?? []).map(mapDepositPolicy) };
 }
 
 export { loadSnapshot as loadPaymentsCard3Snapshot };
@@ -191,8 +183,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 async function requireOwnedRecord(
@@ -216,21 +207,20 @@ export const getPaymentsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluatePaymentsCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const savePaymentMethodCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => paymentMethodSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(
@@ -247,8 +237,7 @@ export const savePaymentMethodCard3 = createServerFn({ method: "POST" })
       name: data.name,
       type_class: data.typeClass ? data.typeClass : null,
       notes: data.notes ?? "",
-      active: data.active,
-    };
+      active: data.active };
     const result = data.id
       ? await db
           .from("pms_payment_methods")
@@ -261,8 +250,7 @@ export const savePaymentMethodCard3 = createServerFn({ method: "POST" })
       unavailable(result.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_payment_method_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluatePaymentsCard3Readiness(snapshot) };
   });
@@ -271,7 +259,7 @@ export const saveDepositPolicyCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => depositPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(
@@ -301,8 +289,7 @@ export const saveDepositPolicyCard3 = createServerFn({ method: "POST" })
       deposit_type: data.depositType,
       deposit_value: data.depositValue,
       is_default: data.isDefault,
-      active: data.active,
-    };
+      active: data.active };
     const result = data.id
       ? await db
           .from("pms_deposit_policies")
@@ -315,8 +302,7 @@ export const saveDepositPolicyCard3 = createServerFn({ method: "POST" })
       unavailable(result.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_deposit_policy_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluatePaymentsCard3Readiness(snapshot) };
   });

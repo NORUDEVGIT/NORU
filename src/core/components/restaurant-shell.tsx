@@ -53,11 +53,14 @@ import { RM_GROUPS, RM_MODULES } from "@/packages/restaurant-management/lib/rest
 import { BO_GROUPS, BO_MODULES, getBoModule } from "@/packages/back-office/lib/back-office-modules";
 import { POS_MODULES, getPosModule } from "@/packages/standalone-pos/lib/standalone-pos-modules";
 import { useAuth } from "@/core/state/auth-store";
+import { SET_PASSWORD_PATH } from "@/core/lib/password-lifecycle";
+import { usePasswordGate } from "@/core/lib/use-password-gate";
 import { cn } from "@/shared/lib/utils";
 import { RestaurantSettingsProvider } from "@/core/state/property-format";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
-import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
+import { pmsModuleVisible, pmsSettingsHubVisible } from "@/packages/pms/lib/pms-client-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { PmsIdleWelcomeWatcher } from "@/packages/pms/components/pms/pms-idle-welcome-watcher";
 
 export type RestaurantNavLabel =
@@ -532,7 +535,8 @@ export function RestaurantShell({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { session, user } = useAuth();
+  const { session, user, loading: authLoading } = useAuth();
+  const passwordGate = usePasswordGate(Boolean(session && user?.id));
   const fetchRestaurants = useServerFn(getMyRestaurants);
   const fetchModules = useServerFn(getMyModuleAccess);
   const [navOpen, setNavOpen] = useState(false);
@@ -540,12 +544,16 @@ export function RestaurantShell({
   useEffect(() => {
     if (sidebarDefaultCollapsed) setSidebarCollapsed(true);
   }, [sidebarDefaultCollapsed]);
+  useEffect(() => {
+    if (!passwordGate.data?.mustChangePassword) return;
+    void navigate({ to: SET_PASSWORD_PATH, replace: true });
+  }, [navigate, passwordGate.data?.mustChangePassword]);
   const search = useSearch({ strict: false }) as { tab?: string };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["my-restaurants", user?.id],
     queryFn: () => fetchRestaurants(),
-    enabled: !!session && !!user?.id,
+    enabled: Boolean(session && user?.id && passwordGate.isSuccess && !passwordGate.data?.mustChangePassword),
     retry: false,
   });
 
@@ -577,7 +585,11 @@ export function RestaurantShell({
   // Phase 8C — package entitlement hides package-level entry points only.
   const packages = usePackageEntitlements(membership?.restaurantId);
   const pmsPackage = packages.has("pms");
-  const showSettingsNav = !pmsPackage || canEditSet1(membership?.role ?? "");
+  const pmsAccess = usePmsPermissions(pmsPackage ? membership?.restaurantId : undefined);
+  const pmsSnapshot = { isOwner: pmsAccess.isOwner, codes: pmsAccess.permissions };
+  const showSettingsNav =
+    !pmsPackage ||
+    (!pmsAccess.isLoading && !pmsAccess.isError && pmsSettingsHubVisible(pmsSnapshot));
 
   const workspace = module ?? LABEL_MODULE[active];
   // Restaurant Management is a package-level nav group: it disappears from
@@ -614,7 +626,11 @@ export function RestaurantShell({
     <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="PMS navigation">
       <ul className="space-y-1 px-1 pt-3">
         {pmsLauncherModules()
-          .filter((m) => allowedModules.includes(m.moduleKey))
+          .filter((m) =>
+            pmsPackage
+              ? !pmsAccess.isLoading && !pmsAccess.isError && pmsModuleVisible(pmsSnapshot, m.key)
+              : allowedModules.includes(m.moduleKey),
+          )
           .map((m) => (
             <li key={m.key}>
               <Link
@@ -953,6 +969,31 @@ export function RestaurantShell({
       </div>
     </div>
   );
+
+  if (authLoading || (session && passwordGate.isLoading)) {
+    return (
+      <p className="p-6 text-sm text-muted-foreground" data-testid="password-gate-checking">
+        Checking access…
+      </p>
+    );
+  }
+  if (session && passwordGate.isError) {
+    return (
+      <div className="mx-auto max-w-md p-6" data-testid="password-gate-error">
+        <p className="text-sm text-destructive">We couldn't confirm your sign-in status. Refresh and try again.</p>
+        <Button type="button" variant="outline" className="mt-4" onClick={() => void signOut()}>
+          Sign out
+        </Button>
+      </div>
+    );
+  }
+  if (session && passwordGate.data?.mustChangePassword) {
+    return (
+      <p className="p-6 text-sm text-muted-foreground" data-testid="password-gate-redirect">
+        Set a new password before continuing.
+      </p>
+    );
+  }
 
   return (
     <div className={cn("min-h-dvh", hidePackageRail ? "bg-background" : "bg-muted/30")}>

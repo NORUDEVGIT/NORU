@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -8,6 +8,7 @@ import { cn } from "@/shared/lib/utils";
 import { Card5DepartmentsTab } from "@/packages/pms/components/settings/pms-card5-departments-tab";
 import { Card5OutletsTab } from "@/packages/pms/components/settings/pms-card5-outlets-tab";
 import { Card5SalesEventsTab } from "@/packages/pms/components/settings/pms-card5-sales-events-tab";
+import { StaffAccessWorkspace } from "@/packages/pms/components/settings/staff-access-workspace";
 import {
   PropertySetupStatusRail,
   PropertySetupStepNav,
@@ -18,12 +19,26 @@ import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-u
 import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
 import { getCard5Validation } from "@/packages/pms/lib/pms-property-setup-card5.functions";
 import {
+  CARD5_HASH,
   CARD5_SIDEBAR_OUT,
   CARD5_SUBTITLE,
   CARD5_TABS,
+  STAFF_ACCESS_HASH,
   type Card5TabId,
 } from "@/packages/pms/lib/pms-property-setup-card5";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { STAFF_ACCESS_STEP_ID, staffAccessStepVisible } from "@/packages/pms/lib/staff-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import type { Card5Verdict } from "@/packages/pms/lib/card5-readiness.server";
+
+type Card5WorkspaceTab = Card5TabId | typeof STAFF_ACCESS_STEP_ID;
+
+function initialCard5Tab(): Card5WorkspaceTab {
+  if (typeof window !== "undefined" && window.location.hash.replace(/^#/, "") === STAFF_ACCESS_HASH) {
+    return STAFF_ACCESS_STEP_ID;
+  }
+  return "departments";
+}
 
 function verdictClass(verdict: Card5Verdict) {
   if (verdict === "PASS") return "text-emerald-700";
@@ -39,7 +54,16 @@ export function PmsPropertySetupCard5Section({
   restaurantId: string;
   canEdit: boolean;
 }) {
-  const [tab, setTab] = useState<Card5TabId>("departments");
+  const [tab, setTab] = useState<Card5WorkspaceTab>(initialCard5Tab);
+  const access = usePmsPermissions(restaurantId);
+  const showStaff =
+    !access.isLoading &&
+    staffAccessStepVisible(
+      access.can(PMS_PERMISSIONS.STAFF_VIEW),
+      access.can(PMS_PERMISSIONS.ROLES_VIEW),
+    );
+  const showOrg =
+    !access.isLoading && (access.can(PMS_PERMISSIONS.CONFIG_ORGANIZATION_VIEW) || canEdit);
   const [reportOpen, setReportOpen] = useState(false);
   const queryClient = useQueryClient();
   const getValidation = useServerFn(getCard5Validation);
@@ -54,6 +78,21 @@ export function PmsPropertySetupCard5Section({
       setReportOpen(true);
     },
   });
+
+  useEffect(() => {
+    if (access.isLoading) return;
+    if (tab === STAFF_ACCESS_STEP_ID && !showStaff && showOrg) setTab("departments");
+    if (tab !== STAFF_ACCESS_STEP_ID && !showOrg && showStaff) setTab(STAFF_ACCESS_STEP_ID);
+  }, [access.isLoading, showOrg, showStaff, tab]);
+
+  function selectStep(id: string) {
+    const next = id as Card5WorkspaceTab;
+    setTab(next);
+    const hash = next === STAFF_ACCESS_STEP_ID ? STAFF_ACCESS_HASH : CARD5_HASH;
+    if (window.location.hash.replace(/^#/, "") !== hash) {
+      window.location.hash = hash;
+    }
+  }
 
   function goBack() {
     window.location.hash = "";
@@ -133,13 +172,19 @@ export function PmsPropertySetupCard5Section({
               </p>
               <PropertySetupStepNav
                 activeId={tab}
-                onSelect={(id) => setTab(id as Card5TabId)}
-                steps={CARD5_TABS.map((item, index) => ({
-                  id: item.id,
-                  number: index + 1,
-                  title: item.label,
-                  status: railSections.find((row) => row.id === item.id)?.status ?? "not_started",
-                }))}
+                onSelect={selectStep}
+                steps={[
+                  ...(showStaff
+                    ? [{ id: STAFF_ACCESS_STEP_ID, title: "Staff & Access", status: "not_started" as const }]
+                    : []),
+                  ...(showOrg
+                    ? CARD5_TABS.map((item) => ({
+                        id: item.id,
+                        title: item.label,
+                        status: railSections.find((row) => row.id === item.id)?.status ?? "not_started",
+                      }))
+                    : []),
+                ].map((item, index) => ({ ...item, number: index + 1 }))}
               />
             </div>
           }
@@ -166,7 +211,12 @@ export function PmsPropertySetupCard5Section({
             </dl>
           ) : null}
 
-          <Tabs value={tab} onValueChange={(value) => setTab(value as Card5TabId)}>
+          {access.isLoading ? <p className="text-sm text-[#756A5B]">Checking access…</p> : null}
+          {!access.isLoading && tab === STAFF_ACCESS_STEP_ID ? (
+            <StaffAccessWorkspace restaurantId={restaurantId} />
+          ) : null}
+          {!access.isLoading && tab !== STAFF_ACCESS_STEP_ID ? (
+          <Tabs value={tab} onValueChange={(value) => selectStep(value)}>
             <TabsList className="sr-only">
               {CARD5_TABS.map((item) => (
                 <TabsTrigger key={item.id} value={item.id} data-testid={`card5-tab-${item.id}`}>
@@ -187,6 +237,7 @@ export function PmsPropertySetupCard5Section({
               </TabsContent>
             ))}
           </Tabs>
+          ) : null}
         </PropertySetupWorkspaceShell>
       </div>
     </section>

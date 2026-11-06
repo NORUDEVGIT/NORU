@@ -306,7 +306,7 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(
       page,
       /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/,

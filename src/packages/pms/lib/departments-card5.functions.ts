@@ -10,7 +10,8 @@ import type { Json } from "@/integrations/supabase/types";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { SELECTABLE_STAFF_ROLES, STAFF_ROLES } from "@/core/lib/module-access";
 import { withPmsPackage } from "./pms-package.server";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard5Overall } from "./card5-readiness.functions";
 import {
@@ -264,7 +265,7 @@ export const getCard5Departments = createServerFn({ method: "POST" })
       snapshot,
       readiness: evaluateCard5DepartmentsReadiness(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE),
     };
   });
 
@@ -272,11 +273,7 @@ export const saveCard5Department = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => departmentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5DepartmentsSnapshot(db, data.restaurantId);
@@ -350,11 +347,7 @@ export const saveCard5DepartmentRouting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => routingSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5DepartmentsSnapshot(db, data.restaurantId);

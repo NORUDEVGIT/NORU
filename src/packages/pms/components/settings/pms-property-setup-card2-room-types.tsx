@@ -79,6 +79,7 @@ import {
 } from "@/packages/pms/components/settings/setup-kit";
 import { RoomTypeImagesDialog } from "@/packages/pms/components/rooms/room-type-dialogs";
 import { RoomTypeWizard } from "@/packages/pms/components/settings/room-type-wizard/room-type-wizard";
+import { RoomTypeNameInput } from "@/packages/pms/components/settings/room-type-name-input";
 
 type TypeForm = {
   id?: string;
@@ -258,7 +259,7 @@ function ClassificationSelect({
         <SelectTrigger>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-[190px] overflow-y-auto">
           <SelectItem value="__none">None (Not specified)</SelectItem>
           {allOptions.map((opt) => (
             <SelectItem key={opt} value={opt}>
@@ -1025,10 +1026,11 @@ export function PmsPropertySetupCard2RoomTypes({
           </DialogHeader>
           <PropertySetupFormGrid>
             <PropertySetupField label="Room Type Name">
-              <Input
+              <RoomTypeNameInput
                 disabled={disabled}
+                placeholder="e.g. Deluxe King Room"
                 value={typeForm.name}
-                onChange={(e) => setTypeForm({ ...typeForm, name: e.target.value })}
+                onChange={(name) => setTypeForm({ ...typeForm, name })}
               />
             </PropertySetupField>
             <PropertySetupField label="Room Type Code">

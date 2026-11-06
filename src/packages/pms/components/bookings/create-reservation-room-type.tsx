@@ -126,7 +126,8 @@ export function OccupancySoftWarn({
 }
 
 export function OverbookingDecision({
-  role,
+  role: _role,
+  canAuthorizeOverbooking = false,
   roomName,
   requestedRooms,
   physicalAvailable,
@@ -143,6 +144,7 @@ export function OverbookingDecision({
   onArm,
 }: {
   role: string;
+  canAuthorizeOverbooking?: boolean;
   roomName: string;
   requestedRooms: number;
   physicalAvailable: number | null;
@@ -158,8 +160,9 @@ export function OverbookingDecision({
   onReason: (value: string) => void;
   onArm: (value: boolean) => void;
 }) {
+  void _role;
   if (shortage <= 0 || physicalAvailable == null) return null;
-  const canAuthorize = !approvalRequired || role === "owner" || role === "manager";
+  const canAuthorize = !approvalRequired || canAuthorizeOverbooking === true;
   return (
     <section
       className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-[#251605]"
@@ -201,8 +204,8 @@ export function OverbookingDecision({
         </div>
       ) : (
         <p className="mt-2">
-          {roomName} has no physical availability. Owner or Manager authorization is required to
-          overbook while Manager Approval Required is on.
+          {roomName} has no physical availability. Overbooking permission is required while
+          approval is turned on for this property.
         </p>
       )}
     </section>

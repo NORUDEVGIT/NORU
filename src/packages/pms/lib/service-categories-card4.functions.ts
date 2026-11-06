@@ -1,17 +1,17 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_SERVICE_CATEGORIES,
   normalizeServiceCategoryCode,
   normalizeServiceCategoryName,
   validateServiceCategoryDraft,
   type ServiceCategoryRecord,
-  type ServiceCategorySnapshot,
-} from "./service-categories-card4.server";
+  type ServiceCategorySnapshot } from "./service-categories-card4.server";
 
 // Generated schema predates 0083.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,8 +27,7 @@ const saveSchema = z
     code: z.string().max(20),
     description: z.string().max(400).optional().default(""),
     active: z.boolean(),
-    displayOrder: z.number().int().min(1).max(999),
-  })
+    displayOrder: z.number().int().min(1).max(999) })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -58,8 +57,7 @@ function mapRow(row: {
     active: row.active,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -74,8 +72,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-service-categories", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-service-categories", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-service-categories] audit", result.error.message);
 }
 
@@ -87,8 +84,7 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
     description: row.description,
     active: true,
     display_order: index + 1,
-    updated_by: userId,
-  }));
+    updated_by: userId }));
   const result = await db.from("pms_guest_service_categories").insert(payload);
   if (result.error && result.error.code !== "23505") unavailable(result.error);
 }
@@ -127,7 +123,7 @@ export const getPmsCard4ServiceCategories = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -136,7 +132,7 @@ export const savePmsCard4ServiceCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -149,8 +145,7 @@ export const savePmsCard4ServiceCategory = createServerFn({ method: "POST" })
         code,
         description: data.description,
         active: data.active,
-        displayOrder: data.displayOrder,
-      },
+        displayOrder: data.displayOrder },
       snapshot.categories,
     );
     if (errors.length > 0) throw new Error(errors[0]?.message ?? "Fix the category before saving.");
@@ -161,8 +156,7 @@ export const savePmsCard4ServiceCategory = createServerFn({ method: "POST" })
       description: data.description.trim() || null,
       active: data.active,
       display_order: data.displayOrder,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_guest_service_categories")
@@ -180,8 +174,7 @@ export const savePmsCard4ServiceCategory = createServerFn({ method: "POST" })
     if (!id) throw new Error("Could not save the service category.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_category_saved", {
       id,
-      code,
-    });
+      code });
     return { ok: true as const, id };
   });
 
@@ -191,7 +184,7 @@ export const setPmsCard4ServiceCategoryActive = createServerFn({ method: "POST" 
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -202,8 +195,7 @@ export const setPmsCard4ServiceCategoryActive = createServerFn({ method: "POST" 
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_category_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -213,7 +205,7 @@ export const deletePmsCard4ServiceCategory = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const dependents = await db
@@ -235,7 +227,6 @@ export const deletePmsCard4ServiceCategory = createServerFn({ method: "POST" })
     }
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_service_category_deleted", {
-      id: data.id,
-    });
+      id: data.id });
     return { ok: true as const };
   });

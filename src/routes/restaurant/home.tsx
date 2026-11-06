@@ -35,7 +35,8 @@ import { localDateInZone } from "@/shared/lib/property-time";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import type { ModuleKey } from "@/core/lib/module-access";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
-import { canEditSet1 } from "@/packages/pms/lib/pms-set1-foundation";
+import { pmsSettingsHubVisible } from "@/packages/pms/lib/pms-client-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/restaurant/home")({
@@ -94,15 +95,6 @@ function BlockedNotice() {
   );
 }
 
-
-/** Module keys that make the PMS package meaningful for this user. */
-const PMS_MODULE_KEYS: ModuleKey[] = [
-  "pms",
-  "front_office",
-  "housekeeping",
-  "reports_analytics",
-  "configuration",
-];
 
 /** Shared services that Back Office will own; they stay where they are today. */
 const BACK_OFFICE_LINKS: {
@@ -193,6 +185,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   });
   const allowed = moduleAccess.data?.modules ?? [];
   const packages = usePackageEntitlements(restaurantId);
+  const pmsAccess = usePmsPermissions(packages.has("pms") ? restaurantId : undefined);
+  const pmsSnapshot = { isOwner: pmsAccess.isOwner, codes: pmsAccess.permissions };
 
   const canManageStaff = allowed.includes("front_office");
   const canSeeStock = allowed.includes("inventory");
@@ -239,7 +233,11 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
 
   // Package tile = package entitlement AND existing module access.
   const showRestaurant = packages.has("restaurant_management") && canSeeFnB;
-  const showPms = packages.has("pms") && PMS_MODULE_KEYS.some((k) => allowed.includes(k));
+  const showPms =
+    packages.has("pms") &&
+    !pmsAccess.isLoading &&
+    !pmsAccess.isError &&
+    (pmsAccess.isOwner || pmsAccess.permissions.length > 0);
   const showBackOffice = packages.has("back_office");
   // Phase 8H3 — Standalone POS is its own package with its own module key.
   const showStandalonePos = packages.has("pos") && allowed.includes("standalone_pos");
@@ -248,8 +246,8 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
     : [];
   const setupLinks = SETUP_LINKS.filter((l) => {
     if (!allowed.includes(l.moduleKey)) return false;
-    if (l.to === "/restaurant/settings" && packages.has("pms") && !canEditSet1(membership.role)) {
-      return false;
+    if (l.to === "/restaurant/settings" && packages.has("pms")) {
+      return !pmsAccess.isLoading && !pmsAccess.isError && pmsSettingsHubVisible(pmsSnapshot);
     }
     return true;
   });

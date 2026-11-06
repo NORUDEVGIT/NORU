@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -483,6 +483,23 @@ function FilterBar({
   );
 }
 
+export type CashieringActionGrants = {
+  charge: boolean;
+  payment: boolean;
+  deposit: boolean;
+  refund: boolean;
+  discount: boolean;
+  adjustment: boolean;
+  close: boolean;
+  transfer: boolean;
+};
+
+const CashieringGrantContext = createContext<CashieringActionGrants | null>(null);
+
+function useCashieringGrants(): CashieringActionGrants | null {
+  return useContext(CashieringGrantContext);
+}
+
 export function CashieringDesk({
   restaurantId,
   timezone,
@@ -493,6 +510,8 @@ export function CashieringDesk({
   moduleSearch,
   canOperate,
   canManage,
+  canAllocate = false,
+  grants = null,
   membershipId,
   role,
   onTab,
@@ -507,6 +526,8 @@ export function CashieringDesk({
   moduleSearch: string;
   canOperate: boolean;
   canManage: boolean;
+  canAllocate?: boolean;
+  grants?: CashieringActionGrants | null;
   membershipId: string;
   role: string;
   weekStart: string | null;
@@ -796,6 +817,7 @@ export function CashieringDesk({
   }, [foliosById, ledger]);
 
   return (
+    <CashieringGrantContext.Provider value={grants}>
     <div className="space-y-4" data-testid={`cashiering-panel-${tab}`}>
       {tab === "overview" ? (
         <OverviewSnapshot
@@ -825,7 +847,7 @@ export function CashieringDesk({
           selected={detailQuery.data ?? null}
           canOperate={canOperate}
           canManage={canManage}
-          canAllocate={role === "owner" || role === "manager" || role === "accountant"}
+          canAllocate={canAllocate}
           restaurantId={restaurantId}
           depositPolicySummary={depositPolicyQuery.data?.summary ?? null}
           authorizerNote={correctionNoticeQuery.data?.authorizer ?? null}
@@ -869,6 +891,7 @@ export function CashieringDesk({
           onSearchParams={onSearchParams}
           canOperate={canOperate}
           canManage={canManage}
+          grants={grants}
           money={money}
           dateTime={dateTime}
           weekStart={weekStart}
@@ -876,7 +899,13 @@ export function CashieringDesk({
       ) : null}
 
       {tab === "accounts" ? (
-        <AccountsPanel restaurantId={restaurantId} canManage={canManage} money={money} />
+        <AccountsPanel
+          restaurantId={restaurantId}
+          canManage={canManage}
+          canWriteOff={grants ? grants.writeOff : canManage}
+          canCloseAccount={grants ? grants.close : canManage}
+          money={money}
+        />
       ) : null}
 
       {tab === "reports" ? (
@@ -911,6 +940,7 @@ export function CashieringDesk({
         />
       ) : null}
     </div>
+    </CashieringGrantContext.Provider>
   );
 }
 
@@ -1367,6 +1397,14 @@ function FolioActionMenu({
   canManage: boolean;
 }) {
   const open = folio.status === "open";
+  const grants = useCashieringGrants();
+  const allowed = (key: keyof CashieringActionGrants, bundled: boolean) =>
+    grants ? grants[key] : bundled;
+  const item = (
+    key: keyof CashieringActionGrants,
+    bundled: boolean,
+    node: ReactNode,
+  ) => (allowed(key, bundled) ? node : null);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1388,55 +1426,69 @@ function FolioActionMenu({
         onClick={(event) => event.stopPropagation()}
       >
         <FolioPageItem folioId={folio.id} label="Open folio" icon={FileText} />
-        <FolioPageItem
-          folioId={folio.id}
-          action="charge"
-          label="Post Charge"
-          icon={Plus}
-          disabled={!canManage || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="payment"
-          label="Receive Payment"
-          icon={Banknote}
-          disabled={!canOperate || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="deposit"
-          label="Add Deposit"
-          icon={Coins}
-          disabled={!canOperate || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="refund"
-          label="Refund"
-          icon={Undo2}
-          disabled={!canManage || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="discount"
-          label="Discount"
-          icon={SlidersHorizontal}
-          disabled={!canManage || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="adjustment"
-          label="Adjust"
-          icon={SlidersHorizontal}
-          disabled={!canManage || !open}
-        />
-        <FolioPageItem
-          folioId={folio.id}
-          action="close"
-          label="Close Folio"
-          icon={CircleAlert}
-          disabled={!canManage || !open}
-        />
+        {item("charge", canManage, (
+          <FolioPageItem
+            folioId={folio.id}
+            action="charge"
+            label="Post Charge"
+            icon={Plus}
+            disabled={!open}
+          />
+        ))}
+        {item("payment", canOperate, (
+          <FolioPageItem
+            folioId={folio.id}
+            action="payment"
+            label="Receive Payment"
+            icon={Banknote}
+            disabled={!open}
+          />
+        ))}
+        {item("deposit", canOperate, (
+          <FolioPageItem
+            folioId={folio.id}
+            action="deposit"
+            label="Add Deposit"
+            icon={Coins}
+            disabled={!open}
+          />
+        ))}
+        {item("refund", canManage, (
+          <FolioPageItem
+            folioId={folio.id}
+            action="refund"
+            label="Refund"
+            icon={Undo2}
+            disabled={!open}
+          />
+        ))}
+        {item("discount", canManage, (
+          <FolioPageItem
+            folioId={folio.id}
+            action="discount"
+            label="Discount"
+            icon={SlidersHorizontal}
+            disabled={!open}
+          />
+        ))}
+        {item("adjustment", canManage, (
+          <FolioPageItem
+            folioId={folio.id}
+            action="adjustment"
+            label="Adjust"
+            icon={SlidersHorizontal}
+            disabled={!open}
+          />
+        ))}
+        {item("close", canManage, (
+          <FolioPageItem
+            folioId={folio.id}
+            action="close"
+            label="Close Folio"
+            icon={CircleAlert}
+            disabled={!open}
+          />
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -2062,7 +2114,7 @@ function FinancialActivityPanel({
             guestName: folio.guestName,
           }))}
           selected={selected}
-          canManage={canManage}
+          canManage={grants ? grants.transfer : canManage}
           money={money}
           dateTime={dateTime}
           dashboard={dashboard}
@@ -2167,6 +2219,11 @@ function FinancialActivityHelp({
   money?: (value: number) => string;
   onSelectActivity?: (activity: CashieringActivityFilter) => void;
 }) {
+  const grants = useCashieringGrants();
+  const allowPayment = grants ? grants.payment : canOperate;
+  const allowDeposit = grants ? grants.deposit : canOperate;
+  const allowRefund = grants ? grants.refund : canManage;
+  const allowTransfer = grants ? grants.transfer : canManage;
   if (!selected) {
     return (
       <aside className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-card p-5 shadow-xs">
@@ -2188,6 +2245,7 @@ function FinancialActivityHelp({
           </p>
 
           <div className="grid gap-2 pt-2">
+            {allowPayment ? (
             <button
               type="button"
               onClick={() => onSelectActivity?.("payment")}
@@ -2199,6 +2257,8 @@ function FinancialActivityHelp({
               </div>
               <ChevronRight className="size-3 text-[#7A7167]" />
             </button>
+            ) : null}
+            {allowDeposit ? (
             <button
               type="button"
               onClick={() => onSelectActivity?.("deposit")}
@@ -2210,6 +2270,8 @@ function FinancialActivityHelp({
               </div>
               <ChevronRight className="size-3 text-[#7A7167]" />
             </button>
+            ) : null}
+            {allowRefund ? (
             <button
               type="button"
               onClick={() => onSelectActivity?.("refund")}
@@ -2221,6 +2283,8 @@ function FinancialActivityHelp({
               </div>
               <ChevronRight className="size-3 text-[#7A7167]" />
             </button>
+            ) : null}
+            {allowTransfer ? (
             <button
               type="button"
               onClick={() => onSelectActivity?.("transfer")}
@@ -2232,6 +2296,7 @@ function FinancialActivityHelp({
               </div>
               <ChevronRight className="size-3 text-[#7A7167]" />
             </button>
+            ) : null}
           </div>
         </div>
       </aside>
@@ -2299,8 +2364,9 @@ function FinancialActivityHelp({
           </Link>
         </Button>
 
-        {canOperate && open ? (
+        {open && (allowPayment || allowDeposit) ? (
           <>
+            {allowPayment ? (
             <Button
               type="button"
               variant="outline"
@@ -2311,6 +2377,8 @@ function FinancialActivityHelp({
               <Banknote className="size-3.5 text-[#146C43]" />
               <span>Receive Payment</span>
             </Button>
+            ) : null}
+            {allowDeposit ? (
             <Button
               type="button"
               variant="outline"
@@ -2321,10 +2389,11 @@ function FinancialActivityHelp({
               <Coins className="size-3.5 text-[#8A6A24]" />
               <span>Record Deposit</span>
             </Button>
+            ) : null}
           </>
         ) : null}
 
-        {canManage && open ? (
+        {allowRefund && open ? (
           <Button
             type="button"
             variant="outline"
@@ -2350,6 +2419,7 @@ function ActivityRowActions({
   canAllocate: boolean;
   canManage: boolean;
 }) {
+  const canRefund = useCashieringGrants()?.refund ?? canManage;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -2399,7 +2469,7 @@ function ActivityRowActions({
           </DropdownMenuItem>
         ) : null}
 
-        {row.type === "deposit" && canManage ? (
+        {row.type === "deposit" ? (
           <DropdownMenuItem
             asChild
             className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
@@ -2416,7 +2486,7 @@ function ActivityRowActions({
           </DropdownMenuItem>
         ) : null}
 
-        {(row.type === "payment" || row.type === "deposit") && canManage ? (
+        {(row.type === "payment" || row.type === "deposit") && canRefund ? (
           <DropdownMenuItem
             asChild
             className="cursor-pointer rounded-lg text-xs font-medium hover:bg-[#FAF8F4]"
@@ -3041,7 +3111,7 @@ function ReceivePanel({
             </p>
           ) : !canPost ? (
             <p className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs text-[#8A6A24]">
-              Your role does not have authorization to post this transaction.
+              You don't have permission to post this transaction.
             </p>
           ) : (
             <div className="space-y-3 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4]/60 p-3.5">
@@ -3109,7 +3179,7 @@ function ReceivePanel({
                     </p>
                   )}
                   <p className="text-[10px] text-[#7A7167]">
-                    {authorizerNote ?? "Owner or Manager authorization required."}
+                    {authorizerNote ?? "Additional authorization is required for this refund."}
                   </p>
                 </div>
               ) : null}

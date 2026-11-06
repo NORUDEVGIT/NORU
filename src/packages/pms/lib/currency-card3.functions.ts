@@ -1,10 +1,11 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { displayedBusinessDate } from "./pms-set1-foundation";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   CANONICAL_BASE_CURRENCY,
   CARD3_CURRENCY_AUDIT_SECTION,
@@ -21,8 +22,7 @@ import {
   type CurrencyRounding,
   type ExchangeRateRow,
   type FinancialSettings,
-  type PropertyCurrency,
-} from "./currency-card3.server";
+  type PropertyCurrency } from "./currency-card3.server";
 import { defaultFxService } from "./fx/fx-service";
 
 type DbClient = any;
@@ -42,8 +42,7 @@ const currencySchema = z.object({
   symbol: z.string().trim().min(1).max(12),
   decimalPlaces: z.number().int().min(0).max(4),
   rounding: z.enum(CURRENCY_ROUNDING),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 const rateSchema = z.object({
   restaurantId: idSchema,
@@ -51,16 +50,14 @@ const rateSchema = z.object({
   quoteCurrencyCode: isoCode,
   rate: z.number().positive("Exchange rate must be greater than zero."),
   effectiveDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter an effective date."),
-  source: z.enum(CURRENCY_FX_SOURCES),
-});
+  source: z.enum(CURRENCY_FX_SOURCES) });
 
 const settingsSchema = z.object({
   restaurantId: idSchema,
   fiscalYearStartMonth: z.number().int().min(1).max(12),
   fiscalYearStartDay: z.number().int().min(1).max(31),
   defaultFxSource: z.enum(CURRENCY_FX_SOURCES),
-  allowMultiCurrency: z.boolean(),
-});
+  allowMultiCurrency: z.boolean() });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST205") {
@@ -85,8 +82,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_CURRENCY_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_CURRENCY_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-currency] audit", result.error.message);
 }
 
@@ -102,8 +98,7 @@ async function loadBase(db: DbClient, restaurantId: string) {
   return {
     baseCurrency,
     timezone,
-    businessDate: displayedBusinessDate(result.data?.business_date ?? null, timezone),
-  };
+    businessDate: displayedBusinessDate(result.data?.business_date ?? null, timezone) };
 }
 
 function mapCurrency(row: any, baseCurrency: string): PropertyCurrency {
@@ -116,8 +111,7 @@ function mapCurrency(row: any, baseCurrency: string): PropertyCurrency {
     decimalPlaces: Number(row.decimal_places ?? 2),
     rounding: ((CURRENCY_ROUNDING as readonly string[]).includes(row.rounding) ? row.rounding : "half_up") as CurrencyRounding,
     active: row.active !== false,
-    isBase: code === baseCurrency,
-  };
+    isBase: code === baseCurrency };
 }
 
 function mapRate(row: any, baseCurrency: string, providerName = "ExchangeRate-API"): ExchangeRateRow {
@@ -136,8 +130,7 @@ function mapRate(row: any, baseCurrency: string, providerName = "ExchangeRate-AP
     source,
     directionLabel: formatFxDirection(baseCurrency, quote, rate),
     status,
-    displaySource,
-  };
+    displaySource };
 }
 
 function mapSettings(row: any | null): FinancialSettings {
@@ -149,8 +142,7 @@ function mapSettings(row: any | null): FinancialSettings {
       ? row.default_fx_source
       : "manual") as CurrencyFxSource,
     allowMultiCurrency: row.allow_multi_currency === true,
-    saved: true,
-  };
+    saved: true };
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<CurrencyCard3Snapshot> {
@@ -178,8 +170,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Currenc
     rates: (rates.data ?? []).map((row: any) => mapRate(row, inherited.baseCurrency, fxStatus.providerName)),
     settings: mapSettings(settings.data),
     settingsRowExists: Boolean(settings.data),
-    fxStatus,
-  };
+    fxStatus };
 }
 
 export { loadSnapshot as loadCurrencyCard3Snapshot };
@@ -197,29 +188,27 @@ async function loadAudit(db: DbClient, restaurantId: string): Promise<CurrencyCa
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 export const getCurrencyCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateCurrencyCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveCurrencyCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => currencySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const inherited = await loadBase(db, data.restaurantId);
     const isBase = data.code === inherited.baseCurrency;
@@ -248,8 +237,7 @@ export const saveCurrencyCard3 = createServerFn({ method: "POST" })
           symbol: data.symbol,
           decimal_places: data.decimalPlaces,
           rounding: data.rounding,
-          active,
-        })
+          active })
         .eq("id", data.id)
         .eq("restaurant_id", data.restaurantId);
       if (updated.error) unavailable(updated.error);
@@ -261,15 +249,13 @@ export const saveCurrencyCard3 = createServerFn({ method: "POST" })
         symbol: data.symbol,
         decimal_places: data.decimalPlaces,
         rounding: data.rounding,
-        active,
-      });
+        active });
       if (inserted.error) unavailable(inserted.error);
     }
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_currency_saved", {
       detail: `${data.code} ${data.name}`,
-      code: data.code,
-    });
+      code: data.code });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCurrencyCard3Readiness(snapshot) };
   });
@@ -278,7 +264,7 @@ export const saveExchangeRateCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => rateSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const inherited = await loadBase(db, data.restaurantId);
     if (!inherited.baseCurrency) throw new Error("Set the primary currency in Property & Business first.");
@@ -292,8 +278,7 @@ export const saveExchangeRateCard3 = createServerFn({ method: "POST" })
       quote_currency_code: data.quoteCurrencyCode,
       rate: data.rate,
       effective_date: data.effectiveDate,
-      source: data.source,
-    };
+      source: data.source };
     const result = data.id
       ? await db
           .from("pms_exchange_rates")
@@ -304,8 +289,7 @@ export const saveExchangeRateCard3 = createServerFn({ method: "POST" })
     if (result.error) unavailable(result.error);
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_rate_saved", {
-      detail: formatFxDirection(inherited.baseCurrency, data.quoteCurrencyCode, data.rate),
-    });
+      detail: formatFxDirection(inherited.baseCurrency, data.quoteCurrencyCode, data.rate) });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCurrencyCard3Readiness(snapshot) };
   });
@@ -314,7 +298,7 @@ export const saveFinancialSettingsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => settingsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const result = await db.from("pms_financial_settings").upsert(
       {
@@ -322,15 +306,13 @@ export const saveFinancialSettingsCard3 = createServerFn({ method: "POST" })
         fiscal_year_start_month: data.fiscalYearStartMonth,
         fiscal_year_start_day: data.fiscalYearStartDay,
         default_fx_source: data.defaultFxSource,
-        allow_multi_currency: data.allowMultiCurrency,
-      },
+        allow_multi_currency: data.allowMultiCurrency },
       { onConflict: "restaurant_id" },
     );
     if (result.error) unavailable(result.error);
 
     await writeAudit(db, data.restaurantId, context.userId, "card3_financial_settings_saved", {
-      detail: `FY ${data.fiscalYearStartMonth}/${data.fiscalYearStartDay}`,
-    });
+      detail: `FY ${data.fiscalYearStartMonth}/${data.fiscalYearStartDay}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCurrencyCard3Readiness(snapshot) };
   });
@@ -339,15 +321,14 @@ export const refreshExchangeRatesCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const refreshResult = await defaultFxService.refreshRatesForProperty(db, data.restaurantId, context.userId);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateCurrencyCard3Readiness(snapshot),
-      refreshResult,
-    };
+      refreshResult };
   });
 
 /**

@@ -350,6 +350,8 @@ export function Card3OverlapSheet({
   submitLabel = "Save",
   pending,
   canEdit,
+  maxWidth = "max-w-lg",
+  className,
   children,
 }: {
   open: boolean;
@@ -360,6 +362,8 @@ export function Card3OverlapSheet({
   submitLabel?: string;
   pending?: boolean;
   canEdit?: boolean;
+  maxWidth?: string;
+  className?: string;
   children: ReactNode;
 }) {
   return (
@@ -369,7 +373,13 @@ export function Card3OverlapSheet({
         if (!next) onClose();
       }}
     >
-      <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] max-w-lg overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-5 shadow-xl sm:w-full">
+      <DialogContent
+        className={cn(
+          "max-h-[85dvh] w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-5 shadow-xl sm:w-full",
+          maxWidth,
+          className,
+        )}
+      >
         <DialogHeader className="space-y-1 text-left">
           <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
             {title}
@@ -421,12 +431,16 @@ export function Card3Section({
   helper,
   icon,
   testId,
+  addLabel: _addLabel,
+  onAdd: _onAdd,
   children,
 }: {
   title: string;
   helper?: string;
   icon: PropertySetupFieldIconKey;
   testId?: string;
+  addLabel?: string;
+  onAdd?: () => void;
   children: ReactNode;
 }) {
   return (

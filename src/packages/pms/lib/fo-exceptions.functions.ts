@@ -5,11 +5,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { canManageHousekeeping } from "./housekeeping.server";
-import { requireCashieringAccess } from "./cashiering.server";
 import { isPermissionDeniedMessage } from "./front-office-shell";
 import { addDays } from "./reservation-dates";
-import { requireReservationManager } from "./reservations.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { netPaymentTowardRequirement, snapshotRequiredAmount } from "./fo-check-in";
 import {
   EXCEPTION_FEED_ROW_CAP,
@@ -54,7 +57,7 @@ function ensureSignal(map: Record<string, StayMoneySignal>, stayId: string): Sta
 }
 
 export async function loadFoStaySignals(params: {
-  context: Parameters<typeof requireReservationManager>[0];
+  context: Parameters<typeof requirePmsActor>[0];
   restaurantId: string;
   reservationIds?: string[];
 }): Promise<FoStaySignalsResult> {
@@ -64,7 +67,7 @@ export async function loadFoStaySignals(params: {
 
   if (ids.length === 0) {
     try {
-      await requireCashieringAccess(context as never, restaurantId);
+      await requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
       return { folioLane: "live", byStay };
     } catch (error) {
       return {
@@ -123,7 +126,7 @@ export async function loadFoStaySignals(params: {
 
   let folioLane: FolioSignalLane = "live";
   try {
-    await requireCashieringAccess(context as never, restaurantId);
+    await requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
   } catch (error) {
     folioLane = isPermissionDeniedMessage(error) ? "permission_denied" : "coming_soon";
     return { folioLane, byStay };
@@ -237,7 +240,7 @@ export const listFoStaySignals = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoStaySignalsResult> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     return loadFoStaySignals({
       context: context as never,
       restaurantId: data.restaurantId,
@@ -258,7 +261,7 @@ function classifyFeedError(error: unknown): FolioSignalLane {
 }
 
 export async function loadFoExceptionFeeds(params: {
-  context: Parameters<typeof requireReservationManager>[0];
+  context: Parameters<typeof requirePmsActor>[0];
   restaurantId: string;
   businessDate: string;
   canResolveDiscrepancy: boolean;
@@ -385,11 +388,14 @@ export const listFoExceptionFeeds = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoExceptionFeedsResult> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     return loadFoExceptionFeeds({
       context: context as never,
       restaurantId: data.restaurantId,
       businessDate: data.businessDate,
-      canResolveDiscrepancy: canManageHousekeeping(me.role),
+      canResolveDiscrepancy: hasEffectivePermission(
+        await resolveEffectivePermissions(context as never, data.restaurantId),
+        PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT,
+      ),
     });
   });

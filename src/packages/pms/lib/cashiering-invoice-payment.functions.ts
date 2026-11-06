@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActorAll } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -14,7 +16,6 @@ import {
   assertIdempotencyKey,
   callPostFolioTransaction,
   cashierError,
-  requireCashierOperator,
 } from "./cashiering.server";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
@@ -67,7 +68,10 @@ export const receiveGuestInvoicePayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }): Promise<InvoiceReceivePaymentResult> => {
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.CASHIERING_PAYMENT_POST,
+      PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settlement = await loadGuestInvoiceSettlementForWrite(
       supabaseAdmin,
@@ -145,7 +149,10 @@ export const receiveCompanyInvoicePayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data, context }): Promise<InvoiceReceivePaymentResult> => {
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.CASHIERING_PAYMENT_POST,
+      PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settlement = await loadFinancialAccountInvoiceSettlementForWrite(
       supabaseAdmin,

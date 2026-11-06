@@ -185,7 +185,7 @@ export function PmsCard4CompanyBusiness({
   const [pendingClose, setPendingClose] = useState(false);
   const [roleDraft, setRoleDraft] = useState<BusinessContactRoleDraft>(emptyContactRoleDraft());
   const thenNextRef = useRef(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
   const fetchDocTypes = useServerFn(listPmsCompanyDocumentTypes);
   const saveDocType = useServerFn(savePmsCompanyDocumentType);

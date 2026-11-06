@@ -1,27 +1,21 @@
 /**
  * Phase 6I — Night Audit & business date close server functions.
  *
- * Owner/manager only. The business date always comes from the property row,
+ * Permissions gate each action. The business date always comes from the property row,
  * never from the browser; every id is revalidated against the property before
  * it is used. The close itself runs inside a locked SECURITY DEFINER function.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import {
-  CASHIER_ACCESS_ROLES,
-  canManageCashiering,
-  requireCashierManager,
-  requireCashieringAccess,
-} from "./cashiering.server";
 import { callerMembership } from "@/core/lib/workforce.server";
-import { requireReservationManager } from "./reservations.server";
 import { requirePmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { evaluateNa1Blockers } from "./na1.server";
 import {
   NA1_STALE_BUSINESS_DATE,
-  canConfirmNightAudit,
   canEnableConfirm,
   integrityBlockerCounts,
   nightAuditFeedCounts,
@@ -39,7 +33,6 @@ import {
 } from "./na1";
 import {
   FINANCIAL_UNAVAILABLE_MESSAGE,
-  canViewNightAuditFinancialDetail,
   financialAllowsClose,
   financialIssuesToExceptions,
   mergeAuditExceptions,
@@ -74,7 +67,6 @@ import {
   type PersistedCloseRow,
   type FiscalOverride,
   type WarningReview,
-  canViewNightAuditOperationalDetail,
   historyRange,
   historySearchDates,
   presentExceptionMessage,
@@ -818,23 +810,33 @@ async function staffNames(admin: any, restaurantId: string, membershipIds: strin
   return names;
 }
 
-function folioLaneForRole(role: string): NaFolioLane {
-  return (CASHIER_ACCESS_ROLES as readonly string[]).includes(role) ? "live" : "unavailable";
+async function nightAuditActorFlags(
+  context: Parameters<typeof resolveEffectivePermissions>[0],
+  restaurantId: string,
+) {
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  const has = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+    hasEffectivePermission(resolved, code);
+  const financial = has(PMS_PERMISSIONS.CASHIERING_VIEW);
+  const operational = has(PMS_PERMISSIONS.FRONT_OFFICE_VIEW) || has(PMS_PERMISSIONS.RESERVATION_VIEW);
+  const detailRole =
+    financial && operational ? "owner" : financial ? "cashier" : operational ? "receptionist" : "housekeeper";
+  return {
+    financial,
+    operational,
+    detailRole,
+    canRun: has(PMS_PERMISSIONS.NIGHT_AUDIT_RUN),
+    canException: has(PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT),
+    canClose: has(PMS_PERMISSIONS.NIGHT_AUDIT_CLOSE_DATE),
+    folioLane: (financial ? "live" : "unavailable") as NaFolioLane,
+  };
 }
 
 async function requireNightAuditView(
-  context: Parameters<typeof requireCashieringAccess>[0],
+  context: Parameters<typeof resolveEffectivePermissions>[0],
   restaurantId: string,
 ) {
-  try {
-    return await requireCashieringAccess(context, restaurantId);
-  } catch (cashErr) {
-    try {
-      return await requireReservationManager(context, restaurantId);
-    } catch {
-      throw cashErr;
-    }
-  }
+  return requirePmsActor(context, restaurantId, PMS_PERMISSIONS.NIGHT_AUDIT_VIEW);
 }
 
 export const getPropertyBusinessDate = createServerFn({ method: "GET" })
@@ -854,9 +856,10 @@ export const getNightAuditAccess = createServerFn({ method: "GET" })
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
     const me = await requireNightAuditView(context as never, data.restaurantId);
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     return {
-      canManage: canManageCashiering(me.role),
-      canConfirm: canConfirmNightAudit(me.role),
+      canManage: flags.canRun,
+      canConfirm: flags.canClose,
       role: me.role,
     };
   });
@@ -866,6 +869,7 @@ export const getNightAuditFinancials = createServerFn({ method: "GET" })
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditFinancialReconciliation> => {
     const me = await requireNightAuditView(context as never, data.restaurantId);
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
     try {
@@ -882,7 +886,7 @@ export const getNightAuditFinancials = createServerFn({ method: "GET" })
         .eq("restaurant_id", data.restaurantId)
         .eq("business_date", property.businessDate)
         .maybeSingle();
-      if (!runRow) return presentNightAuditFinancials(result, me.role);
+      if (!runRow) return presentNightAuditFinancials(result, flags.detailRole);
       const runId = (runRow as { id: string }).id;
       const exceptionRows = await selectAll<ExceptionRow>((from, to) =>
         supabaseAdmin
@@ -900,7 +904,7 @@ export const getNightAuditFinancials = createServerFn({ method: "GET" })
       );
       return presentNightAuditFinancials(
         presentFinancialWithFiscalOverrides(result, exceptionRows, overrides, names),
-        me.role,
+        flags.detailRole,
       );
     } catch (error) {
       throw nightAuditError(error instanceof Error ? error.message : FINANCIAL_UNAVAILABLE_MESSAGE);
@@ -912,6 +916,7 @@ export const getNightAuditOperations = createServerFn({ method: "GET" })
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditOperationalReconciliation> => {
     const me = await requireNightAuditView(context as never, data.restaurantId);
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
     try {
@@ -921,7 +926,7 @@ export const getNightAuditOperations = createServerFn({ method: "GET" })
         property.businessDate,
         property.timezone,
       );
-      return presentNightAuditOperations(result, me.role);
+      return presentNightAuditOperations(result, flags.detailRole);
     } catch {
       throw new Error(OPERATIONAL_UNAVAILABLE_MESSAGE);
     }
@@ -933,12 +938,13 @@ export const runNightAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditState> => {
-    const me = await requireNightAuditView(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.NIGHT_AUDIT_RUN);
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
-    const folioLane = folioLaneForRole(me.role);
-    const financialDetail = canViewNightAuditFinancialDetail(me.role);
-    const stayDetail = canViewNightAuditOperationalDetail(me.role);
+    const folioLane = flags.folioLane;
+    const financialDetail = flags.financial;
+    const stayDetail = flags.operational;
     const checkedAt = new Date().toISOString();
 
     // One run per property/business date.
@@ -1060,7 +1066,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
       .map((row) =>
         toException(
           row,
-          me.role,
+          flags.detailRole,
           sources,
           overrides,
           staffMemberNames,
@@ -1167,9 +1173,9 @@ export const runNightAudit = createServerFn({ method: "POST" })
         closedBy: run.closed_by_membership_id
           ? (names.get(run.closed_by_membership_id) ?? null)
           : null,
-        summary: presentRunSummary((run.summary as AuditSummary | null) ?? null, me.role),
+        summary: presentRunSummary((run.summary as AuditSummary | null) ?? null, flags.detailRole),
       },
-      checks: presentRunSummary({ checks: evaluation.checks }, me.role)?.checks ?? [],
+      checks: presentRunSummary({ checks: evaluation.checks }, flags.detailRole)?.checks ?? [],
       exceptions,
       blockingCount,
       warningCount,
@@ -1190,7 +1196,7 @@ export const runNightAudit = createServerFn({ method: "POST" })
       persistedBusinessDate: property.persistedBusinessDate,
       lastClosedOtb,
       canRetryOtb:
-        canConfirmNightAudit(me.role) &&
+        flags.canException &&
         lastClosedRaw != null &&
         lastClosedOtb === "not_captured" &&
         canRetryOtbSnapshot({
@@ -1233,8 +1239,11 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    // requireCashierManager is owner/manager only and verifies property membership.
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_AUTHORIZE,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
     const { data: row } = await supabaseAdmin
@@ -1325,7 +1334,11 @@ export const reviewWarning = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ ok: true; alreadyReviewed?: boolean } | { ok: false; message: string }> => {
-      const me = await requireCashierManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.exceptionId);
@@ -1457,7 +1470,11 @@ export const updateException = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: row } = await supabaseAdmin
@@ -1558,7 +1575,12 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
           code?: typeof NIGHT_AUDIT_OUTSIDE_WINDOW | typeof NIGHT_AUDIT_INVALID_WINDOW;
         }
     > => {
-      const me = await requireCashierManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.NIGHT_AUDIT_CLOSE_DATE,
+      );
+      const flags = await nightAuditActorFlags(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
 
@@ -1673,7 +1695,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         supabaseAdmin,
         data.restaurantId,
         runDate,
-        folioLaneForRole(me.role),
+        flags.folioLane,
         integrityBlockerCounts(evaluation.exceptions),
         nightAuditFeedCounts(evaluation.exceptions),
       );
@@ -1916,7 +1938,11 @@ export const retryNightAuditOtbSnapshot = createServerFn({ method: "POST" })
       | { ok: true; status: "captured" | "already_present" | "failed"; error: string | null }
       | { ok: false; message: string }
     > => {
-      await requireCashierManager(context as never, data.restaurantId);
+      await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
       const { data: runRow } = await supabaseAdmin
@@ -1956,6 +1982,7 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditRunRow[]> => {
     const me = await requireNightAuditView(context as never, data.restaurantId);
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows } = await supabaseAdmin
       .from("night_audit_runs")
@@ -1969,7 +1996,7 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
       data.restaurantId,
       list.flatMap((r) => [r.started_by_membership_id ?? "", r.closed_by_membership_id ?? ""]),
     );
-    return list.map((r) => toRunRow(r, names, me.role));
+    return list.map((r) => toRunRow(r, names, flags.detailRole));
   });
 
 const RUN_COLUMNS =
@@ -2051,6 +2078,7 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }): Promise<NightAuditHistoryPage> => {
     const me = await requireNightAuditView(context as never, data.restaurantId);
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const pageSize = (data.pageSize ?? 25) as HistoryPageSize;
     const range = historyRange(data.page ?? 1, pageSize);
@@ -2120,7 +2148,7 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
         toRunRow(
           r,
           names,
-          me.role,
+          flags.detailRole,
           r.status === "closed" ? (otb.get(r.business_date.slice(0, 10)) ?? "unknown") : undefined,
         ),
       ),
@@ -2155,6 +2183,7 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
       currency: string;
     } | null> => {
       const me = await requireNightAuditView(context as never, data.restaurantId);
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
       const { data: row, error: runError } = await supabaseAdmin
@@ -2202,9 +2231,9 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
       const overrideNames = await staffNames(supabaseAdmin, data.restaurantId, staffIds);
       return {
         currency: property.currency,
-        run: toRunRow(r, names, me.role, otb),
+        run: toRunRow(r, names, flags.detailRole, otb),
         exceptions: exRows.map((ex) => {
-          const item = toException(ex, me.role, new Map(), overrides, overrideNames, history);
+          const item = toException(ex, flags.detailRole, new Map(), overrides, overrideNames, history);
           const review = warningReviews.get(ex.id);
           item.warningReview = review ? toWarningReview(review, overrideNames) : null;
           item.warningReviewHistory = (warningHistory.get(ex.id) ?? []).map((rev) =>

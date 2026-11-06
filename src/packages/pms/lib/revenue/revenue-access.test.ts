@@ -61,8 +61,7 @@ describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
     }
     assert.ok((REPORTS_ROLES as readonly string[]).includes("accountant"));
     const overview = readRel("../rates.functions.ts");
-    assert.match(overview, /reports_analytics/);
-    assert.match(overview, /REPORTS_ROLES/);
+    assert.match(overview, /REPORTS_VIEW/);
     assert.doesNotMatch(overview.slice(overview.indexOf("export const getRevenueOverview")), /requireRateManager/);
   });
 
@@ -78,8 +77,8 @@ describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
     const fns = readRel("../rates.functions.ts");
     const override = fns.slice(fns.indexOf("export const saveRateOverride"), fns.indexOf("export const listRateRestrictions"));
     const restriction = fns.slice(fns.indexOf("export const saveRateRestriction"), fns.indexOf("export const quoteStay"));
-    assert.match(override, /requireRateManager/);
-    assert.match(restriction, /requireRateManager/);
+    assert.match(override, /RATES_CALENDAR_OVERRIDE/);
+    assert.match(restriction, /RATES_RESTRICTION_CONFIGURE/);
     const accessFns = readRel("./revenue-access.functions.ts");
     assert.doesNotMatch(accessFns, /saveRateOverride|saveRateRestriction/);
   });

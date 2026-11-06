@@ -473,8 +473,8 @@ describe("Guest Profile Individual enrichment lock — AC-GE2-1…34", () => {
       readRel("../../../routes/restaurant/pms/guests.$guestId.tsx"),
     ].join("\n");
     assert.match(functions, /requireSupabaseAuth/);
-    assert.match(functions, /requireGuestManager/);
-    assert.match(accounts, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
+    assert.match(accounts, /requirePmsActor/);
     assert.match(routes, /requireRoutePackage\("pms"\)/);
   });
 

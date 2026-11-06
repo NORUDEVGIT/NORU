@@ -22,23 +22,28 @@ import {
   BUSINESS_DATE_CONFIRM_WORD,
   BUSINESS_DATE_REASON_MAX,
   businessDateAdjustmentProblem,
-  canAdjustBusinessDate,
 } from "@/packages/pms/lib/business-date-recovery";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { PROPERTY_BUSINESS_DATE_KEY } from "@/packages/pms/lib/use-property-business-date";
 
-/** Owner-only. Renders nothing for every other role. */
+/** Shown when the caller has night_audit.business_date.recover. Owner bypass is in the permission snapshot. */
 export function BusinessDateRecoveryControl({
   restaurantId,
-  role,
   currentBusinessDate,
 }: {
   restaurantId: string;
-  role: string;
+  role?: string;
   /** Stored restaurants.business_date. Null before initialization. */
   currentBusinessDate: string | null;
 }) {
+  const permissions = usePmsPermissions(restaurantId);
+  const canRecover =
+    !permissions.isLoading &&
+    !permissions.isError &&
+    permissions.can(PMS_PERMISSIONS.NIGHT_AUDIT_RECOVER_DATE);
   const [open, setOpen] = useState(false);
-  if (!canAdjustBusinessDate(role)) return null;
+  if (!canRecover) return null;
   return (
     <>
       <Button

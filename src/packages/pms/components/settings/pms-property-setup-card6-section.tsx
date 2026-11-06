@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Card6IntegrationsTab } from "@/packages/pms/components/settings/pms-card6-integrations-tab";
@@ -15,6 +17,10 @@ import {
   CARD6_TABS,
   type Card6TabId,
 } from "@/packages/pms/lib/pms-property-setup-card6";
+import { getPmsCard6Integrations } from "@/packages/pms/lib/integrations-card6.functions";
+import { getPmsCard6Distribution } from "@/packages/pms/lib/distribution-card6.functions";
+import { getFiscalIntegrationStatus } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 
 /** Card 6 shell for integrations, distribution mapping, and operations. */
 export function PmsPropertySetupCard6Section({
@@ -27,6 +33,56 @@ export function PmsPropertySetupCard6Section({
   initialTab?: Card6TabId;
 }) {
   const [tab, setTab] = useState<Card6TabId>(initialTab);
+
+  const loadIntegrations = useServerFn(getPmsCard6Integrations);
+  const loadDistribution = useServerFn(getPmsCard6Distribution);
+  const loadFiscal = useServerFn(getFiscalIntegrationStatus);
+
+  const integrationsQuery = useQuery({
+    queryKey: ["pms-card6-integrations", restaurantId],
+    queryFn: () => loadIntegrations({ data: { restaurantId } }),
+    retry: false,
+  });
+  const distributionQuery = useQuery({
+    queryKey: ["pms-card6-distribution", restaurantId],
+    queryFn: () => loadDistribution({ data: { restaurantId } }),
+    retry: false,
+  });
+  const fiscalQuery = useQuery({
+    queryKey: ["fiscal-integration", restaurantId],
+    queryFn: () => loadFiscal({ data: { restaurantId } }),
+    retry: false,
+  });
+
+  const hasFiscal = fiscalQuery.data?.status && fiscalQuery.data.status !== "not_configured";
+  const hasIntegrations = (integrationsQuery.data?.integrations.length ?? 0) > 0;
+  const integrationsDone = hasFiscal || (integrationsQuery.data?.integrations.some((i) => i.enabled) ?? false);
+  const integrationsStatus: PropertySetupCardStatus = integrationsDone
+    ? "complete"
+    : hasIntegrations
+      ? "in_progress"
+      : "not_started";
+
+  const channels = distributionQuery.data?.channels ?? [];
+  const channelsActive = channels.some((c) => c.activationStatus === "active");
+  const distributionStatus: PropertySetupCardStatus = channelsActive
+    ? "complete"
+    : channels.length > 0
+      ? "in_progress"
+      : "not_started";
+
+  const cardStatus: PropertySetupCardStatus =
+    integrationsStatus === "complete" && distributionStatus === "complete"
+      ? "complete"
+      : integrationsStatus !== "not_started" || distributionStatus !== "not_started"
+        ? "in_progress"
+        : "not_started";
+
+  const completeCount = (integrationsStatus === "complete" ? 1 : 0) + (distributionStatus === "complete" ? 1 : 0);
+  const inProgressCount =
+    (integrationsStatus === "in_progress" ? 1 : 0) + (distributionStatus === "in_progress" ? 1 : 0);
+  const notStartedCount =
+    (integrationsStatus === "not_started" ? 1 : 0) + (distributionStatus === "not_started" ? 1 : 0);
 
   function goBack() {
     window.location.hash = "";
@@ -44,13 +100,17 @@ export function PmsPropertySetupCard6Section({
       <div className="min-w-0 flex-1" data-testid="pms-card6-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={6}
-          status="not_started"
+          status={cardStatus}
           description={CARD6_SUBTITLE}
           onBack={goBack}
           footerTestId="pms-card6-chrome"
           rail={
             <div data-testid="pms-card6-status-rail">
-              <PropertySetupStatusRail complete={0} inProgress={0} notStarted={0} />
+              <PropertySetupStatusRail
+                complete={completeCount}
+                inProgress={inProgressCount}
+                notStarted={notStartedCount}
+              />
             </div>
           }
           stepNav={
@@ -64,7 +124,7 @@ export function PmsPropertySetupCard6Section({
                 id: item.id,
                 number: index + 1,
                 title: item.label,
-                status: "not_started",
+                status: item.id === "integrations" ? integrationsStatus : distributionStatus,
               }))}
             />
           }

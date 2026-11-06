@@ -573,9 +573,9 @@ describe("fiscal debit note response and safety", () => {
       functions.indexOf("export const registerDebitNoteFiscal"),
       functions.indexOf("export const getGuestInvoiceFiscal"),
     );
-    assert.match(view, /requireCashieringAccess/);
-    assert.doesNotMatch(view, /requireCashierManager/);
-    assert.match(register, /requireCashierManager/);
+    assert.match(view, /FISCAL_VIEW/);
+    assert.doesNotMatch(view, /FISCAL_DOCUMENT_AUTHORIZE/);
+    assert.match(register, /FISCAL_DOCUMENT_AUTHORIZE/);
     memoryDb();
     const beforeInvoice = JSON.stringify(sharedTables().guest_folio_invoices);
     const beforeNote = JSON.stringify(sharedTables().invoice_credit_notes);

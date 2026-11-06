@@ -13,7 +13,12 @@ import {
   type NoShowReadiness,
 } from "@/packages/pms/lib/fo-no-show-readiness";
 import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
-import { requireReservationManager } from "@/packages/pms/lib/reservations.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "@/packages/pms/lib/pms-permissions.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { parseSnapshot } from "@/packages/pms/lib/rates.server";
 import {
   RESERVATION_UNIT_STATUSES,
@@ -52,7 +57,7 @@ export const getNoShowReadiness = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<NoShowReadinessResponse> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const [reservationResult, unitsResult, propertyResult, progressResult, contextResult] =
@@ -91,7 +96,10 @@ export const getNoShowReadiness = createServerFn({ method: "POST" })
           data.reservationId,
           "noshow",
           me.id,
-          me.role,
+          hasEffectivePermission(
+            await resolveEffectivePermissions(context as never, data.restaurantId),
+            PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+          ),
           data.reservationRoomId,
         ),
       ]);

@@ -523,7 +523,7 @@ describe("P6-STEP-01 — access, UI-24, and honest capabilities", () => {
   it("reuses requireRateManager and does not expose observation writes", () => {
     const functions = readRel("./rate-shopping.functions.ts");
     const server = readRel("./rate-shopping.server.ts");
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(functions, /export const listHotelCompetitors/);
     assert.match(functions, /export const createHotelCompetitor/);
     assert.match(functions, /export const updateHotelCompetitor/);

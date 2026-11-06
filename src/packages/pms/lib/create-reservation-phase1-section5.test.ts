@@ -459,10 +459,10 @@ describe("Create Reservation Phase 1 Section 5 lock — AC-CR5-1…21", () => {
     const rates = readRel("./rates.functions.ts");
     assert.match(page, /requireRoutePackage\("pms"\)/);
     assert.match(page, /getBookingsAccess/);
-    assert.match(functions, /requireReservationManager/);
+    assert.match(functions, /requirePmsActor/);
     const quoteStart = rates.indexOf("export const quoteStay");
     const quoteFn = rates.slice(quoteStart, rates.indexOf("export const repriceReservation"));
-    assert.match(quoteFn, /await requireReservationManager/);
+    assert.match(quoteFn, /await requirePmsActor/);
     assert.doesNotMatch(quoteFn, /await requireRateManager/);
     assert.match(CREATE_RESERVATION_QUOTE_GATE_DOC, /requireReservationManager/);
     assert.match(CREATE_RESERVATION_QUOTE_GATE_DOC, /receptionist/);

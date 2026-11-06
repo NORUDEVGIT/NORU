@@ -2,10 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import {
   RESERVATION_STATUSES,
   nightsBetween,
-  requireReservationManager,
   type ReservationStatus,
 } from "../reservations.server";
 import { resolvePropertyBusinessDate } from "./business-date";
@@ -250,7 +251,7 @@ function ids(rows: Array<{ id: string }> | null): string[] {
 }
 
 async function resolveRelatedSearchMatches(
-  supabase: Parameters<typeof requireReservationManager>[0]["supabase"],
+  supabase: Parameters<typeof requirePmsActor>[0]["supabase"],
   restaurantId: string,
   term: string,
 ): Promise<RelatedSearchMatches> {
@@ -337,7 +338,7 @@ function buildSearchOrFilter(term: string, matches: RelatedSearchMatches): strin
   return parts.join(",");
 }
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 export async function searchOperationalReservations(params: {
   supabase: WorkspaceClient;
@@ -429,7 +430,7 @@ export const listOperationalReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => operationalReservationSearchInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<OperationalReservationPage> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const propertyResult = await supabaseAdmin

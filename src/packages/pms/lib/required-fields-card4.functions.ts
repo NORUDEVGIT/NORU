@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import {
   DEFAULT_GUEST_FIELDS,
   flagsForActiveChange,
@@ -18,16 +19,14 @@ import {
   type GuestFieldRecord,
   type GuestFieldSnapshot,
   type GuestFieldType,
-  type NamedOption,
-} from "./required-fields-card4.server";
+  type NamedOption } from "./required-fields-card4.server";
 import {
   INDIVIDUAL_GUEST_CREATION_FIELDS,
   COMPANY_CREATION_FIELDS,
   ALL_COMPANY_CREATION_FIELDS,
   ALL_TRAVEL_AGENCY_CREATION_FIELDS,
   isCompanyFieldCode,
-  isTravelAgencyFieldCode,
-} from "./guest-creation-field-definitions";
+  isTravelAgencyFieldCode } from "./guest-creation-field-definitions";
 
 // Generated schema predates 0078.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,8 +40,7 @@ const optionSchema = z
     label: z.string().max(80),
     value: z.string().max(80),
     active: z.boolean(),
-    displayOrder: z.number().int().min(0).max(999),
-  })
+    displayOrder: z.number().int().min(0).max(999) })
   .strict();
 
 const saveSchema = z
@@ -72,8 +70,7 @@ const saveSchema = z
     lookupSource: z.enum(["company", "travel_agent", "group"]).nullable(),
     documentTypeIds: z.array(idSchema).max(40),
     minValue: z.number().nullable(),
-    maxValue: z.number().nullable(),
-  })
+    maxValue: z.number().nullable() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -121,8 +118,7 @@ function mapRow(row: {
     minValue: minRaw == null || minRaw === "" ? null : Number(minRaw),
     maxValue: maxRaw == null || maxRaw === "" ? null : Number(maxRaw),
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -137,8 +133,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-required-fields", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-required-fields", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-required-fields] audit", result.error.message);
 }
 
@@ -148,8 +143,7 @@ function seedOptionRows(options: Array<{ label: string; value: string }>): Guest
     label: row.label,
     value: row.value,
     active: true,
-    displayOrder: index,
-  }));
+    displayOrder: index }));
 }
 
 async function seedDefaults(db: DbClient, restaurantId: string, userId: string) {
@@ -169,8 +163,7 @@ async function seedDefaults(db: DbClient, restaurantId: string, userId: string) 
     document_type_ids: [],
     min_value: null,
     max_value: null,
-    updated_by: userId,
-  }));
+    updated_by: userId }));
   const result = await db.from("pms_guest_fields").insert(payload);
   if (result.error && result.error.code !== "23505") unavailable(result.error);
 }
@@ -217,6 +210,7 @@ async function loadSnapshot(
   );
   if (missingDefs.length > 0) {
     const nextOrder = (fieldsRes.data ?? []).length;
+    const payloads = [];
     for (let index = 0; index < missingDefs.length; index++) {
       const def = missingDefs[index];
       let fieldName = def.name;
@@ -230,7 +224,7 @@ async function loadSnapshot(
       existingNames.add(fieldName.trim().toLowerCase());
       const isCompanyField = def.code.startsWith("COMPANY_");
       const isTaField = def.code.startsWith("TA_") || def.code.startsWith("TRAVEL_AGENCY_");
-      const rowPayload = {
+      payloads.push({
         restaurant_id: restaurantId,
         name: fieldName,
         code: def.code,
@@ -246,9 +240,16 @@ async function loadSnapshot(
         document_type_ids: [],
         min_value: null,
         max_value: null,
-        updated_by: userId || null,
-      };
-      await db.from("pms_guest_fields").insert(rowPayload).catch(() => undefined);
+        updated_by: userId || null });
+    }
+    if (payloads.length > 0) {
+      const batchRes = await db.from("pms_guest_fields").insert(payloads);
+      if (batchRes.error) {
+        // Fallback to inserting individually if batch insert encounters an unexpected issue
+        for (const row of payloads) {
+          await db.from("pms_guest_fields").insert(row).catch(() => undefined);
+        }
+      }
     }
     const refreshed = await db
       .from("pms_guest_fields")
@@ -286,7 +287,7 @@ export const getPmsCard4RequiredFields = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -295,7 +296,7 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId, context.userId);
@@ -323,8 +324,7 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
         lookupSource,
         documentTypeIds: data.fieldType === "document" ? data.documentTypeIds : [],
         minValue: data.fieldType === "number" ? data.minValue : null,
-        maxValue: data.fieldType === "number" ? data.maxValue : null,
-      },
+        maxValue: data.fieldType === "number" ? data.maxValue : null },
       snapshot.fields,
     );
     if (errors.length > 0) throw new Error(errors[0]?.message ?? "Fix the field before saving.");
@@ -351,8 +351,7 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
       document_type_ids: data.fieldType === "document" ? data.documentTypeIds : [],
       min_value: data.fieldType === "number" ? data.minValue : null,
       max_value: data.fieldType === "number" ? data.maxValue : null,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
 
     let id = data.id;
     if (data.id) {
@@ -421,14 +420,12 @@ export const savePmsCard4RequiredField = createServerFn({ method: "POST" })
     }
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_guest_field_saved", {
       id,
-      code,
-    });
+      code });
     const next = await loadSnapshot(db, data.restaurantId, context.userId);
     return {
       ok: true as const,
       field: next.fields.find((row) => row.id === id) ?? null,
-      snapshot: next,
-    };
+      snapshot: next };
   });
 
 export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
@@ -444,13 +441,12 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
         checkIn: z.boolean().optional(),
         reservation: z.boolean().optional(),
         active: z.boolean().optional(),
-        fieldName: z.string().optional(),
-      })
+        fieldName: z.string().optional() })
       .passthrough()
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
 
@@ -535,8 +531,7 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
           document_type_ids: [],
           min_value: null,
           max_value: null,
-          updated_by: context.userId,
-        };
+          updated_by: context.userId };
         const ins = await db
           .from("pms_guest_fields")
           .insert(rowPayload)
@@ -600,8 +595,7 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
       check_in: data.checkIn ?? fieldRow.check_in,
       reservation: data.reservation ?? fieldRow.reservation,
       active,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = await db
       .from("pms_guest_fields")
       .update(patch)
@@ -658,8 +652,7 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
                 .from("pms_guest_profile_types")
                 .update({
                   required_field_ids: cur.filter((fid) => fid !== fieldRow.id),
-                  updated_by: context.userId,
-                })
+                  updated_by: context.userId })
                 .eq("id", it.id);
             }
           }
@@ -679,8 +672,7 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
                 .from("pms_guest_profile_types")
                 .update({
                   required_field_ids: cur.filter((fid) => fid !== fieldRow.id),
-                  updated_by: context.userId,
-                })
+                  updated_by: context.userId })
                 .eq("id", ot.id);
             }
           }
@@ -724,8 +716,7 @@ export const setPmsCard4RequiredFieldFlags = createServerFn({ method: "POST" })
     }
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_guest_field_toggled", {
       id: fieldRow.id,
-      ...patch,
-    });
+      ...patch });
     return { ok: true as const, id: fieldRow.id, code: fieldRow.code };
   });
 
@@ -738,7 +729,7 @@ export const reorderPmsCard4RequiredFields = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const unique = [...new Set(data.ids)];
     if (unique.length !== data.ids.length) throw new Error("Every field must have a unique order.");
@@ -756,8 +747,7 @@ export const reorderPmsCard4RequiredFields = createServerFn({ method: "POST" })
       context.userId,
       "pms_card4_guest_fields_reordered",
       {
-        ids: data.ids,
-      },
+        ids: data.ids },
     );
     return { ok: true as const };
   });
@@ -768,7 +758,7 @@ export const deletePmsCard4RequiredField = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const fieldToCheck = await supabaseAdmin
       .from("pms_guest_fields")
@@ -811,8 +801,7 @@ export const deletePmsCard4RequiredField = createServerFn({ method: "POST" })
       context.userId,
       "pms_card4_guest_field_deleted",
       {
-        id: data.id,
-      },
+        id: data.id },
     );
     return { ok: true as const };
   });

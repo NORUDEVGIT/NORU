@@ -247,7 +247,7 @@ describe("check-in readiness blockers", () => {
 describe("check-in readiness command", () => {
   it("reads the owning modules and does not complete the stay", () => {
     const source = read("src/packages/pms/lib/fo-check-in-readiness.functions.ts");
-    expect(source).toContain("requireReservationManager");
+    expect(source).toContain("requirePmsActor");
     expect(source).toContain("validateGuestCheckInRequirements");
     expect(source).toContain("checkInIdentityVerification");
     expect(source).toContain("getAssignmentEligibilityCompat");

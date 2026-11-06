@@ -511,9 +511,9 @@ describe("NA-P4 Run & Close", () => {
     assert.equal(closeGate({ ...READY_GATE, canClose: false }).enabled, false);
     assert.match(
       handler("closeBusinessDate"),
-      /const me = await requireCashierManager\(context as never, data\.restaurantId\);/,
+      /requirePmsActor\([\s\S]*NIGHT_AUDIT_CLOSE_DATE/,
     );
-    assert.match(handler("retryNightAuditOtbSnapshot"), /await requireCashierManager\(/);
+    assert.match(handler("retryNightAuditOtbSnapshot"), /requirePmsActor\([\s\S]*NIGHT_AUDIT_EXCEPTION_EDIT/);
   });
 
   it("31. a double click advances once", () => {
@@ -837,9 +837,9 @@ describe("NA-P4 redaction", () => {
     assert.match(functions, /shifts: financialDetail \? evaluation\.shifts : \[\]/);
     assert.match(
       handler("getNightAuditRun"),
-      /toException\(ex, me\.role, new Map\(\), overrides, overrideNames, history\)/,
+      /toException\(ex, flags\.detailRole, new Map\(\), overrides, overrideNames, history\)/,
     );
-    assert.match(handler("listNightAuditRuns"), /toRunRow\(r, names, me\.role\)/);
+    assert.match(handler("listNightAuditRuns"), /toRunRow\(r, names, flags\.detailRole\)/);
   });
 });
 
@@ -1054,7 +1054,7 @@ describe("NA-P4 fiscal close override", () => {
     referenceId: "doc-1",
   });
 
-  it("1–5. only owner and manager see/use the fiscal-only action", () => {
+  it("1–5. fiscal close override follows night_audit.fiscal.authorize", () => {
     assert.equal(isFiscalOverrideableException(fiscal), true);
     assert.deepEqual(
       [...FISCAL_OVERRIDEABLE_EXCEPTION_TYPES],
@@ -1064,8 +1064,9 @@ describe("NA-P4 fiscal close override", () => {
       !(FISCAL_OVERRIDEABLE_EXCEPTION_TYPES as readonly string[]).includes("fiscal_unrecognized"),
     );
     assert.match(queue, /Authorize Fiscal Close Override/);
-    assert.match(queue, /role === "owner" \|\| role === "manager"/);
-    assert.match(authorize, /requireCashierManager/);
+    assert.match(queue, /canAuthorizeFiscalOverride\(canFiscalOverride, row\)/);
+    assert.match(authorize, /NIGHT_AUDIT_FISCAL_AUTHORIZE/);
+    assert.doesNotMatch(queue, /role === "owner" \|\| role === "manager"/);
     assert.doesNotMatch(queue, /Override Blocker/);
   });
 
@@ -1129,7 +1130,7 @@ describe("NA-P4 fiscal close override", () => {
   });
 
   it("21–23. server rejects unauthorized, cross-property, stale, and closed-run changes", () => {
-    assert.match(authorize, /requireCashierManager\(context as never, data\.restaurantId\)/);
+    assert.match(authorize, /requirePmsActor\([\s\S]*NIGHT_AUDIT_FISCAL_AUTHORIZE/);
     assert.match(authorize, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(authorize, /Closed Night Audit runs cannot be modified\./);
     assert.match(authorize, /property\.businessDate !== runRow\.business_date\.slice\(0, 10\)/);
@@ -1393,7 +1394,7 @@ describe("NA-P4 fiscal override lifecycle", () => {
 
     // 28–30. unauthorized role, cross-property, and closed-run rejections stay enforced server-side
     const authorize = handler("authorizeFiscalCloseOverride");
-    assert.match(authorize, /requireCashierManager\(context as never, data\.restaurantId\)/);
+    assert.match(authorize, /requirePmsActor\([\s\S]*NIGHT_AUDIT_FISCAL_AUTHORIZE/);
     assert.match(authorize, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(authorize, /Closed Night Audit runs cannot be modified\./);
 

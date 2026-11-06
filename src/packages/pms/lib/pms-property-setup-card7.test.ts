@@ -107,7 +107,8 @@ describe("PMS Property Setup Card 7 Phase 0 shell", () => {
       new URL("../components/settings/pms-card7-security-roles-tab.tsx", import.meta.url),
       "utf8",
     );
-    assert.match(tab, /Add Role/);
+    assert.match(tab, /Open Staff & Access/);
+    assert.doesNotMatch(tab, /Add Role/);
     assert.match(tab, /CARD7_EMPTY_CATALOGUE_COPY/);
     const auditTab = readFileSync(
       new URL("../components/settings/pms-card7-audit-tab.tsx", import.meta.url),

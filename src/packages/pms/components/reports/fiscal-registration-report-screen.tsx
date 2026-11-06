@@ -262,6 +262,7 @@ export function FiscalRegistrationReportScreen({
 
   return (
     <ReportPageShell
+      restaurantId={restaurantId}
       definition={definition}
       phase={phase}
       businessDate={businessDate}

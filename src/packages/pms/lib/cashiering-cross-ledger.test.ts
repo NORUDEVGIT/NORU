@@ -70,7 +70,7 @@ describe("cross-ledger transfer", () => {
   it("keeps guest-to-guest on its own writer and still rejects transfer types on account posting", () => {
     assert.match(functions, /export const postFolioTransfer/);
     assert.match(functions, /export const postCrossLedgerTransfer/);
-    assert.match(functions, /requireCashierManager/);
+    assert.match(functions, /CASHIERING_TRANSFER_POST/);
     assert.match(functions, /post_cross_ledger_transfer/);
     assert.match(functions, /listFinancialAccountCharges/);
     assert.match(

@@ -191,6 +191,16 @@ export function housekeepingScope(role: string): HousekeepingScope {
   return "housekeeper";
 }
 
+/**
+ * LEGACY DATA SCOPE, NOT AUTHORIZATION.
+ * Narrows which housekeeping rows a caller sees. It does not grant board or task access.
+ * Authorization is housekeeping.board.view / housekeeping.task.edit.
+ * A later scope model can replace the role string inside this helper.
+ */
+export function resolveHousekeepingDataScope(role: string): HousekeepingScope {
+  return housekeepingScope(role);
+}
+
 export const FRONT_OFFICE_ROLES = ["owner", "manager", "receptionist"] as const;
 export const CASHIERING_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
 export const CASHIERING_MANAGE_ROLES = ["owner", "manager"] as const;

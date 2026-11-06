@@ -165,6 +165,10 @@ describe("Card 7 Security & Roles ownership", () => {
       "activate",
       "override",
       "authorize",
+      "recover",
+      "assign_roles",
+      "reset_access",
+      "assign_permissions",
     ]);
     assert.equal((CARD7_PERMISSION_ACTIONS as readonly string[]).includes("update"), false);
   });
@@ -173,7 +177,8 @@ describe("Card 7 Security & Roles ownership", () => {
     const functions = readFileSync(new URL("./security-roles-card7.functions.ts", import.meta.url), "utf8");
     const staff = readFileSync(new URL("../../../core/lib/staff.functions.ts", import.meta.url), "utf8");
     const access = readFileSync(new URL("../../../core/lib/module-access.ts", import.meta.url), "utf8");
-    assert.match(functions, /hotel_role_id: data\.hotelRoleId/);
+    assert.match(functions, /Moved to Staff & Access/);
+    assert.doesNotMatch(functions, /hotel_role_id: data\.hotelRoleId/);
     assert.doesNotMatch(functions, /update\(\{[^}]*\brole:/);
     assert.doesNotMatch(functions, /\.from\("staff_module_access"\)/);
     assert.doesNotMatch(functions, /CREATE OR REPLACE FUNCTION public\.has_restaurant_role/);

@@ -14,7 +14,9 @@ import { loadFrontOfficeStay, type FrontOfficeStay } from "./frontoffice.functio
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import type { GuestProfileRules } from "./pms-set3-rates-guest";
 import { nightsBetween } from "./reservation-dates";
-import { assertDateOnly, requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { assertDateOnly } from "./reservations.server";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { financialFromSignal, type RoomInventoryState } from "./reservation-workspace/arrivals-departures";
 import { normalizeClock } from "./pms-set1-foundation";
@@ -40,7 +42,7 @@ import {
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 export type FoWalkInDeskRow = {
   stay: FrontOfficeStay;
@@ -216,7 +218,7 @@ export const listFrontOfficeWalkInsDesk = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, date: dateSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string; rows: FoWalkInDeskRow[] }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadWalkInSettings(supabaseAdmin, data.restaurantId);
     const today = data.date
@@ -418,7 +420,7 @@ export const getFrontOfficeWalkInQuickView = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FoWalkInQuickView> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadWalkInSettings(supabaseAdmin, data.restaurantId);
     const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);

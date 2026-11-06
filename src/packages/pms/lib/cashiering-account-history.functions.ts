@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -17,7 +19,7 @@ import {
   type AccountLedgerRow,
   type AccountStatement,
 } from "./cashiering-account-history";
-import { cashierError, requireCashieringAccess } from "./cashiering.server";
+import { cashierError } from "./cashiering.server";
 
 const idSchema = z.string().uuid();
 const daySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -399,7 +401,7 @@ export const listFinancialAccountHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => historyQuery.parse(input))
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const account = await loadAccount(supabaseAdmin, data.restaurantId, data.accountId);
     if (!account) return null;
@@ -499,7 +501,7 @@ export const getFinancialAccountStatement = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<(AccountStatement & { account: ReturnType<typeof publicAccount> }) | null> => {
-      await requireCashieringAccess(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const account = await loadAccount(supabaseAdmin, data.restaurantId, data.accountId);
       if (!account) return null;

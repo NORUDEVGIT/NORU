@@ -90,7 +90,7 @@ describe("check-in agreement commands", () => {
     expect(capture).toContain("version.id !== data.agreementVersionId");
     expect(capture).not.toContain("guest_id: target.primaryGuestId");
     for (const command of [save, capture, resign]) {
-      expect(command).toContain("requireReservationManager");
+      expect(command).toContain("requirePmsActor");
     }
     expect(save).toContain("acknowledgements");
     expect(capture).not.toContain("acknowledgements");
@@ -124,7 +124,7 @@ describe("check-in agreement commands", () => {
       "export const publishCheckInAgreementVersion",
       "export const saveCheckInAgreement",
     );
-    expect(publish).toContain("requireSupervisor");
+    expect(publish).toContain("requirePmsActor");
     expect(publish).toContain(".update({ active: false })");
     expect(publish.match(/\.update\(/g)).toHaveLength(1);
     expect(publish).toContain(".insert(");

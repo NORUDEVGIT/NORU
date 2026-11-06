@@ -158,7 +158,7 @@ describe("Company detail workspace honesty", () => {
     assert.match(functions, /knownMoneyTotal/);
     assert.match(functions, /nightsBetween/);
     assert.match(functions, /maskIdNumber/);
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(overview, /sendGuestAccountMessage/);
     assert.match(overview, /exportGuestAccount/);
     assert.match(overview, /companyMasterId: companyId/);
@@ -199,7 +199,7 @@ describe("Company detail workspace honesty", () => {
     assert.match(bookings, /companyMasterId/);
     assert.match(bookings, /setReservationType\("corporate"\)/);
     assert.match(functions, /listCompanyBilling/);
-    assert.match(functions, /guestStayAccessForRole/);
+    assert.match(functions, /guestStayAccessForActor/);
     assert.match(functions, /from\("guest_company_documents"\)/);
     assert.match(functions, /from\("folio_transactions"\)/);
     assert.doesNotMatch(functions, /CREATE TABLE.*accounts_receivable/i);

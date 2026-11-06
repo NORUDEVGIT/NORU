@@ -65,6 +65,7 @@ import {
   wingsForBuilding,
 } from "@/packages/pms/lib/rooms-card2.server";
 import { suggestRoomTypeCode } from "@/packages/pms/lib/rooms-card2-code";
+import { RoomTypeNameInput } from "@/packages/pms/components/settings/room-type-name-input";
 import {
   bulkPreviewBlocksCreate,
   classifyBulkRoomPreview,
@@ -103,7 +104,17 @@ function ClassificationSelect({
 }) {
   return (
     <PropertySetupField label={label} required={required} error={error}>
-      <Select value={value || undefined} onValueChange={onValueChange} disabled={disabled}>
+      <Select
+        value={value || ""}
+        onValueChange={(val) => {
+          if (val === "__add_new__") {
+            onAddNew();
+          } else {
+            onValueChange(val);
+          }
+        }}
+        disabled={disabled}
+      >
         <SelectTrigger
           ref={triggerRef}
           className={cn(
@@ -115,7 +126,7 @@ function ClassificationSelect({
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-[190px] overflow-y-auto">
           {options.map((opt) => (
             <SelectItem key={opt} value={opt}>
               {opt}
@@ -922,19 +933,14 @@ export function RoomTypeWizardStep1() {
               helper="Descriptive name displayed across reservations and guest folios."
               error={nameHasError ? "Room Type Name is required." : undefined}
             >
-              <Input
+              <RoomTypeNameInput
                 ref={nameInputRef}
                 disabled={disabled}
-                placeholder="e.g. Deluxe King"
+                placeholder="e.g. Deluxe King Room"
                 value={typeForm.name}
-                className={cn(
-                  "bg-white transition-colors",
-                  nameHasError &&
-                    "border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500 bg-red-50/10",
-                )}
+                error={nameHasError}
                 aria-invalid={nameHasError ? true : undefined}
-                onChange={(e) => {
-                  const name = e.target.value;
+                onChange={(name) => {
                   setTypeForm((prev) => ({
                     ...prev,
                     name,
@@ -1755,7 +1761,7 @@ export function RoomTypeWizardStep1() {
                   error={singleBuildingHasError ? "Building is required." : undefined}
                 >
                   <Select
-                    value={single.buildingId || undefined}
+                    value={single.buildingId || ""}
                     disabled={disabled}
                     onValueChange={(v) => {
                       const next = cascadeLocationIds({
@@ -2107,7 +2113,7 @@ export function RoomTypeWizardStep1() {
               <PropertySetupFormGrid>
                 <PropertySetupField label="Building *" required>
                   <Select
-                    value={bulk.buildingId || undefined}
+                    value={bulk.buildingId || ""}
                     disabled={disabled}
                     onValueChange={(v) => {
                       const next = cascadeLocationIds({

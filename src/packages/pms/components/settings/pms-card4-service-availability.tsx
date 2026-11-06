@@ -109,7 +109,7 @@ export function PmsCard4ServiceAvailability({
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ServiceAvailabilityRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
   const errors = validateServiceAvailabilityDraft(draft, availability, serviceTypes);

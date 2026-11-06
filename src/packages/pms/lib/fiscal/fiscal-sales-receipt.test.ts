@@ -717,9 +717,9 @@ describe("fiscal sales receipt registration safety", () => {
       functions.indexOf("export const registerGuestAllocationSalesReceipt"),
       functions.indexOf("async function allocationInvoiceId"),
     );
-    assert.match(view, /requireCashieringAccess/);
-    assert.doesNotMatch(view, /requireCashierManager/);
-    assert.match(register, /requireCashierManager/);
+    assert.match(view, /FISCAL_VIEW/);
+    assert.doesNotMatch(view, /FISCAL_DOCUMENT_AUTHORIZE/);
+    assert.match(register, /FISCAL_DOCUMENT_AUTHORIZE/);
 
     memoryDb();
     const beforeAllocations = JSON.stringify(sharedTables().guest_payment_invoice_allocations);

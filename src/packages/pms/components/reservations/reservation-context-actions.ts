@@ -28,6 +28,19 @@ export interface ReservationContextAction {
   destructive?: boolean;
 }
 
+/** Permission ownership. Domain hints still decide whether this stay can take the action. */
+export interface ReservationActionCapabilities {
+  edit: boolean;
+  create: boolean;
+  cancel: boolean;
+  assign: boolean;
+  stayEdit: boolean;
+  checkIn: boolean;
+  checkOut: boolean;
+  noShow: boolean;
+  folio: boolean;
+}
+
 export interface ReservationContextActionInput {
   status: ReservationStatus;
   roomId: string | null;
@@ -35,6 +48,7 @@ export interface ReservationContextActionInput {
   businessDate: string;
   hints: ReservationDeskActionHints;
   canManage: boolean;
+  capabilities?: ReservationActionCapabilities;
   financial?: {
     state: QuickViewFinancialState;
     folioId: string | null;
@@ -50,31 +64,33 @@ export interface ReservationContextActionInput {
 export function getReservationContextActions(
   input: ReservationContextActionInput,
 ): ReservationContextAction[] {
+  const granted = (key: keyof ReservationActionCapabilities) =>
+    input.capabilities ? input.capabilities[key] : input.canManage;
   const actions: ReservationContextAction[] = [
     { id: "open", label: "Open Reservation", group: "view_edit" },
   ];
 
-  if (input.canManage && (input.status === "pending" || input.status === "confirmed")) {
+  if (granted("edit") && (input.status === "pending" || input.status === "confirmed")) {
     actions.push({ id: "edit", label: "Edit Reservation", group: "view_edit" });
   }
 
-  if (input.canManage) {
+  if (granted("create")) {
     actions.push({ id: "copy", label: "Copy stay", group: "reservation" });
   }
 
-  if (input.canManage && input.hints.canAssignRoom) {
+  if (granted("assign") && input.hints.canAssignRoom) {
     actions.push({ id: "assign_room", label: "Assign Room", group: "view_edit" });
   }
 
-  if (input.canManage && input.status === "checked_in" && input.roomId) {
+  if (granted("stayEdit") && input.status === "checked_in" && input.roomId) {
     actions.push({ id: "change_room", label: "Change Room", group: "front_office" });
   }
 
-  if (input.canManage && input.hints.canConfirm) {
+  if (granted("edit") && input.hints.canConfirm) {
     actions.push({ id: "confirm", label: "Confirm Reservation", group: "reservation" });
   }
 
-  if (input.canManage && input.hints.canCancel) {
+  if (granted("cancel") && input.hints.canCancel) {
     actions.push({
       id: "cancel",
       label: "Cancel Reservation",
@@ -83,23 +99,28 @@ export function getReservationContextActions(
     });
   }
 
-  if (input.canManage && input.hints.canCheckIn) {
+  if (granted("checkIn") && input.hints.canCheckIn) {
     actions.push({ id: "check_in", label: "Check In", group: "front_office" });
   }
 
-  if (input.canManage && input.hints.canCheckOut) {
+  if (granted("checkOut") && input.hints.canCheckOut) {
     actions.push({ id: "check_out", label: "Check Out", group: "front_office" });
   }
 
-  if (input.canManage && input.status === "confirmed" && input.arrivalDate < input.businessDate) {
+  if (granted("noShow") && input.status === "confirmed" && input.arrivalDate < input.businessDate) {
     actions.push({ id: "no_show", label: "Mark No-Show", group: "front_office" });
   }
 
-  if (input.canManage && input.status === "cancelled") {
+  if (granted("edit") && input.status === "cancelled") {
     actions.push({ id: "reactivate", label: "Reactivate Reservation", group: "reservation" });
   }
 
-  if (input.allowOpenFolio && input.financial?.state === "available" && input.financial.folioId) {
+  if (
+    (input.capabilities ? input.capabilities.folio : true) &&
+    input.allowOpenFolio &&
+    input.financial?.state === "available" &&
+    input.financial.folioId
+  ) {
     actions.push({ id: "open_folio", label: "Open Folio", group: "cashiering" });
   }
 

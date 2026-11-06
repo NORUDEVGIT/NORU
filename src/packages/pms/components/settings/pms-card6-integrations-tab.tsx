@@ -414,6 +414,10 @@ export function Card6IntegrationsTab({
         onOpenChange={setTypeDialogOpen}
         onSelect={(category: IntegrationCategory) => {
           setTypeDialogOpen(false);
+          if (category === "government" || category === "fiscal") {
+            setFiscalOpen(true);
+            return;
+          }
           setDrawer({ category, record: null, startWithTest: false });
         }}
       />

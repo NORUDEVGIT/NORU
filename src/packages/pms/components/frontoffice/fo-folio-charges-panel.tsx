@@ -176,6 +176,7 @@ export function FoFolioChargesPanel({
       canOperate: workspace.canOperate,
       capabilities: workspace.capabilities,
       hasFolio: true,
+      grants: workspace.grants,
     });
   }
 

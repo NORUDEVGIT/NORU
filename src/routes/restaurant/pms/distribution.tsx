@@ -1,5 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { DistributionWorkspace } from "@/packages/pms/components/workspaces/distribution-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -40,11 +42,13 @@ function DistributionPmsRoute() {
   return (
     <RestaurantShell active="Distribution" module="configuration" pms pmsModule="distribution">
       {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW}>
         <DistributionWorkspace
           membership={m}
           returnTo={search.returnTo}
           returnToLabel={search.returnToLabel}
         />
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

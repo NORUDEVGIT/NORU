@@ -83,6 +83,21 @@ export type FolioCapabilities = {
   canWriteOff: boolean;
 };
 
+/** One flag per cashiering permission. Absent keys fall back to the legacy bundle. */
+export type FolioPermissionGrants = {
+  charge: boolean;
+  payment: boolean;
+  deposit: boolean;
+  refund: boolean;
+  adjustment: boolean;
+  discount: boolean;
+  transfer: boolean;
+  writeOff: boolean;
+  close: boolean;
+  invoiceEdit: boolean;
+  invoiceAuthorize: boolean;
+};
+
 export function roundFolioMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -223,20 +238,26 @@ export function folioCapabilities(input: {
   hasLines: boolean;
   invoiceSettingsAvailable: boolean;
   legacyFolioInvoice: boolean;
+  grants?: Partial<FolioPermissionGrants>;
 }): FolioCapabilities {
+  const grant = (key: keyof FolioPermissionGrants, fallback: boolean) =>
+    input.grants?.[key] ?? fallback;
   const settled = Math.abs(input.balance) < 0.01;
   return {
-    canPostCharge: input.canManage && input.open,
-    canPostPayment: input.canOperate && input.open,
-    canPostDeposit: input.canOperate && input.open,
-    canAdjust: input.canManage && input.open,
-    canRefund: input.canManage && input.open,
-    canDiscount: input.canManage && input.open,
-    canTransfer: input.canManage && input.open,
-    canIssueInvoice: input.canManage && !input.legacyFolioInvoice && input.invoiceSettingsAvailable,
-    canReprintInvoice: input.canManage && input.hasInvoice,
-    canClose: input.canManage && input.open && settled,
-    canWriteOff: input.canManage && input.open && input.balance > 0.009,
+    canPostCharge: grant("charge", input.canManage) && input.open,
+    canPostPayment: grant("payment", input.canOperate) && input.open,
+    canPostDeposit: grant("deposit", input.canOperate) && input.open,
+    canAdjust: grant("adjustment", input.canManage) && input.open,
+    canRefund: grant("refund", input.canManage) && input.open,
+    canDiscount: grant("discount", input.canManage) && input.open,
+    canTransfer: grant("transfer", input.canManage) && input.open,
+    canIssueInvoice:
+      grant("invoiceEdit", input.canManage) &&
+      !input.legacyFolioInvoice &&
+      input.invoiceSettingsAvailable,
+    canReprintInvoice: grant("invoiceAuthorize", input.canManage) && input.hasInvoice,
+    canClose: grant("close", input.canManage) && input.open && settled,
+    canWriteOff: grant("writeOff", input.canManage) && input.open && input.balance > 0.009,
   };
 }
 

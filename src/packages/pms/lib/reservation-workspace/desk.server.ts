@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireReservationManager } from "../reservations.server";
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { resolvePropertyBusinessDate } from "./business-date";
 import {
   operationalReservationSearchInputSchema,
@@ -22,7 +23,7 @@ const DESK_CAPABILITIES: ReservationDeskCapabilities = {
   availableRooms: "partial",
 };
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 function reservationCount(supabase: WorkspaceClient, restaurantId: string) {
   return () =>
@@ -133,7 +134,7 @@ export const getReservationDesk = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => operationalReservationSearchInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<ReservationDeskSnapshot> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const generatedAt = new Date().toISOString();
     const view = data.view ?? "all";
 

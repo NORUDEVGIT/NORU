@@ -24,6 +24,7 @@ import {
 } from "@/packages/pms/lib/create-reservation-phase1";
 import {
   getReservationContextActions,
+  type ReservationActionCapabilities,
   type ReservationContextActionId,
 } from "@/packages/pms/components/reservations/reservation-context-actions";
 import type {
@@ -100,6 +101,7 @@ export function ReservationQuickViewPanel({
   onRetry,
   businessDate,
   canManage,
+  capabilities,
   onAction,
   sourceCodes,
   marketSegments,
@@ -112,6 +114,7 @@ export function ReservationQuickViewPanel({
   onRetry: () => void;
   businessDate: string;
   canManage: boolean;
+  capabilities?: ReservationActionCapabilities;
   onAction: (actionId: ReservationContextActionId) => void;
   sourceCodes?: Array<{ id: string; name: string; code?: string | null }> | null;
   marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null;
@@ -131,6 +134,7 @@ export function ReservationQuickViewPanel({
     businessDate: quickView?.businessDate ?? businessDate,
     hints: quickView?.actionHints ?? row.hints,
     canManage,
+    capabilities,
     ...(quickView
       ? {
           financial: {

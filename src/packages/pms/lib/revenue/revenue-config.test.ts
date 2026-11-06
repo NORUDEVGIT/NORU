@@ -51,7 +51,7 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     assert.doesNotMatch(server, /\.update\(/);
     assert.doesNotMatch(server, /\.delete\(/);
     assert.doesNotMatch(server, /\.upsert\(/);
-    assert.match(fns, /requireRateManager/);
+    assert.match(fns, /requirePmsActor/);
     assert.doesNotMatch(fns, /saveRatePlan|saveRateCategory|setRatePlanActive/);
     assert.doesNotMatch(fns, /RevenueAccess/);
   });
@@ -177,7 +177,7 @@ describe("Rate & Revenue Phase 1 Prompt 4 — Settings adapters & context", () =
     const route = readRel("../../../../routes/restaurant/pms/rates-revenue.tsx");
     const bar = readRel("../../components/rates/revenue-context-bar.tsx");
 
-    assert.match(workspace, /RevenueContextBar/);
+    assert.match(workspace, /data-testid="rate-revenue-toolbar"/);
     assert.match(workspace, /contextFieldsForView\(requestedView\)/);
     assert.match(workspace, /roomTypeId=\{context\.roomTypeId\}/);
     assert.match(workspace, /RateCalendarView/);

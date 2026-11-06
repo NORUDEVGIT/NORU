@@ -115,7 +115,7 @@ export function canManageHousekeeping(role: string): boolean {
 const NO_HK_ACCESS = "You don't have access to Housekeeping for this property.";
 const NO_HK_PERMISSION = "You don't have permission to perform that housekeeping action.";
 
-async function requireHousekeepingEnabled(restaurantId: string): Promise<void> {
+export async function requireHousekeepingEnabled(restaurantId: string): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const snapshot = await loadCard2HousekeepingSnapshot(supabaseAdmin, restaurantId);
   if (!snapshot.settings.enabled) {

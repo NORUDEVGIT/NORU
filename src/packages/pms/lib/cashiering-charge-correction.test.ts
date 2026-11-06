@@ -79,7 +79,8 @@ describe("charge correction", () => {
     assert.match(poster, /post_folio_charge_correction/);
     assert.match(poster, /_amount: data\.amount \?\? null/);
     assert.doesNotMatch(poster, /_amount: data\.amount \?\? undefined/);
-    assert.match(poster, /requireCashierManager/);
+    assert.match(poster, /CASHIERING_ADJUSTMENT_POST/);
+    assert.match(poster, /CASHIERING_DISCOUNT_POST/);
     assert.match(poster, /description: z\.string\(\)\.min\(1\)\.max\(200\)/);
   });
 

@@ -792,9 +792,9 @@ describe("company follow-up registration safety", () => {
       functions.indexOf("export const registerCompanyCreditNoteFiscal"),
       functions.indexOf("export const getCompanyDebitNoteFiscal"),
     );
-    assert.match(creditView, /requireCashieringAccess/);
-    assert.doesNotMatch(creditView, /requireCashierManager/);
-    assert.match(creditRegister, /requireCashierManager/);
+    assert.match(creditView, /FISCAL_VIEW/);
+    assert.doesNotMatch(creditView, /FISCAL_DOCUMENT_AUTHORIZE/);
+    assert.match(creditRegister, /FISCAL_DOCUMENT_AUTHORIZE/);
 
     memoryDb();
     const beforeNotes = JSON.stringify(sharedTables().invoice_credit_notes);

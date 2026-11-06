@@ -176,7 +176,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     assert.match(picker, /WAVE4_TYPED_LABEL_COPY/);
     assert.match(fo, /guest_account_masters/);
     assert.match(fo, /company_master_id/);
-    assert.match(reservations, /listReservationsForGuestAccount/);
+    assert.match(functions, /export const listReservationsForGuestAccount/);
     assert.match(reservations, /not Sales & Events group blocks/);
     assert.match(migration, /company_master_id/);
     assert.match(WAVE4_TYPED_LABEL_COPY, /not Guest masters/);
@@ -349,7 +349,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
       readRel("../../../routes/restaurant/pms/guests.\$guestId.tsx"),
     ].join("\n");
     assert.match(functions, /requireSupabaseAuth/);
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(functions, /createServerFn\(\{ method: "GET" \}\)/);
     assert.match(routes, /requireRoutePackage\("pms"\)/);
     assert.match(routes, /supabase\.auth\.getUser\(\)/);
@@ -359,7 +359,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
   it("AC-W4-19 masters and links are tenant-scoped", () => {
     const functions = readRel("./guest-accounts.functions.ts");
     const migration = readRel("../../../../supabase/migrations/0053_pms_guest_profile_wave4.sql");
-    assert.match(functions, /requireGuestManager\(context as never, data\.restaurantId\)/);
+    assert.match(functions, /requirePmsActor\(context as never, data\.restaurantId,/);
     assert.match(functions, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.match(migration, /restaurant_id uuid NOT NULL REFERENCES public\.restaurants\(id\)/);
     assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
@@ -398,7 +398,7 @@ describe("Guest Profile Wave 4 lock — AC-W4-1…23", () => {
     const functions = readRel("./guest-accounts.functions.ts");
     const migration = readRel("../../../../supabase/migrations/0053_pms_guest_profile_wave4.sql");
     const modules = readRel("./pms-modules.ts");
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(functions, /requirePackage\("guest-accounts"|newGuestRole/);
     assert.match(
       migration,
@@ -455,7 +455,7 @@ describe("Guest Profile Wave 4 catalogue, honesty and gates", () => {
       readRel("../../../routes/restaurant/pms/guests.$guestId.tsx"),
     ].join("\n");
     const shell = readRel("../components/workspaces/guest-profile-workspace.tsx");
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(functions, /requireReservationManager/);
     assert.match(routes, /requireRoutePackage\("pms"\)/);
     assert.match(routes, /parseGuestProfileSearch/);

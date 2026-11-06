@@ -1119,6 +1119,7 @@ export function ExceptionDetail({
   checkedAt,
   dateTime,
   role,
+  canFiscalOverride = false,
   authorizingFiscalOverride,
   onAuthorizeFiscalOverride,
   onReviewClick,
@@ -1128,6 +1129,7 @@ export function ExceptionDetail({
   checkedAt: string | null;
   dateTime: (value: string) => string;
   role: string;
+  canFiscalOverride?: boolean;
   authorizingFiscalOverride: boolean;
   onAuthorizeFiscalOverride: (
     exceptionId: string,
@@ -1267,7 +1269,7 @@ export function ExceptionDetail({
           ) : null}
         </section>
       ) : null}
-      {canAuthorizeFiscalOverride(role, row) ? (
+      {canAuthorizeFiscalOverride(canFiscalOverride, row) ? (
         <FiscalOverrideAction
           row={row}
           businessDate={businessDate}
@@ -1279,8 +1281,8 @@ export function ExceptionDetail({
   );
 }
 
-function canAuthorizeFiscalOverride(role: string, row: AuditException): boolean {
-  return (role === "owner" || role === "manager") && isFiscalOverrideableException(row) && !row.fiscalOverride;
+function canAuthorizeFiscalOverride(allowed: boolean, row: AuditException): boolean {
+  return allowed && isFiscalOverrideableException(row) && !row.fiscalOverride;
 }
 
 function FiscalOverrideAction({

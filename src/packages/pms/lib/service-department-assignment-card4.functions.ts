@@ -1,16 +1,16 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import type { ServiceCategoryRecord } from "./service-categories-card4.server";
 import {
   validateServiceDepartmentAssignmentDraft,
   type AssignmentDepartment,
   type ServiceDepartmentAssignmentRecord,
-  type ServiceDepartmentAssignmentSnapshot,
-} from "./service-department-assignment-card4.server";
+  type ServiceDepartmentAssignmentSnapshot } from "./service-department-assignment-card4.server";
 import type { ServiceTypeRecord } from "./service-types-card4.server";
 
 // Generated schema predates 0086.
@@ -26,8 +26,7 @@ const saveSchema = z
     serviceTypeId: idSchema,
     departmentId: idSchema,
     active: z.boolean(),
-    isBillingDepartment: z.boolean(),
-  })
+    isBillingDepartment: z.boolean() })
   .strict();
 
 const createDepartmentSchema = z
@@ -39,8 +38,7 @@ const createDepartmentSchema = z
       .trim()
       .min(1)
       .max(20)
-      .regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, hyphens, or underscores."),
-  })
+      .regex(/^[A-Za-z0-9_-]+$/, "Use letters, numbers, hyphens, or underscores.") })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -70,8 +68,7 @@ function mapCategory(row: {
     active: row.active,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapServiceType(row: {
@@ -96,8 +93,7 @@ function mapServiceType(row: {
     chargeableToFolio: row.chargeable_to_folio === true,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapDepartment(row: {
@@ -110,8 +106,7 @@ function mapDepartment(row: {
     id: row.id,
     code: row.code,
     name: row.name,
-    active: row.active,
-  };
+    active: row.active };
 }
 
 function mapAssignment(row: {
@@ -130,8 +125,7 @@ function mapAssignment(row: {
     active: row.active,
     isBillingDepartment: row.is_billing_department === true,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -146,8 +140,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-department-assignment", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-department-assignment", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-department-assignment] audit", result.error.message);
 }
 
@@ -215,7 +208,7 @@ export const getPmsCard4ServiceDepartmentAssignments = createServerFn({ method: 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -224,7 +217,7 @@ export const createPmsCard4CustomDepartment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => createDepartmentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -234,8 +227,7 @@ export const createPmsCard4CustomDepartment = createServerFn({ method: "POST" })
         name: data.name.trim(),
         code: data.code.trim().toUpperCase(),
         active: true,
-        department_type: "custom",
-      })
+        department_type: "custom" })
       .select("id")
       .single();
     if (result.error?.code === "23505") {
@@ -247,8 +239,7 @@ export const createPmsCard4CustomDepartment = createServerFn({ method: "POST" })
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_custom_department_created", {
       id,
       name: data.name.trim(),
-      code: data.code.trim().toUpperCase(),
-    });
+      code: data.code.trim().toUpperCase() });
     return { ok: true as const, id };
   });
 
@@ -256,7 +247,7 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -266,8 +257,7 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
         serviceTypeId: data.serviceTypeId,
         departmentId: data.departmentId,
         active: data.active,
-        isBillingDepartment: data.isBillingDepartment,
-      },
+        isBillingDepartment: data.isBillingDepartment },
       snapshot.assignments,
       snapshot.serviceTypes,
       snapshot.departments,
@@ -293,8 +283,7 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
       department_id: data.departmentId,
       active: data.active,
       is_billing_department: data.isBillingDepartment,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_guest_service_department_assignments")
@@ -325,8 +314,7 @@ export const savePmsCard4ServiceDepartmentAssignment = createServerFn({ method: 
       {
         id,
         serviceTypeId: data.serviceTypeId,
-        departmentId: data.departmentId,
-      },
+        departmentId: data.departmentId },
     );
     return { ok: true as const, id };
   });
@@ -337,7 +325,7 @@ export const setPmsCard4ServiceDepartmentAssignmentActive = createServerFn({ met
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -353,8 +341,7 @@ export const setPmsCard4ServiceDepartmentAssignmentActive = createServerFn({ met
       "pms_card4_service_department_assignment_toggled",
       {
         id: data.id,
-        active: data.active,
-      },
+        active: data.active },
     );
     return { ok: true as const };
   });
@@ -365,7 +352,7 @@ export const deletePmsCard4ServiceDepartmentAssignment = createServerFn({ method
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -383,8 +370,7 @@ export const deletePmsCard4ServiceDepartmentAssignment = createServerFn({ method
       context.userId,
       "pms_card4_service_department_assignment_deleted",
       {
-        id: data.id,
-      },
+        id: data.id },
     );
     return { ok: true as const };
   });

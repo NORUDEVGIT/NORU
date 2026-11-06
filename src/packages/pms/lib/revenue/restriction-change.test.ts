@@ -553,7 +553,7 @@ describe("RR-P3-01 — SQL contracts, pricing, and ownership", () => {
     assert.match(functions, /export const applyRestrictionChanges/);
     assert.match(functions, /export const listRestrictionChangeHistory/);
     assert.match(functions, /export const getRestrictionOperationDetail/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(server, /rpc\("apply_hotel_rate_restrictions"/);
     assert.doesNotMatch(server, /for \(.*\) \{\s*await saveRateRestriction/);
     assert.doesNotMatch(server, /\.update\(/);

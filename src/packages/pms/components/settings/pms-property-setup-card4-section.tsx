@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { persistPmsCard4Status } from "@/packages/pms/lib/card4-readiness.functions";
 
 import {
   PropertySetupStatusRail,
@@ -140,6 +141,7 @@ import {
   card4GstStepById,
   card4NotificationStepById,
   card4StepById,
+  evaluateCard4OverallStatus,
   evaluateCard4StepStatus,
   evaluateGstStepStatus,
   evaluateNotificationStepStatus,
@@ -515,43 +517,39 @@ export function PmsPropertySetupCard4Section({
     preferencesReady &&
     companyReady &&
     groupTypesReady;
-  const cardStatus: PropertySetupCardStatus =
-    allGprComplete &&
-    categoriesReady &&
-    typesReady &&
-    pricingReady &&
-    assignmentsReady &&
-    slaRulesReady &&
-    availabilityReady &&
-    channelsReady &&
-    templatesReady &&
-    eventsReady &&
-    rulesReady &&
-    senderReady &&
-    defaultsReady
-      ? "complete"
-      : profileTypesConfigured ||
-          requiredFieldsConfigured ||
-          identityDocumentsConfigured ||
-          preferencesReady ||
-          companyReady ||
-          groupTypesReady ||
-          categoriesReady ||
-          typesReady ||
-          pricingReady ||
-          assignmentsReady ||
-          slaRulesReady ||
-          availabilityReady ||
-          channelsReady ||
-          templatesReady ||
-          eventsReady ||
-          rulesReady ||
-          senderReady ||
-          defaultsReady
-        ? "in_progress"
-        : "not_started";
+  const cardStatus: PropertySetupCardStatus = evaluateCard4OverallStatus({
+    profileTypesConfigured,
+    requiredFieldsConfigured,
+    identityDocumentsConfigured,
+    preferencesConfigured: preferencesReady,
+    companyBusinessConfigured: companyReady,
+    groupTypesConfigured: groupTypesReady,
+    travelAgencyTypesConfigured: travelAgencyTypesReady,
+    serviceCategoriesConfigured: categoriesReady,
+    serviceTypesConfigured: typesReady,
+    servicePricingConfigured: pricingReady,
+    serviceDepartmentAssignmentsConfigured: assignmentsReady,
+    serviceSlaRulesConfigured: slaRulesReady,
+    serviceAvailabilityConfigured: availabilityReady,
+    communicationChannelsConfigured: channelsReady,
+    communicationTemplatesConfigured: templatesReady,
+    notificationEventsConfigured: eventsReady,
+    automationRulesConfigured: rulesReady,
+    senderSettingsConfigured: senderReady,
+    communicationDefaultsConfigured: defaultsReady,
+  });
+
+  const saveCard4Status = useServerFn(persistPmsCard4Status);
+  useEffect(() => {
+    if (cardStatus && cardStatus !== "not_started") {
+      saveCard4Status({ data: { restaurantId, status: cardStatus } }).catch(() => {});
+    }
+  }, [cardStatus, restaurantId, saveCard4Status]);
 
   function goHub() {
+    if (cardStatus && cardStatus !== "not_started") {
+      saveCard4Status({ data: { restaurantId, status: cardStatus } }).catch(() => {});
+    }
     window.location.hash = "";
     window.history.replaceState(null, "", SET1_HUB_HREF);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
@@ -562,6 +560,7 @@ export function PmsPropertySetupCard4Section({
   }
 
   function onSaved(thenNext: boolean) {
+    setSaveRequest(null);
     if (!thenNext) return;
     if (mainSection === "profile-rules") {
       if (next) setStep(next);
@@ -727,7 +726,10 @@ export function PmsPropertySetupCard4Section({
                   <button
                     key={row.id}
                     type="button"
-                    onClick={() => setMainSection(row.id)}
+                    onClick={() => {
+                      setSaveRequest(null);
+                      setMainSection(row.id);
+                    }}
                     aria-current={mainSection === row.id ? "true" : undefined}
                     className={cn(
                       "rounded-[6px] border px-3 py-1 text-xs font-medium",
@@ -744,6 +746,7 @@ export function PmsPropertySetupCard4Section({
                 <PropertySetupStepNav
                   activeId={activeStepId}
                   onSelect={(id) => {
+                    setSaveRequest(null);
                     if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
                     else if (mainSection === "notifications")
                       setNotificationStep(id as Card4NotificationStepId);

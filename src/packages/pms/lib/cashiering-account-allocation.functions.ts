@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -14,12 +16,7 @@ import {
   type SettlementState,
 } from "./cashiering-account-allocation";
 import { fiscalSnapshotMode, registeredCashDebitCover } from "./cashiering-cash-debit-cover";
-import {
-  assertIdempotencyKey,
-  cashierError,
-  requireCashierAllocator,
-  requireCashieringAccess,
-} from "./cashiering.server";
+import { assertIdempotencyKey, cashierError, cashieringPermissionFlags } from "./cashiering.server";
 
 const idSchema = z.string().uuid();
 
@@ -74,7 +71,7 @@ export const listFinancialAccountOutstandingInvoices = createServerFn({ method: 
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const account = await loadAccount(supabaseAdmin, data.restaurantId, data.accountId);
     if (!account) return null;
@@ -87,7 +84,7 @@ export const getFinancialAccountInvoiceSettlement = createServerFn({ method: "GE
     z.object({ restaurantId: idSchema, accountId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const account = await loadAccount(supabaseAdmin, data.restaurantId, data.accountId);
     if (!account) return null;
@@ -175,7 +172,7 @@ export const getFinancialAccountPaymentAllocationWorkspace = createServerFn({ me
     z.object({ restaurantId: idSchema, accountId: idSchema, paymentId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const account = await loadAccount(supabaseAdmin, data.restaurantId, data.accountId);
     if (!account) return null;
@@ -239,7 +236,12 @@ export const getFinancialAccountPaymentAllocationWorkspace = createServerFn({ me
     );
     const face = paymentFace(Number(payment.amount));
     const settlements = await loadSettlements(supabaseAdmin, data.restaurantId, account);
-    const rights = allocationCapabilities({ role: me.role, status: account.status });
+    const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
+    const rights = allocationCapabilities({
+      role: me.role,
+      status: account.status,
+      granted: { view: true, allocate: flags.allocate },
+    });
     return {
       payment: {
         id: payment.id,
@@ -276,7 +278,7 @@ export const previewFinancialAccountPaymentAllocation = createServerFn({ method:
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: preview, error } = await supabaseAdmin.rpc(
       "preview_financial_account_payment_allocation",
@@ -327,7 +329,7 @@ export const applyFinancialAccountPaymentAllocations = createServerFn({ method: 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierAllocator(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: applied, error } = await supabaseAdmin.rpc(
       "apply_financial_account_payment_allocations",
@@ -358,7 +360,7 @@ export const reverseFinancialAccountPaymentAllocation = createServerFn({ method:
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierAllocator(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: reversed, error } = await supabaseAdmin.rpc(
       "reverse_financial_account_payment_allocation",

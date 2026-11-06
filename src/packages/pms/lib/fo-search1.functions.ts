@@ -10,7 +10,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { nightsBetween, requireReservationManager, type ReservationStatus } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { nightsBetween, type ReservationStatus } from "./reservations.server";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import {
   SEARCH_RESULT_CAP,
@@ -173,7 +175,7 @@ export const searchFrontOfficeStays = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoSearchResult> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const empty: FoSearchResult = {
       rows: [],
       truncated: false,

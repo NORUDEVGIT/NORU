@@ -8,6 +8,8 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasEffectivePermission, resolveEffectivePermissions } from "./pms-permissions.server";
 import {
   CASHIER_ALLOCATE_ROLES,
   CASHIER_MANAGE_ROLES,
@@ -100,6 +102,37 @@ export async function requireCashierAllocator(
       NO_PERMISSION,
     ),
   );
+}
+
+/** Permission flags for cashiering screens. Role names are not consulted. */
+export async function cashieringPermissionFlags(context: AuthedCtx, restaurantId: string) {
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  const has = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+    hasEffectivePermission(resolved, code);
+  return {
+    view: has(PMS_PERMISSIONS.CASHIERING_VIEW),
+    operate:
+      has(PMS_PERMISSIONS.CASHIERING_CHARGE_POST) ||
+      has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST) ||
+      has(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST) ||
+      has(PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT),
+    manage:
+      has(PMS_PERMISSIONS.CASHIERING_REFUND) ||
+      has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST) ||
+      has(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST) ||
+      has(PMS_PERMISSIONS.CASHIERING_TRANSFER_POST) ||
+      has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF) ||
+      has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE) ||
+      has(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE),
+    receivePayment: has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST),
+    refund: has(PMS_PERMISSIONS.CASHIERING_REFUND),
+    adjust: has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST),
+    allocate: has(PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT),
+    writeOff: has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF),
+    close: has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE),
+    createInvoice: has(PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT),
+    authorizeInvoice: has(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE),
+  };
 }
 
 /** Sensitive corrections and night audit: owner/manager only. */

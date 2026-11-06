@@ -97,7 +97,7 @@ describe("FO-FS3 charge-before-status", () => {
     assert.match(fns, /postCancelOrNoShowFee/);
     assert.match(fns, /callPostFolioTransaction/);
     assert.match(fns, /type: "charge"/);
-    assert.match(fns, /requireCashierManager/);
+    assert.match(fns, /CASHIERING_CHARGE_POST/);
     assert.match(fns, /CANCEL_FEE_DESCRIPTION|Cancel fee/);
     assert.match(fns, /NOSHOW_FEE_DESCRIPTION|No-show charge/);
     assert.doesNotMatch(fns, /_type: "refund"/);

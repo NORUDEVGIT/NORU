@@ -2,13 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireCashieringAccess } from "../cashiering.server";
 import { isPermissionDeniedMessage } from "../front-office-shell";
 import { isRoomReady } from "../fo-check-in";
 import { loadCard2HousekeepingSnapshot } from "../housekeeping-card2.functions";
 import type { HousekeepingReadinessPolicy } from "../housekeeping-card2.server";
 import { nightsBetween, type ReservationStatus } from "../reservation-dates";
-import { requireReservationManager, RESERVATION_STATUSES } from "../reservations.server";
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
+import { RESERVATION_STATUSES } from "../reservations.server";
 import { deskActionHints } from "./desk.server";
 import { resolvePropertyBusinessDate } from "./business-date";
 import {
@@ -26,7 +27,7 @@ import type {
 
 const idSchema = z.string().uuid();
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 function linkedMaster(
   id: string | null,
@@ -265,7 +266,7 @@ export function quickViewExceptionKeys(input: {
 }
 
 async function loadQuickViewFinancial(
-  context: Parameters<typeof requireReservationManager>[0],
+  context: Parameters<typeof requirePmsActor>[0],
   restaurantId: string,
   reservationId: string,
 ): Promise<ReservationQuickView["financial"]> {
@@ -275,7 +276,7 @@ async function loadQuickViewFinancial(
     balance: null as number | null,
   };
   try {
-    await requireCashieringAccess(context, restaurantId);
+    await requirePmsActor(context, restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
   } catch (error) {
     const state: QuickViewFinancialState = isPermissionDeniedMessage(error)
       ? "permission_denied"
@@ -404,7 +405,7 @@ export const getReservationQuickView = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationQuickView> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const generatedAt = new Date().toISOString();
     const supabase: WorkspaceClient = context.supabase;
 

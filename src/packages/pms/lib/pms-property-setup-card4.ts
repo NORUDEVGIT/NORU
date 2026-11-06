@@ -6,7 +6,11 @@
  */
 
 import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";
-import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
+import {
+  parsePropertySetupStatus,
+  type PropertySetupCardStatus,
+  type PropertySetupStatus,
+} from "./pms-property-setup-card1.ts";
 
 export const CARD4_TITLE = "Guest & Services";
 export const CARD4_WORKSPACE_TITLE = "Guest & Services";
@@ -21,6 +25,7 @@ export const CARD4_HASH = "guest-services";
 export const CARD4_HREF = `${SET1_HUB_HREF}#${CARD4_HASH}`;
 export const CARD4_SIDEBAR_OUT =
   "Card 4 uses full-screen PMS top-nav chrome. The old Settings left sidebar is out.";
+export const CARD4_PROGRAMME_CARD_ID = "housekeeping-maintenance" as const;
 
 export const CARD4_STEPS = [
   {
@@ -309,4 +314,108 @@ export function isCard4WorkspaceHash(hash: string): boolean {
 
 export function resolveCard4Hash(hash: string): typeof CARD4_HASH | null {
   return isCard4WorkspaceHash(hash) ? CARD4_HASH : null;
+}
+
+export function mergeCard4Status(
+  stored: unknown,
+  status: PropertySetupCardStatus,
+): PropertySetupStatus {
+  const parsed = parsePropertySetupStatus(stored);
+  return {
+    ...parsed,
+    cards: {
+      ...parsed.cards,
+      [CARD4_PROGRAMME_CARD_ID]: status,
+    },
+  };
+}
+
+export function evaluateCard4OverallStatus({
+  profileTypesConfigured,
+  requiredFieldsConfigured = false,
+  identityDocumentsConfigured = false,
+  preferencesConfigured = false,
+  companyBusinessConfigured = false,
+  groupTypesConfigured = false,
+  travelAgencyTypesConfigured = false,
+  serviceCategoriesConfigured = false,
+  serviceTypesConfigured = false,
+  servicePricingConfigured = false,
+  serviceDepartmentAssignmentsConfigured = false,
+  serviceSlaRulesConfigured = false,
+  serviceAvailabilityConfigured = false,
+  communicationChannelsConfigured = false,
+  communicationTemplatesConfigured = false,
+  notificationEventsConfigured = false,
+  automationRulesConfigured = false,
+  senderSettingsConfigured = false,
+  communicationDefaultsConfigured = false,
+}: {
+  profileTypesConfigured: boolean;
+  requiredFieldsConfigured?: boolean;
+  identityDocumentsConfigured?: boolean;
+  preferencesConfigured?: boolean;
+  companyBusinessConfigured?: boolean;
+  groupTypesConfigured?: boolean;
+  travelAgencyTypesConfigured?: boolean;
+  serviceCategoriesConfigured?: boolean;
+  serviceTypesConfigured?: boolean;
+  servicePricingConfigured?: boolean;
+  serviceDepartmentAssignmentsConfigured?: boolean;
+  serviceSlaRulesConfigured?: boolean;
+  serviceAvailabilityConfigured?: boolean;
+  communicationChannelsConfigured?: boolean;
+  communicationTemplatesConfigured?: boolean;
+  notificationEventsConfigured?: boolean;
+  automationRulesConfigured?: boolean;
+  senderSettingsConfigured?: boolean;
+  communicationDefaultsConfigured?: boolean;
+}): PropertySetupCardStatus {
+  const allGprComplete =
+    profileTypesConfigured &&
+    requiredFieldsConfigured &&
+    identityDocumentsConfigured &&
+    preferencesConfigured &&
+    companyBusinessConfigured &&
+    groupTypesConfigured;
+
+  const allComplete =
+    allGprComplete &&
+    serviceCategoriesConfigured &&
+    serviceTypesConfigured &&
+    servicePricingConfigured &&
+    serviceDepartmentAssignmentsConfigured &&
+    serviceSlaRulesConfigured &&
+    serviceAvailabilityConfigured &&
+    communicationChannelsConfigured &&
+    communicationTemplatesConfigured &&
+    notificationEventsConfigured &&
+    automationRulesConfigured &&
+    senderSettingsConfigured &&
+    communicationDefaultsConfigured;
+
+  if (allComplete) return "complete";
+
+  const anyStarted =
+    profileTypesConfigured ||
+    requiredFieldsConfigured ||
+    identityDocumentsConfigured ||
+    preferencesConfigured ||
+    companyBusinessConfigured ||
+    groupTypesConfigured ||
+    travelAgencyTypesConfigured ||
+    serviceCategoriesConfigured ||
+    serviceTypesConfigured ||
+    servicePricingConfigured ||
+    serviceDepartmentAssignmentsConfigured ||
+    serviceSlaRulesConfigured ||
+    serviceAvailabilityConfigured ||
+    communicationChannelsConfigured ||
+    communicationTemplatesConfigured ||
+    notificationEventsConfigured ||
+    automationRulesConfigured ||
+    senderSettingsConfigured ||
+    communicationDefaultsConfigured;
+
+  return anyStarted ? "in_progress" : "not_started";
 }

@@ -101,13 +101,21 @@ export function settlementStateLabel(state: SettlementState): string {
   return "Unpaid";
 }
 
-export function allocationCapabilities(input: { role: string; status: "open" | "closed" }): {
+export function allocationCapabilities(input: {
+  role: string;
+  status: "open" | "closed";
+  granted?: { view: boolean; allocate: boolean };
+}): {
   canView: boolean;
   canAllocate: boolean;
   canReverse: boolean;
 } {
-  const view = (VIEW_ROLES as readonly string[]).includes(input.role);
-  const allocate = (ALLOCATE_ROLES as readonly string[]).includes(input.role);
+  const view = input.granted
+    ? input.granted.view
+    : (VIEW_ROLES as readonly string[]).includes(input.role);
+  const allocate = input.granted
+    ? input.granted.allocate
+    : (ALLOCATE_ROLES as readonly string[]).includes(input.role);
   const open = input.status === "open";
   return {
     canView: view,

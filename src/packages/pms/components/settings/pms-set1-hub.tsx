@@ -6,6 +6,15 @@
  * Rooms stay on Room & Inventory. Rates and Distribution keep their own desks.
  */
 import { useEffect, useState } from "react";
+import { PmsAccessDenied } from "@/packages/pms/components/pms/pms-route-gate";
+import {
+  pmsSettingsCardEditable,
+  pmsSettingsCardVisible,
+  pmsSettingsSectionEditable,
+  pmsSettingsSectionVisible,
+} from "@/packages/pms/lib/pms-client-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -21,7 +30,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { cn } from "@/shared/lib/utils";
-import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { Set1SectionView } from "@/packages/pms/components/settings/pms-set1-section";
 import { PmsPropertySetupCard1Section } from "@/packages/pms/components/settings/pms-property-setup-card1-section";
 import { PmsPropertySetupCard2Section } from "@/packages/pms/components/settings/pms-property-setup-card2-section";
@@ -54,7 +62,6 @@ import {
 } from "@/packages/pms/components/settings/pms-set6-section";
 import { getPmsSet1Foundation } from "@/packages/pms/lib/pms-set1-foundation.functions";
 import {
-  SET1_DENIED,
   SET1_HUB_HREF,
   SET2_LIVE_HASHES,
   SET3_LIVE_HASHES,
@@ -62,7 +69,6 @@ import {
   SET5_LIVE_HASHES,
   SET6_LIVE_HASHES,
   POLISH1_LIVE_HASHES,
-  canOpenSet1Hub,
   resolveSet1SectionHash,
   type Set1SectionId,
 } from "@/packages/pms/lib/pms-set1-foundation";
@@ -104,6 +110,9 @@ import { PmsPropertySetupCard4Section } from "@/packages/pms/components/settings
 import { PmsPropertySetupCard6Section } from "@/packages/pms/components/settings/pms-property-setup-card6-section";
 import { PmsPropertySetupCard7Section } from "@/packages/pms/components/settings/pms-property-setup-card7-section";
 import { PmsPropertySetupCard8Section } from "@/packages/pms/components/settings/pms-property-setup-card8-section";
+import { getFiscalIntegrationStatus } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import { getPmsCard6Integrations } from "@/packages/pms/lib/integrations-card6.functions";
+import { getPmsCard4Status } from "@/packages/pms/lib/card4-readiness.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
@@ -200,6 +209,8 @@ function openSettingsWorkspace(hash: string) {
 
 export function PmsSet1Hub({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
+  const access = usePmsPermissions(restaurantId);
+  const accessSnapshot = { isOwner: access.isOwner, codes: access.permissions };
   const load = useServerFn(getPmsSet1Foundation);
   const loadCard1 = useServerFn(getPmsPropertySetupCard1);
   const [section, setSection] = useState<Set1SectionId | null>(currentSection);
@@ -267,6 +278,30 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return () => window.removeEventListener("hashchange", apply);
   }, []);
 
+  const loadFiscalStatus = useServerFn(getFiscalIntegrationStatus);
+  const loadCard6Integrations = useServerFn(getPmsCard6Integrations);
+  const loadCard4Status = useServerFn(getPmsCard4Status);
+
+  const card4StatusQuery = useQuery({
+    queryKey: ["pms-card4-status", restaurantId],
+    queryFn: () => loadCard4Status({ data: { restaurantId } }),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  const card6FiscalQuery = useQuery({
+    queryKey: ["fiscal-integration", restaurantId],
+    queryFn: () => loadFiscalStatus({ data: { restaurantId } }),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const card6IntegrationsQuery = useQuery({
+    queryKey: ["pms-card6-integrations", restaurantId],
+    queryFn: () => loadCard6Integrations({ data: { restaurantId } }),
+    retry: false,
+    staleTime: 60_000,
+  });
+
   const query = useQuery({
     queryKey: ["pms-set1-foundation", restaurantId],
     queryFn: () => load({ data: { restaurantId } }),
@@ -276,12 +311,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     queryKey: ["pms-card1", restaurantId],
     queryFn: () => loadCard1({ data: { restaurantId } }),
     retry: false,
-    enabled: canOpenSet1Hub(membership.role),
   });
-
-  if (!canOpenSet1Hub(membership.role)) {
-    return <PermissionDeniedPanel message={SET1_DENIED} />;
-  }
 
   if (query.isLoading) return <p className="text-sm text-muted-foreground">Loading settings…</p>;
   if (query.isError || !query.data) {
@@ -292,7 +322,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     );
   }
 
-  const { snapshot, checklist, canEdit, role, set2, set3, set4, set5, set6, polish1 } = query.data;
+  const { snapshot, checklist, canActivate, role, set2, set3, set4, set5, set6, polish1 } = query.data;
   const card1Status = card1Query.data
     ? evaluateCard1Status(
         card1Query.data.snapshot.draft,
@@ -300,11 +330,38 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
         card1Query.data.set2,
       )
     : "not_started";
-  const dashboardStatuses: PropertySetupCardStatus[] = PROPERTY_SETUP_CARDS.map((card) =>
-    card1Query.data
-      ? evaluateProgrammeCardStatus(card.id, card1Query.data.snapshot.status, card1Status)
-      : "not_started",
-  );
+  const dashboardStatuses: PropertySetupCardStatus[] = PROPERTY_SETUP_CARDS.map((card) => {
+    if (!card1Query.data) return "not_started";
+    const status = evaluateProgrammeCardStatus(
+      card.id,
+      card1Query.data.snapshot.status,
+      card1Status,
+    );
+    if (card.number === 3 && status === "not_started") {
+      const hasPaymentMethods = (polish1?.paymentMethods?.length ?? 0) > 0;
+      const hasRatePlans = (set3?.activeRatePlanCount ?? 0) > 0;
+      if (hasPaymentMethods || hasRatePlans) {
+        return "in_progress";
+      }
+    }
+    if (card.number === 4) {
+      if (card4StatusQuery.data?.status && card4StatusQuery.data.status !== "not_started") {
+        return card4StatusQuery.data.status;
+      }
+      if (status !== "not_started") {
+        return status;
+      }
+    }
+    if (card.number === 6 && status === "not_started") {
+      const hasFiscal =
+        card6FiscalQuery.data?.status && card6FiscalQuery.data.status !== "not_configured";
+      const hasIntegrations = (card6IntegrationsQuery.data?.integrations.length ?? 0) > 0;
+      if (hasFiscal || hasIntegrations) {
+        return "in_progress";
+      }
+    }
+    return status;
+  });
   const dashboardSummaries = PROPERTY_SETUP_CARDS.map((card) => {
     const rows: string[] = [];
     if (card.number === 1) {
@@ -318,16 +375,71 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       if (set2.roomTypeCount > 0) rows.push(`${set2.roomTypeCount} room types`);
       if (set2.roomCount > 0) rows.push(`${set2.roomCount} rooms`);
     }
-    if (card.number === 3 && set3?.activeRatePlanCount > 0) {
-      rows.push(`${set3.activeRatePlanCount} rate plans`);
+    if (card.number === 3) {
+      if (set3?.activeRatePlanCount > 0) {
+        rows.push(`${set3.activeRatePlanCount} rate plans`);
+      }
+      const activeMethods = polish1?.paymentMethods?.filter((m) => m.active).length ?? 0;
+      if (activeMethods > 0) {
+        rows.push(`${activeMethods} payment ${activeMethods === 1 ? "method" : "methods"}`);
+      }
+    }
+    if (card.number === 4) {
+      const profileCount = card4StatusQuery.data?.profileTypesCount ?? 0;
+      const serviceCount = card4StatusQuery.data?.serviceTypesCount ?? 0;
+      if (profileCount > 0) {
+        rows.push(`${profileCount} profile ${profileCount === 1 ? "type" : "types"}`);
+      }
+      if (serviceCount > 0) {
+        rows.push(`${serviceCount} ${serviceCount === 1 ? "service" : "services"}`);
+      }
     }
     if (card.number === 5 && set5?.departments.length) {
       rows.push(`${set5.departments.length} departments`);
+    }
+    if (card.number === 6) {
+      if (card6FiscalQuery.data?.status && card6FiscalQuery.data.status !== "not_configured") {
+        rows.push("Fiscal connected");
+      }
+      const activeCount =
+        card6IntegrationsQuery.data?.integrations.filter((i) => i.enabled).length ?? 0;
+      if (activeCount > 0) {
+        rows.push(`${activeCount} integration${activeCount === 1 ? "" : "s"}`);
+      }
     }
     void `${SET1_HUB_HREF}#${card.hash}`;
     return rows;
   });
 
+  const openCardNumber = card1Open
+    ? 1
+    : card2Open
+      ? 2
+      : card3Open
+        ? 3
+        : card4Open
+          ? 4
+          : card5Open
+            ? 5
+            : card6Open
+              ? 6
+              : card7Open
+                ? 7
+                : card8Open
+                  ? 8
+                  : null;
+  const openCardDenied =
+    openCardNumber != null &&
+    !access.isLoading &&
+    !access.isError &&
+    !pmsSettingsCardVisible(accessSnapshot, openCardNumber);
+  const sectionDenied =
+    section != null &&
+    !access.isLoading &&
+    !access.isError &&
+    !pmsSettingsSectionVisible(accessSnapshot, section);
+  const sectionEditable =
+    section != null && pmsSettingsSectionEditable(accessSnapshot, section);
   const workspaceOpen =
     card1Open ||
     card2Open ||
@@ -356,7 +468,12 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                   : card8Open
                     ? "payments-administration"
                     : "overview";
+  const permittedCardIds = PROPERTY_SETUP_CARDS.filter(
+    (card) =>
+      !access.isLoading && !access.isError && pmsSettingsCardVisible(accessSnapshot, card.number),
+  ).map((card) => card.id);
   const visibleCardIds = PROPERTY_SETUP_CARDS.filter((card, index) => {
+    if (!permittedCardIds.includes(card.id)) return false;
     const status = dashboardStatuses[index] ?? "not_started";
     if (statusFilter !== "all") {
       if (statusFilter === "needs_attention" && status !== "in_progress") return false;
@@ -373,7 +490,11 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     <div className="flex min-h-full flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4" data-testid="pms-set1-hub">
       <section className="relative w-full min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm">
         <div className="flex w-full min-w-0 items-center gap-1.5">
-          <SettingsBurger active={activeWorkspace} onSelect={openSettingsWorkspace} />
+          <SettingsBurger
+            active={activeWorkspace}
+            onSelect={openSettingsWorkspace}
+            allowedIds={permittedCardIds}
+          />
           <Input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
@@ -419,7 +540,9 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               current={PROPERTY_SETUP_CARDS.find((card) => card.id === areaFilter)?.title ?? ""}
               options={[
                 ["all", "All areas"],
-                ...PROPERTY_SETUP_CARDS.map((card) => [card.id, card.title] as const),
+                ...PROPERTY_SETUP_CARDS.filter((card) => permittedCardIds.includes(card.id)).map(
+                  (card) => [card.id, card.title] as const,
+                ),
               ]}
               onChange={setAreaFilter}
             />
@@ -440,9 +563,23 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </Button>
         </div>
       </section>
-      <SettingsSetupProgressPanel statuses={dashboardStatuses} />
+      <SettingsSetupProgressPanel
+        statuses={dashboardStatuses.filter((_, index) =>
+          permittedCardIds.includes(PROPERTY_SETUP_CARDS[index]?.id ?? ""),
+        )}
+      />
 
-      {card1Open ? (
+      {access.isLoading ? (
+        <p className="text-sm text-muted-foreground">Checking access…</p>
+      ) : access.isError || openCardDenied || sectionDenied ? (
+        <PmsAccessDenied
+          message={
+            access.isError
+              ? "Settings access could not be checked. Try again."
+              : "Your permissions don't include this settings card."
+          }
+        />
+      ) : card1Open ? (
         card1Query.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading Property & Business…</p>
         ) : card1Query.isError || !card1Query.data ? (
@@ -455,7 +592,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
             snapshot={card1Query.data.snapshot}
             set2={query.data.set2 ?? emptySet2Snapshot()}
             checklist={checklist}
-            canEdit={canEdit}
+            canEdit={pmsSettingsCardEditable(accessSnapshot, 1)}
             role={card1Query.data.role}
           />
         )
@@ -476,20 +613,20 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               : "not_started"
           }
           card2Steps={card1Query.data?.snapshot.status.card2Steps ?? {}}
-          canEdit={canEdit}
+          canEdit={pmsSettingsCardEditable(accessSnapshot, 2)}
         />
       ) : card3Open ? (
-        <PmsPropertySetupCard3Section restaurantId={restaurantId} canEdit={canEdit} />
+        <PmsPropertySetupCard3Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 3)} />
       ) : card5Open ? (
-        <PmsPropertySetupCard5Section restaurantId={restaurantId} canEdit={canEdit} />
+        <PmsPropertySetupCard5Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 5)} />
       ) : card4Open ? (
-        <PmsPropertySetupCard4Section restaurantId={restaurantId} canEdit={canEdit} />
+        <PmsPropertySetupCard4Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 4)} />
       ) : card6Open ? (
-        <PmsPropertySetupCard6Section restaurantId={restaurantId} canEdit={canEdit} />
+        <PmsPropertySetupCard6Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 6)} />
       ) : card7Open ? (
-        <PmsPropertySetupCard7Section restaurantId={restaurantId} canEdit={canEdit} />
+        <PmsPropertySetupCard7Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 7)} />
       ) : card8Open ? (
-        <PmsPropertySetupCard8Section restaurantId={restaurantId} canEdit={canEdit} />
+        <PmsPropertySetupCard8Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 8)} />
       ) : section ? (
         <div className="space-y-4">
           {(SET2_LIVE_HASHES as readonly string[]).includes(section) ? (
@@ -498,21 +635,21 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 restaurantId={restaurantId}
                 snapshot={set2 ?? emptySet2Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : section === "rooms" ? (
               <Set2RoomsSection
                 restaurantId={restaurantId}
                 snapshot={set2 ?? emptySet2Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : (
               <Set2OutletsSection
                 restaurantId={restaurantId}
                 snapshot={set2 ?? emptySet2Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             )
           ) : (SET3_LIVE_HASHES as readonly string[]).includes(section) ? (
@@ -521,14 +658,14 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 restaurantId={restaurantId}
                 snapshot={set3 ?? emptySet3Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : (
               <Set3GuestSection
                 restaurantId={restaurantId}
                 snapshot={set3 ?? emptySet3Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             )
           ) : (SET4_LIVE_HASHES as readonly string[]).includes(section) ? (
@@ -537,21 +674,21 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 restaurantId={restaurantId}
                 snapshot={set4 ?? emptySet4Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : section === "room-inventory-rules" ? (
               <Set4RoomInventorySection
                 restaurantId={restaurantId}
                 snapshot={set4 ?? emptySet4Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : (
               <Set4MaintenanceSection
                 restaurantId={restaurantId}
                 snapshot={set4 ?? emptySet4Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             )
           ) : (POLISH1_LIVE_HASHES as readonly string[]).includes(section) ? (
@@ -560,7 +697,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 restaurantId={restaurantId}
                 snapshot={polish1 ?? emptyPolish1Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : (
               <Polish1AdministrationSection
@@ -568,7 +705,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 snapshot={polish1 ?? emptyPolish1Snapshot()}
                 set5={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             )
           ) : (SET5_LIVE_HASHES as readonly string[]).includes(section) ? (
@@ -577,35 +714,35 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 restaurantId={restaurantId}
                 snapshot={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : section === "guest-services-types" ? (
               <Set5GuestServicesSection
                 restaurantId={restaurantId}
                 snapshot={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : section === "notifications" ? (
               <Set5NotificationsSection
                 restaurantId={restaurantId}
                 snapshot={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : section === "integrations" ? (
               <Set5IntegrationsSection
                 restaurantId={restaurantId}
                 snapshot={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : (
               <Set5SecuritySection
                 restaurantId={restaurantId}
                 snapshot={set5 ?? emptySet5Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             )
           ) : (SET6_LIVE_HASHES as readonly string[]).includes(section) ? (
@@ -614,28 +751,28 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                 restaurantId={restaurantId}
                 snapshot={set6 ?? emptySet6Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : section === "distribution" ? (
               <Set6DistributionSection
                 restaurantId={restaurantId}
                 snapshot={set6 ?? emptySet6Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : section === "reports" ? (
               <Set6ReportsSection
                 restaurantId={restaurantId}
                 snapshot={set6 ?? emptySet6Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             ) : (
               <Set6OfflineSyncSection
                 restaurantId={restaurantId}
                 snapshot={set6 ?? emptySet6Snapshot()}
                 checklist={checklist}
-                canEdit={canEdit}
+                canEdit={sectionEditable}
               />
             )
           ) : (
@@ -645,7 +782,8 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               role={role}
               snapshot={snapshot}
               checklist={checklist}
-              canEdit={canEdit}
+              canEdit={sectionEditable}
+              canActivate={Boolean(canActivate) && access.can(PMS_PERMISSIONS.CONFIG_PROPERTY_ACTIVATE)}
             />
           )}
         </div>
@@ -674,9 +812,11 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
 function SettingsBurger({
   active,
   onSelect,
+  allowedIds,
 }: {
   active: string;
   onSelect: (hash: string) => void;
+  allowedIds: readonly string[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -705,14 +845,19 @@ function SettingsBurger({
         aria-label="Settings"
       >
         <div className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
-          {SETTINGS_BURGER_GROUPS.map((group) => (
+          {SETTINGS_BURGER_GROUPS.map((group) => {
+            const items = group.items.filter(
+              (item) => item.id === "overview" || allowedIds.includes(item.id),
+            );
+            if (items.length === 0) return null;
+            return (
             <div key={group.id}>
               {group.id === "overview" ? null : (
                 <p className="px-2.5 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   {group.label}
                 </p>
               )}
-              {group.items.map((item) => {
+              {items.map((item) => {
                 const isActive = item.id === active;
                 return (
                   <button
@@ -736,7 +881,8 @@ function SettingsBurger({
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </div>
       </PopoverContent>
     </Popover>

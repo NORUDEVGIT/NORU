@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -56,6 +58,7 @@ export function GuestCompanyDetailWorkspace({
 }) {
   const navigate = useNavigate();
   const restaurantId = membership.restaurant.id;
+  const access = usePmsPermissions(restaurantId);
   const canonicalNavId = resolveCanonicalCompanyNavId(navProp);
   const rawNavId = companyDetailNav(navProp);
   const [editOpen, setEditOpen] = useState(false);
@@ -98,9 +101,8 @@ export function GuestCompanyDetailWorkspace({
   }
 
   const data = query.data;
-  const canWriteContracts = membership.role === "owner" || membership.role === "manager";
-  const canManageRes =
-    membership.role === "owner" || membership.role === "manager" || membership.role === "receptionist";
+  const canWriteContracts = access.can(PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+  const canManageRes = access.can(PMS_PERMISSIONS.RESERVATION_EDIT);
 
   const isMoreActive = isMoreCompanyView(canonicalNavId);
   const activeMoreItem = COMPANY_DETAIL_MORE_ITEMS.find((item) => item.id === canonicalNavId);

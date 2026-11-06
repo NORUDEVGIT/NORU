@@ -142,7 +142,7 @@ describe("FO-AMD1 catalogue-first Add Service", () => {
     assert.match(addService, /open_folio_for_reservation/);
     assert.match(addService, /callPostFolioTransaction/);
     assert.match(addService, /type: "charge"/);
-    assert.match(addService, /requireCashierManager/);
+    assert.match(addService, /CASHIERING_CHARGE_POST/);
     assert.match(addService, /category: "manual"/);
     assert.ok(addService.indexOf("servicePostsToFolio") < addService.indexOf("callPostFolioTransaction"));
     assert.doesNotMatch(addService, /_type: "refund"/);

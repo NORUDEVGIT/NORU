@@ -554,6 +554,7 @@ export function currentSourceFolioIds(groups: readonly AccountChargeGroup[]): st
 export function chargeCapabilities(input: {
   role: string;
   accountStatus: "open" | "closed";
+  canMutate?: boolean;
   group: Pick<
     AccountChargeGroup,
     | "sourceKind"
@@ -564,7 +565,7 @@ export function chargeCapabilities(input: {
     | "correctionSourceId"
   >;
 }): ChargeCapabilities {
-  const manage = input.role === "owner" || input.role === "manager";
+  const manage = input.canMutate ?? (input.role === "owner" || input.role === "manager");
   const open = input.accountStatus === "open";
   const blocked = input.group.coverage === "invoiced" || input.group.coverage === "partial";
   const mutable =

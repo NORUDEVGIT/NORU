@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { Check, Search } from "lucide-react";
 import { keepPreviousData, useMutation, useQuery, useQueries } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { toast } from "sonner";
 import {
   CreateReservationRoomType,
@@ -193,7 +195,6 @@ import {
   type SelectedRoomTypeMeta,
 } from "@/packages/pms/lib/create-reservation-phase1-section4";
 import {
-  canCreateUnpricedPending,
   canSubmitCreateReservation,
   fromNightlyRate,
   quotedGuestTotal,
@@ -318,6 +319,7 @@ export function CreateReservationPage({
   onReturnToDesk?: () => void;
 }) {
   const restaurantId = membership.restaurant.id;
+  const access = usePmsPermissions(restaurantId);
   const packageChargeRules = usePackageChargeRules(restaurantId);
   const serviceChargeRules = useServiceChargeRules(restaurantId);
   const timezone = useRestaurantTimezone();
@@ -946,7 +948,8 @@ export function CreateReservationPage({
   const selectedCurrencyName =
     currencyOptions.find((row) => row.code === displayCurrencyCode)?.name ?? displayCurrencyCode;
   const actorRole = accessQuery.data?.role ?? membership.role;
-  const canCreateUnpriced = canCreateUnpricedPending(actorRole);
+  // Client gate is reservation.reservation.create. canCreateUnpricedPending stays a server pricing rule.
+  const canCreateUnpriced = access.can(PMS_PERMISSIONS.RESERVATION_CREATE);
   const priced = selectedQuote?.quote != null;
   const pricingState = resolveCreatePricingState({
     datesValid,
@@ -1269,7 +1272,7 @@ export function CreateReservationPage({
   const approvalRequired = overbookingControls.data?.managerApprovalRequired !== false;
   const reasonRequired = overbookingControls.data?.reasonRequired !== false;
   const canAuthorizeOverbook =
-    !approvalRequired || actorRole === "owner" || actorRole === "manager";
+    !approvalRequired || access.can(PMS_PERMISSIONS.RESERVATION_OVERBOOKING_AUTHORIZE);
   const overbookReady =
     overbookShortage > 0 &&
     canAuthorizeOverbook &&
@@ -3304,6 +3307,7 @@ export function CreateReservationPage({
                   <OverbookingDecision
                     key={row.roomTypeId}
                     role={actorRole}
+                    canAuthorizeOverbooking={access.can(PMS_PERMISSIONS.RESERVATION_OVERBOOKING_AUTHORIZE)}
                     roomName={row.name}
                     requestedRooms={requestedRoomsForType(row.roomTypeId)}
                     physicalAvailable={row.available}

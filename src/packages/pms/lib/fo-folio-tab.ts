@@ -4,7 +4,7 @@
  * add ledger lines or recompute a balance.
  */
 import type { FolioTransactionRow } from "./cashiering.functions";
-import type { FolioCapabilities } from "./folio-workspace";
+import type { FolioCapabilities, FolioPermissionGrants } from "./folio-workspace";
 import type { ReservationStatus } from "./reservation-dates";
 import type { TransactionType } from "./cashiering.server";
 
@@ -110,9 +110,35 @@ export function foFolioEntryType(action: FoFolioActionId): TransactionType | nul
   return ENTRY_TYPE[action] ?? null;
 }
 
+function actionGrant(
+  action: Exclude<FoFolioActionId, "print_folio">,
+  grants: Partial<FolioPermissionGrants>,
+): boolean {
+  switch (action) {
+    case "post_charge":
+      return grants.charge === true;
+    case "record_payment":
+      return grants.payment === true;
+    case "post_deposit":
+      return grants.deposit === true;
+    case "adjustment":
+      return grants.adjustment === true;
+    case "discount":
+      return grants.discount === true;
+    case "refund":
+      return grants.refund === true;
+    case "close_folio":
+      return grants.close === true;
+    case "issue_invoice":
+      return grants.invoiceEdit === true;
+    default:
+      return false;
+  }
+}
+
 /**
- * Role without the Cashiering capability hides the action.
- * A role that Cashiering locks (closed folio, no close, no invoice) stays visible and disabled.
+ * Missing permission hides the action.
+ * Permission with a closed folio, unsettled balance, or missing invoice stays visible and disabled.
  */
 export function foFolioActionState(input: {
   action: FoFolioActionId;
@@ -120,11 +146,14 @@ export function foFolioActionState(input: {
   canOperate: boolean;
   capabilities: FolioCapabilities;
   hasFolio: boolean;
+  grants?: Partial<FolioPermissionGrants>;
 }): FoFolioActionState {
   if (input.action === "print_folio") return input.hasFolio ? "enabled" : "hidden";
   if (!input.hasFolio) return "hidden";
-  const allowedRole =
-    input.action === "record_payment" || input.action === "post_deposit"
+  const granted = input.grants;
+  const allowedRole = granted
+    ? actionGrant(input.action, granted)
+    : input.action === "record_payment" || input.action === "post_deposit"
       ? input.canOperate
       : input.canManage;
   if (!allowedRole) return "hidden";

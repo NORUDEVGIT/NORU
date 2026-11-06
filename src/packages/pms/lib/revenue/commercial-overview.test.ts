@@ -233,7 +233,7 @@ describe("RR-P5-UI-01 commercial overview + promotions", () => {
     assert.doesNotMatch(workflow, /Coming next/);
     assert.match(promotions, /CommercialActivationWorkflow/);
     assert.match(promotions, /rowKind === "master"/);
-    assert.match(functions, /requireRateManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(server, /from\("pms_promotions"\)\s*\.update/);
     assert.doesNotMatch(server, /from\("pms_promotions"\)\s*\.insert/);
     assert.match(workspace, /case "commercial"/);

@@ -9,7 +9,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard8Overall } from "./card8-readiness.functions";
 import {
@@ -204,7 +205,7 @@ export const getCard8OfflinePolicy = createServerFn({ method: "POST" })
       snapshot,
       readiness: evaluateCard8OfflineReadiness(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE),
     };
   });
 
@@ -212,11 +213,7 @@ export const saveCard8OfflinePolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard8OfflineSnapshot(db, data.restaurantId);

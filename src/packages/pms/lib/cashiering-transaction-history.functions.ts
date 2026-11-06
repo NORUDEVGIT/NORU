@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -10,7 +12,7 @@ import {
   type HistoryCoverageInput,
   type HistoryLedgerRow,
 } from "./cashiering-transaction-history";
-import { canManageCashiering, cashierError, requireCashieringAccess } from "./cashiering.server";
+import { cashierError, cashieringPermissionFlags } from "./cashiering.server";
 
 const idSchema = z.string().uuid();
 const ownerSchema = z.object({
@@ -429,7 +431,7 @@ export const listOwnerActivity = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ownerSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rows =
       data.ownerType === "guest_folio"
@@ -458,9 +460,10 @@ export const getFinancialAccountLedger = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ledger = await loadAccountLedger(supabaseAdmin, data.restaurantId, data.accountId);
     if (!ledger) return null;
-    return { ...ledger, canManage: canManageCashiering(me.role) };
+    const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
+    return { ...ledger, canManage: flags.manage };
   });

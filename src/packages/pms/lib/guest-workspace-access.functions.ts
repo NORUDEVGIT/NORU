@@ -9,6 +9,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
+import { hasEffectivePermission, resolveEffectivePermissions } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 
 const idSchema = z.string().uuid();
 
@@ -67,5 +69,19 @@ export const getGuestWorkspaceAccess = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<GuestWorkspaceAccess> => {
     const me = await callerMembership(context as never, data.restaurantId);
-    return resolveGuestWorkspaceAccess(me.role);
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
+    const has = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+      hasEffectivePermission(resolved, code);
+    return {
+      role: me.role,
+      canView: has(PMS_PERMISSIONS.GUEST_PROFILE_VIEW) || has(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW),
+      canCreate: has(PMS_PERMISSIONS.GUEST_PROFILE_CREATE),
+      canEdit: has(PMS_PERMISSIONS.GUEST_PROFILE_EDIT),
+      canVerifyIdentity: has(PMS_PERMISSIONS.GUEST_PROFILE_EDIT),
+      canManageAccounts: has(PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT),
+      canMerge: has(PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE),
+      canPrivacy:
+        has(PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT) || has(PMS_PERMISSIONS.GUEST_PRIVACY_DELETE),
+      canExport: has(PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT),
+    };
   });

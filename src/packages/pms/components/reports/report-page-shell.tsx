@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Calendar } from "lucide-react";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 import { ReportExportMenu } from "@/packages/pms/components/reports/report-export-menu";
 import { ReportPagination } from "@/packages/pms/components/reports/report-pagination";
@@ -25,6 +27,7 @@ export type ReportPhase = "loading" | "empty" | "error" | "no-access" | "placeho
  * businessDate and timezone come from the property house date, never the browser clock.
  */
 export function ReportPageShell({
+  restaurantId,
   definition,
   phase,
   businessDate,
@@ -44,6 +47,7 @@ export function ReportPageShell({
   errorMessage,
   children,
 }: {
+  restaurantId?: string;
   definition: ReportDefinition;
   phase: ReportPhase;
   businessDate?: string | null;
@@ -63,7 +67,17 @@ export function ReportPageShell({
   errorMessage?: string;
   children?: ReactNode;
 }) {
-  const access = rowReportCapability(definition, capability);
+  const permissions = usePmsPermissions(restaurantId);
+  const baseAccess = rowReportCapability(definition, capability);
+  const access = {
+    ...baseAccess,
+    canExport:
+      baseAccess.canExport &&
+      (!restaurantId ||
+        (!permissions.isLoading &&
+          !permissions.isError &&
+          permissions.can(PMS_PERMISSIONS.REPORTS_EXPORT))),
+  };
   const group = reportGroup(definition.group);
   const showPagination = phase === "placeholder" || phase === "empty" || phase === "ready";
   const blocked = !access.canView || phase === "no-access";
@@ -99,7 +113,7 @@ export function ReportPageShell({
             </div>
           ) : null}
         </div>
-        {blocked ? null : (
+        {blocked || !access.canExport ? null : (
           <ReportExportMenu
             definition={definition}
             capability={access}

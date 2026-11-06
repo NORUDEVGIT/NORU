@@ -38,6 +38,8 @@ import {
   type HistoryFilter,
 } from "@/packages/pms/lib/night-audit-workflow";
 import { PROPERTY_BUSINESS_DATE_KEY } from "@/packages/pms/lib/use-property-business-date";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { useRestaurantTime } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { Button } from "@/shared/components/ui/button";
@@ -104,6 +106,8 @@ export function NightAuditWorkspace({
     retry: false,
   });
   const role = accessQuery.data?.role ?? membership.role;
+  const permissions = usePmsPermissions(restaurantId);
+  const canFiscalOverride = permissions.can(PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_AUTHORIZE);
 
   const auditQuery = useQuery({
     queryKey: ["night-audit", restaurantId],
@@ -434,6 +438,8 @@ export function NightAuditWorkspace({
         canRetryOtb={state.canRetryOtb}
         nightAuditWindow={state.nightAuditWindow ?? null}
         role={role}
+        canFiscalOverride={canFiscalOverride}
+        canClose={accessQuery.data?.canConfirm === true}
         phone={phone}
         busy={closeMutation.isPending}
         note={note}
@@ -552,6 +558,7 @@ export function NightAuditWorkspace({
             hideHero
             exceptions={state.exceptions}
             role={role}
+            canFiscalOverride={canFiscalOverride}
             businessDate={state.businessDate}
             authorizingFiscalOverride={fiscalOverrideMutation.isPending}
             onAuthorizeFiscalOverride={(exceptionId, reason, reasonCategory) =>

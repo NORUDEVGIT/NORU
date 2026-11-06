@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { toast } from "sonner";
 
 import { FrontOfficeChrome } from "@/packages/pms/components/frontoffice/front-office-chrome";
-import {
-  ComingSoonPanel,
-  PermissionDeniedPanel,
-} from "@/packages/pms/components/frontoffice/coming-soon-panel";
+import { ComingSoonPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { RoomRackCalendar } from "@/packages/pms/components/frontoffice/room-rack-calendar";
 import {
   ReservationSideSheet,
@@ -74,8 +73,6 @@ import {
   listInHouse,
   type FrontOfficeStay,
 } from "@/packages/pms/lib/frontoffice.functions";
-import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
-import { getCashieringAccess } from "@/packages/pms/lib/cashiering.functions";
 import type { FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import type { FoControlAction, FrontOfficeExceptionItem } from "@/packages/pms/lib/fo-control";
 import {
@@ -202,6 +199,7 @@ export function FrontOfficeWorkspace({
   search: FoSearch;
 }) {
   const restaurantId = membership.restaurant.id;
+  const permissions = usePmsPermissions(restaurantId);
   const timezone = useRestaurantTimezone();
   const today = usePropertyBusinessDate(restaurantId, timezone);
   const navigate = useNavigate();
@@ -573,24 +571,10 @@ export function FrontOfficeWorkspace({
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  const fetchAccess = useServerFn(getBookingsAccess);
-  const accessQuery = useQuery({
-    queryKey: ["bookings-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const canOpenCashiering = permissions.can(PMS_PERMISSIONS.CASHIERING_VIEW);
+  const deskReady = permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
 
-  const fetchCashiering = useServerFn(getCashieringAccess);
-  const cashieringQuery = useQuery({
-    queryKey: ["cashiering-access", restaurantId],
-    queryFn: () => fetchCashiering({ data: { restaurantId } }),
-    retry: false,
-    enabled: canManage,
-  });
-  const canOpenCashiering = !!cashieringQuery.data;
-
-  const exceptionDesk = useFoExceptionDesk(restaurantId, today, canManage);
+  const exceptionDesk = useFoExceptionDesk(restaurantId, today, deskReady);
   // Reuses the existing exception desk feed (no new fetch, no new business rule) to narrow
   // Rack/Table rows when the burger's "Exceptions" filter is selected.
   const exceptionStayIds = useMemo(
@@ -607,14 +591,14 @@ export function FrontOfficeWorkspace({
   const arrivalsQuery = useQuery({
     queryKey: ["front-office", "arrivals", restaurantId, today, "confirmed", "all"],
     queryFn: () => fetchArrivals({ data: { restaurantId, date: today, status: "confirmed" } }),
-    enabled: canManage && picker === "check_in",
+    enabled: deskReady && picker === "check_in",
     retry: false,
   });
   const inHouseQuery = useQuery({
     queryKey: ["front-office", "in-house", restaurantId, today, ""],
     queryFn: () => fetchInHouse({ data: { restaurantId, today } }),
     enabled:
-      canManage &&
+      deskReady &&
       (picker === "room_move" ||
         picker === "extend_stay" ||
         picker === "check_out" ||
@@ -820,13 +804,11 @@ export function FrontOfficeWorkspace({
     openDialog("checkin", stay);
   }
 
-  if (accessQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading Front Office…</p>;
+  if (permissions.isLoading) {
+    return <p className="text-sm text-muted-foreground">Checking access…</p>;
   }
-  if (!canManage) {
-    return (
-      <PermissionDeniedPanel message="Only owners, managers and receptionists can access Front Office for this property." />
-    );
+  if (permissions.isError || !deskReady) {
+    return null;
   }
 
   return (
@@ -885,7 +867,11 @@ export function FrontOfficeWorkspace({
           canOpenCashiering={canOpenCashiering}
           staffRole={membership.role}
           onRackSearchChange={onRackSearchChange}
-          onWalkIn={() => openWalkInCreate()}
+          onWalkIn={
+            permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_WALK_IN)
+              ? () => openWalkInCreate()
+              : undefined
+          }
           onOpenGuestSearch={() => {
             setSearchTerm("");
             setSearchOpen(true);
@@ -1227,4 +1213,3 @@ export function FrontOfficeWorkspace({
     </FrontOfficeChrome>
   );
 }
-

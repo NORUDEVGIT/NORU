@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   CARD3_CORPORATE_AUDIT_SECTION,
   CARD3_CORPORATE_UNAVAILABLE,
@@ -16,8 +17,7 @@ import {
   type CorporateCard3Snapshot,
   type CorporateCompanyRef,
   type CorporateCurrencyRef,
-  type CorporateRoomTypeRef,
-} from "./corporate-card3.server";
+  type CorporateRoomTypeRef } from "./corporate-card3.server";
 
 // 0075 is intentionally not represented in generated types.ts until its approved apply.
 // Keep the untyped database boundary isolated to this functions module.
@@ -54,12 +54,10 @@ const agreementSchema = z
     noticePeriodDays: z.number().int().min(0).max(3650).optional().nullable(),
     signedAt: isoDate.optional().nullable(),
     signedBy: z.string().trim().max(200).optional().nullable(),
-    fileStoragePath: z.string().trim().max(400).optional().nullable(),
-  })
+    fileStoragePath: z.string().trim().max(400).optional().nullable() })
   .refine((data) => data.validTo >= data.validFrom, {
     message: "Valid to must be on or after valid from.",
-    path: ["validTo"],
-  });
+    path: ["validTo"] });
 
 const contractRateSchema = z
   .object({
@@ -71,12 +69,10 @@ const contractRateSchema = z
     amount: z.number().min(0, "Amount cannot be negative.").max(10_000_000),
     validFrom: isoDate,
     validTo: isoDate,
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .refine((data) => data.validTo >= data.validFrom, {
     message: "Valid to must be on or after valid from.",
-    path: ["validTo"],
-  });
+    path: ["validTo"] });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (
@@ -112,8 +108,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_CORPORATE_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_CORPORATE_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-corporate] audit", result.error.message);
 }
 
@@ -124,8 +119,7 @@ function mapCompany(row: any): CorporateCompanyRef {
     name: String(row.name ?? ""),
     active: String(row.account_status ?? "active") !== "inactive",
     paymentTerms: String(row.payment_terms ?? ""),
-    creditLimitNote: String(row.credit_limit_note ?? ""),
-  };
+    creditLimitNote: String(row.credit_limit_note ?? "") };
 }
 
 function mapRoomType(row: any): CorporateRoomTypeRef {
@@ -133,8 +127,7 @@ function mapRoomType(row: any): CorporateRoomTypeRef {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 async function loadCompanies(db: DbClient, restaurantId: string): Promise<CorporateCompanyRef[]> {
@@ -262,8 +255,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Corpora
     noticePeriodDays: row.notice_period_days == null ? null : Number(row.notice_period_days),
     signedAt: row.signed_at ? String(row.signed_at) : null,
     signedBy: row.signed_by ? String(row.signed_by) : null,
-    fileStoragePath: row.file_storage_path ? String(row.file_storage_path) : null,
-  }));
+    fileStoragePath: row.file_storage_path ? String(row.file_storage_path) : null }));
   const agreementById = new Map(
     agreementRows.map((row) => [row.id, `${row.code} — ${row.name}`]),
   );
@@ -281,8 +273,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Corpora
       amount: Number(row.amount ?? 0),
       validFrom: String(row.valid_from ?? ""),
       validTo: String(row.valid_to ?? ""),
-      active: row.active !== false,
-    };
+      active: row.active !== false };
   });
 
   return {
@@ -290,8 +281,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Corpora
     roomTypes: roomTypeRows,
     currencies,
     agreements: agreementRows,
-    contractRates,
-  };
+    contractRates };
 }
 
 export { loadSnapshot as loadCorporateCard3Snapshot };
@@ -309,8 +299,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 async function requireOwnedRecord(
@@ -359,21 +348,20 @@ export const getCorporateCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateCorporateCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveCorporateAgreementCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => agreementSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireCompany(db, data.restaurantId, data.companyId);
     await requireSupportedCurrency(db, data.restaurantId, data.currencyCode);
@@ -401,8 +389,7 @@ export const saveCorporateAgreementCard3 = createServerFn({ method: "POST" })
       notice_period_days: data.noticePeriodDays ?? null,
       signed_at: data.signedAt ?? null,
       signed_by: data.signedBy?.trim() ? data.signedBy.trim() : null,
-      file_storage_path: data.fileStoragePath?.trim() ? data.fileStoragePath.trim() : null,
-    };
+      file_storage_path: data.fileStoragePath?.trim() ? data.fileStoragePath.trim() : null };
     const result = data.id
       ? await db
           .from("pms_corporate_agreements")
@@ -415,8 +402,7 @@ export const saveCorporateAgreementCard3 = createServerFn({ method: "POST" })
       unavailable(result.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_corporate_agreement_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCorporateCard3Readiness(snapshot) };
   });
@@ -425,7 +411,7 @@ export const saveContractRateCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => contractRateSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await Promise.all([
       requireOwnedRecord(
@@ -460,8 +446,7 @@ export const saveContractRateCard3 = createServerFn({ method: "POST" })
       amount: data.amount,
       valid_from: data.validFrom,
       valid_to: data.validTo,
-      active: data.active,
-    };
+      active: data.active };
     const result = data.id
       ? await db
           .from("pms_contract_rates")
@@ -476,8 +461,7 @@ export const saveContractRateCard3 = createServerFn({ method: "POST" })
       unavailable(result.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_contract_rate_saved", {
-      detail: `${data.rateKind} ${data.amount}`,
-    });
+      detail: `${data.rateKind} ${data.amount}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCorporateCard3Readiness(snapshot) };
   });

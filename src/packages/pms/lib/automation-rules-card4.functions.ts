@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -6,8 +8,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { COMMUNICATION_CHANNEL_TYPES } from "./communication-channels-card4.server";
 import {
   validateCommunicationTemplateDraft,
-  type CommunicationTemplateRecord,
-} from "./communication-templates-card4.server";
+  type CommunicationTemplateRecord } from "./communication-templates-card4.server";
 import { testPmsCard4CommunicationTemplate } from "./communication-templates-card4.functions";
 import {
   AUTOMATION_CONDITION_FIELDS,
@@ -24,9 +25,7 @@ import {
   type AutomationRuleDraft,
   type AutomationRuleLookup,
   type AutomationRuleRecord,
-  type AutomationRulesSnapshot,
-} from "./automation-rules-card4.server";
-import { requireRoomManager } from "./rooms.server";
+  type AutomationRulesSnapshot } from "./automation-rules-card4.server";
 
 // Generated schema predates 0092.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,16 +43,14 @@ const saveSchema = z
         .object({
           field: z.enum(AUTOMATION_CONDITION_FIELDS),
           operator: z.enum(AUTOMATION_CONDITION_OPERATORS),
-          value: z.string().trim().min(1).max(80),
-        })
+          value: z.string().trim().min(1).max(80) })
         .strict(),
     ),
     recipients: z.array(
       z
         .object({
           kind: z.enum(AUTOMATION_RECIPIENT_KINDS),
-          id: z.string().trim().min(1).max(80),
-        })
+          id: z.string().trim().min(1).max(80) })
         .strict(),
     ),
     channelType: z.enum(COMMUNICATION_CHANNEL_TYPES),
@@ -61,10 +58,8 @@ const saveSchema = z
     schedule: z.object({
       mode: z.enum(AUTOMATION_SCHEDULE_MODES),
       delayMinutes: z.number().int().optional(),
-      timeOfDay: z.string().optional(),
-    }),
-    active: z.boolean(),
-  })
+      timeOfDay: z.string().optional() }),
+    active: z.boolean() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -100,8 +95,7 @@ function mapRule(row: {
     schedule: parseAutomationSchedule(row.schedule),
     active: row.active,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function toDraft(data: z.infer<typeof saveSchema>): AutomationRuleDraft {
@@ -114,8 +108,7 @@ function toDraft(data: z.infer<typeof saveSchema>): AutomationRuleDraft {
     channelType: data.channelType,
     templateId: data.templateId,
     schedule: parseAutomationSchedule(data.schedule),
-    active: data.active,
-  });
+    active: data.active });
 }
 
 async function writeAudit(
@@ -130,8 +123,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-automation-rules", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-automation-rules", ...metadata } as unknown as Json });
   if (result.error) console.error("[card4-automation-rules] audit", result.error.message);
 }
 
@@ -200,14 +192,12 @@ async function loadSnapshot(
         id: row.id,
         name: row.name,
         code: row.code,
-        active: row.active,
-      }),
+        active: row.active }),
     ),
     channels: (channelsRes.data ?? []).map(
       (row: { channel_type: string; active: boolean }) => ({
         channelType: row.channel_type as AutomationRuleRecord["channelType"],
-        active: row.active,
-      }),
+        active: row.active }),
     ),
     templates: (templatesRes.data ?? []).map(
       (row: {
@@ -221,32 +211,27 @@ async function loadSnapshot(
         name: row.name,
         channelType: row.channel_type as AutomationRuleRecord["channelType"],
         eventTrigger: row.event_trigger,
-        active: row.active,
-      }),
+        active: row.active }),
     ),
     departments: (departmentsRes.data ?? []).map(
       (row: { id: string; name: string; code: string; active: boolean }): AutomationRuleLookup => ({
         id: row.id,
         name: row.name,
         code: row.code,
-        active: row.active,
-      }),
+        active: row.active }),
     ),
     profileTypes: (profileTypesRes.data ?? []).map(
       (row: { id: string; name: string; code: string; active: boolean }): AutomationRuleLookup => ({
         id: row.id,
         name: row.name,
         code: row.code,
-        active: row.active,
-      }),
+        active: row.active }),
     ),
     roles: AUTOMATION_RECIPIENT_ROLES.map((id) => ({
       id,
-      name: AUTOMATION_RECIPIENT_ROLE_LABELS[id],
-    })),
+      name: AUTOMATION_RECIPIENT_ROLE_LABELS[id] })),
     timezone: String(restaurantRes.data?.timezone ?? "UTC"),
-    lastUpdatedAt,
-  };
+    lastUpdatedAt };
 }
 
 async function requireOwnRule(
@@ -298,8 +283,7 @@ async function loadOwnTemplate(
     allowManualSending: row.allow_manual_sending,
     attachPdf: row.attach_pdf,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function cataloguesFrom(snapshot: AutomationRulesSnapshot) {
@@ -308,15 +292,14 @@ function cataloguesFrom(snapshot: AutomationRulesSnapshot) {
     channels: snapshot.channels,
     templates: snapshot.templates,
     departments: snapshot.departments,
-    profileTypes: snapshot.profileTypes,
-  };
+    profileTypes: snapshot.profileTypes };
 }
 
 export const getPmsCard4AutomationRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -325,7 +308,7 @@ export const savePmsCard4AutomationRule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -344,8 +327,7 @@ export const savePmsCard4AutomationRule = createServerFn({ method: "POST" })
       template_id: draft.templateId,
       schedule: draft.schedule,
       active: draft.active,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_communication_automation_rules")
@@ -365,8 +347,7 @@ export const savePmsCard4AutomationRule = createServerFn({ method: "POST" })
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_automation_rule_saved", {
       id,
       eventId: draft.eventId,
-      active: draft.active,
-    });
+      active: draft.active });
     return { ok: true as const, id };
   });
 
@@ -376,7 +357,7 @@ export const setPmsCard4AutomationRuleActive = createServerFn({ method: "POST" }
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnRule(db, data.restaurantId, data.id);
@@ -402,8 +383,7 @@ export const setPmsCard4AutomationRuleActive = createServerFn({ method: "POST" }
     if (!result.data) throw new Error("Automation rule not found.");
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_automation_rule_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -413,7 +393,7 @@ export const deletePmsCard4AutomationRule = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     await requireOwnRule(db, data.restaurantId, data.id);
@@ -424,8 +404,7 @@ export const deletePmsCard4AutomationRule = createServerFn({ method: "POST" })
       .eq("restaurant_id", data.restaurantId);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_automation_rule_deleted", {
-      id: data.id,
-    });
+      id: data.id });
     return { ok: true as const };
   });
 
@@ -435,7 +414,7 @@ export const testPmsCard4AutomationRule = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const rule = await requireOwnRule(db, data.restaurantId, data.id);
@@ -448,15 +427,13 @@ export const testPmsCard4AutomationRule = createServerFn({ method: "POST" })
     if (errors.length > 0) {
       return {
         result: "failed" as const,
-        message: errors[0]?.message ?? "Complete this rule before testing it.",
-      };
+        message: errors[0]?.message ?? "Complete this rule before testing it." };
     }
     const template = await loadOwnTemplate(db, data.restaurantId, rule.templateId);
     if (!template) {
       return {
         result: "failed" as const,
-        message: "Choose a compatible active template before testing the rule.",
-      };
+        message: "Choose a compatible active template before testing the rule." };
     }
     const templateErrors = validateCommunicationTemplateDraft(
       {
@@ -471,15 +448,13 @@ export const testPmsCard4AutomationRule = createServerFn({ method: "POST" })
         message: template.message,
         active: template.active,
         allowManualSending: template.allowManualSending,
-        attachPdf: template.attachPdf,
-      },
+        attachPdf: template.attachPdf },
       [template],
     );
     if (templateErrors.length > 0) {
       return {
         result: "failed" as const,
-        message: templateErrors[0]?.message ?? "The selected template is invalid.",
-      };
+        message: templateErrors[0]?.message ?? "The selected template is invalid." };
     }
     return testPmsCard4CommunicationTemplate({
       data: {
@@ -494,7 +469,5 @@ export const testPmsCard4AutomationRule = createServerFn({ method: "POST" })
         message: template.message,
         active: template.active,
         allowManualSending: template.allowManualSending,
-        attachPdf: template.attachPdf,
-      },
-    });
+        attachPdf: template.attachPdf } });
   });

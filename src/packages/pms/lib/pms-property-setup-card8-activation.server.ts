@@ -55,6 +55,7 @@ export async function loadCard8ActivationEligibility(
     validation: Card8ValidationReport;
     golive: Card8GoliveSnapshot;
   },
+  canActivate?: boolean,
 ): Promise<Card8ActivationEligibility> {
   const [propertyResult, validation, goliveSnapshot] = await Promise.all([
     db
@@ -77,13 +78,13 @@ export async function loadCard8ActivationEligibility(
     validation.counts.critical,
   );
   const goliveReady = card8GoliveReady(readinessInput);
-  const ownerAuthorized = canActivateSet1(role);
+  const ownerAuthorized = canActivate ?? canActivateSet1(role);
   const canonicalLive = property.pms_set1_live === true;
   const businessDate = property.business_date ? String(property.business_date) : null;
   const blockers: string[] = [];
 
   if (canonicalLive) blockers.push("Property is already active.");
-  if (!ownerAuthorized) blockers.push("Only the property owner can activate.");
+  if (!ownerAuthorized) blockers.push("You don't have permission to activate this property.");
   if (!set1ChecklistReady) blockers.push("The existing SET1 mandatory checklist is incomplete.");
   if (validation.counts.critical > 0) {
     blockers.push(

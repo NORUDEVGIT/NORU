@@ -99,7 +99,7 @@ export function PmsCard4ServiceCategories({
   const [pendingDelete, setPendingDelete] = useState<ServiceCategoryRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
   const thenNextRef = useRef(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
   const errors = validateServiceCategoryDraft(draft, categories);
   const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;

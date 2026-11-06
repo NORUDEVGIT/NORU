@@ -294,7 +294,7 @@ export function GuestDirectoryWorkspace({
       >
         <h1 className="font-display text-2xl">Guest Profile</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners, managers and receptionists can access guest profiles for this property.
+          You don't have permission to open guest profiles for this property.
         </p>
       </div>
     );

@@ -76,7 +76,7 @@ describe("Room & Inventory workspace", () => {
 
   it("reads active room blocks with Front Office access", () => {
     expect(boardFunctions).toContain("export const listRoomBoardBlocks");
-    expect(boardFunctions).toContain("requireFrontOfficeAccess");
+    expect(boardFunctions).toContain("requirePmsActor");
     expect(boardFunctions).toContain('"pms_operational_inventory_blocks"');
     expect(boardFunctions).toContain('.eq("status", "active")');
   });

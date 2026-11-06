@@ -3,10 +3,12 @@
  * Rate Manager only. Observation/fetch-run writes are not exposed here.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { rateError, requireRateManager } from "../rates.server";
+import { rateError } from "../rates.server";
 import { COMPETITOR_SETUP_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error.ts";
 import {
   createCompetitorProviderMapping as saveProviderMapping,
@@ -19,8 +21,7 @@ import {
   listHotelCompetitors as loadHotelCompetitors,
   updateCompetitorProviderMapping as patchProviderMapping,
   updateCompetitorRoomMapping as patchRoomMapping,
-  updateHotelCompetitor as patchCompetitor,
-} from "./rate-shopping.server.ts";
+  updateHotelCompetitor as patchCompetitor } from "./rate-shopping.server.ts";
 
 const idSchema = z.string().uuid();
 
@@ -32,8 +33,7 @@ const createCompetitorSchema = z.object({
   name: z.string().min(1).max(160),
   locationLabel: z.string().max(160).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
-  active: z.boolean().optional(),
-});
+  active: z.boolean().optional() });
 
 const updateCompetitorSchema = z.object({
   restaurantId: idSchema,
@@ -41,8 +41,7 @@ const updateCompetitorSchema = z.object({
   name: z.string().min(1).max(160).optional(),
   locationLabel: z.string().max(160).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
-  active: z.boolean().optional(),
-});
+  active: z.boolean().optional() });
 
 const createProviderSchema = z.object({
   restaurantId: idSchema,
@@ -50,8 +49,7 @@ const createProviderSchema = z.object({
   provider: z.string().min(1).max(80),
   externalPropertyId: z.string().min(1).max(160),
   externalPropertyName: z.string().max(160).nullable().optional(),
-  active: z.boolean().optional(),
-});
+  active: z.boolean().optional() });
 
 const updateProviderSchema = z.object({
   restaurantId: idSchema,
@@ -59,8 +57,7 @@ const updateProviderSchema = z.object({
   provider: z.string().min(1).max(80).optional(),
   externalPropertyId: z.string().min(1).max(160).optional(),
   externalPropertyName: z.string().max(160).nullable().optional(),
-  active: z.boolean().optional(),
-});
+  active: z.boolean().optional() });
 
 const createRoomSchema = z.object({
   restaurantId: idSchema,
@@ -70,8 +67,7 @@ const createRoomSchema = z.object({
   externalRoomId: z.string().min(1).max(160),
   externalRoomName: z.string().max(160).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
-  active: z.boolean().optional(),
-});
+  active: z.boolean().optional() });
 
 const updateRoomSchema = z.object({
   restaurantId: idSchema,
@@ -81,8 +77,7 @@ const updateRoomSchema = z.object({
   externalRoomId: z.string().min(1).max(160).optional(),
   externalRoomName: z.string().max(160).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
-  active: z.boolean().optional(),
-});
+  active: z.boolean().optional() });
 
 function writeError(error: unknown): never {
   throw rateError(error instanceof Error ? error.message : String(error));
@@ -92,7 +87,7 @@ export const getCompetitorSetupWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadCompetitorSetupWorkspace(supabaseAdmin, data.restaurantId);
@@ -105,7 +100,7 @@ export const listHotelCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => restaurantSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadHotelCompetitors(supabaseAdmin, data.restaurantId);
   });
@@ -114,7 +109,7 @@ export const getHotelCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => competitorSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadHotelCompetitor(supabaseAdmin, data);
   });
@@ -123,7 +118,7 @@ export const createHotelCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => createCompetitorSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await saveCompetitor(supabaseAdmin, data);
@@ -136,7 +131,7 @@ export const updateHotelCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => updateCompetitorSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await patchCompetitor(supabaseAdmin, data);
@@ -151,7 +146,7 @@ export const listCompetitorProviderMappings = createServerFn({ method: "POST" })
     restaurantSchema.extend({ competitorId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadProviderMappings(supabaseAdmin, data);
   });
@@ -160,7 +155,7 @@ export const createCompetitorProviderMapping = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => createProviderSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await saveProviderMapping(supabaseAdmin, data);
@@ -173,7 +168,7 @@ export const updateCompetitorProviderMapping = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => updateProviderSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await patchProviderMapping(supabaseAdmin, data);
@@ -188,7 +183,7 @@ export const listCompetitorRoomMappings = createServerFn({ method: "POST" })
     restaurantSchema.extend({ competitorId: idSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadRoomMappings(supabaseAdmin, data);
   });
@@ -197,7 +192,7 @@ export const createCompetitorRoomMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => createRoomSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await saveRoomMapping(supabaseAdmin, data);
@@ -210,7 +205,7 @@ export const updateCompetitorRoomMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => updateRoomSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await patchRoomMapping(supabaseAdmin, data);

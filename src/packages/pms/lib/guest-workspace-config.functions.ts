@@ -7,6 +7,8 @@
  * Writes remain owned by Property Setup.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -573,6 +575,6 @@ export const getGuestWorkspaceConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestWorkspaceConfig> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
     return loadGuestWorkspaceConfig(data.restaurantId);
   });

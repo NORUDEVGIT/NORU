@@ -127,6 +127,6 @@ describe("DB-04I-02 Reservation Desk read model", () => {
   it("does not pull Quick View, calendar, exceptions, or financial columns", () => {
     assert.doesNotMatch(desk, /Quick View|getReservationFolio|listArrivals|listFoException/);
     assert.doesNotMatch(desk, /CREATE_RESERVATION_SECTION7_APPLY/);
-    assert.match(desk, /requireReservationManager/);
+    assert.match(desk, /requirePmsActor/);
   });
 });

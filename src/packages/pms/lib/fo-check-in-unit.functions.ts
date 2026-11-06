@@ -26,7 +26,8 @@ import {
   listAssignableRooms,
   type AssignableRoom,
 } from "@/packages/pms/lib/reservations.functions";
-import { requireReservationManager } from "@/packages/pms/lib/reservations.server";
+import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { getReservationPackageAttributions } from "@/packages/pms/lib/revenue/commercial-package.server";
 
 export type CheckInUnitRead = CheckInUnitTarget & {
@@ -124,7 +125,7 @@ export const getCheckInUnit = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInUnitRead> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const loaded = await loadCheckInUnitTarget({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,

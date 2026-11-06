@@ -3,7 +3,9 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { addDays } from "./reservation-dates";
-import { assertStayDates, requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { assertStayDates } from "./reservations.server";
 import { createReservation } from "./reservations.functions";
 import {
   GROUP_STATUSES,
@@ -68,11 +70,7 @@ function rpc(client: unknown): LooseRpc {
 }
 
 async function requireGroupWriter(context: never, restaurantId: string) {
-  const membership = await requireReservationManager(context, restaurantId);
-  if (membership.role !== "owner" && membership.role !== "manager") {
-    throw new Error("You don't have permission to manage Groups & Blocks.");
-  }
-  return membership;
+  return requirePmsActor(context, restaurantId, PMS_PERMISSIONS.RESERVATION_GROUP_EDIT);
 }
 
 export interface GroupBlockRead {
@@ -997,7 +995,7 @@ export const listGroups = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     let query = db(context.supabase)
       .from("pms_groups")
       .select(GROUP_SELECT)
@@ -1090,7 +1088,7 @@ export const getGroup = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { data: row, error } = await db(context.supabase)
       .from("pms_groups")
       .select(GROUP_SELECT)
@@ -1463,7 +1461,7 @@ export const getGroupOperationalDetail = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     return loadGroupOperationalDetail(context.supabase, data.restaurantId, data.groupId);
   });
 

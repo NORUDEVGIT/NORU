@@ -136,7 +136,7 @@ describe("Guest Profile Wave 1 reuse and honesty", () => {
     assert.match(listing, /Total Profiles/);
     assert.match(functions, /export const getGuestDirectoryStats/);
     assert.match(functions, /export const getGuestWorkspaceStats/);
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.match(functions, /count > 1/);
     assert.match(shell, /GuestListingWorkspace/);
     assert.match(shell, /guest-profile-section-nav/);

@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -10,15 +12,7 @@ import {
   type AccountInvoiceKind,
   type IssuedAccountInvoice,
 } from "./cashiering-account-invoices";
-import {
-  assertIdempotencyKey,
-  canAllocateAccountPayments,
-  canManageCashiering,
-  CASHIER_OPERATE_ROLES,
-  cashierError,
-  requireCashierManager,
-  requireCashieringAccess,
-} from "./cashiering.server";
+import { assertIdempotencyKey, cashierError, cashieringPermissionFlags } from "./cashiering.server";
 
 const idSchema = z.string().uuid();
 const draftNotes = z.string().max(500).optional();
@@ -65,7 +59,8 @@ export const getFinancialAccountInvoiceBoard = createServerFn({ method: "GET" })
         invoiceSettingsAvailable: boolean;
       }
     > => {
-      const me = await requireCashieringAccess(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW);
+      const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: payload, error } = await supabaseAdmin.rpc(
         "list_financial_account_invoice_groups",
@@ -108,9 +103,9 @@ export const getFinancialAccountInvoiceBoard = createServerFn({ method: "GET" })
                 : [],
             }
           : null,
-        canManage: canManageCashiering(me.role),
-        canOperate: (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role),
-        canAllocate: canAllocateAccountPayments(me.role),
+        canManage: flags.createInvoice || flags.authorizeInvoice,
+        canOperate: flags.receivePayment,
+        canAllocate: flags.allocate,
         invoiceSettingsAvailable: Boolean(settings),
       };
     },
@@ -122,7 +117,7 @@ export const listFinancialAccountInvoices = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<IssuedAccountInvoice[]> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("financial_account_invoices")
@@ -148,7 +143,7 @@ export const previewFinancialAccountInvoiceSelection = createServerFn({ method: 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: preview, error } = await supabaseAdmin.rpc(
       "preview_financial_account_invoice_selection",
@@ -184,7 +179,7 @@ export const createFinancialAccountInvoiceDraft = createServerFn({ method: "POST
     z.object({ restaurantId: idSchema, accountId: idSchema, notes: draftNotes }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("create_financial_account_invoice_draft", {
       _restaurant_id: data.restaurantId,
@@ -209,7 +204,7 @@ export const updateFinancialAccountInvoiceDraft = createServerFn({ method: "POST
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("update_financial_account_invoice_draft", {
       _restaurant_id: data.restaurantId,
@@ -228,7 +223,7 @@ export const deleteFinancialAccountInvoiceDraft = createServerFn({ method: "POST
     z.object({ restaurantId: idSchema, draftId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("delete_financial_account_invoice_draft", {
       _restaurant_id: data.restaurantId,
@@ -251,7 +246,7 @@ export const issueFinancialAccountInvoiceDraft = createServerFn({ method: "POST"
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("issue_financial_account_invoice_draft", {
       _restaurant_id: data.restaurantId,
@@ -271,7 +266,7 @@ export const reprintFinancialAccountInvoice = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin.rpc("reprint_financial_account_invoice", {
       _restaurant_id: data.restaurantId,

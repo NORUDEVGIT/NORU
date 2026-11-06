@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -165,7 +167,7 @@ async function authorizePolice(
   context: { userId?: string },
   restaurantId: string,
 ): Promise<{ id: string; userId: string | null }> {
-  const membership = await requireReservationManager(context as never, restaurantId);
+  const membership = await requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.REPORTS_EXPORT);
   return { id: membership.id, userId: context.userId ?? null };
 }
 

@@ -14,7 +14,7 @@ import { COMMON_CURRENCIES, COMMON_TIMEZONES, formatMoney } from "@/shared/lib/p
 import { FoFeeDefaultsEditor } from "@/packages/pms/components/settings/fo-fee-defaults-editor";
 import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
 import { activatePmsSet1, savePmsSet1Foundation } from "@/packages/pms/lib/pms-set1-foundation.functions";
-import { DEPOSIT_TYPE_LABELS, DEPOSIT_TYPES, FEE_BASIS_LABELS, FEE_BASES, PROPERTY_TYPE_LABELS, PROPERTY_TYPES, SET1_ACTIVATE_LABEL, SET1_BUSINESS_DATE_COPY, SET1_CI_CO_EQUAL_WARNING, SET1_COLUMNS_UNAVAILABLE, SET1_HUB_HREF, SET1_OPS_HELPER, SET1_TAX_HONESTY, SET1_TAX_RM_SHARE, canActivateSet1, ciCoEqual, formatClockLabel, overallLabel, readinessLabel, type Set1Checklist, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1Readiness, type Set1SectionId, type Set1TaxesDraft } from "@/packages/pms/lib/pms-set1-foundation";
+import { DEPOSIT_TYPE_LABELS, DEPOSIT_TYPES, FEE_BASIS_LABELS, FEE_BASES, PROPERTY_TYPE_LABELS, PROPERTY_TYPES, SET1_ACTIVATE_LABEL, SET1_BUSINESS_DATE_COPY, SET1_CI_CO_EQUAL_WARNING, SET1_COLUMNS_UNAVAILABLE, SET1_HUB_HREF, SET1_OPS_HELPER, SET1_TAX_HONESTY, SET1_TAX_RM_SHARE, ciCoEqual, formatClockLabel, overallLabel, readinessLabel, type Set1Checklist, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1Readiness, type Set1SectionId, type Set1TaxesDraft } from "@/packages/pms/lib/pms-set1-foundation";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { cn } from "@/shared/lib/utils";
 
@@ -608,10 +608,10 @@ export function Set1PoliciesSection({ restaurantId, role, snapshot, canEdit }: {
   );
 }
 
-export function Set1GoLiveSection({ restaurantId, role, snapshot, checklist, canEdit }: { restaurantId: string; role: string; snapshot: Set1Foundation; checklist: Set1Checklist; canEdit: boolean }) {
+export function Set1GoLiveSection({ restaurantId, snapshot, checklist, canEdit, canActivate }: { restaurantId: string; role?: string; snapshot: Set1Foundation; checklist: Set1Checklist; canEdit: boolean; canActivate: boolean }) {
   const queryClient = useQueryClient();
   const activate = useServerFn(activatePmsSet1);
-  const owner = canActivateSet1(role);
+  const owner = canActivate;
   const [explicitConfirmation, setExplicitConfirmation] = useState(false);
   const mutation = useMutation({
     mutationFn: () => activate({ data: { restaurantId, explicitConfirmation } }),
@@ -672,7 +672,7 @@ export function Set1GoLiveSection({ restaurantId, role, snapshot, checklist, can
           {!checklist.canActivate && !snapshot.pmsSet1Live ? <p className="text-sm text-muted-foreground">Activate stays off while mandatory items are incomplete: {checklist.mandatoryMissing.join(", ") || "see the list above"}.</p> : null}
         </div>
       ) : canEdit ? (
-        <p className="text-sm text-muted-foreground">Managers can complete the checklist. Only the owner can activate.</p>
+        <p className="text-sm text-muted-foreground">You don't have permission to activate this property.</p>
       ) : null}
     </section>
   );
@@ -708,13 +708,13 @@ function BasisSelect({ id, label, value, disabled, onChange }: { id: string; lab
   );
 }
 
-export function Set1SectionView({ section, restaurantId, role, snapshot, checklist, canEdit }: { section: Set1SectionId; restaurantId: string; role: string; snapshot: Set1Foundation; checklist: Set1Checklist; canEdit: boolean }) {
+export function Set1SectionView({ section, restaurantId, role, snapshot, checklist, canEdit, canActivate }: { section: Set1SectionId; restaurantId: string; role: string; snapshot: Set1Foundation; checklist: Set1Checklist; canEdit: boolean; canActivate: boolean }) {
   const body = useMemo(() => {
     if (section === "identity") return <Set1IdentitySection restaurantId={restaurantId} snapshot={snapshot} canEdit={canEdit} />;
     if (section === "ops") return <Set1OpsSection restaurantId={restaurantId} snapshot={snapshot} canEdit={canEdit} />;
     if (section === "taxes") return <Set1TaxesSection restaurantId={restaurantId} snapshot={snapshot} canEdit={canEdit} />;
     if (section === "policies") return <Set1PoliciesSection restaurantId={restaurantId} role={role} snapshot={snapshot} canEdit={canEdit} />;
-    return <Set1GoLiveSection restaurantId={restaurantId} role={role} snapshot={snapshot} checklist={checklist} canEdit={canEdit} />;
-  }, [section, restaurantId, role, snapshot, checklist, canEdit]);
+    return <Set1GoLiveSection restaurantId={restaurantId} role={role} snapshot={snapshot} checklist={checklist} canEdit={canEdit} canActivate={canActivate} />;
+  }, [section, restaurantId, role, snapshot, checklist, canEdit, canActivate]);
   return body;
 }

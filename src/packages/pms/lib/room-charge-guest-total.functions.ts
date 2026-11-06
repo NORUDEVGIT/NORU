@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import {
   previewPostedRoomCharge,
   type RoomChargeRules,
@@ -28,7 +29,7 @@ export const quoteReservationRoomGuestTotal = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ total: number }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rules = await loadRoomChargeRules(supabaseAdmin as never, data.restaurantId);
     const total = data.amounts.reduce((sum, amount) => {
@@ -43,7 +44,7 @@ export const getPackageChargeRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<RoomChargeRules> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadPackageChargeRules(supabaseAdmin as never, data.restaurantId);
   });
@@ -53,7 +54,7 @@ export const getServiceChargeRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<ServiceChargeRules> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadServiceChargeRules(supabaseAdmin as never, data.restaurantId);
   });

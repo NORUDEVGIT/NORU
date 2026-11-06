@@ -131,7 +131,7 @@ describe("Guest companies workspace honesty", () => {
     assert.match(functions, /export const listCompanyWorkspace/);
     assert.match(functions, /export const previewCompanyImport/);
     assert.match(functions, /export const confirmCompanyImport/);
-    assert.match(functions, /requireGuestManager/);
+    assert.match(functions, /requirePmsActor/);
     assert.doesNotMatch(functions, /credit ledger|accounts receivable|invoice aging/i);
     assert.match(accounts, /business_profile_type_id/);
     assert.match(accounts, /credit_account_enabled/);

@@ -289,8 +289,8 @@ describe("Guest Profile Travel Agency enrichment lock — AC-GE3-1…18", () => 
       readRel("../../../routes/restaurant/pms/guests.$guestId.tsx"),
     ].join("\n");
     assert.match(functions, /requireSupabaseAuth/);
-    assert.match(functions, /requireGuestManager/);
-    assert.match(functions, /requireGuestManager\(context as never, data\.restaurantId\)/);
+    assert.match(functions, /requirePmsActor/);
+    assert.match(functions, /requirePmsActor\(context as never, data\.restaurantId\)/);
     assert.match(functions, /\.eq\("restaurant_id", data\.restaurantId\)/);
     assert.doesNotMatch(functions, /createServerFn\(\{ method: "GET" \}\)/);
     assert.match(routes, /requireRoutePackage\("pms"\)/);

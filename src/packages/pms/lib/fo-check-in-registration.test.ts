@@ -106,7 +106,7 @@ describe("check-in registration commands", () => {
   const occupants = read("src/packages/pms/lib/reservations.functions.ts");
 
   it("saves the resolved guest through Guest Profile and does not amend occupancy", () => {
-    expect(save).toContain("requireReservationManager");
+    expect(save).toContain("requirePmsActor");
     expect(save).toContain("loadCheckInUnitTarget");
     expect(save).toContain("target.primaryGuestId");
     expect(save).toContain('eventType: "profile_updated"');

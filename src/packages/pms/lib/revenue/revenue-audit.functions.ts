@@ -3,20 +3,19 @@
  * Rate Manager only. Provides unified audit trail and detailed operation diffs.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRateManager } from "../rates.server";
 import {
   loadAuditEventById,
   loadAuditOperationDetail,
-  loadUnifiedRevenueAudit,
-} from "./revenue-audit.server.ts";
+  loadUnifiedRevenueAudit } from "./revenue-audit.server.ts";
 import {
   REVENUE_AUDIT_DETAIL_LOAD_ERROR,
   REVENUE_AUDIT_LOAD_ERROR,
-  toRevenueReadError,
-} from "./revenue-read-error.ts";
+  toRevenueReadError } from "./revenue-read-error.ts";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -33,26 +32,23 @@ const auditFilterSchema = z.object({
   actorMembershipId: z.string().optional().nullable(),
   search: z.string().optional().nullable(),
   page: z.number().int().min(1).optional().nullable(),
-  pageSize: z.number().int().min(1).max(100).optional().nullable(),
-});
+  pageSize: z.number().int().min(1).max(100).optional().nullable() });
 
 const auditDetailSchema = z.object({
   restaurantId: idSchema,
   eventId: z.string().min(1),
   sourceTable: z.string().min(1),
-  operationId: z.string().optional().nullable(),
-});
+  operationId: z.string().optional().nullable() });
 
 const auditEventByIdSchema = z.object({
   restaurantId: idSchema,
-  eventId: z.string().min(1),
-});
+  eventId: z.string().min(1) });
 
 export const getUnifiedRevenueAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => auditFilterSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadUnifiedRevenueAudit(supabaseAdmin, data);
@@ -65,7 +61,7 @@ export const getAuditOperationDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => auditDetailSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadAuditOperationDetail(supabaseAdmin, data);
@@ -78,7 +74,7 @@ export const getUnifiedAuditEventById = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => auditEventByIdSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadAuditEventById(supabaseAdmin, data.restaurantId, data.eventId);

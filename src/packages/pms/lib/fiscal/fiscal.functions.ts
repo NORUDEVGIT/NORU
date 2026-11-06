@@ -1,5 +1,5 @@
 /**
- * Fiscal integration server functions. Owner and manager only.
+ * Fiscal integration server functions. Credentials use integration configuration permission.
  * Credentials and tokens never appear in the return values.
  */
 import { createServerFn } from "@tanstack/react-start";
@@ -7,13 +7,9 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import {
-  assertIdempotencyKey,
-  requireCashierAllocator,
-  requireCashierManager,
-  requireCashieringAccess,
-} from "../cashiering.server";
-import { requireRoomManager } from "../rooms.server";
+import { assertIdempotencyKey } from "../cashiering.server";
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
 import { fiscalInvoiceListStatus } from "./fiscal-invoice-list-status.ts";
 import { getCreditNoteFiscalState, queueCreditNoteFiscal } from "./fiscal-credit-note.server.ts";
@@ -265,7 +261,7 @@ export const getFiscalIntegrationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     const db = await admin();
     const [row, property] = await Promise.all([
       loadFiscalRow(db, data.restaurantId),
@@ -411,7 +407,7 @@ export const saveFiscalIntegrationConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => connectionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const config = normalizeFiscalConnection(data);
       const db = await admin();
@@ -478,7 +474,7 @@ export const saveFiscalCredentials = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const db = await admin();
       const row = await requireFiscalRow(db, data.restaurantId);
@@ -510,7 +506,7 @@ export const getFiscalCredentialStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     const db = await admin();
     const row = await loadFiscalRow(db, data.restaurantId);
     return { configured: row ? await hasFiscalCredentials(db, row.id) : false };
@@ -520,7 +516,7 @@ export const testFiscalConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const db = await admin();
     const row = await loadFiscalRow(db, data.restaurantId);
     if (!row) throw new Error(FISCAL_SAFE_MESSAGES.FISCAL_CONFIG_MISSING);
@@ -631,7 +627,7 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const code = requireExternalCode(data.externalTaxCode, "External tax code");
       const db = await admin();
@@ -794,7 +790,7 @@ export const saveFiscalItemMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const chosen = [
         data.serviceTypeId,
@@ -890,7 +886,7 @@ export const saveFiscalModeMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const db = await admin();
       const row = await requireFiscalRow(db, data.restaurantId);
@@ -933,7 +929,7 @@ export const saveFiscalBuyerCodeMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const internalValue = requireExternalCode(data.internalValue, "Internal value");
       const db = await admin();
@@ -973,7 +969,7 @@ export const runFiscalOutbox = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     return processFiscalOutbox(await admin(), 10);
   });
 
@@ -983,7 +979,7 @@ export const retryFiscalRegistrationNow = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, registrationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const owned = await db
       .from("fiscal_registrations")
@@ -1003,7 +999,7 @@ export const getCreditNoteFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getCreditNoteFiscalState(await admin(), data);
   });
 
@@ -1013,7 +1009,7 @@ export const registerCreditNoteFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueCreditNoteFiscal(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
@@ -1053,7 +1049,7 @@ export const getDebitNoteFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getDebitNoteFiscalState(await admin(), data);
   });
 
@@ -1063,7 +1059,7 @@ export const registerDebitNoteFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueDebitNoteFiscal(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
@@ -1103,7 +1099,7 @@ export const getGuestInvoiceSalesReceiptFiscal = createServerFn({ method: "POST"
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getGuestInvoiceSalesReceipts(await admin(), data);
   });
 
@@ -1113,7 +1109,7 @@ export const registerGuestAllocationSalesReceipt = createServerFn({ method: "POS
     z.object({ restaurantId: idSchema, allocationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueGuestAllocationSalesReceipt(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
@@ -1165,7 +1161,7 @@ export const correctGuestSalesReceiptAllocation = createServerFn({ method: "POST
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierAllocator(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT);
     const db = await admin();
     const corrected = await db.rpc("correct_failed_guest_sales_receipt_allocation", {
       _restaurant_id: data.restaurantId,
@@ -1231,7 +1227,7 @@ export const getCompanyInvoiceFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getCompanyInvoiceFiscalState(await admin(), data);
   });
 
@@ -1241,7 +1237,7 @@ export const registerCompanyInvoiceFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueCompanyInvoiceFiscal(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
@@ -1281,7 +1277,7 @@ export const getCompanyCreditNoteFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getCompanyCreditFiscalState(await admin(), data);
   });
 
@@ -1291,7 +1287,7 @@ export const registerCompanyCreditNoteFiscal = createServerFn({ method: "POST" }
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueCompanyCreditFiscal(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
@@ -1331,7 +1327,7 @@ export const getCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getCompanyDebitFiscalState(await admin(), data);
   });
 
@@ -1341,7 +1337,7 @@ export const registerCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueCompanyDebitFiscal(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
@@ -1381,7 +1377,7 @@ export const getCompanyInvoiceSalesReceiptFiscal = createServerFn({ method: "POS
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getCompanyInvoiceSalesReceipts(await admin(), data);
   });
 
@@ -1391,7 +1387,7 @@ export const registerCompanyAllocationSalesReceipt = createServerFn({ method: "P
     z.object({ restaurantId: idSchema, allocationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueCompanyAllocationSalesReceipt(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;
@@ -1443,7 +1439,7 @@ export const correctCompanySalesReceiptAllocation = createServerFn({ method: "PO
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashierAllocator(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT);
     const db = await admin();
     const corrected = await db.rpc("correct_failed_company_sales_receipt_allocation", {
       _restaurant_id: data.restaurantId,
@@ -1488,7 +1484,7 @@ export const listInvoiceFiscalStatuses = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     if (data.invoiceIds.length === 0) return [];
     const db = await admin();
     const result = await db
@@ -1531,7 +1527,7 @@ export const getGuestInvoiceFiscal = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     return getGuestInvoiceFiscalState(await admin(), data);
   });
 
@@ -1541,7 +1537,7 @@ export const getFiscalRegistrationExchange = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, registrationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
     try {
       return await loadFiscalRegistrationExchange(await admin(), data);
     } catch (error) {
@@ -1562,7 +1558,7 @@ export const registerGuestInvoiceFiscal = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueGuestInvoiceFiscal(db, {
       restaurantId: data.restaurantId,
@@ -1607,12 +1603,13 @@ export const getCompanyInvoiceWithholdingFiscal = createServerFn({ method: "POST
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_VIEW);
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
     const board = await getCompanyInvoiceWithholding(await admin(), data);
     return {
       ...board,
-      canRecord: me.role === "owner" || me.role === "manager" || me.role === "accountant",
-      canRegister: me.role === "owner" || me.role === "manager",
+      canRecord: hasEffectivePermission(resolved, PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT),
+      canRegister: hasEffectivePermission(resolved, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE),
     };
   });
 
@@ -1622,7 +1619,7 @@ export const registerCompanyWithholdingFiscal = createServerFn({ method: "POST" 
     z.object({ restaurantId: idSchema, certificateId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     const db = await admin();
     const queued = await queueCompanyWithholding(db, data);
     if (queued.status === "not_eligible" || queued.status === "registered") return queued;

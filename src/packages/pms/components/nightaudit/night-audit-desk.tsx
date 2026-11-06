@@ -885,6 +885,8 @@ export function NightAuditDesk({
   lastClosedOtb,
   canRetryOtb,
   role,
+  canFiscalOverride = false,
+  canClose = false,
   operatorName,
   phone,
   busy,
@@ -945,6 +947,8 @@ export function NightAuditDesk({
   lastClosedOtb: NightAuditOtbState | null;
   canRetryOtb: boolean;
   role: string;
+  canFiscalOverride?: boolean;
+  canClose?: boolean;
   operatorName?: string;
   phone: boolean;
   busy: boolean;
@@ -1214,6 +1218,7 @@ export function NightAuditDesk({
       businessDate={businessDate}
       rows={blockers}
       role={role}
+      canClose={canClose}
       phone={phone}
       closed={closed}
       busy={busy}
@@ -2652,6 +2657,7 @@ export function NightAuditDesk({
               checkedAt={closed ? null : checkedAt}
               dateTime={dateTime}
               role={role}
+              canFiscalOverride={canFiscalOverride}
               authorizingFiscalOverride={authorizingFiscalOverride}
               onAuthorizeFiscalOverride={onAuthorizeFiscalOverride}
               onReviewClick={(row) => setReviewTargetException(row)}

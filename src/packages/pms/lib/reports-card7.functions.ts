@@ -9,7 +9,8 @@ import { callerMembership } from "@/core/lib/workforce.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { withPmsPackage } from "./pms-package.server";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard7Overall } from "./card7-readiness.functions";
 import {
@@ -423,12 +424,7 @@ const policySchema = z.object({
 });
 
 async function requireEditor(restaurantId: string, context: unknown) {
-  const me = await withPmsPackage(
-    restaurantId,
-    callerMembership(context as never, restaurantId),
-  );
-  if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
-  return me;
+  return requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 }
 
 export const getCard7Reports = createServerFn({ method: "POST" })
@@ -445,7 +441,7 @@ export const getCard7Reports = createServerFn({ method: "POST" })
       snapshot,
       readiness: evaluateCard7ReportsReadiness(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE),
     };
   });
 

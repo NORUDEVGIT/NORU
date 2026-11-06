@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { loadReservationCreateSourceChannel } from "./reservation-source-channel.server";
 
 const idSchema = z.string().uuid();
@@ -18,6 +19,6 @@ export const getReservationCreateSourceChannel = createServerFn({ method: "POST"
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     return loadReservationCreateSourceChannel(data);
   });

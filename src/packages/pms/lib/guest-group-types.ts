@@ -2,10 +2,11 @@
  * Group Type catalogue. Values live on pms_group_types — never hardcoded in Group UI.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireGuestManager } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { GROUP_WORKSPACE_UNAVAILABLE } from "./guest-group-detail-workspace";
 import { DEFAULT_GROUP_TYPES } from "./group-types-card4.server";
@@ -111,7 +112,7 @@ export const listGroupTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GroupTypeRow[]> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     return loadGroupTypes(data.restaurantId, context.supabase);
   });
 
@@ -131,7 +132,7 @@ export const saveGroupType = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const payload = {
       restaurant_id: data.restaurantId,
       code: data.code.trim().toUpperCase(),

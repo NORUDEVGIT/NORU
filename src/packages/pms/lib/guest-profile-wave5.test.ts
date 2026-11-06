@@ -106,7 +106,7 @@ describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
     const card = readRel("../components/guests/guest-privacy-card.tsx");
     const server = readRel("./guests.server.ts");
     assert.match(functions, /export const exportGuestProfile/);
-    assert.match(functions, /requireGuestPrivacyOfficer/);
+    assert.match(functions, /GUEST_PRIVACY_EXPORT/);
     assert.match(functions, /filename: `guest-\$\{data\.guestId\}-export\.json`/);
     assert.match(functions, /eventType: "exported"/);
     assert.match(card, /guest-privacy-export/);
@@ -232,8 +232,8 @@ describe("Guest Profile Wave 5 catalogue, honesty and gates", () => {
       readRel("../../../routes/restaurant/pms/guests.index.tsx"),
       readRel("../../../routes/restaurant/pms/guests.$guestId.tsx"),
     ].join("\n");
-    assert.match(privacy, /requireGuestManager\(context as never, data\.restaurantId\)/);
-    assert.match(privacy, /requireGuestPrivacyOfficer/);
+    assert.match(privacy, /requirePmsActor\(context as never, data\.restaurantId/);
+    assert.match(privacy, /GUEST_PRIVACY_DELETE/);
     assert.match(server, /GUEST_MANAGE_ROLES = \["owner", "manager", "receptionist"\]/);
     assert.match(server, /GUEST_PRIVACY_ROLES/);
     assert.match(server, /Only owners and managers can export, anonymise or unmerge/);

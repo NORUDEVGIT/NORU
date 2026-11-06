@@ -211,7 +211,7 @@ describe("getCheckInUnit wiring", () => {
   );
 
   it("reads one unit through the existing room commands and does not pass forCheckIn", () => {
-    expect(source).toContain("requireReservationManager");
+    expect(source).toContain("requirePmsActor");
     expect(source).toContain("resolveCheckInUnitTarget");
     expect(source).toContain("listReservationRoomDisplay");
     expect(source).toContain("listAssignableRooms");

@@ -2,13 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { assertRoomTypeOccupancy } from "@/packages/pms/lib/create-reservation-phase1-section4";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 import { unitPackageKept } from "@/packages/pms/lib/reservation-room-package-sync";
 import { getRoomTypeAvailabilityCompat } from "@/packages/pms/lib/room-inventory-compat";
 import {
   recordReservationEvent,
-  requireReservationManager,
   reservationError,
 } from "@/packages/pms/lib/reservations.server";
 
@@ -405,7 +406,7 @@ export const listReservationRatePlans = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomTypePlanOption[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: plans, error } = await supabaseAdmin
       .from("hotel_rate_plans")
@@ -436,7 +437,7 @@ export const previewReservationRoomTypeChange = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomTypeChangeImpact> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const review = await evaluateRoomTypeChange({
       userClient: context.supabase,
       restaurantId: data.restaurantId,
@@ -470,7 +471,11 @@ export const confirmReservationRoomTypeChange = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
     const review = await evaluateRoomTypeChange({
       userClient: context.supabase,
       restaurantId: data.restaurantId,

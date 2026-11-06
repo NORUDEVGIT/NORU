@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   CARD3_COMMERCIAL_AUDIT_SECTION,
   CARD3_COMMERCIAL_UNAVAILABLE,
@@ -21,8 +22,7 @@ import {
   type CommercialSeasonRow,
   type PromoKind,
   type RestrictionKind,
-  type SeasonType,
-} from "./commercial-card3.server";
+  type SeasonType } from "./commercial-card3.server";
 
 // 0076 is intentionally not represented in generated types.ts until its approved apply.
 // Keep the untyped database boundary isolated to this functions module.
@@ -51,27 +51,23 @@ const restrictionSchema = z
     validTo: isoDate,
     description: descriptionSchema,
     active: z.boolean(),
-    roomTypeIds: roomTypeIdsSchema,
-  })
+    roomTypeIds: roomTypeIdsSchema })
   .refine((data) => data.validTo >= data.validFrom, {
     message: "Valid to must be on or after valid from.",
-    path: ["validTo"],
-  })
+    path: ["validTo"] })
   .superRefine((data, ctx) => {
     if (data.restrictionKind === "min_stay") {
       if (data.minStayNights == null || data.minStayNights < 1) {
         ctx.addIssue({
           code: "custom",
           path: ["minStayNights"],
-          message: "Minimum stay nights must be 1 or more.",
-        });
+          message: "Minimum stay nights must be 1 or more." });
       }
     } else if (data.minStayNights != null) {
       ctx.addIssue({
         code: "custom",
         path: ["minStayNights"],
-        message: "Minimum stay nights is only used for min stay restrictions.",
-      });
+        message: "Minimum stay nights is only used for min stay restrictions." });
     }
   });
 
@@ -88,19 +84,16 @@ const promotionSchema = z
     conditions: descriptionSchema,
     description: descriptionSchema,
     active: z.boolean(),
-    roomTypeIds: roomTypeIdsSchema,
-  })
+    roomTypeIds: roomTypeIdsSchema })
   .refine((data) => data.validTo >= data.validFrom, {
     message: "Valid to must be on or after valid from.",
-    path: ["validTo"],
-  })
+    path: ["validTo"] })
   .superRefine((data, ctx) => {
     if (data.promoKind === "percent" && data.promoValue > 100) {
       ctx.addIssue({
         code: "custom",
         path: ["promoValue"],
-        message: "Percent promotions cannot exceed 100.",
-      });
+        message: "Percent promotions cannot exceed 100." });
     }
     if (
       data.promoKind === "free_night" &&
@@ -109,8 +102,7 @@ const promotionSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["promoValue"],
-        message: "Free-night promotions must be a whole number of nights of 1 or more.",
-      });
+        message: "Free-night promotions must be a whole number of nights of 1 or more." });
     }
   });
 
@@ -126,12 +118,10 @@ const seasonSchema = z
     rateAdjustmentPercent: z.number().min(-100).max(100).nullable().optional(),
     description: descriptionSchema,
     active: z.boolean(),
-    roomTypeIds: roomTypeIdsSchema,
-  })
+    roomTypeIds: roomTypeIdsSchema })
   .refine((data) => data.validTo >= data.validFrom, {
     message: "Valid to must be on or after valid from.",
-    path: ["validTo"],
-  });
+    path: ["validTo"] });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (
@@ -188,8 +178,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_COMMERCIAL_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_COMMERCIAL_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-commercial] audit", result.error.message);
 }
 
@@ -198,8 +187,7 @@ function mapRoomType(row: any): CommercialRoomTypeRef {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function groupRoomTypeIds(
@@ -243,8 +231,7 @@ async function loadOverbooking(
     managerApprovalRequired: Boolean(row.manager_approval_required),
     overridePermissionRequired: Boolean(row.override_permission_required),
     overbookingReasonRequired: Boolean(row.overbooking_reason_required),
-    overbookingAlertEnabled: Boolean(row.overbooking_alert_enabled),
-  };
+    overbookingAlertEnabled: Boolean(row.overbooking_alert_enabled) };
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string) {
@@ -316,8 +303,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string) {
       validTo: String(row.valid_to ?? ""),
       description: String(row.description ?? ""),
       active: row.active !== false,
-      roomTypeIds: restrictionRooms.get(String(row.id)) ?? [],
-    };
+      roomTypeIds: restrictionRooms.get(String(row.id)) ?? [] };
   });
 
   const promotionRows: CommercialPromotionRow[] = (promotions.data ?? []).map((row: any) => {
@@ -334,8 +320,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string) {
       conditions: String(row.conditions ?? ""),
       description: String(row.description ?? ""),
       active: row.active !== false,
-      roomTypeIds: promoRooms.get(String(row.id)) ?? [],
-    };
+      roomTypeIds: promoRooms.get(String(row.id)) ?? [] };
   });
 
   const seasonRows: CommercialSeasonRow[] = (seasons.data ?? []).map((row: any) => {
@@ -352,8 +337,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string) {
         row.rate_adjustment_percent == null ? null : Number(row.rate_adjustment_percent),
       description: String(row.description ?? ""),
       active: row.active !== false,
-      roomTypeIds: seasonRooms.get(String(row.id)) ?? [],
-    };
+      roomTypeIds: seasonRooms.get(String(row.id)) ?? [] };
   });
 
   return {
@@ -361,8 +345,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string) {
     restrictions: restrictionRows,
     promotions: promotionRows,
     seasons: seasonRows,
-    overbooking,
-  };
+    overbooking };
 }
 
 export { loadSnapshot as loadCommercialCard3Snapshot };
@@ -380,8 +363,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 async function requireOwnedIds(
@@ -433,8 +415,7 @@ async function replaceRoomTypeMappings(
     roomTypeIds.map((roomTypeId) => ({
       restaurant_id: restaurantId,
       [parentColumn]: parentId,
-      room_type_id: roomTypeId,
-    })),
+      room_type_id: roomTypeId })),
   );
   if (inserted.error) unavailable(inserted.error);
 }
@@ -443,21 +424,20 @@ export const getCommercialCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateCommercialCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveCommercialRestrictionCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => restrictionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedIds(
       db,
@@ -484,8 +464,7 @@ export const saveCommercialRestrictionCard3 = createServerFn({ method: "POST" })
       valid_from: data.validFrom,
       valid_to: data.validTo,
       description: data.description?.trim() ? data.description.trim() : null,
-      active: data.active,
-    };
+      active: data.active };
     let restrictionId = data.id;
     if (data.id) {
       const updated = await db
@@ -519,8 +498,7 @@ export const saveCommercialRestrictionCard3 = createServerFn({ method: "POST" })
       data.roomTypeIds,
     );
     await writeAudit(db, data.restaurantId, context.userId, "card3_commercial_restriction_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCommercialCard3Readiness(snapshot) };
   });
@@ -529,7 +507,7 @@ export const saveCommercialPromotionCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => promotionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedIds(
       db,
@@ -557,8 +535,7 @@ export const saveCommercialPromotionCard3 = createServerFn({ method: "POST" })
       valid_to: data.validTo,
       conditions: data.conditions?.trim() ? data.conditions.trim() : null,
       description: data.description?.trim() ? data.description.trim() : null,
-      active: data.active,
-    };
+      active: data.active };
     let promotionId = data.id;
     if (data.id) {
       const updated = await db
@@ -588,8 +565,7 @@ export const saveCommercialPromotionCard3 = createServerFn({ method: "POST" })
       data.roomTypeIds,
     );
     await writeAudit(db, data.restaurantId, context.userId, "card3_promotion_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCommercialCard3Readiness(snapshot) };
   });
@@ -598,7 +574,7 @@ export const saveCommercialSeasonCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => seasonSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedIds(
       db,
@@ -625,8 +601,7 @@ export const saveCommercialSeasonCard3 = createServerFn({ method: "POST" })
       valid_to: data.validTo,
       rate_adjustment_percent: data.rateAdjustmentPercent ?? null,
       description: data.description?.trim() ? data.description.trim() : null,
-      active: data.active,
-    };
+      active: data.active };
     let seasonId = data.id;
     if (data.id) {
       const updated = await db
@@ -656,8 +631,7 @@ export const saveCommercialSeasonCard3 = createServerFn({ method: "POST" })
       data.roomTypeIds,
     );
     await writeAudit(db, data.restaurantId, context.userId, "card3_season_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateCommercialCard3Readiness(snapshot) };
   });

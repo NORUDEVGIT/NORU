@@ -118,7 +118,7 @@ describe("NA-P1 date and ownership", () => {
     assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.close_business_date/);
     assert.match(sql, /TO service_role/);
     assert.match(functions, /rpc\("close_business_date"/);
-    assert.match(functions, /requireCashierManager/);
+    assert.match(functions, /NIGHT_AUDIT_CLOSE_DATE/);
     assert.doesNotMatch(functions, /update\(\{[^}]*business_date/);
     assert.match(card1, /if \("business_date" in patch\) delete patch\.business_date/);
     assert.match(reservations, /resolvePropertyBusinessDate\(/);

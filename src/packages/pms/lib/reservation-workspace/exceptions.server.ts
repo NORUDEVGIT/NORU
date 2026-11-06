@@ -20,11 +20,15 @@ import {
   loadFrontOfficeInHouse,
   type FrontOfficeStay,
 } from "../frontoffice.functions";
-import { canManageHousekeeping } from "../housekeeping.server";
 import { addDays } from "../reservation-dates";
 import { loadOverbookingNights, overbookingShortageRows } from "../overbooking.functions";
 import {
-  requireReservationManager,
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
+import {
   RESERVATION_STATUSES,
   type ReservationStatus,
 } from "../reservations.server";
@@ -47,7 +51,7 @@ import {
 
 const idSchema = z.string().uuid();
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 type RoomState = {
   id: string;
@@ -698,7 +702,11 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationExceptionSnapshot> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
+    const canResolveDiscrepancy = hasEffectivePermission(
+      await resolveEffectivePermissions(context as never, data.restaurantId),
+      PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT,
+    );
     const generatedAt = new Date().toISOString();
     const supabase: WorkspaceClient = context.supabase;
 
@@ -723,7 +731,7 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
         context: context as never,
         restaurantId: data.restaurantId,
         businessDate,
-        canResolveDiscrepancy: canManageHousekeeping(me.role),
+        canResolveDiscrepancy,
       }),
       loadActiveBlocks(supabase, data.restaurantId, businessDate, blockRangeEnd),
       loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false),

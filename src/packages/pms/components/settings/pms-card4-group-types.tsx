@@ -93,7 +93,7 @@ export function PmsCard4GroupTypes({
   const [pendingDelete, setPendingDelete] = useState<GroupTypeRecord | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
   const thenNextRef = useRef(false);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
   useEffect(() => {
     if (!query.data) return;

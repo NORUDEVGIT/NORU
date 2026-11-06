@@ -9,18 +9,22 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { MANAGE_ROLES } from "@/core/lib/workforce.server";
 import {
   blankToNull,
   recordReservationEvent,
-  requireReservationManager,
   reservationError,
 } from "./reservations.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  requirePmsActorAll,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import {
   callPostFolioTransaction,
   cashierError,
   folioReportsSettled,
-  requireCashierOperator,
 } from "./cashiering.server";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
@@ -131,10 +135,11 @@ function emailSecrets(): { apiKey: string | null; from: string | null } {
   };
 }
 
-function requireSupervisor(role: string): void {
-  if (!(MANAGE_ROLES as readonly string[]).includes(role)) {
-    throw new Error("You don't have permission to override checkout settlement.");
-  }
+async function mayCheckOut(context: unknown, restaurantId: string): Promise<boolean> {
+  return hasEffectivePermission(
+    await resolveEffectivePermissions(context as never, restaurantId),
+    PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
+  );
 }
 
 function isCheckoutOverride(values: unknown): values is {
@@ -699,13 +704,16 @@ export const getCheckOutContract = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => contractInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<CheckOutContract> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_VIEW,
+      PMS_PERMISSIONS.CASHIERING_VIEW,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadCheckOutContract(supabaseAdmin, {
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       reservationRoomId: data.reservationRoomId ?? null,
-      canOverride: (MANAGE_ROLES as readonly string[]).includes(me.role),
+      canOverride: await mayCheckOut(context, data.restaurantId),
     });
   });
 
@@ -722,13 +730,16 @@ export const getCheckOutConfirmation = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ contract: CheckOutContract; stale: boolean }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_VIEW,
+      PMS_PERMISSIONS.CASHIERING_VIEW,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const contract = await loadCheckOutContract(supabaseAdmin, {
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
       reservationRoomId: data.reservationRoomId ?? null,
-      canOverride: (MANAGE_ROLES as readonly string[]).includes(me.role),
+      canOverride: await mayCheckOut(context, data.restaurantId),
     });
     return {
       contract,
@@ -832,7 +843,10 @@ export const getCheckOutContext = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckOutContext> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_VIEW,
+      PMS_PERMISSIONS.CASHIERING_VIEW,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
     const [folio, override, propertyName, actorName] = await Promise.all([
@@ -849,7 +863,7 @@ export const getCheckOutContext = createServerFn({ method: "POST" })
       guestEmail: loaded.guestEmail,
       folio,
       override,
-      canOverride: (MANAGE_ROLES as readonly string[]).includes(me.role),
+      canOverride: await mayCheckOut(context, data.restaurantId),
       emailConfigured: platformEmailConfigured(secrets),
       actorName,
     };
@@ -861,8 +875,11 @@ export const ensureCheckOutFolio = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckOutFolioState> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const existing = await loadFolioState(supabaseAdmin, data.restaurantId, data.reservationId);
     if (existing.folioId) return existing;
@@ -891,8 +908,10 @@ export const postCheckOutPayment = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckOutFolioState> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
+      PMS_PERMISSIONS.CASHIERING_PAYMENT_POST,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
@@ -962,8 +981,11 @@ export const overrideCheckOutSettlement = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true; kind: CheckoutOverrideKind }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
-    requireSupervisor(me.role);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const folio = await loadFolioState(supabaseAdmin, data.restaurantId, data.reservationId);
     const kind = overrideKindForBalance(folio.balance);
@@ -1018,9 +1040,8 @@ export const overrideCheckOutSettlement = createServerFn({ method: "POST" })
 
 /**
  * Thin close used at check-out only. Still calls close_guest_folio, only when
- * |balance| < 0.01, and never after an override. Gated by FO reservation
- * manager + cashier-operator. The RPC itself is balance-only (no manager
- * check) — if it later rejects non-managers, surface the error; do not rewrite it.
+ * |balance| < 0.01, and never after an override. Gated by check-out and folio close.
+ * The RPC itself is balance-only — if it later rejects the caller, surface the error; do not rewrite it.
  */
 export const closeFolioAtCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1028,8 +1049,10 @@ export const closeFolioAtCheckout = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckOutFolioState> => {
-    await requireReservationManager(context as never, data.restaurantId);
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
+      PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const folio = await loadFolioState(supabaseAdmin, data.restaurantId, data.reservationId);
     if (!folio.folioId) throw new Error("Open the folio before closing it.");
@@ -1077,7 +1100,7 @@ export const sendCheckOutDocumentEmail = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ ok: true } | { ok: false; message: string; configured: boolean }> => {
-      await requireReservationManager(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT);
       const secrets = emailSecrets();
       if (!platformEmailConfigured(secrets)) {
         return { ok: false, message: "Email not configured.", configured: false };
@@ -1143,14 +1166,18 @@ export const completeFoCheckOut = createServerFn({ method: "POST" })
       folioSettled: boolean;
       completion: CheckOutCompletion;
     }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       // Unit → eligibility → folio → settlement/override, all from one fresh read.
       const before = await loadCheckOutContract(supabaseAdmin, {
         restaurantId: data.restaurantId,
         reservationId: data.reservationId,
         reservationRoomId: data.reservationRoomId ?? null,
-        canOverride: (MANAGE_ROLES as readonly string[]).includes(me.role),
+        canOverride: await mayCheckOut(context, data.restaurantId),
       });
       if (data.expectedFingerprint && data.expectedFingerprint !== before.fingerprint) {
         throw new Error(CHECKOUT_STALE_MESSAGE);

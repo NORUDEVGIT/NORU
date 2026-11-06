@@ -2,7 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { assertDateOnly, requireReservationManager } from "@/packages/pms/lib/reservations.server";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { requirePmsActorAny } from "@/packages/pms/lib/pms-permissions.server";
+import { assertDateOnly } from "@/packages/pms/lib/reservations.server";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -29,7 +31,11 @@ export const getFrontOfficeDashboard = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FrontOfficeDashboard> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_VIEW,
+      PMS_PERMISSIONS.RESERVATION_VIEW,
+      PMS_PERMISSIONS.REPORTS_VIEW,
+    ]);
     const today = assertDateOnly(data.today, "Business date");
 
     const reservations = () =>

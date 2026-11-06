@@ -51,7 +51,7 @@ describe("GROUP-RES-06 room occupant operations", () => {
     expect(writer).toContain("RAISE EXCEPTION 'ROOM_GUEST_DUPLICATE'");
     expect(writer).toContain("INSERT INTO public.hotel_reservation_room_guests");
     expect(handler).toContain('rpc("manage_reservation_room_guest"');
-    expect(handler).toContain("requireReservationManager");
+    expect(handler).toContain("requirePmsActor");
   });
 
   it("rejects removal of the primary guest, including the sole primary", () => {

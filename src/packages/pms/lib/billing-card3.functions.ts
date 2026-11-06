@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   BILLING_PAYER_KIND_LABELS,
   BILLING_PAYER_KINDS,
@@ -23,8 +24,7 @@ import {
   type CanonicalBillingRuleCode,
   type InvoiceFormat,
   type InvoiceSettingsCard3,
-  type InvoiceTaxDisplay,
-} from "./billing-card3.server";
+  type InvoiceTaxDisplay } from "./billing-card3.server";
 
 // 0074 is intentionally not represented in generated types.ts until its approved apply.
 // Keep the untyped database boundary isolated to this functions module.
@@ -48,8 +48,7 @@ const invoiceSettingsSchema = z.object({
   startingNumber: z.number().int().min(1).max(1_000_000_000),
   numberPadding: z.number().int().min(1).max(12),
   taxDisplay: z.enum(INVOICE_TAX_DISPLAYS),
-  invoiceFormat: z.enum(INVOICE_FORMATS),
-});
+  invoiceFormat: z.enum(INVOICE_FORMATS) });
 
 const billingRuleSchema = z
   .object({
@@ -66,23 +65,20 @@ const billingRuleSchema = z
     active: z.boolean(),
     isSystem: z.boolean().optional(),
     operationalStatus: z.enum(["active", "planned", "intent_only", "deprecated"]).optional(),
-    applicableProfileTypes: z.array(z.string()).optional(),
-  })
+    applicableProfileTypes: z.array(z.string()).optional() })
   .superRefine((data, ctx) => {
     if (data.payerKind === "split") {
       if (data.splitGuestPercent == null) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Split billing needs a guest percent.",
-          path: ["splitGuestPercent"],
-        });
+          path: ["splitGuestPercent"] });
       }
     } else if (data.splitGuestPercent != null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Guest percent is only used for split billing.",
-        path: ["splitGuestPercent"],
-      });
+        path: ["splitGuestPercent"] });
     }
   });
 
@@ -132,8 +128,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD3_BILLING_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD3_BILLING_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card3-billing] audit", result.error.message);
 }
 
@@ -145,8 +140,7 @@ function mapInherited(row: any): BillingCard3Inherited {
     brandName: String(row?.brand_name ?? ""),
     tradingName: String(row?.trading_name ?? ""),
     vatNumber: String(row?.vat_number ?? ""),
-    vatRegistered: row?.vat_registered === true,
-  };
+    vatRegistered: row?.vat_registered === true };
 }
 
 function mapInvoiceSettings(row: any): InvoiceSettingsCard3 {
@@ -159,8 +153,7 @@ function mapInvoiceSettings(row: any): InvoiceSettingsCard3 {
     taxDisplay,
     taxDisplayLabel: INVOICE_TAX_DISPLAY_LABELS[taxDisplay],
     invoiceFormat,
-    invoiceFormatLabel: INVOICE_FORMAT_LABELS[invoiceFormat],
-  };
+    invoiceFormatLabel: INVOICE_FORMAT_LABELS[invoiceFormat] };
 }
 
 export async function ensureMissingBillingRuleDefaults(
@@ -204,8 +197,7 @@ export async function ensureMissingBillingRuleDefaults(
       active: true,
       is_system: true,
       operational_status: rule.operationalStatus,
-      applicable_profile_types: [...rule.applicableProfileTypes],
-    }));
+      applicable_profile_types: [...rule.applicableProfileTypes] }));
 
     await db.from("pms_billing_rules").insert(payload);
   } catch (err) {
@@ -239,8 +231,7 @@ function mapBillingRule(row: any): BillingRuleCard3Row {
       ? row.applicable_profile_types
       : matchingCanonical
       ? [...matchingCanonical.applicableProfileTypes]
-      : ["company", "travel_agent", "group", "individual"],
-  };
+      : ["company", "travel_agent", "group", "individual"] };
 }
 
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<BillingCard3Snapshot> {
@@ -269,8 +260,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Billing
   return {
     inherited: mapInherited(restaurant.data),
     invoiceSettings: settings.data ? mapInvoiceSettings(settings.data) : null,
-    billingRules: (rules.data ?? []).map(mapBillingRule),
-  };
+    billingRules: (rules.data ?? []).map(mapBillingRule) };
 }
 
 export { loadSnapshot as loadBillingCard3Snapshot };
@@ -288,8 +278,7 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 async function requireOwnedRecord(
@@ -313,21 +302,20 @@ export const getBillingCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateBillingCard3Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveInvoiceSettingsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => invoiceSettingsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const result = await db.from("pms_invoice_settings").upsert(
       {
@@ -336,14 +324,12 @@ export const saveInvoiceSettingsCard3 = createServerFn({ method: "POST" })
         starting_number: data.startingNumber,
         number_padding: data.numberPadding,
         tax_display: data.taxDisplay,
-        invoice_format: data.invoiceFormat,
-      },
+        invoice_format: data.invoiceFormat },
       { onConflict: "restaurant_id" },
     );
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card3_invoice_settings_saved", {
-      detail: `${data.prefix} ${data.startingNumber}`,
-    });
+      detail: `${data.prefix} ${data.startingNumber}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateBillingCard3Readiness(snapshot) };
   });
@@ -352,7 +338,7 @@ export const saveBillingRuleCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => billingRuleSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(
@@ -401,8 +387,7 @@ export const saveBillingRuleCard3 = createServerFn({ method: "POST" })
       active: data.active,
       is_system: isSystem,
       operational_status: matchingCanonical?.operationalStatus || data.operationalStatus || "active",
-      applicable_profile_types: data.applicableProfileTypes || (matchingCanonical ? [...matchingCanonical.applicableProfileTypes] : ["company", "travel_agent", "group", "individual"]),
-    };
+      applicable_profile_types: data.applicableProfileTypes || (matchingCanonical ? [...matchingCanonical.applicableProfileTypes] : ["company", "travel_agent", "group", "individual"]) };
     const result = data.id
       ? await db
           .from("pms_billing_rules")
@@ -415,8 +400,7 @@ export const saveBillingRuleCard3 = createServerFn({ method: "POST" })
       unavailable(result.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card3_billing_rule_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateBillingCard3Readiness(snapshot) };
   });

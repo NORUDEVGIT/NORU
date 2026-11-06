@@ -3,10 +3,11 @@
  * Rate Manager only. Does not mutate Property Setup masters.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requireRateManager } from "../rates.server";
 import { loadPackagePerformanceSummary, loadPackagesWorkspace } from "./commercial-packages.server.ts";
 import { COMMERCIAL_PACKAGES_LOAD_ERROR, toRevenueReadError } from "./revenue-read-error.ts";
 
@@ -18,14 +19,13 @@ const workspaceSchema = z.object({
   fromDate: dateSchema.optional().nullable(),
   toDate: dateSchema.optional().nullable(),
   roomTypeId: idSchema.optional().nullable(),
-  ratePlanId: idSchema.optional().nullable(),
-});
+  ratePlanId: idSchema.optional().nullable() });
 
 export const getPackagesWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => workspaceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadPackagesWorkspace(supabaseAdmin, data);
@@ -40,12 +40,11 @@ export const getPackagePerformanceSummary = createServerFn({ method: "POST" })
     workspaceSchema
       .extend({
         packageId: idSchema.optional(),
-        activationId: idSchema.optional(),
-      })
+        activationId: idSchema.optional() })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await loadPackagePerformanceSummary(supabaseAdmin, data);

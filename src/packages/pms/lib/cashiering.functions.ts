@@ -7,20 +7,21 @@ import {
   assertIdempotencyKey,
   blankToNull,
   callPostFolioTransaction,
-  canAllocateAccountPayments,
-  canManageCashiering,
   cashierError,
   categoryForType,
   CORRECTION_AUTHORIZER,
   correctionThresholdNotice,
   remainingOnPaymentSource,
-  requireCashierManager,
-  requireCashierOperator,
-  requireCashieringAccess,
-  CASHIER_OPERATE_ROLES,
   type FolioStatus,
   type TransactionType,
 } from "./cashiering.server";
+import {
+  hasEffectivePermission,
+  requireCashierShiftActor,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { propertyDayBounds } from "./cashiering-control";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
@@ -37,6 +38,7 @@ import {
   groupChargeRows,
   recentPayments,
   summarizeFolioLedger,
+  type FolioPermissionGrants,
   type FolioAllocationInput,
   type FolioCapabilities,
   type FolioChargeGroup,
@@ -178,7 +180,7 @@ export const getDefaultDepositPolicy = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<{ summary: string | null }> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ data: restaurant }, policies] = await Promise.all([
       supabaseAdmin
@@ -236,7 +238,7 @@ export const getCashieringCorrectionNotice = createServerFn({ method: "GET" })
       adjustmentThreshold: string | null;
       discountThreshold: string | null;
     }> => {
-      await requireCashieringAccess(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       return {
         authorizer: CORRECTION_AUTHORIZER,
@@ -283,14 +285,70 @@ async function readThresholdNotice(
   );
 }
 
+async function cashieringCapability(
+  context: Parameters<typeof resolveEffectivePermissions>[0],
+  restaurantId: string,
+) {
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  const has = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+    hasEffectivePermission(resolved, code);
+  const grants: FolioPermissionGrants = {
+    charge: has(PMS_PERMISSIONS.CASHIERING_CHARGE_POST),
+    payment: has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST),
+    deposit: has(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST),
+    refund: has(PMS_PERMISSIONS.CASHIERING_REFUND),
+    adjustment: has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST),
+    discount: has(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST),
+    transfer: has(PMS_PERMISSIONS.CASHIERING_TRANSFER_POST),
+    writeOff: has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF),
+    close: has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE),
+    invoiceEdit: has(PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT),
+    invoiceAuthorize: has(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE),
+  };
+  return {
+    canOperate: grants.charge || grants.payment || grants.deposit || has(PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT),
+    canManage:
+      grants.refund ||
+      grants.adjustment ||
+      grants.discount ||
+      grants.transfer ||
+      grants.writeOff ||
+      grants.close ||
+      has(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE),
+    canAllocate: has(PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT),
+    grants,
+  };
+}
+
 export const getCashieringAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }) => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
+    const allow = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+      hasEffectivePermission(resolved, code);
+    const access = await cashieringCapability(context as never, data.restaurantId);
     return {
-      canManage: canManageCashiering(me.role),
-      canOperate: (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role),
+      canView: true,
+      canCharge: allow(PMS_PERMISSIONS.CASHIERING_CHARGE_POST),
+      canPayment: allow(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST),
+      canDeposit: allow(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST),
+      canRefund: allow(PMS_PERMISSIONS.CASHIERING_REFUND),
+      canAdjustment: allow(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST),
+      canDiscount: allow(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST),
+      canTransfer: allow(PMS_PERMISSIONS.CASHIERING_TRANSFER_POST),
+      canWriteOff: allow(PMS_PERMISSIONS.CASHIERING_WRITE_OFF),
+      canClose: allow(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE),
+      canAllocate: allow(PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT),
+      canShiftView: allow(PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW),
+      canShiftEdit: allow(PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT),
+      canShiftAuthorize: allow(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE),
+      canInvoiceView: allow(PMS_PERMISSIONS.CASHIERING_INVOICE_VIEW),
+      canInvoiceEdit: allow(PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT),
+      canInvoiceAuthorize: allow(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE),
+      canManage: access.canManage,
+      canOperate: access.canOperate,
       role: me.role,
       membershipId: me.id,
     };
@@ -436,7 +494,7 @@ export const listFolios = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioRow[]> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const term = (data.search ?? "").trim().toLowerCase();
 
@@ -1012,6 +1070,7 @@ export interface FolioWorkspace {
   invoiceSettingsAvailable: boolean;
   canManage: boolean;
   canOperate: boolean;
+  grants: FolioPermissionGrants;
   capabilities: FolioCapabilities;
 }
 
@@ -1021,7 +1080,7 @@ export const getFolio = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioDetail | null> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadGuestFolio(supabaseAdmin, data.restaurantId, data.folioId);
   });
@@ -1032,7 +1091,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioWorkspace | null> => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const folio = await loadGuestFolio(supabaseAdmin, data.restaurantId, data.folioId);
     if (!folio) return null;
@@ -1072,8 +1131,9 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
     for (const line of depositLines) {
       paymentAllocationNets[line.transaction.id] = line.applied;
     }
-    const canManage = canManageCashiering(me.role);
-    const canOperate = (CASHIER_OPERATE_ROLES as readonly string[]).includes(me.role);
+    const access = await cashieringCapability(context as never, data.restaurantId);
+    const canManage = access.canManage;
+    const canOperate = access.canOperate;
 
     return {
       folio,
@@ -1082,13 +1142,14 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       depositAllocations: allocations,
       depositSummary: depositSummaryFromLines(depositLines),
       paymentAllocationNets,
-      canAllocateInvoices: folio.status === "open" && canAllocateAccountPayments(me.role),
+      canAllocateInvoices: folio.status === "open" && access.canAllocate,
       chargeGroups: groupChargeRows(folio.transactions),
       recentPayments: recentPayments(folio.transactions, 3),
       transferCounterparts: counterparts,
       invoiceSettingsAvailable,
       canManage,
       canOperate,
+      grants: access.grants,
       capabilities: folioCapabilities({
         open: folio.status === "open",
         balance: folio.balance,
@@ -1098,6 +1159,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
         hasLines: folio.transactions.length > 0,
         invoiceSettingsAvailable,
         legacyFolioInvoice: folio.legacyFolioInvoice,
+        grants: access.grants,
       }),
     };
   });
@@ -1113,7 +1175,7 @@ export const getReservationFolio = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<{ id: string; folioNumber: string; balance: number } | null> => {
-      await requireCashieringAccess(context as never, data.restaurantId);
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: row } = await supabaseAdmin
         .from("guest_folios")
@@ -1141,7 +1203,7 @@ export const getReservationDepositRemainder = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ applied: number }> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const folio = await supabaseAdmin
       .from("guest_folios")
@@ -1194,7 +1256,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashieringDashboard> => {
-    const me = await requireCashieringAccess(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: restaurant } = await supabaseAdmin
@@ -1289,7 +1351,11 @@ export const initializeFolio = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: reservation } = await supabaseAdmin
@@ -1340,10 +1406,19 @@ export const postFolioEntry = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me =
-      data.type === "payment" || data.type === "deposit"
-        ? await requireCashierOperator(context as never, data.restaurantId)
-        : await requireCashierManager(context as never, data.restaurantId);
+    const entryPermission =
+      data.type === "payment"
+        ? PMS_PERMISSIONS.CASHIERING_PAYMENT_POST
+        : data.type === "deposit"
+          ? PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST
+          : data.type === "refund"
+            ? PMS_PERMISSIONS.CASHIERING_REFUND
+            : data.type === "adjustment"
+              ? PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST
+              : data.type === "discount"
+                ? PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST
+                : PMS_PERMISSIONS.CASHIERING_CHARGE_POST;
+    const me = await requirePmsActor(context as never, data.restaurantId, entryPermission);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     if (data.type !== "adjustment" && data.amount <= 0) {
@@ -1534,7 +1609,7 @@ export const previewFolioCharge = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioChargePreview> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_charge", {
       _restaurant_id: data.restaurantId,
@@ -1577,7 +1652,7 @@ export const quoteFolioRoomCharge = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioRoomChargeQuote> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_charge_scoped", {
       _restaurant_id: data.restaurantId,
@@ -1681,7 +1756,7 @@ export const previewFolioChargeCorrection = createServerFn({ method: "GET" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioChargeCorrectionPreview> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_charge_correction", {
       _restaurant_id: data.restaurantId,
@@ -1716,7 +1791,13 @@ export const postFolioChargeCorrection = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult & { gross?: number }> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      data.mode === "discount"
+        ? PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST
+        : PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: result, error } = await supabaseAdmin.rpc("post_folio_charge_correction", {
       _restaurant_id: data.restaurantId,
@@ -1825,7 +1906,7 @@ export const listChargeableGuestServices = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<ChargeableGuestService[]> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: listed, error } = await supabaseAdmin.rpc("list_chargeable_guest_services", {
       _restaurant_id: data.restaurantId,
@@ -1854,7 +1935,7 @@ export const previewFolioServiceCharge = createServerFn({ method: "GET" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioServiceChargePreview> => {
-    await requireCashierManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: preview, error } = await supabaseAdmin.rpc("preview_folio_service_charge", {
       _restaurant_id: data.restaurantId,
@@ -1890,7 +1971,11 @@ export const postFolioServiceCharge = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let idempotencyKey: string;
     try {
@@ -1920,7 +2005,11 @@ export const closeFolio = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: folio, error } = await supabaseAdmin.rpc("close_guest_folio", {
       _restaurant_id: data.restaurantId,
@@ -1937,7 +2026,7 @@ export const listCashierShifts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<CashierShiftRow[]> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: rows, error } = await supabaseAdmin.rpc("list_hotel_drawers", {
@@ -2024,7 +2113,11 @@ export const openCashierShift = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierOperator(context as never, data.restaurantId);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: shift, error } = await supabaseAdmin.rpc("open_hotel_cashier_shift", {
       _restaurant_id: data.restaurantId,
@@ -2050,21 +2143,17 @@ export const closeCashierShift = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    // A cashier may only close their own drawer; owners/managers may close any.
-    if (!canManageCashiering(me.role)) {
-      const { data: drawers } = await supabaseAdmin.rpc("list_hotel_drawers", {
-        _restaurant_id: data.restaurantId,
-      });
-      const owned = (Array.isArray(drawers) ? drawers : []).find(
-        (row) => (row as { id?: string }).id === data.shiftId,
-      ) as { membership_id?: string } | undefined;
-      if (!owned || owned.membership_id !== me.id) {
-        return { ok: false, message: "You can only close your own cashier shift." };
-      }
+    const { data: drawers } = await supabaseAdmin.rpc("list_hotel_drawers", {
+      _restaurant_id: data.restaurantId,
+    });
+    const owned = (Array.isArray(drawers) ? drawers : []).find(
+      (row) => (row as { id?: string }).id === data.shiftId,
+    ) as { membership_id?: string } | undefined;
+    if (!owned?.membership_id) {
+      return { ok: false, message: "You can only close your own cashier shift." };
     }
+    const me = await requireCashierShiftActor(context as never, data.restaurantId, owned.membership_id);
 
     const { data: shift, error } = await supabaseAdmin.rpc("close_hotel_cashier_shift", {
       _restaurant_id: data.restaurantId,
@@ -2100,7 +2189,6 @@ export const postHotelDrawerMovement = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requireCashierOperator(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: drawers } = await supabaseAdmin.rpc("list_hotel_drawers", {
       _restaurant_id: data.restaurantId,
@@ -2108,12 +2196,10 @@ export const postHotelDrawerMovement = createServerFn({ method: "POST" })
     const owned = (Array.isArray(drawers) ? drawers : []).find(
       (row) => (row as { id?: string }).id === data.shiftId,
     ) as { membership_id?: string; status?: string } | undefined;
-    if (!owned || owned.status !== "open") {
+    if (!owned?.membership_id || owned.status !== "open") {
       return { ok: false, message: "That cashier shift is already closed." };
     }
-    if (!canManageCashiering(me.role) && owned.membership_id !== me.id) {
-      return { ok: false, message: "You can only record movements on your own cashier shift." };
-    }
+    const me = await requireCashierShiftActor(context as never, data.restaurantId, owned.membership_id);
     const { data: figures, error } = await supabaseAdmin.rpc("post_hotel_drawer_movement", {
       _restaurant_id: data.restaurantId,
       _shift_id: data.shiftId,
@@ -2143,7 +2229,11 @@ export const getShiftSummary = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<{ payments: number; deposits: number; refunds: number; transactions: number }> => {
-      await requireCashieringAccess(context as never, data.restaurantId);
+      await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       const { data: shift } = await supabaseAdmin
@@ -2232,7 +2322,7 @@ export const listLedgerEntries = createServerFn({ method: "GET" })
       .parse(d),
   )
   .handler(async ({ data, context }): Promise<LedgerEntryRow[]> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: txns, error } = await supabaseAdmin
@@ -2457,7 +2547,7 @@ export const listFolioTenderHistory = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioTenderHistoryEvent[]> => {
-    await requireCashieringAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("folio_history")

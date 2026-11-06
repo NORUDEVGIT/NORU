@@ -46,6 +46,19 @@ export type ReservationActionHints = {
   canPrint: boolean;
 };
 
+export type ReservationActionAccess = {
+  edit: boolean;
+  confirm: boolean;
+  assignRoom: boolean;
+  changeRoom: boolean;
+  checkIn: boolean;
+  checkOut: boolean;
+  cancel: boolean;
+  noShow: boolean;
+  reactivate: boolean;
+  copy: boolean;
+};
+
 export type ReservationActionInput = {
   status: ReservationStatus;
   businessDate: string;
@@ -54,6 +67,8 @@ export type ReservationActionInput = {
   roomAssigned: boolean;
   actionHints: ReservationActionHints;
   role: string;
+  /** When set, each action uses its own permission. Role is ignored. */
+  access?: ReservationActionAccess;
 };
 
 export type ReservationActionResult = {
@@ -87,9 +102,11 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   const staleBooking =
     (input.status === "pending" || input.status === "confirmed") &&
     input.departureDate < input.businessDate;
-  const canManage = canManageReservations(input.role);
+  const roleManage = canManageReservations(input.role);
+  const allow = (key: keyof ReservationActionAccess) =>
+    input.access ? input.access[key] : roleManage;
   const editable =
-    canManage &&
+    allow("edit") &&
     input.actionHints.canEdit &&
     (input.status === "pending" || input.status === "confirmed") &&
     !historical;
@@ -98,7 +115,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   if (editable) actions.push({ id: "edit", label: "Edit Reservation" });
   if (
     allowed(
-      canManage,
+      allow("confirm"),
       input.actionHints.canConfirm,
       input.status === "pending" && isAllowedBookingStatusTransition(input.status, "confirmed"),
       !staleBooking,

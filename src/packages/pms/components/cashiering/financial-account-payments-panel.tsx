@@ -193,6 +193,13 @@ export function FinancialAccountPayments({
         status: shownStatus,
         balance: shownBalance,
         accountKind,
+        granted: {
+          receivePayment: false,
+          refund: false,
+          createInvoice: false,
+          writeOff: false,
+          close: false,
+        },
       }),
     [accountKind, result?.capabilities, role, shownBalance, shownStatus],
   );

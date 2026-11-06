@@ -232,11 +232,10 @@ describe("cashier control shift ownership", () => {
     );
     assert.equal(previousClosedShift(shifts, "me")?.id, "old");
     assert.deepEqual(
-      visibleShiftHistory(shifts, "me", "cashier").map((shift) => shift.id),
+      visibleShiftHistory(shifts, "me", false).map((shift) => shift.id),
       ["mine", "old"],
     );
-    assert.equal(visibleShiftHistory(shifts, "me", "accountant").length, 3);
-    assert.equal(visibleShiftHistory(shifts, "me", "manager").length, 3);
+    assert.equal(visibleShiftHistory(shifts, "me", true).length, 3);
   });
 });
 

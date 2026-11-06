@@ -5,6 +5,8 @@
  * Rooming list and financials are derived.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor, requirePmsActorAll } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -15,12 +17,11 @@ import {
   normalizePhone,
   recordGuestAccountEvent,
   recordGuestEvent,
-  requireGuestManager,
 } from "./guests.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { guestStayAccessForRole } from "./guests.functions";
+import { guestStayAccessForActor } from "./guests.functions";
 import { nightsBetween } from "./reservation-dates";
-import { propertyToday, requireReservationManager } from "./reservations.server";
+import { propertyToday } from "./reservations.server";
 import { assignReservationRoom, listAssignableRooms } from "./reservations.functions";
 import { setReservationGuestMasters } from "./guest-accounts.functions";
 import { GUEST_ACCOUNT_STATUSES } from "./guest-profile-wave4";
@@ -358,7 +359,7 @@ export const listGroupCatalogues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadCatalogueOptions(admin(supabaseAdmin), data.restaurantId);
   });
@@ -367,7 +368,7 @@ export const getGroupDetailWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -392,7 +393,7 @@ export const getGroupDetailWorkspace = createServerFn({ method: "POST" })
         ? db.from("pms_group_types").select("id, name").eq("id", group.group_type_id).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
-    const access = guestStayAccessForRole(me.role);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const assignedRooms = reservations.filter((row) => row.room_id).length;
     const reservationStatus = reservations.reduce<Record<string, number>>((acc, row) => {
       acc[row.status] = (acc[row.status] ?? 0) + 1;
@@ -462,7 +463,7 @@ export const saveGroupMaster = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; code: string | null }> => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     if (!data.groupId) {
@@ -565,7 +566,7 @@ export const setGroupStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_ACTIVATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -608,7 +609,7 @@ export const listGroupMembers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadGroupMembers(admin(supabaseAdmin), data.restaurantId, data.groupId);
   });
@@ -628,7 +629,7 @@ export const addGroupMember = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -711,7 +712,10 @@ export const createGroupMemberGuest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActorAll(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT,
+      PMS_PERMISSIONS.GUEST_PROFILE_CREATE,
+    ]);
     const { createGuest } = await import("./guests.functions");
     const created = await createGuest({
       data: {
@@ -751,7 +755,7 @@ export const updateGroupMember = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -827,7 +831,7 @@ export const previewGroupMemberImport = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, groupId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     if (/\.xlsx?$/i.test(data.filename)) throw new Error("Upload a CSV file. Excel import is not available yet.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
@@ -915,7 +919,7 @@ export const confirmGroupMemberImport = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, groupId: idSchema, filename: z.string().max(200), csv: z.string().max(1_000_000) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const preview = await previewGroupMemberImport({ data });
     const results: Array<{ row: number; result: GroupImportResult; guestId?: string; error?: string | null }> = [];
     for (const row of preview.rows) {
@@ -978,10 +982,11 @@ export const listGroupReservations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const reservations = await loadGroupReservations(admin(supabaseAdmin), data.restaurantId, data.groupId);
-    return reservations.map((row) => mapReservation(row, guestStayAccessForRole(me.role).folio));
+    const folioAccess = (await guestStayAccessForActor(context as never, data.restaurantId)).folio;
+    return reservations.map((row) => mapReservation(row, folioAccess));
   });
 
 export const linkReservationToGroup = createServerFn({ method: "POST" })
@@ -997,7 +1002,7 @@ export const linkReservationToGroup = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_GROUP_EDIT);
     const group = await loadGroupMaster(admin((await import("@/integrations/supabase/client.server")).supabaseAdmin), data.restaurantId, data.groupId);
     assertGroupMutable(group);
     await setReservationGuestMasters({
@@ -1034,7 +1039,7 @@ export const unlinkReservationFromGroup = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, groupId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_GROUP_EDIT);
     await setReservationGuestMasters({
       data: {
         restaurantId: data.restaurantId,
@@ -1066,7 +1071,7 @@ export const searchReservationsToLink = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, q: z.string().max(120).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const term = (data.q ?? "").trim().replace(/[%,]/g, "");
     let query = admin(context.supabase)
       .from("hotel_reservations")
@@ -1103,7 +1108,7 @@ export const listGroupRooming = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1113,7 +1118,7 @@ export const listGroupRooming = createServerFn({ method: "POST" })
     ]);
     const reservationById = new Map(reservations.map((row) => [row.id, row]));
     const reservationByGuest = new Map(reservations.filter((row) => row.guest_id).map((row) => [row.guest_id as string, row]));
-    const folioAccess = guestStayAccessForRole(me.role).folio;
+    const folioAccess = (await guestStayAccessForActor(context as never, data.restaurantId)).folio;
     const rows = members.map((member) => {
       const reservation =
         (member.reservationId ? reservationById.get(member.reservationId) : undefined) ??
@@ -1147,7 +1152,7 @@ export const assignGroupRoom = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1186,7 +1191,7 @@ export const autoAssignGroupRooms = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1277,8 +1282,8 @@ export const getGroupFinancials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
-    const access = guestStayAccessForRole(me.role);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1375,7 +1380,7 @@ export const listGroupActivity = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, groupId: idSchema, limit: z.number().int().min(1).max(200).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await admin(supabaseAdmin)
       .from("guest_account_history")
@@ -1419,7 +1424,7 @@ export const searchGroupPartners = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { listGuestAccounts } = await import("./guest-accounts.functions");
     const page = await listGuestAccounts({
       data: {
@@ -1439,7 +1444,7 @@ export const searchGuestsForGroup = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, q: z.string().max(120).optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { listGuests } = await import("./guests.functions");
     const page = await listGuests({
       data: { restaurantId: data.restaurantId, search: data.q, limit: 20 },
@@ -1465,7 +1470,7 @@ export const swapGroupRooms = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1565,7 +1570,7 @@ export const bulkAssignGroupRooms = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const group = await loadGroupMaster(admin(supabaseAdmin), data.restaurantId, data.groupId);
     assertGroupMutable(group);
@@ -1606,7 +1611,7 @@ export const moveGroupCheckedInRoom = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1648,7 +1653,7 @@ export const duplicateGroupMaster = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const source = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1701,7 +1706,7 @@ export const applyGroupTemplate = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, templateId: idSchema, name: z.string().trim().min(1).max(200) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const template = await db
@@ -1754,7 +1759,7 @@ export const listGroupItinerary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1812,7 +1817,7 @@ export const listGroupCommunications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await admin(supabaseAdmin)
       .from("guest_account_history")
@@ -1855,7 +1860,7 @@ export const sendGroupCommunication = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1907,7 +1912,7 @@ export const createGroupItineraryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1948,7 +1953,7 @@ export const updateGroupItineraryItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -1986,7 +1991,7 @@ export const listGroupDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, groupId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadGroupMaster(db, data.restaurantId, data.groupId);
@@ -2058,7 +2063,7 @@ export const createGroupDocumentUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadGroupMaster(admin(supabaseAdmin), data.restaurantId, data.groupId);
     const ext = data.contentType === "application/pdf" ? "pdf" : (GUEST_IMAGE_EXT_BY_TYPE[data.contentType] ?? "jpg");
@@ -2085,7 +2090,7 @@ export const saveGroupDocument = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     await loadGroupMaster(db, data.restaurantId, data.groupId);

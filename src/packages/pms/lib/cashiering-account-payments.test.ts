@@ -289,8 +289,8 @@ describe("account payment posting rules", () => {
     assert.equal(closed.canReceivePayment, false);
     assert.equal(closed.canRefund, false);
     assert.equal(closed.canWriteOff, false);
-    assert.match(entry, /requireCashierOperator/);
-    assert.match(entry, /requireCashierManager/);
+    assert.match(entry, /CASHIERING_PAYMENT_POST/);
+    assert.match(entry, /CASHIERING_CHARGE_POST/);
     assert.match(entry, /_original_transaction_id/);
     assert.doesNotMatch(entry, /hotel_cashier_shift/);
     assert.match(entry, /data.type === "payment" \|\| data.type === "deposit"/);

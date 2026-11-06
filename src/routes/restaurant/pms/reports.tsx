@@ -1,5 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { PmsReportsWorkspace } from "@/packages/pms/components/workspaces/pms-reports-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -52,12 +54,14 @@ function ReportsPmsRoute() {
       hideTopHeader
     >
       {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.REPORTS_VIEW}>
         <div className="space-y-8">
           <PmsReportsWorkspace membership={m} search={search} />
           <div className="print:hidden">
             <SharedModuleLinks restaurantId={m.restaurantId} modules={["reports_analytics"]} />
           </div>
         </div>
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

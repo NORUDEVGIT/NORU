@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { RoomsWorkspace } from "@/packages/pms/components/workspaces/rooms-workspace";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -64,12 +66,14 @@ function RoomInventoryPmsRoute() {
       hideTopHeader
     >
       {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.ROOM_INVENTORY_VIEW}>
         <RoomsWorkspace
           membership={m}
           initialTab={search.tab ?? "room-board"}
           returnTo={search.returnTo}
           returnToLabel={search.returnToLabel}
         />
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

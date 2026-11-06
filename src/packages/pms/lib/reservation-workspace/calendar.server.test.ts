@@ -228,7 +228,7 @@ describe("DB-04I-05 Booking Calendar read model", () => {
   });
 
   it("scopes every read to the restaurant and runs independent loads in parallel", () => {
-    assert.match(source, /requireReservationManager/);
+    assert.match(source, /requirePmsActor/);
     assert.match(source, /\.eq\("restaurant_id", restaurantId\)/);
     assert.match(source, /\.eq\("id", data\.restaurantId\)/);
     assert.match(source, /Promise\.all\(\[\s*loadOccupiedNow/);

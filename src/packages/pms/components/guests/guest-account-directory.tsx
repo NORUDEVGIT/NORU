@@ -37,7 +37,8 @@ import {
   displayProfileNumber,
   listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
-import { getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { Button } from "@/shared/components/ui/button";
@@ -86,7 +87,6 @@ export function GuestAccountDirectory({
   const title = GUEST_ACCOUNT_TYPE_LABELS[accountType];
   const profileType = accountTypeToProfileType(accountType);
 
-  const fetchAccess = useServerFn(getGuestsAccess);
   const fetchAccounts = useServerFn(listGuestAccounts);
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
 
@@ -105,12 +105,8 @@ export function GuestAccountDirectory({
     setPage(0);
   }, [searchValue, status, agencyType, country]);
 
-  const accessQuery = useQuery({
-    queryKey: ["guests-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const permissions = usePmsPermissions(restaurantId);
+  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
   const offset = page * pageSize;
   const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
@@ -160,13 +156,13 @@ export function GuestAccountDirectory({
     });
   }
 
-  if (accessQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading accounts…</p>;
+  if (permissions.isLoading) return <p className="text-sm text-muted-foreground">Checking access…</p>;
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h2 className="font-display text-xl">{title} directory</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners and managers can access guest profiles for this property.
+          You don't have permission to open guest accounts for this property.
         </p>
       </div>
     );

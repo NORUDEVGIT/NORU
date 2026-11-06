@@ -1,11 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { requireRoomManager } from "./rooms.server";
-import { withPmsPackage } from "./pms-package.server";
 import {
   CORE_HOUSEKEEPING_STATUSES,
   HOUSEKEEPING_OPERATIONAL_STATUSES,
@@ -23,8 +22,7 @@ import {
   type HousekeepingCard2Settings,
   type HousekeepingCard2Snapshot,
   type HousekeepingCard2Status,
-  type HousekeepingCard2Transition,
-} from "./housekeeping-card2.server";
+  type HousekeepingCard2Transition } from "./housekeeping-card2.server";
 
 type DbClient = any;
 
@@ -41,27 +39,23 @@ const settingsSchema = z.object({
   manualStatusChangeAllowed: z.boolean(),
   assignmentOverrideAllowed: z.boolean(),
   overridePermission: z.enum(HOUSEKEEPING_OVERRIDE_PERMISSIONS).nullable(),
-  overrideReasonRequired: z.boolean(),
-});
+  overrideReasonRequired: z.boolean() });
 const transitionSchema = z.object({
   event: z.enum(HOUSEKEEPING_TRANSITION_EVENTS),
   fromStatus: z.string().trim().min(1).max(40),
   toStatus: z.string().trim().min(1).max(40),
   enabled: z.boolean(),
-  approvalRequired: z.boolean(),
-});
+  approvalRequired: z.boolean() });
 const prioritySchema = z.object({
   event: z.enum(HOUSEKEEPING_PRIORITY_EVENTS),
   priority: z.enum(HOUSEKEEPING_PRIORITY_CODES),
   enabled: z.boolean(),
-  rank: z.number().int().min(1).max(99),
-});
+  rank: z.number().int().min(1).max(99) });
 const saveSchema = z.object({
   restaurantId: idSchema,
   settings: settingsSchema,
   transitions: z.array(transitionSchema),
-  priorities: z.array(prioritySchema).length(HOUSEKEEPING_PRIORITY_EVENTS.length),
-});
+  priorities: z.array(prioritySchema).length(HOUSEKEEPING_PRIORITY_EVENTS.length) });
 
 function unavailable(error: { code?: string; message?: string } | null): never {
   if (error?.code === "42P01" || error?.code === "PGRST205") {
@@ -82,8 +76,7 @@ async function writeHousekeepingAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card2-housekeeping", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card2-housekeeping", ...metadata } as unknown as Json });
   if (result.error) console.error("[card2-housekeeping] audit", result.error.message);
 }
 
@@ -102,8 +95,7 @@ function mapSettings(row: any): HousekeepingCard2Settings {
     assignmentOverrideAllowed: row.assignment_override_allowed === true,
     overridePermission: row.override_permission ?? null,
     overrideReasonRequired: row.override_reason_required !== false,
-    savedAt: row.saved_at ?? null,
-  };
+    savedAt: row.saved_at ?? null };
 }
 
 function mapStatus(row: any): HousekeepingCard2Status {
@@ -115,8 +107,7 @@ function mapStatus(row: any): HousekeepingCard2Status {
     isCore: row.is_core,
     operational: row.operational,
     active: row.active,
-    sortOrder: row.sort_order,
-  };
+    sortOrder: row.sort_order };
 }
 
 function mapTransition(row: any): HousekeepingCard2Transition {
@@ -126,8 +117,7 @@ function mapTransition(row: any): HousekeepingCard2Transition {
     fromStatus: row.from_status_code,
     toStatus: row.to_status_code,
     enabled: row.enabled,
-    approvalRequired: row.approval_required,
-  };
+    approvalRequired: row.approval_required };
 }
 
 function mapPriority(row: any): HousekeepingCard2Priority {
@@ -136,8 +126,7 @@ function mapPriority(row: any): HousekeepingCard2Priority {
     event: row.event_code,
     priority: row.priority_code,
     enabled: row.enabled,
-    rank: row.rank,
-  };
+    rank: row.rank };
 }
 
 async function ensureCard2HousekeepingDefaults(db: DbClient, restaurantId: string) {
@@ -150,8 +139,7 @@ async function ensureCard2HousekeepingDefaults(db: DbClient, restaurantId: strin
       is_core: true,
       operational: status.operational,
       active: true,
-      sort_order: status.sortOrder,
-    })),
+      sort_order: status.sortOrder })),
     { onConflict: "restaurant_id,code", ignoreDuplicates: true },
   );
   if (statusWrite.error) unavailable(statusWrite.error);
@@ -170,8 +158,7 @@ async function ensureCard2HousekeepingDefaults(db: DbClient, restaurantId: strin
       manual_status_change_allowed: true,
       assignment_override_allowed: false,
       override_permission: null,
-      override_reason_required: false,
-    },
+      override_reason_required: false },
     { onConflict: "restaurant_id", ignoreDuplicates: true },
   );
   if (settingsWrite.error) unavailable(settingsWrite.error);
@@ -189,8 +176,7 @@ async function ensureCard2HousekeepingDefaults(db: DbClient, restaurantId: strin
       from_status_code: from,
       to_status_code: to,
       enabled: true,
-      approval_required: approval,
-    })),
+      approval_required: approval })),
     { onConflict: "restaurant_id,event_code", ignoreDuplicates: true },
   );
   if (transitionWrite.error) unavailable(transitionWrite.error);
@@ -210,8 +196,7 @@ async function ensureCard2HousekeepingDefaults(db: DbClient, restaurantId: strin
       event_code: event,
       priority_code: priority,
       enabled: true,
-      rank,
-    })),
+      rank })),
     { onConflict: "restaurant_id,event_code", ignoreDuplicates: true },
   );
   if (priorityWrite.error) unavailable(priorityWrite.error);
@@ -248,8 +233,7 @@ export async function loadCard2HousekeepingSnapshot(
     settings: mapSettings(settings.data),
     statuses: (statuses.data ?? []).map(mapStatus),
     transitions: (transitions.data ?? []).map(mapTransition),
-    priorities: (priorities.data ?? []).map(mapPriority),
-  };
+    priorities: (priorities.data ?? []).map(mapPriority) };
 }
 
 async function persistHousekeepingStepStatus(
@@ -293,24 +277,20 @@ async function syncSet4Compatibility(db: DbClient, restaurantId: string, snapsho
       const row = core.find((status) => status.code === code);
       return { code, label: row?.name ?? code, active: row?.active ?? true };
     }),
-    savedAt: snapshot.settings.savedAt,
-  };
+    savedAt: snapshot.settings.savedAt };
   const cleaningPosture = {
     ...previous,
     inspectionGate: snapshot.settings.inspectionRequired,
     priorities: HOUSEKEEPING_PRIORITY_CODES.map((code) => ({
       code,
       label: `${code.charAt(0).toUpperCase()}${code.slice(1)}`,
-      active: snapshot.priorities.some((rule) => rule.enabled && rule.priority === code),
-    })),
-    savedAt: snapshot.settings.savedAt,
-  };
+      active: snapshot.priorities.some((rule) => rule.enabled && rule.priority === code) })),
+    savedAt: snapshot.settings.savedAt };
   const result = await db
     .from("restaurants")
     .update({
       pms_hk_status_rules: statusRules as unknown as Json,
-      pms_hk_cleaning_posture: cleaningPosture as unknown as Json,
-    })
+      pms_hk_cleaning_posture: cleaningPosture as unknown as Json })
     .eq("id", restaurantId);
   if (result.error) throw new Error(result.error.message);
 }
@@ -319,10 +299,7 @@ export const getPmsCard2Housekeeping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await withPmsPackage(
-      data.restaurantId,
-      callerMembership(context as never, data.restaurantId),
-    );
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const snapshot = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
     return { snapshot, readiness: evaluateCard2HousekeepingReadiness(snapshot) };
@@ -332,7 +309,7 @@ export const savePmsCard2Housekeeping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const now = new Date().toISOString();
@@ -353,8 +330,7 @@ export const savePmsCard2Housekeeping = createServerFn({ method: "POST" })
         override_permission: data.settings.assignmentOverrideAllowed ? data.settings.overridePermission : null,
         override_reason_required:
           data.settings.assignmentOverrideAllowed && data.settings.overrideReasonRequired,
-        saved_at: now,
-      },
+        saved_at: now },
       { onConflict: "restaurant_id" },
     );
     if (settingWrite.error) unavailable(settingWrite.error);
@@ -366,8 +342,7 @@ export const savePmsCard2Housekeeping = createServerFn({ method: "POST" })
         from_status_code: rule.fromStatus,
         to_status_code: rule.toStatus,
         enabled: rule.enabled,
-        approval_required: rule.approvalRequired,
-      })),
+        approval_required: rule.approvalRequired })),
       { onConflict: "restaurant_id,event_code" },
     );
     if (transitionWrite.error) unavailable(transitionWrite.error);
@@ -378,8 +353,7 @@ export const savePmsCard2Housekeeping = createServerFn({ method: "POST" })
         event_code: rule.event,
         priority_code: rule.priority,
         enabled: rule.enabled,
-        rank: rule.rank,
-      })),
+        rank: rule.rank })),
       { onConflict: "restaurant_id,event_code" },
     );
     if (priorityWrite.error) unavailable(priorityWrite.error);
@@ -401,7 +375,7 @@ export const evaluatePmsCard2HousekeepingReadiness = createServerFn({ method: "P
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const snapshot = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
     return persistHousekeepingStepStatus(supabaseAdmin, data.restaurantId, snapshot);
@@ -417,14 +391,13 @@ const customStatusSchema = z.object({
     .max(30)
     .regex(/^[a-z][a-z0-9_]*$/, "Use lowercase letters, numbers and underscores."),
   name: z.string().trim().min(1).max(60),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 export const savePmsCard2CustomStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => customStatusSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     if (CORE_HOUSEKEEPING_STATUSES.some((status) => status.code === data.code)) {
       throw new Error("Core status codes cannot be reused.");
     }
@@ -438,8 +411,7 @@ export const savePmsCard2CustomStatus = createServerFn({ method: "POST" })
       is_core: false,
       operational: false,
       active: data.active,
-      sort_order: 1000,
-    };
+      sort_order: 1000 };
     const result = data.id
       ? await db
           .from("pms_housekeeping_status_catalog")
@@ -468,7 +440,7 @@ export const deletePmsCard2HousekeepingStatus = createServerFn({ method: "POST" 
     z.object({ restaurantId: idSchema, statusId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
 
@@ -547,8 +519,7 @@ export const deletePmsCard2HousekeepingStatus = createServerFn({ method: "POST" 
         statusId: data.statusId,
         code: status.code,
         name: status.name,
-        timestamp: new Date().toISOString(),
-      },
+        timestamp: new Date().toISOString() },
     );
 
     const snapshot = await loadCard2HousekeepingSnapshot(db, data.restaurantId, false);
@@ -563,14 +534,13 @@ const singleTransitionSchema = z.object({
   fromStatus: z.string().trim().min(1).max(40),
   toStatus: z.string().trim().min(1).max(40),
   enabled: z.boolean(),
-  approvalRequired: z.boolean(),
-});
+  approvalRequired: z.boolean() });
 
 export const savePmsCard2Transition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => singleTransitionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     if (data.fromStatus === data.toStatus) {
       throw new Error("From Status and To Status cannot be identical.");
     }
@@ -624,8 +594,7 @@ export const savePmsCard2Transition = createServerFn({ method: "POST" })
       to_status_code: data.toStatus,
       enabled: data.enabled,
       approval_required: data.approvalRequired,
-      updated_at: new Date().toISOString(),
-    };
+      updated_at: new Date().toISOString() };
 
     const writeRes = data.id
       ? await db
@@ -652,8 +621,7 @@ export const savePmsCard2Transition = createServerFn({ method: "POST" })
         fromStatus: data.fromStatus,
         toStatus: data.toStatus,
         enabled: data.enabled,
-        approvalRequired: data.approvalRequired,
-      },
+        approvalRequired: data.approvalRequired },
     );
     return { ok: true as const, snapshot, readiness };
   });
@@ -664,7 +632,7 @@ export const deletePmsCard2Transition = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
 
@@ -694,8 +662,7 @@ export const deletePmsCard2Transition = createServerFn({ method: "POST" })
       {
         id: data.id,
         event: ruleRes.data.event_code,
-        timestamp: new Date().toISOString(),
-      },
+        timestamp: new Date().toISOString() },
     );
 
     const snapshot = await loadCard2HousekeepingSnapshot(db, data.restaurantId, false);

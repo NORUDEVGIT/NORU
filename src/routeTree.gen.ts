@@ -38,6 +38,7 @@ import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
 import { Route as RestaurantMenuRouteImport } from './routes/restaurant/menu'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
 import { Route as RestaurantReportsRouteImport } from './routes/restaurant/reports'
+import { Route as RestaurantSetPasswordRouteImport } from './routes/restaurant/set-password'
 import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/settings'
 import { Route as RestaurantStaffRouteImport } from './routes/restaurant/staff'
 import { Route as RestaurantTablesRouteImport } from './routes/restaurant/tables'
@@ -312,6 +313,11 @@ const RestaurantRegisterRoute = RestaurantRegisterRouteImport.update({
 const RestaurantReportsRoute = RestaurantReportsRouteImport.update({
   id: '/restaurant/reports',
   path: '/restaurant/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantSetPasswordRoute = RestaurantSetPasswordRouteImport.update({
+  id: '/restaurant/set-password',
+  path: '/restaurant/set-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RestaurantSettingsRoute = RestaurantSettingsRouteImport.update({
@@ -1068,6 +1074,7 @@ export interface FileRoutesByFullPath {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/reports': typeof RestaurantReportsRoute
+  '/restaurant/set-password': typeof RestaurantSetPasswordRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
@@ -1227,6 +1234,7 @@ export interface FileRoutesByTo {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/reports': typeof RestaurantReportsRoute
+  '/restaurant/set-password': typeof RestaurantSetPasswordRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
@@ -1389,6 +1397,7 @@ export interface FileRoutesById {
   '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/reports': typeof RestaurantReportsRoute
+  '/restaurant/set-password': typeof RestaurantSetPasswordRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
   '/restaurant/tables': typeof RestaurantTablesRoute
@@ -1552,6 +1561,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/reports'
+    | '/restaurant/set-password'
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
@@ -1711,6 +1721,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/reports'
+    | '/restaurant/set-password'
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
@@ -1872,6 +1883,7 @@ export interface FileRouteTypes {
     | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/reports'
+    | '/restaurant/set-password'
     | '/restaurant/settings'
     | '/restaurant/staff'
     | '/restaurant/tables'
@@ -2034,6 +2046,7 @@ export interface RootRouteChildren {
   RestaurantMenuRoute: typeof RestaurantMenuRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
   RestaurantReportsRoute: typeof RestaurantReportsRoute
+  RestaurantSetPasswordRoute: typeof RestaurantSetPasswordRoute
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
   RestaurantStaffRoute: typeof RestaurantStaffRoute
   RestaurantTablesRoute: typeof RestaurantTablesRoute
@@ -2358,6 +2371,13 @@ declare module '@tanstack/react-router' {
       path: '/restaurant/reports'
       fullPath: '/restaurant/reports'
       preLoaderRoute: typeof RestaurantReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/set-password': {
+      id: '/restaurant/set-password'
+      path: '/restaurant/set-password'
+      fullPath: '/restaurant/set-password'
+      preLoaderRoute: typeof RestaurantSetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/settings': {
@@ -3374,6 +3394,7 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantMenuRoute: RestaurantMenuRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
   RestaurantReportsRoute: RestaurantReportsRoute,
+  RestaurantSetPasswordRoute: RestaurantSetPasswordRoute,
   RestaurantSettingsRoute: RestaurantSettingsRoute,
   RestaurantStaffRoute: RestaurantStaffRoute,
   RestaurantTablesRoute: RestaurantTablesRoute,

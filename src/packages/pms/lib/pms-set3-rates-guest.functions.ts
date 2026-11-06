@@ -10,8 +10,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
 import type { Json } from "@/integrations/supabase/types";
-import { SET1_DENIED, canEditSet1 } from "./pms-set1-foundation";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   SET3_AUDIT_GUEST_RULES,
@@ -225,7 +226,7 @@ export const getPmsSet3Snapshot = createServerFn({ method: "POST" })
       snapshot,
       activate: activateInputFromSet3Snapshot(snapshot),
       role: me.role,
-      canEdit: canEditSet1(me.role),
+      canEdit: await hasPmsPermission(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE),
     };
   });
 
@@ -246,8 +247,7 @@ export const savePmsMealPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.mealPlansAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);
@@ -301,8 +301,7 @@ export const savePmsPackage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.packagesAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);
@@ -353,8 +352,7 @@ export const savePmsGuestProfileRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => guestRulesSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const rules: GuestProfileRules = {
       requiredFields: { ...data.requiredFields, firstName: true },
       consentDefaults: data.consentDefaults,
@@ -398,8 +396,7 @@ export const savePmsGuestIdType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.idVipAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);
@@ -433,8 +430,7 @@ export const savePmsGuestVipLevel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-    if (!canEditSet1(me.role)) throw new Error(SET1_DENIED);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.idVipAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);

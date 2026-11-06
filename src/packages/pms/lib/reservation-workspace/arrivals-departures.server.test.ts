@@ -394,7 +394,7 @@ describe("DB-04I-04 Arrivals & Departures read model", () => {
   });
 
   it("scopes every workspace read to the restaurant and batches rooms once", () => {
-    assert.match(source, /requireReservationManager/);
+    assert.match(source, /requirePmsActor/);
     assert.match(source, /\.eq\("id", data\.restaurantId\)/);
     assert.match(source, /loadRoomInventory/);
     assert.match(source, /\.from\("hotel_rooms"\)/);

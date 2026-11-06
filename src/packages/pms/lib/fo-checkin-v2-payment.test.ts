@@ -300,7 +300,8 @@ describe("check-in v2 payment", () => {
   it("does not let a receptionist authorize the deposit waiver", () => {
     assert.equal(canAuthorizeCheckInDepositWaiver("receptionist"), false);
     assert.equal(canAuthorizeCheckInDepositWaiver(null), false);
-    assert.match(payment, /canAuthorizeCheckInDepositWaiver\(role\)/);
+    assert.match(payment, /FRONT_OFFICE_CHECK_IN_OVERRIDE/);
+    assert.doesNotMatch(payment, /canAuthorizeCheckInDepositWaiver\(role\)/);
     assert.match(payment, /fo-ci-v2-waiver-denied/);
   });
 

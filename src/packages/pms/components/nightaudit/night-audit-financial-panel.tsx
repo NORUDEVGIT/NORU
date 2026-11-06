@@ -231,6 +231,7 @@ export function NightAuditFinancialPanel({
   hideHero,
   exceptions = [],
   role = "",
+  canFiscalOverride = false,
   businessDate,
   authorizingFiscalOverride = false,
   onAuthorizeFiscalOverride,
@@ -247,6 +248,7 @@ export function NightAuditFinancialPanel({
   hideHero?: boolean;
   exceptions?: AuditException[];
   role?: string;
+  canFiscalOverride?: boolean;
   businessDate?: string;
   authorizingFiscalOverride?: boolean;
   onAuthorizeFiscalOverride?: (
@@ -1190,7 +1192,7 @@ export function NightAuditFinancialPanel({
                   } : null);
 
                   const isEligibleToOverride =
-                    (role === "owner" || role === "manager") &&
+                    canFiscalOverride &&
                     !isOverridden &&
                     Boolean(
                       (matchingException && isFiscalOverrideableException(matchingException)) ||
@@ -1431,6 +1433,7 @@ export function NightAuditFinancialPanel({
               exceptions={exceptions}
               acknowledged={acknowledged}
               role={role}
+              canFiscalOverride={canFiscalOverride}
               onAuthorizeClick={(target) => setOverrideTarget(target)}
               onReviewClick={(target) => setReviewTarget(target)}
               runClosed={runClosed}
@@ -1900,6 +1903,7 @@ function FiscalDetailView({
   exceptions,
   acknowledged,
   role,
+  canFiscalOverride = false,
   onAuthorizeClick,
   onReviewClick,
   runClosed,
@@ -1911,6 +1915,7 @@ function FiscalDetailView({
   exceptions?: AuditException[];
   acknowledged?: Record<string, NonNullable<AuditException["warningReview"]>>;
   role: string;
+  canFiscalOverride?: boolean;
   onAuthorizeClick: (target: {
     exceptionId: string;
     referenceId: string;
@@ -1946,7 +1951,7 @@ function FiscalDetailView({
   } : null);
 
   const isEligibleToOverride =
-    (role === "owner" || role === "manager") &&
+    canFiscalOverride &&
     !isOverridden &&
     Boolean(
       (matchingException && isFiscalOverrideableException(matchingException)) ||

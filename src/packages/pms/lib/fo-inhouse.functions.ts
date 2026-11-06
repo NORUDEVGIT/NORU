@@ -15,7 +15,9 @@ import {
   type FrontOfficeStay,
 } from "./frontoffice.functions";
 import { normalizeClock } from "./pms-set1-foundation";
-import { assertDateOnly, requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { assertDateOnly } from "./reservations.server";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import {
   financialFromSignal,
@@ -35,7 +37,7 @@ import {
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
 
-type WorkspaceClient = Parameters<typeof requireReservationManager>[0]["supabase"];
+type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
 export type FoInHousePropertySettings = {
   timezone: string;
@@ -221,7 +223,7 @@ export const listFrontOfficeInHouseDesk = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, today: dateSchema.optional() }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ date: string; rows: FoInHouseDeskRow[] }> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadInHouseSettings(supabaseAdmin, data.restaurantId);
     const today = data.today
@@ -267,7 +269,7 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<FoInHouseQuickView> => {
-    const me = await requireReservationManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadInHouseSettings(supabaseAdmin, data.restaurantId);
     const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);

@@ -4,10 +4,11 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware.ts";
-import { requireGuestManager } from "./guests.server.ts";
 import {
   loadTravelAgencyStep4Config,
   validateTravelAgencyStep4,
@@ -28,7 +29,7 @@ export const getTravelAgencyStep4Config = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<TravelAgencyStep4Config> => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadTravelAgencyStep4Config(
       supabaseAdmin as any,
@@ -72,7 +73,7 @@ export const saveTravelAgencyStep4 = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requireGuestManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as any;
 
@@ -160,7 +161,7 @@ export const createTravelAgencyDraftDocumentUpload = createServerFn({ method: "P
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGuestManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ext = data.contentType === "application/pdf" ? "pdf" : "jpg";
     const path = `${data.restaurantId}/travel-agents/drafts/${crypto.randomUUID()}.${ext}`;

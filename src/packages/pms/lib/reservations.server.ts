@@ -60,7 +60,10 @@ export const RESERVATION_EVENT_TYPES = [
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
 
-/** Owner/manager membership for this property, or a hard failure. */
+/**
+ * Legacy front-office role gate. No live PMS handler calls this.
+ * A few modules still import the symbol. Do not use it for authorization.
+ */
 export async function requireReservationManager(
   context: AuthedCtx,
   restaurantId: string,

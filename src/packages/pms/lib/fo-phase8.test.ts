@@ -43,7 +43,7 @@ describe("FO Phase 8 — approval rule lookup", () => {
     assert.match(fns, /export const getFrontOfficeApprovalRequirement/);
     assert.match(fns, /from\("pms_approval_rules"\)/);
     assert.match(fns, /from\("pms_permissions"\)/);
-    assert.match(fns, /requireReservationManager/);
+    assert.match(fns, /requirePmsActor/);
     assert.match(fns, /membership\.role/);
     assert.match(fns, /late_checkout_needs_approval/);
     assert.doesNotMatch(fns, /pms_approval_requests/);
@@ -110,8 +110,8 @@ describe("FO Phase 8 — writers remain the authority", () => {
     const checkIn = readRel("./fo-check-in.functions.ts");
     const waiver = readRel("./fo-check-in-waiver.functions.ts");
     assert.match(checkIn, /export const waiveCheckInDeposit/);
-    assert.match(waiver, /assertCheckInWaiverRole\(me\.role\)/);
-    assert.match(waiver, /requireReservationManager/);
+    assert.match(waiver, /PMS_PERMISSIONS\.FRONT_OFFICE_CHECK_IN_OVERRIDE/);
+    assert.match(waiver, /requirePmsActor/);
     assert.match(readRel("./fo-check-in-waiver.ts"), /deposit_waived: true/);
     assert.match(waiver, /recordReservationEvent/);
     const stepper = readRel("../components/frontoffice/fo-check-in-stepper.tsx");
@@ -129,7 +129,7 @@ describe("FO Phase 8 — writers remain the authority", () => {
     const checkOut = readRel("./fo-check-out.functions.ts");
     assert.match(checkOut, /export const completeFoCheckOut/);
     assert.match(checkOut, /Only in-house stays can be checked out/);
-    assert.match(checkOut, /requireSupervisor\(me\.role\)/);
+    assert.match(checkOut, /PMS_PERMISSIONS\.FRONT_OFFICE_CHECK_OUT/);
     assert.match(checkOut, /overrideCheckOutSettlement/);
     const checkoutUi = readRel("../components/frontoffice/fo-check-out-stepper.tsx");
     assert.match(checkoutUi, /FoAuthorizationCard/);
@@ -152,7 +152,7 @@ describe("FO Phase 8 — writers remain the authority", () => {
     }
     const cancel = readRel("./fo-cancel-noshow.functions.ts");
     assert.match(cancel, /export const waiveCancelOrNoShowFee/);
-    assert.match(cancel, /requireSupervisor\(me\.role\)/);
+    assert.match(cancel, /PMS_PERMISSIONS\.FRONT_OFFICE_FEE_OVERRIDE/);
     const late = readRel("./arrivals-departures.functions.ts");
     assert.match(late, /requireLateCheckoutApprover/);
     assert.match(late, /export const setLateCheckout/);

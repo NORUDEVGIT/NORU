@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -184,6 +186,6 @@ async function authorizeService(
   context: { userId?: string },
   restaurantId: string,
 ): Promise<{ id: string; userId: string | null }> {
-  const membership = await requireFrontOfficeAccess(context as never, restaurantId);
+  const membership = await requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT);
   return { id: membership.id, userId: context.userId ?? null };
 }

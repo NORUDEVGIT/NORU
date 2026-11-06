@@ -3,10 +3,9 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AuthedCtx } from "@/core/lib/workforce.server";
-import {
-  recordReservationEvent,
-  requireReservationManager,
-} from "./reservations.server";
+import { requirePmsActor, requirePmsActorAll } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { recordReservationEvent } from "./reservations.server";
 import {
   assertEtaLifecycle,
   assertExpectedArrivalInstant,
@@ -21,11 +20,13 @@ const idSchema = z.string().uuid();
 const instantSchema = z.string().min(1).nullable();
 
 async function requireLateCheckoutApprover(context: AuthedCtx, restaurantId: string, needsApproval: boolean) {
-  const membership = await requireReservationManager(context, restaurantId);
-  if (needsApproval && membership.role !== "owner" && membership.role !== "manager") {
-    throw new Error("Late checkout for this property requires owner or manager approval.");
+  if (needsApproval) {
+    return requirePmsActorAll(context, restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT,
+      PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+    ]);
   }
-  return membership;
+  return requirePmsActor(context, restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT);
 }
 
 async function loadStayForWrite(context: AuthedCtx, restaurantId: string, reservationId: string) {
@@ -70,7 +71,11 @@ export async function applyExpectedArrivalTime(params: {
   reservationId: string;
   expectedArrivalAt: string | null;
 }): Promise<{ id: string; expectedArrivalAt: string | null }> {
-  const me = await requireReservationManager(params.context, params.restaurantId);
+  const me = await requirePmsActor(
+    params.context,
+    params.restaurantId,
+    PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT,
+  );
   const stay = await loadStayForWrite(params.context, params.restaurantId, params.reservationId);
   assertEtaLifecycle(stay.status);
   const property = await loadPropertyTimezone(params.restaurantId);
@@ -249,7 +254,7 @@ export const bulkSetExpectedArrivalTime = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<BulkEtaResult> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT);
     const ok: BulkEtaResult["ok"] = [];
     const failed: BulkEtaResult["failed"] = [];
     for (const item of data.items) {

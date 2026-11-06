@@ -7,12 +7,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "@/core/lib/workforce.server";
-import { withPmsPackage } from "./pms-package.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import {
   FO_FEE_DEFAULTS_AUDIT_ACTION,
-  FO_FEE_DEFAULTS_DENIED,
-  canEditFoFeeDefaults,
   normalizeFoFeeDefaults,
   validateFoFeeDefaults,
   type FoFeeDefaults,
@@ -87,10 +89,16 @@ export const getFoFeeDefaults = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ defaults: FoFeeDefaults; cancelFeeBasis: FeeBasis | ""; noshowFeeBasis: FeeBasis | ""; canEdit: boolean }> => {
-      const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const loaded = await loadFeeRow(supabaseAdmin, data.restaurantId);
-      return { ...loaded, canEdit: canEditFoFeeDefaults(me.role) };
+      return {
+        ...loaded,
+        canEdit: hasEffectivePermission(
+          await resolveEffectivePermissions(context as never, data.restaurantId),
+          PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE,
+        ),
+      };
     },
   );
 
@@ -102,10 +110,11 @@ export const saveFoFeeDefaults = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ ok: true; defaults: FoFeeDefaults; cancelFeeBasis: FeeBasis | ""; noshowFeeBasis: FeeBasis | ""; auditWritten: boolean }> => {
-      const me = await withPmsPackage(data.restaurantId, callerMembership(context as never, data.restaurantId));
-      if (!canEditFoFeeDefaults(me.role)) {
-        throw new Error(FO_FEE_DEFAULTS_DENIED);
-      }
+      await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE,
+      );
 
       const after = normalizeFoFeeDefaults({
         cancelFeeRequired: data.cancelFeeRequired,

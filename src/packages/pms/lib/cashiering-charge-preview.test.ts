@@ -43,7 +43,7 @@ describe("manual charge preview", () => {
       poster.indexOf("export const previewFolioCharge"),
       poster.indexOf("export const closeFolio"),
     );
-    assert.match(preview, /requireCashierManager/);
+    assert.match(preview, /CASHIERING_VIEW/);
     assert.match(preview, /preview_folio_charge/);
     const post = poster.slice(
       poster.indexOf("export const postFolioEntry"),

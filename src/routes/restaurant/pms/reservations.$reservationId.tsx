@@ -1,5 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +51,7 @@ function ReservationDetailPmsRoute() {
       hideTopHeader
     >
       {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.RESERVATION_VIEW}>
         <RoomInventoryChrome
           membership={m}
           activeModule="Reservations"
@@ -59,6 +62,7 @@ function ReservationDetailPmsRoute() {
         >
           <ReservationDetailWorkspace membership={m} reservationId={reservationId} />
         </RoomInventoryChrome>
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

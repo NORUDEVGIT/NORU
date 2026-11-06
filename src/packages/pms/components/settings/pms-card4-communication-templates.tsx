@@ -150,7 +150,7 @@ export function PmsCard4CommunicationTemplates({
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<CommunicationTemplateRecord | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
-  const handledSaveToken = useRef(0);
+  const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
   useEffect(() => {

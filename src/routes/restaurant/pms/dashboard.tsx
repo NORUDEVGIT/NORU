@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { PmsHomeDesk } from "@/packages/pms/components/pms/pms-home-desk";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -56,7 +58,13 @@ function DashboardPmsRoute() {
           fillViewport
           suppressReturnButton
         >
-          <PmsHomeDesk membership={membership} />
+          <PmsRouteGate
+            restaurantId={membership.restaurantId}
+            allow={PMS_PERMISSIONS.DASHBOARD_VIEW}
+            fallback="first-module"
+          >
+            <PmsHomeDesk membership={membership} />
+          </PmsRouteGate>
         </RoomInventoryChrome>
       )}
     </RestaurantShell>

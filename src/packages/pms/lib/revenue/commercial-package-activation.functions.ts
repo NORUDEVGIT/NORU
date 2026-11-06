@@ -3,16 +3,17 @@
  * Rate Manager only.
  */
 
+import { requirePmsActor } from "../pms-permissions.server";
+import { PMS_PERMISSIONS } from "../pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { rateError, requireRateManager } from "../rates.server";
+import { rateError } from "../rates.server";
 import {
   getPackageActivationDetail as loadPackageActivationDetail,
   listPackageActivations as loadPackageActivations,
   applyStoredPackageActivation,
-  previewStoredPackageActivation,
-} from "./commercial-package-activation.server.ts";
+  previewStoredPackageActivation } from "./commercial-package-activation.server.ts";
 import { executeOrSubmitPackageActivation } from "./revenue-approval.server.ts";
 
 const idSchema = z.string().uuid();
@@ -28,18 +29,16 @@ const previewSchema = z.object({
   roomTypeIds: z.array(idSchema).optional(),
   ratePlanIds: z.array(idSchema).optional(),
   reason: z.string().max(500).nullable().optional(),
-  expectedVersion: z.string().min(1).optional(),
-});
+  expectedVersion: z.string().min(1).optional() });
 
 const applySchema = previewSchema.extend({
-  applyImmediately: z.boolean().optional(),
-});
+  applyImmediately: z.boolean().optional() });
 
 export const previewPackageActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => previewSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       return await previewStoredPackageActivation(supabaseAdmin, data);
@@ -52,7 +51,7 @@ export const applyPackageActivation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => applySchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requireRateManager(context as never, data.restaurantId);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_ACTIVATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     try {
       if (data.applyImmediately) {
@@ -62,8 +61,7 @@ export const applyPackageActivation = createServerFn({ method: "POST" })
       }
       return await executeOrSubmitPackageActivation(supabaseAdmin, data, {
         membershipId: me.id,
-        userId: context.userId,
-      });
+        userId: context.userId });
     } catch (error) {
       throw rateError(error instanceof Error ? error.message : String(error));
     }
@@ -73,7 +71,7 @@ export const listPackageActivations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadPackageActivations(supabaseAdmin, data);
   });
@@ -84,7 +82,7 @@ export const getPackageActivationDetail = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, activationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRateManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadPackageActivationDetail(supabaseAdmin, data);
   });

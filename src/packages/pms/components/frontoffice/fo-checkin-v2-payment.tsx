@@ -7,8 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, MoreHorizontal, ShieldAlert, Wallet } from "lucide-react";
 
-import { useAuth } from "@/core/state/auth-store";
-import { getMyRestaurants } from "@/core/lib/restaurant.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   getCheckInDepositReadiness,
   postCheckInDeposit,
@@ -20,7 +20,6 @@ import type { CheckInUnitRead } from "@/packages/pms/lib/fo-check-in-unit.functi
 import type { ReservationCashieringSummary } from "@/packages/pms/lib/reservation-cashiering-summary";
 import {
   buildCheckInPaymentSummary,
-  canAuthorizeCheckInDepositWaiver,
   depositActionFailureCopy,
   depositRequirementStatus,
   formatDepositAmount,
@@ -67,8 +66,7 @@ export function FoCheckInV2Payment({
   onRefresh: () => void;
 }) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const fetchRestaurants = useServerFn(getMyRestaurants);
+  const permissions = usePmsPermissions(restaurantId);
   const fetchReadiness = useServerFn(getCheckInDepositReadiness);
   const postDeposit = useServerFn(postCheckInDeposit);
   const waiveDeposit = useServerFn(waiveCheckInDeposit);
@@ -86,14 +84,10 @@ export function FoCheckInV2Payment({
   const [postedTransactionId, setPostedTransactionId] = useState<string | null>(null);
   const [showWaiverForm, setShowWaiverForm] = useState(false);
 
-  const membershipQuery = useQuery({
-    queryKey: ["my-restaurants", user?.id],
-    queryFn: () => fetchRestaurants(),
-    enabled: Boolean(user?.id),
-    retry: false,
-  });
-  const role = membershipQuery.data?.find((row) => row.restaurantId === restaurantId)?.role ?? null;
-  const canWaive = canAuthorizeCheckInDepositWaiver(role);
+  const canWaive =
+    !permissions.isLoading &&
+    !permissions.isError &&
+    permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN_OVERRIDE);
 
   const readinessQuery = useQuery({
     queryKey: ["fo-ci-v2-deposit", restaurantId, reservationId, reservationRoomId],
@@ -584,7 +578,7 @@ export function FoCheckInV2Payment({
                     A waiver clears only this room&apos;s deposit requirement. It does not change
                     the amount received on the reservation folio.
                   </p>
-                  {membershipQuery.isLoading ? (
+                  {permissions.isLoading ? (
                     <p className="mt-2 text-sm text-[#6B5E4E]">
                       Checking who can authorize this waiver…
                     </p>
@@ -617,7 +611,7 @@ export function FoCheckInV2Payment({
                     </div>
                   ) : (
                     <p className="mt-2 text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-waiver-denied">
-                      An owner or manager must authorize a deposit waiver for this room.
+                      You don't have permission to waive the deposit for this room.
                     </p>
                   )}
                 </div>

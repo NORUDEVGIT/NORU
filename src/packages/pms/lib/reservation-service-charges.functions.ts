@@ -3,7 +3,8 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import type { ServicePricingUnit } from "./room-charge-guest-total";
 
 const idSchema = z.string().uuid();
@@ -37,7 +38,11 @@ export const postReservationServiceCharges = createServerFn({ method: "POST" })
   )
   .handler(
     async ({ data, context }): Promise<{ posted: number; skipped: number; failed: boolean }> => {
-      const me = await requireReservationManager(context as never, data.restaurantId);
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: result, error } = await supabaseAdmin.rpc(
         "post_reservation_service_requests" as never,
@@ -60,7 +65,7 @@ export const listReservationServiceCharges = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationServiceCharge[]> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const rows = await supabaseAdmin
       .from("guest_service_history")

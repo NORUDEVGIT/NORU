@@ -4,7 +4,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { quoteStay } from "./rates.functions";
 import { createReservation } from "./reservations.functions";
-import { assertStayDates, requireReservationManager } from "./reservations.server";
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
+import { assertStayDates } from "./reservations.server";
 import { getRoomTypeAvailabilityCompat } from "./room-inventory-compat";
 import {
   WAITLIST_DISPLAY_STATUSES,
@@ -54,11 +56,7 @@ function db(client: unknown): LooseDb {
 }
 
 async function requireWaitlistWriter(context: never, restaurantId: string) {
-  const membership = await requireReservationManager(context, restaurantId);
-  if (membership.role !== "owner" && membership.role !== "manager") {
-    throw new Error("You don't have permission to manage Waitlist.");
-  }
-  return membership;
+  return requirePmsActor(context, restaurantId, PMS_PERMISSIONS.RESERVATION_WAITLIST_EDIT);
 }
 const REQUEST_SELECT =
   "id, confirmation_number, guest_id, arrival_date, departure_date, adults, children, requested_room_type_id, alternate_room_type_ids, flexible_dates, priority, status, notes, reservation_id, created_at, updated_at";
@@ -215,7 +213,7 @@ export const listWaitlist = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     let query = db(context.supabase)
       .from("pms_waitlist_requests")
       .select(REQUEST_SELECT)
@@ -276,7 +274,7 @@ export const getWaitlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, requestId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const loaded = await db(context.supabase)
       .from("pms_waitlist_requests")
       .select(REQUEST_SELECT)
@@ -456,7 +454,7 @@ export const matchWaitlist = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ candidates: WaitlistMatchCandidate[] }> => {
-    await requireReservationManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const loaded = await db(context.supabase)
       .from("pms_waitlist_requests")
       .select(REQUEST_SELECT)

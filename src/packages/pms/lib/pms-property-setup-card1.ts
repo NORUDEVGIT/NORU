@@ -495,6 +495,7 @@ export type Card1LocationExtras = {
   googleMapsLink: string;
   nearbyLandmark: string;
   pinVisible: boolean;
+  propertyImages?: string[];
 };
 
 export type Card1CheckinOps = {
@@ -678,6 +679,7 @@ export type Card1Snapshot = {
   currentState: Card1CurrentState;
   logoPreviewUrl: string;
   coverPreviewUrl: string;
+  propertyImagePreviews?: Record<string, string>;
   departmentOptions: Card1DepartmentOption[];
   propertyAreaEntities: Card1PropertyArea[];
   functionalHardeningAvailable: boolean;
@@ -713,7 +715,7 @@ export function emptyEmergencyContact(
 }
 
 export function emptyLocationExtras(partial?: Partial<Card1LocationExtras>): Card1LocationExtras {
-  return { googleMapsLink: "", nearbyLandmark: "", pinVisible: true, ...partial };
+  return { googleMapsLink: "", nearbyLandmark: "", pinVisible: true, propertyImages: [], ...partial };
 }
 
 export function emptyCheckinOps(partial?: Partial<Card1CheckinOps>): Card1CheckinOps {
@@ -1110,10 +1112,15 @@ export function parseIdentityToggles(value: unknown): Card1IdentityToggles {
 export function parseLocationExtras(value: unknown): Card1LocationExtras {
   if (!value || typeof value !== "object") return emptyLocationExtras();
   const rec = value as Record<string, unknown>;
+  const rawImages = rec["propertyImages"] ?? rec["property_images"];
+  const propertyImages = Array.isArray(rawImages)
+    ? rawImages.filter((x): x is string => typeof x === "string" && Boolean(x.trim()))
+    : [];
   return emptyLocationExtras({
     googleMapsLink: String(rec["googleMapsLink"] ?? "").trim(),
     nearbyLandmark: String(rec["nearbyLandmark"] ?? "").trim(),
     pinVisible: rec["pinVisible"] !== false,
+    propertyImages,
   });
 }
 

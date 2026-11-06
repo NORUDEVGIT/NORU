@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { FrontOfficeWorkspace } from "@/packages/pms/components/workspaces/front-office-workspace";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { foSearchFromUnknown } from "@/packages/pms/lib/front-office-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
@@ -44,7 +46,11 @@ function FrontOfficePmsRoute() {
       hidePackageRail
       hideTopHeader
     >
-      {(m) => <FrontOfficeWorkspace membership={m} search={search} />}
+      {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.FRONT_OFFICE_VIEW}>
+          <FrontOfficeWorkspace membership={m} search={search} />
+        </PmsRouteGate>
+      )}
     </RestaurantShell>
   );
 }

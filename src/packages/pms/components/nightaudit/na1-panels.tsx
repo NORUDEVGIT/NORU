@@ -23,14 +23,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
-import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import {
   NA1_CHROME,
   NA1_CONFIRM_GOLD,
   NA1_CONFIRM_LABEL,
   NA1_NOTE_HINT,
   NA1_PHONE_CLOSE_COPY,
-  canConfirmNightAudit,
   formatNa1Date,
   liveCountFromSnapshot,
   remainingBlockerCount,
@@ -107,10 +105,12 @@ export function NaClosePanel({
   rechecking = false,
   onRecheck,
   nightAuditWindow = null,
+  canClose: canClosePermission,
 }: {
   businessDate: string;
   rows: NaBlockerRow[];
   role: string;
+  canClose?: boolean;
   phone: boolean;
   closed: boolean;
   busy: boolean;
@@ -145,15 +145,14 @@ export function NaClosePanel({
     operational: operationalGate,
     openBlockingExceptions,
     boardBlockers: remainingBlockerCount(rows),
-    canClose: canConfirmNightAudit(role),
+    canClose: canClosePermission === true,
     busy: busy || rechecking,
     runStatus: closed ? "closed" : runStatus,
     rechecked,
     phone,
     unreviewedWarnings,
   });
-  const showConfirm = !phone && canConfirmNightAudit(role) && !closed;
-  const receptionist = role === "receptionist";
+  const showConfirm = !phone && canClosePermission === true && !closed;
 
   function submit() {
     if (submitted.current || busy || !gate.enabled) return;
@@ -266,13 +265,6 @@ export function NaClosePanel({
       ) : null}
 
       {phone ? <p className="mt-3 text-xs text-muted-foreground">{NA1_PHONE_CLOSE_COPY}</p> : null}
-
-      {!phone && receptionist ? (
-        <PermissionDeniedPanel
-          className="mt-4"
-          message="Front Office agents cannot close Night Audit. Ask an owner or manager to close."
-        />
-      ) : null}
 
       {showConfirm ? (
         <>

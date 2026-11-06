@@ -1,9 +1,10 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireFrontOfficeAccess, requireRoomManager } from "./rooms.server";
 import {
   deadlineHoursFromWindow,
   parseCancellationPenaltyType,
@@ -11,8 +12,7 @@ import {
   parseCancellationWindowUnit,
   parseCutoffTime,
   penaltyNeedsValue,
-  windowFromDeadlineHours,
-} from "./cancellation-policy-rules";
+  windowFromDeadlineHours } from "./cancellation-policy-rules";
 import {
   CANCELLATION_PENALTY_TYPES,
   CANCELLATION_POLICY_KINDS,
@@ -34,12 +34,10 @@ import {
   type RatePlanRow,
   type RateRefundabilityKind,
   type RateRefundabilityRow,
-  type RatesCard2Snapshot,
-} from "./rates-card2.server";
+  type RatesCard2Snapshot } from "./rates-card2.server";
 import {
   EARLY_DEPARTURE_PENALTY_TYPES,
-  resolvedEarlyDeparturePenaltyValue,
-} from "./early-departure-policy";
+  resolvedEarlyDeparturePenaltyValue } from "./early-departure-policy";
 import { foreignRatePlanPolicyMessage } from "./rate-plan-policy-link";
 import { ratePlanOccupancyValidationError } from "./occupancy-allocation";
 
@@ -68,8 +66,7 @@ const categorySchema = z.object({
   code: setupCode,
   name: z.string().trim().min(1).max(80),
   active: z.boolean(),
-  isCustom: z.boolean().optional(),
-});
+  isCustom: z.boolean().optional() });
 
 const planSchema = z
   .object({
@@ -92,15 +89,13 @@ const planSchema = z
     includedOccupancy: z.number().int().min(1).max(20).nullable().optional(),
     extraAdultRate: z.number().min(0).max(10_000_000).nullable().optional(),
     extraChildRate: z.number().min(0).max(10_000_000).nullable().optional(),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .superRefine((value, ctx) => {
     if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["validTo"],
-        message: "Valid until cannot be before valid from.",
-      });
+        message: "Valid until cannot be before valid from." });
     }
   });
 
@@ -122,22 +117,19 @@ const cancellationSchema = z
       .optional(),
     penaltyType: z.enum(CANCELLATION_PENALTY_TYPES),
     penaltyValue: z.number().min(0).max(10_000_000),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .superRefine((value, ctx) => {
     if (value.policyKind !== "non_refundable" && value.windowValue == null) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["windowValue"],
-        message: "Enter a cancellation window.",
-      });
+        message: "Enter a cancellation window." });
     }
     if (penaltyNeedsValue(value.penaltyType) && !(value.penaltyValue > 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["penaltyValue"],
-        message: "Enter a penalty value.",
-      });
+        message: "Enter a penalty value." });
     }
   });
 
@@ -148,8 +140,7 @@ const refundabilitySchema = z.object({
   name: z.string().trim().min(1).max(120),
   description: z.string().trim().max(500).nullable().optional(),
   kind: z.enum(RATE_REFUNDABILITY_KINDS),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 const noShowPolicySchema = z.object({
   restaurantId: idSchema,
@@ -161,8 +152,7 @@ const noShowPolicySchema = z.object({
   penaltyValue: z.number().min(0).max(10_000_000),
   releaseHour: z.number().int().min(0).max(23),
   isDefault: z.boolean(),
-  active: z.boolean(),
-});
+  active: z.boolean() });
 
 const earlyDeparturePolicySchema = z
   .object({
@@ -173,16 +163,14 @@ const earlyDeparturePolicySchema = z
     description: z.string().trim().max(500).nullable().optional(),
     penaltyType: z.enum(EARLY_DEPARTURE_PENALTY_TYPES),
     penaltyValue: z.number().min(0).max(10_000_000),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .superRefine((value, ctx) => {
     const resolved = resolvedEarlyDeparturePenaltyValue(value.penaltyType, value.penaltyValue);
     if (!resolved.ok) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["penaltyValue"],
-        message: resolved.message,
-      });
+        message: resolved.message });
     }
   });
 
@@ -209,8 +197,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: CARD2_RATES_AUDIT_SECTION, ...metadata } as unknown as Json,
-  });
+    metadata: { section: CARD2_RATES_AUDIT_SECTION, ...metadata } as unknown as Json });
   if (result.error) console.error("[card2-rates] audit", result.error.message);
 }
 
@@ -233,8 +220,7 @@ function mapRoomType(row: any): Card2RoomTypeRef {
       row.extra_child_rate_default == null || row.extra_child_rate_default === ""
         ? null
         : Number(row.extra_child_rate_default),
-    maxOccupancy: row.max_occupancy == null || row.max_occupancy === "" ? null : Number(row.max_occupancy),
-  };
+    maxOccupancy: row.max_occupancy == null || row.max_occupancy === "" ? null : Number(row.max_occupancy) };
 }
 
 function mapCategory(row: any): RateCategoryRow {
@@ -242,8 +228,7 @@ function mapCategory(row: any): RateCategoryRow {
     id: row.id,
     code: String(row.code ?? "").toUpperCase(),
     name: String(row.name ?? ""),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 function mapCancellationPolicy(row: any): RateCancellationPolicyRow {
@@ -272,8 +257,7 @@ function mapCancellationPolicy(row: any): RateCancellationPolicyRow {
     penaltyType: parseCancellationPenaltyType(row.penalty_type),
     penaltyValue: Number(row.penalty_value ?? 0),
     deadlineHours: row.deadline_hours == null ? null : Number(row.deadline_hours),
-    active: row.active !== false,
-  };
+    active: row.active !== false };
 }
 
 export async function loadRatesCard2Snapshot(
@@ -373,8 +357,7 @@ export async function loadRatesCard2Snapshot(
         code: String(row.code ?? "").toUpperCase(),
         name: String(row.name ?? ""),
         includesBreakfast: row.includes_breakfast === true,
-        active: row.active !== false,
-      }));
+        active: row.active !== false }));
 
   const cancellationPolicies: RateCancellationPolicyRow[] = cancellations.error
     ? []
@@ -404,8 +387,7 @@ export async function loadRatesCard2Snapshot(
           kind: (RATE_REFUNDABILITY_KINDS as readonly string[]).includes(kind)
             ? (kind as RateRefundabilityKind)
             : "refundable",
-          active: row.active !== false,
-        };
+          active: row.active !== false };
       });
 
   const depositPolicies: Card2DepositPolicyRef[] = deposits.error
@@ -414,8 +396,7 @@ export async function loadRatesCard2Snapshot(
         id: row.id,
         code: String(row.code ?? "").toUpperCase(),
         name: String(row.name ?? ""),
-        active: row.active !== false,
-      }));
+        active: row.active !== false }));
 
   const noShowPolicies: RateNoShowPolicyRow[] = noShows.error
     ? []
@@ -428,8 +409,7 @@ export async function loadRatesCard2Snapshot(
         penaltyValue: Number(row.penalty_value ?? 0),
         releaseHour: Number(row.release_hour ?? 18),
         isDefault: Boolean(row.is_default),
-        active: row.active !== false,
-      }));
+        active: row.active !== false }));
 
   const earlyDeparturePolicies: RateEarlyDeparturePolicyRow[] = earlyDepartures.error
     ? []
@@ -444,8 +424,7 @@ export async function loadRatesCard2Snapshot(
           ? row.penalty_type
           : "none",
         penaltyValue: Number(row.penalty_value ?? 0),
-        active: row.active !== false,
-      }));
+        active: row.active !== false }));
 
   let planData = composedPlans.data;
   if (composedPlans.error) {
@@ -528,8 +507,7 @@ export async function loadRatesCard2Snapshot(
         row.included_occupancy == null ? null : Number(row.included_occupancy),
       extraAdultRate: row.extra_adult_rate == null ? null : Number(row.extra_adult_rate),
       extraChildRate: row.extra_child_rate == null ? null : Number(row.extra_child_rate),
-      active: row.active !== false,
-    };
+      active: row.active !== false };
   });
 
   return {
@@ -542,8 +520,7 @@ export async function loadRatesCard2Snapshot(
     noShowPolicies,
     earlyDeparturePolicies,
     plans: planRows,
-    currencyCode: String((restaurant?.data as any)?.currency_code ?? "USD").toUpperCase(),
-  };
+    currencyCode: String((restaurant?.data as any)?.currency_code ?? "USD").toUpperCase() };
 }
 
 async function loadAudit(db: DbClient, restaurantId: string) {
@@ -559,29 +536,27 @@ async function loadAudit(db: DbClient, restaurantId: string) {
     id: row.id,
     action: String(row.action ?? ""),
     createdAt: String(row.created_at ?? ""),
-    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null,
-  }));
+    detail: typeof row.metadata?.detail === "string" ? row.metadata.detail : null }));
 }
 
 export const getRatesCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requireFrontOfficeAccess(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return {
       snapshot,
       readiness: evaluateRatesCard2Readiness(snapshot),
-      audit: await loadAudit(db, data.restaurantId),
-    };
+      audit: await loadAudit(db, data.restaurantId) };
   });
 
 export const saveRateCategoryCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => categorySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
 
     if (data.isCustom) {
@@ -615,8 +590,7 @@ export const saveRateCategoryCard2 = createServerFn({ method: "POST" })
       restaurant_id: data.restaurantId,
       code: data.code,
       name: data.name,
-      active: data.active,
-    };
+      active: data.active };
     if (data.id) {
       const updated = await db
         .from("hotel_rate_categories")
@@ -629,8 +603,7 @@ export const saveRateCategoryCard2 = createServerFn({ method: "POST" })
       if (inserted.error) unavailable(inserted.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_category_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });
@@ -639,7 +612,7 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => planSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const lookups = await Promise.all([
       db
@@ -718,8 +691,7 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
       maxOccupancy:
         (roomType.data as { max_occupancy?: number | null }).max_occupancy == null
           ? null
-          : Number((roomType.data as { max_occupancy?: number | null }).max_occupancy),
-    });
+          : Number((roomType.data as { max_occupancy?: number | null }).max_occupancy) });
     if (occupancyError) throw new Error(occupancyError);
     if (data.mealPlanId && (meal.error || !meal.data)) {
       throw new Error("That meal plan doesn't belong to this property.");
@@ -769,8 +741,7 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
       included_occupancy: data.includedOccupancy ?? null,
       extra_adult_rate: data.extraAdultRate ?? null,
       extra_child_rate: data.extraChildRate ?? null,
-      active: data.active,
-    };
+      active: data.active };
 
     const occupancyConfigured =
       data.includedOccupancy != null || data.extraAdultRate != null || data.extraChildRate != null;
@@ -813,8 +784,7 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
     }
 
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_plan_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });
@@ -823,7 +793,7 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancellationSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const cutoffTime = parseCutoffTime(data.cutoffTime);
     const windowValue = data.policyKind === "non_refundable" ? null : (data.windowValue ?? null);
@@ -839,8 +809,7 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
       penalty_type: data.penaltyType,
       penalty_value: penaltyNeedsValue(data.penaltyType) ? data.penaltyValue : 0,
       deadline_hours: deadlineHoursFromWindow(data.policyKind, windowValue, data.windowUnit),
-      active: data.active,
-    };
+      active: data.active };
     const write = data.id
       ? (body: typeof payload | Record<string, unknown>) =>
           db
@@ -865,8 +834,7 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
       unavailable(result.error);
     }
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_cancellation_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
 
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
@@ -876,7 +844,7 @@ export const saveRateRefundabilityCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => refundabilitySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const payload = {
       restaurant_id: data.restaurantId,
@@ -884,8 +852,7 @@ export const saveRateRefundabilityCard2 = createServerFn({ method: "POST" })
       name: data.name,
       description: data.description?.trim() ? data.description.trim() : null,
       kind: data.kind,
-      active: data.active,
-    };
+      active: data.active };
     const result = data.id
       ? await db
           .from("pms_rate_refundability_codes")
@@ -895,8 +862,7 @@ export const saveRateRefundabilityCard2 = createServerFn({ method: "POST" })
       : await db.from("pms_rate_refundability_codes").insert(payload);
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_refundability_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });
@@ -905,7 +871,7 @@ export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => noShowPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
 
     // Default policy rule: If setting isDefault to true, unset any existing default first
@@ -931,8 +897,7 @@ export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
       penalty_value: penaltyValue,
       release_hour: data.releaseHour,
       is_default: data.isDefault,
-      active: data.active,
-    };
+      active: data.active };
 
     const result = data.id
       ? await db
@@ -945,8 +910,7 @@ export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
     if (result.error) unavailable(result.error);
 
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_no_show_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
 
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
@@ -956,7 +920,7 @@ export const saveRateEarlyDeparturePolicyCard2 = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => earlyDeparturePolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const resolved = resolvedEarlyDeparturePenaltyValue(data.penaltyType, data.penaltyValue);
     if (!resolved.ok) throw new Error(resolved.message);
@@ -967,8 +931,7 @@ export const saveRateEarlyDeparturePolicyCard2 = createServerFn({ method: "POST"
       description: data.description?.trim() ? data.description.trim() : null,
       penalty_type: data.penaltyType,
       penalty_value: resolved.penaltyValue,
-      active: data.active,
-    };
+      active: data.active };
     const result = data.id
       ? await db
           .from("pms_early_departure_policies")
@@ -981,8 +944,7 @@ export const saveRateEarlyDeparturePolicyCard2 = createServerFn({ method: "POST"
     }
     if (result.error) unavailable(result.error);
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_early_departure_saved", {
-      detail: `${data.code} ${data.name}`,
-    });
+      detail: `${data.code} ${data.name}` });
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });
@@ -994,12 +956,11 @@ export const setRateEarlyDeparturePolicyActiveCard2 = createServerFn({ method: "
       .object({
         restaurantId: idSchema,
         id: idSchema,
-        active: z.boolean(),
-      })
+        active: z.boolean() })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_ACTIVATE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const result = await db
       .from("pms_early_departure_policies")

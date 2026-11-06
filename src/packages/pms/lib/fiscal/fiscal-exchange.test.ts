@@ -53,7 +53,8 @@ describe("fiscal exchange authorization", () => {
     assert.match(manage, /"manager"/);
     assert.equal(manage.includes("cashier"), false);
     assert.equal(manage.includes("accountant"), false);
-    assert.match(handler(), /requireCashierManager/);
+    // Exchange reads use fiscal.view. Role arrays no longer authorize this handler.
+    assert.match(handler(), /FISCAL_VIEW/);
     assert.equal(handler().includes("requireCashieringAccess"), false);
     assert.equal(handler().includes("logActivity"), false);
   });

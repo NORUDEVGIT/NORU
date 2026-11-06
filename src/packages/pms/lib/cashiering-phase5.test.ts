@@ -56,8 +56,9 @@ describe("Cashiering Phase 5 refunds and authorization", () => {
       poster.indexOf("export const postFolioEntry"),
       poster.indexOf("export const closeFolio"),
     );
-    assert.match(entry, /requireCashierManager/);
-    assert.match(entry, /data\.type === "payment" \|\| data\.type === "deposit"/);
+    assert.match(entry, /CASHIERING_PAYMENT_POST/);
+    assert.match(entry, /CASHIERING_DEPOSIT_POST/);
+    assert.match(entry, /CASHIERING_REFUND/);
     assert.match(entry, /remainingOnPaymentSource/);
     assert.match(entry, /membershipId: me\.id/);
     assert.doesNotMatch(entry, /\.update\(/);

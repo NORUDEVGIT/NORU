@@ -135,7 +135,7 @@ export function GuestListingWorkspace({
       >
         <h2 className="font-display text-xl">Access Restricted</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Only owners, managers and receptionists can access guest profiles for this property.
+          You don't have permission to open guest profiles for this property.
         </p>
       </div>
     );

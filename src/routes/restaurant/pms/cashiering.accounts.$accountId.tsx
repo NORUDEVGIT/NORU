@@ -3,6 +3,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 import { AccountInvoicePage } from "@/packages/pms/components/cashiering/account-invoice-page";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_ACCOUNT_ROUTE_PERMISSIONS } from "@/packages/pms/lib/pms-client-access";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/restaurant/pms/cashiering/accounts/$accountId")({
@@ -52,6 +54,7 @@ function AccountInvoiceRoute() {
       hideTopHeader
     >
       {(membership) => (
+        <PmsRouteGate restaurantId={membership.restaurantId} allowAny={PMS_ACCOUNT_ROUTE_PERMISSIONS}>
         <AccountInvoicePage
           membership={membership}
           accountId={accountId}
@@ -63,6 +66,7 @@ function AccountInvoiceRoute() {
           returnTo={search.returnTo}
           returnToLabel={search.returnToLabel}
         />
+        </PmsRouteGate>
       )}
     </RestaurantShell>
   );

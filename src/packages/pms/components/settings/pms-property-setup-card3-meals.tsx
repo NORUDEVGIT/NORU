@@ -900,86 +900,49 @@ function ActiveField({
 
 
 
-function MealPlanSheet({
-
+export function MealPlanSheet({
   open,
-
   canEdit,
-
   value,
-
   pending,
-
+  className,
   onClose,
-
   onSave,
-
 }: {
-
   open: boolean;
-
   canEdit: boolean;
-
   value: MealPlanCard3Row | null;
-
   pending: boolean;
-
+  className?: string;
   onClose: () => void;
-
   onSave: (payload: {
-
     id?: string;
-
     code: string;
-
     name: string;
-
     type: MealPlanType;
-
     description?: string;
-
     includesBreakfast: boolean;
-
     includesLunch: boolean;
-
     includesDinner: boolean;
-
     taxPosture: TaxPosture;
-
     active: boolean;
-
   }) => void;
-
 }) {
-
   const [code, setCode] = useState(value?.code ?? "");
-
   const [name, setName] = useState(value?.name ?? "");
-
   const [type, setType] = useState<MealPlanType>(value?.type ?? "breakfast");
-
   const [description, setDescription] = useState(value?.description ?? "");
-
   const [breakfast, setBreakfast] = useState(value?.includesBreakfast ?? true);
-
   const [lunch, setLunch] = useState(value?.includesLunch ?? false);
-
   const [dinner, setDinner] = useState(value?.includesDinner ?? false);
-
   const [taxPosture, setTaxPosture] = useState<TaxPosture>(value?.taxPosture ?? "inherit");
-
   const [active, setActive] = useState(value?.active ?? true);
 
-
-
   return (
-
     <Card3OverlapSheet
-
       open={open}
-
       onClose={onClose}
-
+      className={className}
       title={value ? "Edit meal plan" : "Add meal plan"}
 
       description="Configure a typed meal plan for this property."
@@ -1084,7 +1047,7 @@ function MealPlanSheet({
 
             </SelectTrigger>
 
-            <SelectContent>
+            <SelectContent className="z-[100]">
 
               {MEAL_PLAN_TYPES.map((row) => (
 
@@ -1180,7 +1143,7 @@ function MealPlanSheet({
 
             </SelectTrigger>
 
-            <SelectContent>
+            <SelectContent className="z-[100]">
 
               {TAX_POSTURES.map((row) => (
 

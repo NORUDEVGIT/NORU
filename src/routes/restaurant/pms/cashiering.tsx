@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { CashieringWorkspace } from "@/packages/pms/components/workspaces/cashiering-workspace";
+import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { supabase } from "@/integrations/supabase/client";
 import { requireRoutePackage } from "@/core/lib/route-package-guard";
 
@@ -97,7 +99,11 @@ function CashieringPmsRoute() {
       hidePackageRail
       hideTopHeader
     >
-      {(m) => <CashieringWorkspace membership={m} search={search} />}
+      {(m) => (
+        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.CASHIERING_VIEW}>
+          <CashieringWorkspace membership={m} search={search} />
+        </PmsRouteGate>
+      )}
     </RestaurantShell>
   );
 }

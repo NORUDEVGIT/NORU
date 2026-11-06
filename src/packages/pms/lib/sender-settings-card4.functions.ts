@@ -1,3 +1,5 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -12,11 +14,9 @@ import {
   validateConnectionTest,
   type CommunicationChannelRecord,
   type CommunicationChannelType,
-  type CommunicationProviderConfig,
-} from "./communication-channels-card4.server";
+  type CommunicationProviderConfig } from "./communication-channels-card4.server";
 import { INTEGRATION_AUTH_METHODS } from "./integrations-catalog";
 import { SECRET_KEY_PATTERN } from "./integrations-card6.server";
-import { requireRoomManager } from "./rooms.server";
 import { type SenderSettingsRecord, type SenderSettingsSnapshot } from "./sender-settings-card4.server";
 
 // Generated schema predates 0093.
@@ -46,8 +46,7 @@ const saveSchema = z
     replyToEmail: z.string().trim().max(254),
     signature: z.string().max(4000),
     providerConfig: providerConfigSchema,
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .strict();
 
 const SENDER_SELECT =
@@ -115,8 +114,7 @@ function mapSetting(row: {
     providerConfig,
     active: row.active,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -131,8 +129,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-sender-settings", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-sender-settings", ...metadata } as unknown as Json });
   if (result.error) {
     console.error("[card4-sender-settings] audit", redactSecrets(result.error.message));
   }
@@ -197,8 +194,7 @@ async function loadSnapshot(
           row.provider,
           mapSetting(row).providerConfig,
         ),
-        active: row.active,
-      })),
+        active: row.active })),
     );
     if (inserted.error && inserted.error.code !== "23505") unavailable(inserted.error);
     settingsResult = await loadSettingRows(db, restaurantId);
@@ -249,15 +245,14 @@ function nonSecretPayload(data: z.infer<typeof saveSchema>, userId: string) {
     signature: data.signature.trim() || null,
     provider_config: providerConfig as unknown as Json,
     active: data.active,
-    updated_by: userId,
-  };
+    updated_by: userId };
 }
 
 export const getPmsCard4SenderSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -266,7 +261,7 @@ export const savePmsCard4SenderSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -289,8 +284,7 @@ export const savePmsCard4SenderSettings = createServerFn({ method: "POST" })
       replyToEmail: data.channelType === "email" ? data.replyToEmail : "",
       signature: data.signature,
       providerValues: providerConfig,
-      active: data.active,
-    };
+      active: data.active };
     const errors = validateCommunicationChannelDraft(draft, snapshot.settings);
     if (errors.length > 0) {
       throw new Error(redactSecrets(errors[0]?.message ?? "Fix sender settings before saving."));
@@ -329,8 +323,7 @@ export const savePmsCard4SenderSettings = createServerFn({ method: "POST" })
         signature: payload.signature,
         provider_config: payload.provider_config,
         active: payload.active,
-        updated_by: context.userId,
-      })
+        updated_by: context.userId })
       .eq("restaurant_id", data.restaurantId)
       .eq("channel_type", data.channelType)
       .select("id")
@@ -344,8 +337,7 @@ export const savePmsCard4SenderSettings = createServerFn({ method: "POST" })
       id,
       channelType: data.channelType,
       provider: data.provider,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const, id };
   });
 
@@ -356,13 +348,12 @@ export const setPmsCard4SenderSettingsActive = createServerFn({ method: "POST" }
       .object({
         restaurantId: idSchema,
         id: idSchema,
-        active: z.boolean(),
-      })
+        active: z.boolean() })
       .strict()
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const existing = await requireOwnSetting(db, data.restaurantId, data.id);
@@ -397,8 +388,7 @@ export const setPmsCard4SenderSettingsActive = createServerFn({ method: "POST" }
     if (channelUpdate.error) unavailable(channelUpdate.error);
     await writeAudit(db, data.restaurantId, context.userId, "pms_card4_sender_settings_toggled", {
       id: data.id,
-      active: data.active,
-    });
+      active: data.active });
     return { ok: true as const };
   });
 
@@ -412,7 +402,7 @@ export const testPmsCard4SenderSettings = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const outcome = validateConnectionTest({
       id: null,
       channelType: data.channelType,
@@ -423,8 +413,7 @@ export const testPmsCard4SenderSettings = createServerFn({ method: "POST" })
       replyToEmail: data.replyToEmail,
       signature: data.signature,
       providerValues: data.sessionValues,
-      active: true,
-    });
+      active: true });
     return outcome;
   });
 

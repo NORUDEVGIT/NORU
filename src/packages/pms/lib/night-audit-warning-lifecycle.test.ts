@@ -153,7 +153,7 @@ describe("Night Audit Warning Review Lifecycle & 8-Step Workspace", () => {
 
   it("5. Authorized auditor can mark warning reviewed", () => {
     assert.match(functions, /reviewWarning = createServerFn/);
-    assert.match(functions, /requireCashierManager/);
+    assert.match(functions, /NIGHT_AUDIT_EXCEPTION_EDIT/);
     assert.match(migration, /CREATE TABLE public\.night_audit_warning_reviews/);
   });
 
@@ -268,7 +268,7 @@ describe("Night Audit Warning Review Lifecycle & 8-Step Workspace", () => {
   });
 
   it("15. Unauthorized user cannot review warning", () => {
-    assert.match(functions, /requireCashierManager/);
+    assert.match(functions, /NIGHT_AUDIT_EXCEPTION_EDIT/);
   });
 
   it("16. Fiscal blocker cannot use Mark Reviewed", () => {

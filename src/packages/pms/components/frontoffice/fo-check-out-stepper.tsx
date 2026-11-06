@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -98,6 +102,7 @@ export function FoCheckOutStepper({
   initialReservationRoomId?: string;
 }) {
   const queryClient = useQueryClient();
+  const permissions = usePmsPermissions(restaurantId);
   const money = useMoney();
   const [step, setStep] = useState<CheckOutStepId>("stay");
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -346,7 +351,10 @@ export function FoCheckOutStepper({
   useEffect(() => {
     if (!tenders.some((row) => row.code === payMethod)) setPayMethod(tenders[0]?.code ?? "");
   }, [payMethod, tenders]);
-  const canPostPay = paymentAmountAllowed(payValue, remaining) && Boolean(payMethod);
+  const canPostPay =
+    paymentAmountAllowed(payValue, remaining) &&
+    Boolean(payMethod) &&
+    permissions.can(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST);
   const overrideKind = overrideKindForBalance(balance);
   const continueDisabled =
     (step === "stay" && (!stayOk || (multiRoom && !reservationRoomId))) ||

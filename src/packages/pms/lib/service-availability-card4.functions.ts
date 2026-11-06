@@ -1,17 +1,17 @@
+import { requirePmsActor } from "./pms-permissions.server";
+import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
-import { requireRoomManager } from "./rooms.server";
 import type { ServiceCategoryRecord } from "./service-categories-card4.server";
 import {
   normalizeWeeklySchedule,
   parseWeeklySchedule,
   validateServiceAvailabilityDraft,
   type ServiceAvailabilityRecord,
-  type ServiceAvailabilitySnapshot,
-} from "./service-availability-card4.server";
+  type ServiceAvailabilitySnapshot } from "./service-availability-card4.server";
 import type { ServiceTypeRecord } from "./service-types-card4.server";
 
 // Generated schema predates 0088.
@@ -25,8 +25,7 @@ const saveSchema = z
     id: idSchema.optional(),
     serviceTypeId: idSchema,
     weeklySchedule: z.unknown(),
-    active: z.boolean(),
-  })
+    active: z.boolean() })
   .strict();
 
 function unavailable(error: { code?: string; message?: string } | null): never {
@@ -54,8 +53,7 @@ function mapCategory(row: {
     active: row.active,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapServiceType(row: {
@@ -79,8 +77,7 @@ function mapServiceType(row: {
     chargeableToFolio: false,
     displayOrder: row.display_order,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 function mapAvailability(row: {
@@ -97,8 +94,7 @@ function mapAvailability(row: {
     weeklySchedule: parseWeeklySchedule(row.weekly_schedule),
     active: row.active,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+    updatedAt: row.updated_at };
 }
 
 async function writeAudit(
@@ -113,8 +109,7 @@ async function writeAudit(
     actor_user_id: userId,
     target_user_id: userId,
     action,
-    metadata: { section: "card4-service-availability", ...metadata } as unknown as Json,
-  });
+    metadata: { section: "card4-service-availability", ...metadata } as unknown as Json });
   if (result.error) {
     console.error("[card4-service-availability] audit", result.error.message);
   }
@@ -165,8 +160,7 @@ async function loadSnapshot(
     serviceTypes,
     availability,
     timezone: String(propertyRes.data.timezone ?? "UTC"),
-    lastUpdatedAt,
-  };
+    lastUpdatedAt };
 }
 
 export { loadSnapshot as loadServiceAvailabilityCard4Snapshot };
@@ -175,7 +169,7 @@ export const getPmsCard4ServiceAvailability = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).strict().parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadSnapshot(supabaseAdmin, data.restaurantId);
   });
@@ -184,7 +178,7 @@ export const savePmsCard4ServiceAvailability = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const snapshot = await loadSnapshot(db, data.restaurantId);
@@ -194,8 +188,7 @@ export const savePmsCard4ServiceAvailability = createServerFn({ method: "POST" }
         id: data.id ?? null,
         serviceTypeId: data.serviceTypeId,
         weeklySchedule,
-        active: data.active,
-      },
+        active: data.active },
       snapshot.availability,
       snapshot.serviceTypes,
     );
@@ -208,8 +201,7 @@ export const savePmsCard4ServiceAvailability = createServerFn({ method: "POST" }
       service_type_id: data.serviceTypeId,
       weekly_schedule: weeklySchedule as unknown as Json,
       active: data.active,
-      updated_by: context.userId,
-    };
+      updated_by: context.userId };
     const result = data.id
       ? await db
           .from("pms_guest_service_availability")
@@ -247,7 +239,7 @@ export const setPmsCard4ServiceAvailabilityActive = createServerFn({ method: "PO
     z.object({ restaurantId: idSchema, id: idSchema, active: z.boolean() }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
@@ -275,7 +267,7 @@ export const deletePmsCard4ServiceAvailability = createServerFn({ method: "POST"
     z.object({ restaurantId: idSchema, id: idSchema }).strict().parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireRoomManager(context as never, data.restaurantId);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const result = await db
