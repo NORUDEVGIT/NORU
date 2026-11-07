@@ -492,6 +492,7 @@ export type CashieringActionGrants = {
   adjustment: boolean;
   close: boolean;
   transfer: boolean;
+  writeOff?: boolean;
 };
 
 const CashieringGrantContext = createContext<CashieringActionGrants | null>(null);
@@ -902,7 +903,7 @@ export function CashieringDesk({
         <AccountsPanel
           restaurantId={restaurantId}
           canManage={canManage}
-          canWriteOff={grants ? grants.writeOff : canManage}
+          canWriteOff={grants ? (grants.writeOff ?? canManage) : canManage}
           canCloseAccount={grants ? grants.close : canManage}
           money={money}
         />

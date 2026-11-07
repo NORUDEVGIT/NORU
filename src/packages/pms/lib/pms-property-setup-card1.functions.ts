@@ -124,7 +124,7 @@ const draftSchema = z.object({
   ]),
   openingDate: z.string().trim().max(10).optional().nullable(),
   defaultLanguage: z.string().trim().max(16).optional().nullable(),
-  shortDescription: z.string().trim().max(500).optional().nullable(),
+  shortDescription: z.string().trim().max(2000).optional().nullable(),
   timezone: z.string().trim().min(1).max(64),
   currencyCode: z.string().trim().length(3),
   logoUrl: z.string().trim().max(2000).optional().nullable(),

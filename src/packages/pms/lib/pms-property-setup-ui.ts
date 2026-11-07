@@ -30,8 +30,8 @@ export const PROPERTY_SETUP_STATUS_WEIGHTS = {
   not_started: 0,
 } as const;
 
-export const PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX = 80;
-export const PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX = 500;
+export const PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX = 2000;
+export const PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX = PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX;
 
 export function propertySetupStatusesPercent(statuses: readonly PropertySetupCardStatus[]): number {
   if (statuses.length === 0) return 0;
@@ -52,17 +52,13 @@ export function propertySetupRailCounts(statuses: readonly PropertySetupCardStat
 }
 
 export function isShortDescriptionOverLimit(value: string): boolean {
-  return value.length > PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX;
+  return value.length > PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX;
 }
 
-/** Keep previous text when new input would exceed the 80-character UI gate. Legacy over-limit values can only shrink. */
+/** Accept multiline short description input up to the reasonable storage safeguard limit. */
 export function acceptShortDescriptionInput(previous: string, next: string): string {
-  if (next.length <= previous.length) {
-    return next.length > PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX
-      ? next.slice(0, PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX)
-      : next;
+  if (next.length > PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX) {
+    return next.slice(0, PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX);
   }
-  if (next.length > PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX) return previous;
-  if (next.length > PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX) return previous;
   return next;
 }

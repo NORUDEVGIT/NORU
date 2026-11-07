@@ -170,7 +170,7 @@ export function PmsPropertySetupCard1Section({
 
   function saveMode(mode: "draft" | "continue" | "finish") {
     if (isShortDescriptionOverLimit(draft.shortDescription)) {
-      toast.error("Short description must be 80 characters or fewer.");
+      toast.error("Short description must be 2,000 characters or fewer.");
       return;
     }
     if (mode === "continue" && step === "identity") {

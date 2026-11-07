@@ -438,17 +438,18 @@ export function IdentityStep({
                 icon="document"
                 error={
                   isShortDescriptionOverLimit(draft.shortDescription)
-                    ? "Reduce to 80 characters before saving."
+                    ? "Reduce to 2,000 characters before saving."
                     : undefined
                 }
               >
                 <Textarea
                   id="card1-short-description"
-                  rows={2}
+                  rows={3}
                   value={draft.shortDescription}
                   disabled={!canEdit}
                   aria-invalid={isShortDescriptionOverLimit(draft.shortDescription)}
-                  className={PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS}
+                  className={cn(PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS, "min-h-[4.5rem]")}
+                  placeholder="Enter property description or overview..."
                   onChange={(event) =>
                     setDraft((p) => ({
                       ...p,
@@ -459,12 +460,6 @@ export function IdentityStep({
                     }))
                   }
                 />
-                <p
-                  className="mt-1 text-right text-xs text-muted-foreground"
-                  data-testid="card1-short-description-counter"
-                >
-                  {draft.shortDescription.length} / {PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX}
-                </p>
               </PropertySetupField>
               <ToggleRow
                 id="card1-independent"
