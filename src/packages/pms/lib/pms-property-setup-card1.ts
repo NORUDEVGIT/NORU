@@ -1593,7 +1593,7 @@ export function card1BusinessDateSubstepComplete(draft: Card1Draft): boolean {
 
 export function card1TaxSubstepComplete(draft: Card1Draft): boolean {
   if (!draft.vatRegistered) return true;
-  return hasVatCertificate(draft.taxUploadRefs);
+  return Boolean(draft.vatNumber.trim()) && hasVatCertificate(draft.taxUploadRefs);
 }
 
 export function card1StepComplete(
@@ -1772,8 +1772,13 @@ export function liveBlockPreview(
 
 export function card1TaxWarnings(draft: Card1Draft): string[] {
   const warnings: string[] = [];
-  if (vatCertificateRequired(draft.vatRegistered) && !hasVatCertificate(draft.taxUploadRefs)) {
-    warnings.push("VAT certificate is required while VAT Registered is On.");
+  if (vatCertificateRequired(draft.vatRegistered)) {
+    if (!draft.vatNumber.trim()) {
+      warnings.push("VAT number is required while VAT Registered is On.");
+    }
+    if (!hasVatCertificate(draft.taxUploadRefs)) {
+      warnings.push("VAT certificate is required while VAT Registered is On.");
+    }
   }
   return warnings;
 }

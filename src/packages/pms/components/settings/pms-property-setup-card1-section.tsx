@@ -30,6 +30,7 @@ import {
   evaluateCard1Status,
   evaluateCard1StepStatus,
   finishLabel,
+  hasVatCertificate,
   loadCard1SessionDraft,
   nextCard1Step,
   previousCard1Step,
@@ -313,6 +314,16 @@ export function PmsPropertySetupCard1Section({
       const nextErrors = validateAddressFields(draft);
       setAddressErrors(nextErrors);
       if (Object.keys(nextErrors).length > 0) return;
+    }
+    if ((mode === "continue" || mode === "finish") && step === "legal" && draft.vatRegistered) {
+      if (!draft.vatNumber.trim()) {
+        toast.error("VAT number is required while VAT Registered is On.");
+        return;
+      }
+      if (!hasVatCertificate(draft.taxUploadRefs)) {
+        toast.error("VAT certificate is required while VAT Registered is On.");
+        return;
+      }
     }
     mutation.mutate(mode);
   }

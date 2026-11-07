@@ -1826,15 +1826,6 @@ export function LegalStep({
             onChange={(legalEntityName) => setDraft((p) => ({ ...p, legalEntityName }))}
           />
           <Field
-            id="card1-ownership"
-            label="Ownership Type"
-            value={draft.legalExtras.ownershipType}
-            disabled={!canEdit}
-            onChange={(ownershipType) =>
-              setDraft((p) => ({ ...p, legalExtras: { ...p.legalExtras, ownershipType } }))
-            }
-          />
-          <Field
             id="card1-incorp"
             label="Date of Incorporation"
             type="date"
@@ -1908,13 +1899,16 @@ export function LegalStep({
           onChange={(vatRegistered) => setDraft((p) => ({ ...p, vatRegistered }))}
         />
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field
-            id="card1-vat-number"
-            label="VAT number"
-            value={draft.vatNumber}
-            disabled={!canEdit}
-            onChange={(vatNumber) => setDraft((p) => ({ ...p, vatNumber }))}
-          />
+          {draft.vatRegistered ? (
+            <Field
+              id="card1-vat-number"
+              label="VAT number"
+              required
+              value={draft.vatNumber}
+              disabled={!canEdit}
+              onChange={(vatNumber) => setDraft((p) => ({ ...p, vatNumber }))}
+            />
+          ) : null}
           <Field
             id="card1-tin"
             label="TIN"

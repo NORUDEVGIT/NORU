@@ -251,12 +251,15 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(hasVatCertificate([{ name: "tin.pdf", kind: "tin" }]), false);
     assert.deepEqual(card1TaxWarnings(emptyCard1Draft({ vatRegistered: false })), []);
     assert.ok(
-      card1TaxWarnings(emptyCard1Draft({ vatRegistered: true }))[0]?.includes("VAT certificate"),
+      card1TaxWarnings(emptyCard1Draft({ vatRegistered: true })).some((w) =>
+        w.includes("VAT certificate"),
+      ),
     );
     assert.deepEqual(
       card1TaxWarnings(
         emptyCard1Draft({
           vatRegistered: true,
+          vatNumber: "123456789",
           taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
         }),
       ),
@@ -822,6 +825,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
         emptyCard1Draft({
           legalName: "Harbour House PLC",
           vatRegistered: true,
+          vatNumber: "123456789",
           taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
         }),
       ),

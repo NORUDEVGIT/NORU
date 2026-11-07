@@ -21,6 +21,12 @@ import {
   getCard1StorageKey,
   CARD1_STORAGE_KEY_PREFIX,
   parseLocationExtras,
+  card1StepComplete,
+  card1TaxWarnings,
+  card1TaxSubstepComplete,
+  parseLegalExtras,
+  vatCertificateRequired,
+  hasVatCertificate,
 } from "./pms-property-setup-card1";
 import {
   isValidLatitude,
@@ -842,6 +848,150 @@ describe("Property Configuration Corrections (Card 1 Step 1)", () => {
       assert.match(fnFile, /\.not\("closed_at", "is", null\)/);
       assert.match(fnFile, /\.order\("business_date", \{ ascending: false \}\)/);
       assert.match(fnFile, /\.order\("closed_at", \{ ascending: false \}\)/);
+    });
+  });
+
+  describe("Settings Card 1 Step 4: Legal & Tax Configuration Corrections", () => {
+    const stepsFile = readFileSync(
+      new URL("../components/settings/pms-property-setup-card1-steps.tsx", import.meta.url),
+      "utf8",
+    );
+    const sectionFile = readFileSync(
+      new URL("../components/settings/pms-property-setup-card1-section.tsx", import.meta.url),
+      "utf8",
+    );
+    const fnFile = readFileSync(
+      new URL("./pms-property-setup-card1.functions.ts", import.meta.url),
+      "utf8",
+    );
+
+    it("removes redundant Ownership Type from the Step 4 UI while preserving Legal Entity Type", () => {
+      // Ownership Type field is absent from Step 4 UI
+      assert.doesNotMatch(stepsFile, /id="card1-ownership"/);
+      assert.doesNotMatch(stepsFile, /label="Ownership Type"/);
+
+      // Legal Entity Type selector remains present and functional
+      assert.match(stepsFile, /id="card1-entity-type"/);
+      assert.match(stepsFile, /<Label htmlFor="card1-entity-type">Entity type<\/Label>/);
+      assert.match(stepsFile, /LEGAL_ENTITY_TYPES/);
+      assert.match(stepsFile, /LEGAL_ENTITY_TYPE_LABELS/);
+
+      // Registered Company Name, Legal entity name, Incorporation date, and Registration number remain
+      assert.match(stepsFile, /id="card1-legal-name"/);
+      assert.match(stepsFile, /id="card1-legal-entity"/);
+      assert.match(stepsFile, /id="card1-incorp"/);
+      assert.match(stepsFile, /id="card1-reg"/);
+    });
+
+    it("preserves stored ownershipType values in legalExtras for backward compatibility", () => {
+      // parseLegalExtras preserves existing database values
+      const parsed = parseLegalExtras({
+        ownershipType: "Sole Proprietorship",
+        incorporationDate: "2021-05-10",
+      });
+      assert.equal(parsed.ownershipType, "Sole Proprietorship");
+      assert.equal(parsed.incorporationDate, "2021-05-10");
+
+      // Card 1 save patch preserves legal_extras from draft
+      assert.match(fnFile, /patch\.legal_extras = draft\.legalExtras as unknown as Json;/);
+
+      // Card 1 draft schema permits existing ownershipType values without failing validation
+      const sampleDraft = emptyCard1Draft({
+        name: "Test Hotel",
+        legalExtras: { ownershipType: "Corporation", incorporationDate: "2019-01-01" },
+      });
+      assert.equal(sampleDraft.legalExtras.ownershipType, "Corporation");
+    });
+
+    it("hides VAT Number and VAT certificate when VAT Registered is OFF and does not require VAT Number for completion", () => {
+      // UI conditionally renders VAT Number only when draft.vatRegistered is true
+      assert.match(stepsFile, /\{draft\.vatRegistered \?\s*\(\s*<Field\s+id="card1-vat-number"/);
+
+      // UI conditionally renders VAT certificate only when vatCertificateRequired is true
+      assert.match(stepsFile, /\{vatCertificateRequired\(draft\.vatRegistered\) \?\s*\(\s*<UploadRefs/);
+
+      // When vatRegistered is false:
+      const offDraft = emptyCard1Draft({
+        legalName: "Bole Grand Hotel PLC",
+        vatRegistered: false,
+        vatNumber: "",
+        taxUploadRefs: [],
+      });
+
+      // No tax warnings produced
+      assert.deepEqual(card1TaxWarnings(offDraft), []);
+
+      // Tax substep is complete even without VAT number or VAT certificate
+      assert.equal(card1TaxSubstepComplete(offDraft), true);
+      assert.equal(card1StepComplete("legal", offDraft), true);
+    });
+
+    it("displays VAT Number and VAT certificate when VAT Registered is ON and requires valid VAT Number for completion", () => {
+      // Missing VAT number when vatRegistered is ON:
+      const missingVatDraft = emptyCard1Draft({
+        legalName: "Bole Grand Hotel PLC",
+        vatRegistered: true,
+        vatNumber: "",
+        taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
+      });
+
+      // Warning emitted
+      const warnings = card1TaxWarnings(missingVatDraft);
+      assert.ok(warnings.some((w) => w.includes("VAT number is required while VAT Registered is On.")));
+
+      // Step completion blocked
+      assert.equal(card1TaxSubstepComplete(missingVatDraft), false);
+      assert.equal(card1StepComplete("legal", missingVatDraft), false);
+
+      // Missing VAT certificate when vatRegistered is ON:
+      const missingDocDraft = emptyCard1Draft({
+        legalName: "Bole Grand Hotel PLC",
+        vatRegistered: true,
+        vatNumber: "123456789",
+        taxUploadRefs: [],
+      });
+      assert.equal(card1TaxSubstepComplete(missingDocDraft), false);
+      assert.equal(card1StepComplete("legal", missingDocDraft), false);
+
+      // Fully valid VAT setup:
+      const validVatDraft = emptyCard1Draft({
+        legalName: "Bole Grand Hotel PLC",
+        vatRegistered: true,
+        vatNumber: "123456789",
+        taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
+      });
+      assert.deepEqual(card1TaxWarnings(validVatDraft), []);
+      assert.equal(card1TaxSubstepComplete(validVatDraft), true);
+      assert.equal(card1StepComplete("legal", validVatDraft), true);
+    });
+
+    it("preserves entered VAT Number when toggling VAT Registered OFF and restores it when toggling back ON", () => {
+      let draft = emptyCard1Draft({
+        vatRegistered: true,
+        vatNumber: "ET-VAT-987654",
+      });
+
+      // User toggles VAT Registered OFF in the UI
+      draft = { ...draft, vatRegistered: false };
+      // Stored value remains intact in draft state
+      assert.equal(draft.vatNumber, "ET-VAT-987654");
+
+      // User toggles VAT Registered back ON
+      draft = { ...draft, vatRegistered: true };
+      // Value is restored and visible
+      assert.equal(draft.vatNumber, "ET-VAT-987654");
+    });
+
+    it("validates VAT requirements on frontend continue and server-side save", () => {
+      // Frontend step validation toast in pms-property-setup-card1-section.tsx
+      assert.match(sectionFile, /step === "legal" && draft\.vatRegistered/);
+      assert.match(sectionFile, /toast\.error\("VAT number is required while VAT Registered is On\."\)/);
+      assert.match(sectionFile, /toast\.error\("VAT certificate is required while VAT Registered is On\."\)/);
+
+      // Server-side save validation in pms-property-setup-card1.functions.ts
+      assert.match(fnFile, /vatCertificateRequired\(draft\.vatRegistered\)/);
+      assert.match(fnFile, /throw new Error\("VAT number is required while VAT Registered is On\."\)/);
+      assert.match(fnFile, /throw new Error\("VAT certificate is required while VAT Registered is On\."\)/);
     });
   });
 });

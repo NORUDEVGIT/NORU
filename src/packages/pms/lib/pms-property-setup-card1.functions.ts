@@ -984,10 +984,14 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
     if (nightAuditWindowProblem) throw new Error(nightAuditWindowProblem);
     if (
       data.mode !== "draft" &&
-      vatCertificateRequired(draft.vatRegistered) &&
-      !hasVatCertificate(draft.taxUploadRefs)
+      vatCertificateRequired(draft.vatRegistered)
     ) {
-      throw new Error("VAT certificate is required while VAT Registered is On.");
+      if (!draft.vatNumber.trim()) {
+        throw new Error("VAT number is required while VAT Registered is On.");
+      }
+      if (!hasVatCertificate(draft.taxUploadRefs)) {
+        throw new Error("VAT certificate is required while VAT Registered is On.");
+      }
     }
 
     const set2Before = await loadSet2Snapshot(supabaseAdmin, data.restaurantId);
