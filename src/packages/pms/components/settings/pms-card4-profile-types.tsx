@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Plus, Building, SlidersHorizontal } from "lucide-react";
+import { MoreHorizontal, Plus, Building, SlidersHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -59,7 +65,6 @@ import {
 import {
   PROFILE_TYPE_COMMUNICATION,
   PROFILE_TYPE_CURRENCIES,
-  PROFILE_TYPE_ICONS,
   PROFILE_TYPE_LANGUAGES,
   emptyProfileTypeDraft,
   normalizeProfileTypeCode,
@@ -130,6 +135,22 @@ function recordToDraft(row: ProfileTypeRecord): ProfileTypeDraft {
 function toggleId(list: string[], id: string, on: boolean): string[] {
   if (on) return list.includes(id) ? list : [...list, id];
   return list.filter((item) => item !== id);
+}
+
+function profileKind(row: { code: string; name: string }): "company" | "travel" | "guest" {
+  const code = row.code.toUpperCase();
+  const name = row.name.toLowerCase();
+  if (code === "COM" || code === "COMPANY" || name.includes("company")) return "company";
+  if (
+    code === "TRA" ||
+    code === "TRAVEL_AGENCY" ||
+    code === "TRAVEL_AGENT" ||
+    name.includes("travel agency") ||
+    name.includes("travel agent")
+  ) {
+    return "travel";
+  }
+  return "guest";
 }
 
 export type ProfileTypeTabId =
@@ -205,6 +226,9 @@ export function PmsCard4ProfileTypes({
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ProfileTypeRecord | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
+  const [pendingTab, setPendingTab] = useState<ProfileTypeTabId | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [pendingClose, setPendingClose] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTypeTabId>(initialTab);
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
@@ -414,6 +438,31 @@ export function PmsCard4ProfileTypes({
     applyRecord(row);
   }
 
+  function openEditor(id: string, tab: ProfileTypeTabId) {
+    if (dirty && selectedId && selectedId !== id) {
+      setPendingSwitch(id);
+      setPendingTab(tab);
+      return;
+    }
+    if (!dirty || selectedId === id) {
+      if (selectedId !== id) {
+        const row = types.find((item) => item.id === id) ?? null;
+        applyRecord(row);
+      }
+      setActiveTab(tab);
+      onTabChange?.(tab);
+      setEditorOpen(true);
+    }
+  }
+
+  function closeEditor() {
+    if (dirty) {
+      setPendingClose(true);
+      return;
+    }
+    setEditorOpen(false);
+  }
+
   function mark<K extends keyof ProfileTypeDraft>(key: K, value: ProfileTypeDraft[K]) {
     setDraft((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
@@ -604,23 +653,11 @@ export function PmsCard4ProfileTypes({
     saveMutation.mutate();
   }, [saveRequest, canEdit, errors, saveMutation]);
 
-  const configuredCount = types.length;
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-profile-types">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">Profile Types</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Profile types are system-defined. Configure which supported profile types are active and which fields, documents, preferences, and defaults apply to each.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-3" data-testid="card4-profile-types">
+      <h2 className="font-display text-lg text-[#251605]">Profile Types</h2>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-x-auto overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading profile types…</p>
         ) : query.isError ? (
@@ -643,89 +680,136 @@ export function PmsCard4ProfileTypes({
                 <TableHead>Code</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Active</TableHead>
-                <TableHead className="w-12" />
+                <TableHead className="w-12 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {types.map((row) => (
+              {types.map((row) => {
+                const kind = profileKind(row);
+                return (
                 <TableRow
                   key={row.id}
-                  className={cn(
-                    "cursor-pointer transition-colors hover:bg-[#FAF8F5]/80",
-                    row.id === selectedId && "bg-[#F7F4EE]/60",
-                  )}
-                  onClick={() => requestSelect(row.id)}
+                  className="hover:bg-[#FAF8F5]/80"
                 >
-                  <TableCell className="font-medium text-[#251605]">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        requestSelect(row.id);
-                      }}
-                      className="text-left hover:underline font-medium"
-                    >
-                      {row.name}
-                    </button>
+                  <TableCell className="py-2 font-medium text-[#251605]">
+                    {row.name}
                   </TableCell>
-                  <TableCell>{row.code}</TableCell>
-                  <TableCell className="max-w-md text-muted-foreground truncate">
+                  <TableCell className="py-2">{row.code}</TableCell>
+                  <TableCell className="max-w-[16rem] truncate py-2 text-muted-foreground">
                     {row.description || "—"}
                   </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="py-2">
                     <Switch
                       checked={row.active}
                       disabled={!canEdit || toggleMutation.isPending}
                       onCheckedChange={(active) => toggleMutation.mutate({ id: row.id, active })}
                     />
                   </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="py-2 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label={`Actions for ${row.name}`}
+                        >
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => requestSelect(row.id)}>
-                          Edit
+                      <DropdownMenuContent align="end" className="w-52 border-[#DDD4C5]">
+                        <DropdownMenuItem onSelect={() => openEditor(row.id, "general")}>
+                          Edit Profile Type
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => openEditor(row.id, "fields")}>
+                          Configure Fields
+                        </DropdownMenuItem>
+                        {kind === "guest" ? (
+                          <>
+                            <DropdownMenuItem onSelect={() => openEditor(row.id, "documents")}>
+                              Identity Documents
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openEditor(row.id, "preferences")}>
+                              Preferences
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+                        {kind === "company" ? (
+                          <>
+                            <DropdownMenuItem onSelect={() => openEditor(row.id, "billing")}>
+                              Billing & Credit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openEditor(row.id, "contracts")}>
+                              Contracts & Agreements
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+                        {kind === "travel" ? (
+                          <>
+                            <DropdownMenuItem onSelect={() => openEditor(row.id, "commission")}>
+                              Commission & Rates
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openEditor(row.id, "payment_rules")}>
+                              Payment, Credit & Reservation Rules
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+                        <DropdownMenuItem onSelect={() => openEditor(row.id, "defaults")}>
+                          Defaults
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
       </div>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-medium text-[#251605]">Profile Type Details</h3>
-            <p className="text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Profile Type</Label>
-            <Select
-              value={draft.id ?? (types[0]?.id ?? "")}
-              onValueChange={(value) => requestSelect(value)}
+      <Dialog
+        open={editorOpen}
+        onOpenChange={(open) => {
+          if (!open) closeEditor();
+        }}
+      >
+        <DialogContent
+          overlayClassName="bg-[#1F140A]/70"
+          className={cn(
+            "flex max-h-[85vh] min-h-0 w-[min(960px,calc(100vw-48px))] max-w-none sm:max-w-none",
+            "flex-col gap-0 overflow-hidden rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] p-0 shadow-xl",
+            "[&>button.absolute]:hidden",
+          )}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <header className="relative shrink-0 bg-[#1F140A] px-5 py-2.5 pr-12 text-[#F3E9D8]">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="font-display text-sm font-semibold text-white">
+                {draft.name || "Profile Type"}
+              </DialogTitle>
+              {draft.code ? (
+                <span className="rounded-full border border-[#C89933]/70 px-2 py-0.5 text-[10px] font-medium tracking-wide text-[#E8D5A8]">
+                  {draft.code}
+                </span>
+              ) : null}
+            </div>
+            <DialogDescription className="sr-only">
+              Configure this profile type
+            </DialogDescription>
+            <button
+              type="button"
+              className="absolute right-3 top-2 rounded-md p-1 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+              onClick={closeEditor}
+              aria-label="Close"
             >
-              <SelectTrigger className="w-[16rem]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {types.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.name} ({row.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              <X className="size-4" />
+            </button>
+            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[#C89933]" aria-hidden />
+          </header>
 
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white px-5 py-4">
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTrigger value="general">General Information</TabsTrigger>
@@ -772,7 +856,6 @@ export function PmsCard4ProfileTypes({
                   disabled={true}
                   className="bg-muted text-muted-foreground"
                 />
-                <p className="text-xs text-muted-foreground">Canonical system code cannot be changed.</p>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -785,34 +868,6 @@ export function PmsCard4ProfileTypes({
                 onChange={(event) => mark("description", event.target.value)}
               />
               <p className="text-xs text-muted-foreground">{draft.description.length}/400</p>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="pt-active">Active</Label>
-              <Switch
-                id="pt-active"
-                checked={draft.active}
-                disabled={!canEdit}
-                onCheckedChange={(active) => mark("active", active)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Icon</Label>
-              <Select
-                value={draft.icon}
-                onValueChange={(value) => mark("icon", value as ProfileTypeDraft["icon"])}
-                disabled={!canEdit}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROFILE_TYPE_ICONS.map((icon) => (
-                    <SelectItem key={icon} value={icon}>
-                      {icon}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </TabsContent>
 
@@ -1692,7 +1747,31 @@ export function PmsCard4ProfileTypes({
             />
           </TabsContent>
         </Tabs>
-      </section>
+          </div>
+
+          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#D9D2C4] bg-white px-5 py-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-[#D9D2C4] text-[#251605] hover:bg-[#F4EDE0]"
+              onClick={closeEditor}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#C89933] font-medium text-[#251605] hover:bg-[#C89933]/90"
+              disabled={!canSave}
+              onClick={() => {
+                thenNextRef.current = false;
+                saveMutation.mutate();
+              }}
+            >
+              {saveMutation.isPending ? "Saving…" : "Save Changes"}
+            </Button>
+          </footer>
+        </DialogContent>
+      </Dialog>
 
       {/* Reusable Catalog Sheets */}
       <GuestFieldEditorSheet
@@ -1793,10 +1872,6 @@ export function PmsCard4ProfileTypes({
         canEdit={canEdit}
       />
 
-      <p className="sr-only">
-        Profile Types {configuredCount} of {Math.max(configuredCount, 4)} configured
-      </p>
-
       <AlertDialog
         open={Boolean(pendingSwitch)}
         onOpenChange={(open) => !open && setPendingSwitch(null)}
@@ -1809,14 +1884,53 @@ export function PmsCard4ProfileTypes({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
+            <AlertDialogCancel
+              onClick={() => {
+                setPendingSwitch(null);
+                setPendingTab(null);
+              }}
+            >
+              Keep Editing
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 const target = pendingSwitch;
+                const tab = pendingTab;
                 setPendingSwitch(null);
+                setPendingTab(null);
                 setDirty(false);
                 const row = types.find((item) => item.id === target) ?? null;
                 applyRecord(row);
+                if (tab) {
+                  setActiveTab(tab);
+                  onTabChange?.(tab);
+                }
+                setEditorOpen(true);
+              }}
+            >
+              Discard Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingClose} onOpenChange={(open) => !open && setPendingClose(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes on this profile type. Closing will discard them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingClose(false);
+                setDirty(false);
+                const current = types.find((item) => item.id === selectedId) ?? null;
+                applyRecord(current);
+                setEditorOpen(false);
               }}
             >
               Discard Changes
@@ -1865,19 +1979,3 @@ function DefaultSelect({
   );
 }
 
-export function Card4ProfileTypesGuide({ count }: { count: number }) {
-  const target = Math.max(count, 4);
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Profile Types Guide</p>
-      <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted-foreground">
-        <li>Configure field rules, identity documents, and preferences directly under each profile type.</li>
-        <li>Manage the underlying catalogs using the inline "Manage Catalog" actions when needed.</li>
-        <li>Individual, Company, Travel Agency, and Group profile types share a consolidated workspace.</li>
-      </ul>
-      <p className="mt-3 text-sm text-[#251605]">
-        {count} of {target} canonical profile types configured
-      </p>
-    </section>
-  );
-}

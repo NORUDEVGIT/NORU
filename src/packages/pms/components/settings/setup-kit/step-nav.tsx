@@ -21,7 +21,7 @@ export function PropertySetupStepNav({
 }) {
   return (
     <ol
-      className="flex w-full gap-2 overflow-x-auto pb-1"
+      className="flex w-full gap-1 overflow-x-auto pb-0.5"
       data-testid="property-setup-step-nav"
     >
       {steps.map((row) => {
@@ -35,25 +35,19 @@ export function PropertySetupStepNav({
               onClick={() => onSelect(row.id)}
               aria-current={active ? "step" : undefined}
               className={cn(
-                "flex h-12 min-w-[9.5rem] items-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
-                active && "border-[#C89933] bg-[#C89933] text-[#251605]",
-                !active && complete && "border-[#E6E1D8] bg-[#F4EDE0] text-[#251605]",
-                !active && !complete && "border-[#CCCCCC] bg-white text-[#6B6458]",
+                "flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-left text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                active && "border-[#C89933] bg-[#F4E9D0] text-[#251605]",
+                !active && complete && "border-transparent bg-transparent text-[#251605] hover:bg-[#F7F4EE]",
+                !active && !complete && "border-transparent bg-transparent text-[#6B6458] hover:bg-[#F7F4EE]",
               )}
             >
-              <span
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-[6px] text-[11px] font-semibold",
-                  active ? "bg-white/80 text-[#251605]" : "bg-[#F7F4EE] text-[#251605]",
-                )}
-              >
-                {complete && !active ? (
-                  <Check className="size-3.5" strokeWidth={2.5} />
-                ) : (
-                  row.number
-                )}
-              </span>
-
+              {complete ? (
+                <Check
+                  className={cn("size-3 shrink-0", active ? "text-[#C89933]" : "text-[#8A6A24]")}
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
+              ) : null}
               <span className="leading-none">{row.title}</span>
             </button>
           </li>

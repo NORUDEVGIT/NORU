@@ -6,6 +6,12 @@ import { toast } from "sonner";
 import { shiftMoment } from "@/core/lib/workforce-rules";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { FoAuthorizationCard } from "@/packages/pms/components/frontoffice/fo-authorization-card";
+import {
+  FoActionModal,
+  FO_ACTION_CONTROL,
+  foActionRoomChip,
+} from "@/packages/pms/components/frontoffice/fo-action-modal";
+import { useMoney } from "@/core/state/property-format";
 import { getFrontOfficeApprovalRequirement } from "@/packages/pms/lib/fo-approvals.functions";
 import {
   bulkSetExpectedArrivalTime,
@@ -125,6 +131,94 @@ export function ExpectedArrivalDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function ArrivalEtaEditor({
+  restaurantId,
+  timezone,
+  row,
+  canUpdate,
+  onSaved,
+}: {
+  restaurantId: string;
+  timezone: string;
+  row: ArrivalRow;
+  canUpdate: boolean;
+  onSaved: () => void;
+}) {
+  const submit = useServerFn(setExpectedArrivalTime);
+  const [clock, setClock] = useState("");
+
+  useEffect(() => {
+    setClock(clockForInput(row.operational.expectedArrivalTime, timezone));
+  }, [row.reservationId, row.operational.expectedArrivalTime, timezone]);
+
+  const mutation = useMutation({
+    mutationFn: (expectedArrivalAt: string | null) =>
+      submit({
+        data: {
+          restaurantId,
+          reservationId: row.reservationId,
+          expectedArrivalAt,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Expected arrival updated.");
+      onSaved();
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not update expected arrival."),
+  });
+
+  const current = formatClockInZone(row.operational.expectedArrivalTime, timezone);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-[#DDD4C5] bg-white p-3 shadow-sm">
+      <div className="flex justify-between gap-3 text-sm">
+        <span className="text-[#7A6B58]">Current ETA</span>
+        <span className="font-medium text-[#251605]">{current === "—" || !current ? "—" : current}</span>
+      </div>
+      {canUpdate ? (
+        <>
+          <label className="grid gap-1 text-[11px] font-medium text-[#7A6B58]">
+            Expected arrival time
+            <Input
+              type="time"
+              value={clock}
+              onChange={(event) => setClock(event.target.value)}
+              aria-label="Expected arrival time"
+              className="h-9"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 border-[#DDD4C5]"
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate(null)}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+              disabled={!clock || mutation.isPending}
+              onClick={() =>
+                mutation.mutate(instantFromClock(row.stay.arrivalDate, clock, timezone))
+              }
+            >
+              {mutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-[#7A6B58]">ETA can be updated before check-in.</p>
+      )}
+    </div>
   );
 }
 
@@ -283,49 +377,94 @@ export function LateCheckoutDialog({
       toast.error(error instanceof Error ? error.message : "Could not update late checkout."),
   });
 
+  const money = useMoney();
   if (!row) return null;
+  const fee = policy?.fee;
+  const feeLabel =
+    fee == null || fee === 0 ? null : typeof fee === "number" ? money(fee) : String(fee);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogTitle>Late checkout</DialogTitle>
-        <DialogDescription>
-          {row.guest.name} · {row.confirmationNumber}. Departure date stays{" "}
-          {formatStayDate(row.stay.departureDate)}. This is same-day only and does not add a night.
-        </DialogDescription>
-        <dl className="grid gap-2 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Normal checkout</dt>
-            <dd>{policy?.checkOutTime ?? "Not set"}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Allowed</dt>
-            <dd>{policy?.allowed ? "Yes" : "No"}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Fee context</dt>
-            <dd>{policy?.fee == null ? "None posted here" : String(policy.fee)}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Approval</dt>
-            <dd>{policy?.needsApproval ? "Owner or manager" : "Not required"}</dd>
-          </div>
-          {row.operational.lateCheckout.granted && row.operational.lateCheckout.until ? (
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Current grant</dt>
-              <dd>{formatClockInZone(row.operational.lateCheckout.until, timezone)}</dd>
-            </div>
-          ) : null}
-        </dl>
-        <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-          Approved checkout time
+    <FoActionModal
+      open={open}
+      onOpenChange={onOpenChange}
+      action="Late Checkout"
+      guestName={row.guest.name}
+      confirmation={row.confirmationNumber}
+      roomLabel={foActionRoomChip(row.room.roomNumber)}
+      size="small"
+      confirmLabel="Grant Late Checkout"
+      confirmDisabled={!clock || policy?.allowed === false}
+      pending={mutation.isPending}
+      hideConfirm={needsApproval}
+      onConfirm={() =>
+        mutation.mutate({
+          granted: true,
+          until: instantFromClock(row.stay.departureDate, clock, timezone),
+          note: note.trim() || null,
+        })
+      }
+      footerLeft={
+        row.operational.lateCheckout.granted && canAuthorize ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate({ granted: false, until: null, note: null })}
+          >
+            Revoke
+          </Button>
+        ) : null
+      }
+    >
+      <div className="space-y-3">
+        <section className="rounded-lg border border-[#E8DFD0] bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">Current Checkout</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{policy?.checkOutTime ?? "Not set"}</p>
+        </section>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-[#251605]" htmlFor="late-checkout-time">
+            Approved Checkout Time
+          </label>
           <Input
+            id="late-checkout-time"
             type="time"
+            className={FO_ACTION_CONTROL}
             value={clock}
             onChange={(event) => setClock(event.target.value)}
             aria-label="Late checkout time"
           />
-        </label>
+        </div>
+        <section className="rounded-lg border border-[#E8DFD0] bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">Policy</p>
+          <dl className="mt-2 space-y-1.5 text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#6B5E4E]">Allowed</dt>
+              <dd className="font-medium text-[#251605]">{policy?.allowed ? "Yes" : "No"}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#6B5E4E]">Fee</dt>
+              <dd className="font-medium text-[#251605]">{feeLabel ?? "None"}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#6B5E4E]">Approval</dt>
+              <dd className="font-medium text-[#251605]">
+                {policy?.needsApproval ? "Required" : "Not required"}
+              </dd>
+            </div>
+            {row.operational.lateCheckout.granted && row.operational.lateCheckout.until ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-[#6B5E4E]">Current grant</dt>
+                <dd className="font-medium text-[#251605]">
+                  {formatClockInZone(row.operational.lateCheckout.until, timezone)}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </section>
+        {feeLabel ? (
+          <p className="text-sm font-medium text-[#251605]">Late checkout fee: {feeLabel}</p>
+        ) : null}
         {needsApproval ? (
           <FoAuthorizationCard
             requirement={lateAuth}
@@ -334,7 +473,7 @@ export function LateCheckoutDialog({
             onReasonChange={setNote}
             pending={mutation.isPending}
             confirmDisabled={!clock || policy?.allowed === false}
-            confirmLabel={row.operational.lateCheckout.granted ? "Update" : "Grant"}
+            confirmLabel="Grant Late Checkout"
             onAuthorize={() =>
               mutation.mutate({
                 granted: true,
@@ -345,44 +484,21 @@ export function LateCheckoutDialog({
             reasonId="late-checkout-auth"
           />
         ) : (
-          <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Note
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-[#251605]" htmlFor="late-checkout-note">
+              Note
+            </label>
             <Input
+              id="late-checkout-note"
+              className={FO_ACTION_CONTROL}
               value={note}
               onChange={(event) => setNote(event.target.value)}
               maxLength={500}
               aria-label="Late checkout note"
             />
-          </label>
+          </div>
         )}
-        <p className="text-xs text-muted-foreground">Cashiering remains the owner of any fee posting.</p>
-        <DialogFooter className="gap-2">
-          {row.operational.lateCheckout.granted && canAuthorize ? (
-            <Button
-              variant="outline"
-              disabled={mutation.isPending}
-              onClick={() => mutation.mutate({ granted: false, until: null, note: null })}
-            >
-              Revoke
-            </Button>
-          ) : null}
-          {!needsApproval ? (
-            <Button
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
-              disabled={!clock || mutation.isPending || policy?.allowed === false}
-              onClick={() =>
-                mutation.mutate({
-                  granted: true,
-                  until: instantFromClock(row.stay.departureDate, clock, timezone),
-                  note: note.trim() || null,
-                })
-              }
-            >
-              {mutation.isPending ? "Saving…" : row.operational.lateCheckout.granted ? "Update" : "Grant"}
-            </Button>
-          ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </FoActionModal>
   );
 }

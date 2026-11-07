@@ -1,17 +1,15 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { Button } from "@/shared/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-import { cn } from "@/shared/lib/utils";
 import { Card5DepartmentsTab } from "@/packages/pms/components/settings/pms-card5-departments-tab";
 import { Card5OutletsTab } from "@/packages/pms/components/settings/pms-card5-outlets-tab";
 import { Card5SalesEventsTab } from "@/packages/pms/components/settings/pms-card5-sales-events-tab";
 import { StaffAccessWorkspace } from "@/packages/pms/components/settings/staff-access-workspace";
 import {
+  LocalSectionNavigator,
   PropertySetupStatusRail,
-  PropertySetupStepNav,
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
@@ -20,7 +18,6 @@ import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-
 import { getCard5Validation } from "@/packages/pms/lib/pms-property-setup-card5.functions";
 import {
   CARD5_HASH,
-  CARD5_SIDEBAR_OUT,
   CARD5_SUBTITLE,
   CARD5_TABS,
   STAFF_ACCESS_HASH,
@@ -29,7 +26,6 @@ import {
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { STAFF_ACCESS_STEP_ID, staffAccessStepVisible } from "@/packages/pms/lib/staff-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
-import type { Card5Verdict } from "@/packages/pms/lib/card5-readiness.server";
 
 type Card5WorkspaceTab = Card5TabId | typeof STAFF_ACCESS_STEP_ID;
 
@@ -38,12 +34,6 @@ function initialCard5Tab(): Card5WorkspaceTab {
     return STAFF_ACCESS_STEP_ID;
   }
   return "departments";
-}
-
-function verdictClass(verdict: Card5Verdict) {
-  if (verdict === "PASS") return "text-emerald-700";
-  if (verdict === "PARTIAL") return "text-[#C89933]";
-  return "text-destructive";
 }
 
 /** Card 5 workspace. Phases 1–3 implement Departments, Outlets, and Sales & Events setup. */
@@ -64,19 +54,10 @@ export function PmsPropertySetupCard5Section({
     );
   const showOrg =
     !access.isLoading && (access.can(PMS_PERMISSIONS.CONFIG_ORGANIZATION_VIEW) || canEdit);
-  const [reportOpen, setReportOpen] = useState(false);
-  const queryClient = useQueryClient();
   const getValidation = useServerFn(getCard5Validation);
   const overallQuery = useQuery({
     queryKey: ["pms-card5-validation", restaurantId],
     queryFn: () => getValidation({ data: { restaurantId } }),
-  });
-  const validate = useMutation({
-    mutationFn: () => getValidation({ data: { restaurantId } }),
-    onSuccess: (report) => {
-      queryClient.setQueryData(["pms-card5-validation", restaurantId], report);
-      setReportOpen(true);
-    },
   });
 
   useEffect(() => {
@@ -126,12 +107,14 @@ export function PmsPropertySetupCard5Section({
       data-testid="pms-card5-workspace"
       data-card-fullscreen="true"
     >
-      <div className="sr-only">{CARD5_SIDEBAR_OUT}</div>
       <div className="min-w-0 flex-1" data-testid="pms-card5-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={5}
           status={overall?.status ?? "not_started"}
           description={CARD5_SUBTITLE}
+          hideTitle
+          wide
+          footer={null}
           sections={[...railSections]}
           complete={counts.complete}
           inProgress={counts.inProgress}
@@ -140,17 +123,6 @@ export function PmsPropertySetupCard5Section({
           warnings={overall?.warnings}
           onBack={goBack}
           footerTestId="pms-card5-chrome"
-          headerActions={
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => validate.mutate()}
-              disabled={validate.isPending}
-              data-testid="pms-card5-overall-validate"
-            >
-              Validate
-            </Button>
-          }
           rail={
             <div data-testid="pms-card5-status-rail">
               <PropertySetupStatusRail
@@ -164,53 +136,26 @@ export function PmsPropertySetupCard5Section({
             </div>
           }
           stepNav={
-            <div data-testid="pms-card5-tabs-slot">
+            <div className="min-w-0" data-testid="pms-card5-tabs-slot">
               <p className="sr-only" data-testid="pms-card5-overall-status">
                 {overallQuery.isLoading || !overall
                   ? "Checking overall status…"
                   : `Overall: ${propertySetupStatusLabel(overall.status)}`}
               </p>
-              <PropertySetupStepNav
+              <LocalSectionNavigator
+                testId="pms-card5-local-section-nav"
                 activeId={tab}
                 onSelect={selectStep}
-                steps={[
-                  ...(showStaff
-                    ? [{ id: STAFF_ACCESS_STEP_ID, title: "Staff & Access", status: "not_started" as const }]
-                    : []),
+                items={[
+                  ...(showStaff ? [{ id: STAFF_ACCESS_STEP_ID, label: "Staff & Access" }] : []),
                   ...(showOrg
-                    ? CARD5_TABS.map((item) => ({
-                        id: item.id,
-                        title: item.label,
-                        status: railSections.find((row) => row.id === item.id)?.status ?? "not_started",
-                      }))
+                    ? CARD5_TABS.map((item) => ({ id: item.id, label: item.label }))
                     : []),
-                ].map((item, index) => ({ ...item, number: index + 1 }))}
+                ]}
               />
             </div>
           }
         >
-          {reportOpen && overallQuery.data ? (
-            <dl
-              className="mb-4 grid gap-2 rounded-2xl border bg-card p-4 text-sm sm:grid-cols-2 lg:grid-cols-5"
-              data-testid="pms-card5-validation-report"
-            >
-              {(
-                [
-                  ["Departments", overallQuery.data.departments.verdict],
-                  ["Outlets & Facilities", overallQuery.data.facilities.verdict],
-                  ["Sales & Events", overallQuery.data.sales.verdict],
-                  ["Integrity", overallQuery.data.integrity.verdict],
-                  ["Overall", overallQuery.data.overall.verdict],
-                ] as const
-              ).map(([label, verdict]) => (
-                <div key={label}>
-                  <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
-                  <dd className={cn("font-medium", verdictClass(verdict))}>{verdict}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-
           {access.isLoading ? <p className="text-sm text-[#756A5B]">Checking access…</p> : null}
           {!access.isLoading && tab === STAFF_ACCESS_STEP_ID ? (
             <StaffAccessWorkspace restaurantId={restaurantId} />
@@ -226,7 +171,7 @@ export function PmsPropertySetupCard5Section({
             </TabsList>
 
             {CARD5_TABS.map((item) => (
-              <TabsContent key={item.id} value={item.id}>
+              <TabsContent key={item.id} value={item.id} className="mt-0">
                 {item.id === "departments" ? (
                   <Card5DepartmentsTab restaurantId={restaurantId} canEdit={canEdit} />
                 ) : item.id === "outlets-facilities" ? (

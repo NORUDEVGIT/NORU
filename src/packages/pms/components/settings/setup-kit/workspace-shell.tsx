@@ -2,50 +2,33 @@ import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 import { CardWorkspaceHeader } from "./card-workspace-header";
 import { PropertySetupActionFooter } from "./action-footer";
-import { PropertySetupStatusRail } from "./status-rail";
 
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import type { PropertySetupCardNumber } from "@/packages/pms/lib/pms-property-setup-card-identity";
 import type { PropertySetupRailSection } from "./status-rail";
 
-function handleBackToPrevious() {
-  if (typeof window === "undefined") return;
+function settingsReturnTo(): string | null {
+  if (typeof window === "undefined") return null;
   const search = new URLSearchParams(window.location.search);
-  const returnTo = search.get("returnTo") || search.get("from");
+  return search.get("returnTo") || search.get("from");
+}
+
+function handleBackToPrevious() {
+  const returnTo = settingsReturnTo();
   if (returnTo) {
     window.location.href = returnTo;
-    return;
   }
-  if (window.history.length > 1 && document.referrer && document.referrer.includes("/restaurant/")) {
-    window.history.back();
-    return;
-  }
-  if (document.referrer && document.referrer.includes("/restaurant/pms/rates-revenue")) {
-    window.location.href = "/restaurant/pms/rates-revenue";
-    return;
-  }
-  window.location.href = "/restaurant/pms/room-inventory";
 }
 
 export function PropertySetupWorkspaceShell({
   cardNumber,
   title,
-  description,
-  status,
-  context,
   headerActions,
   children,
   stepNav,
-  rail,
-  percent,
-  sections,
-  complete,
-  inProgress,
-  notStarted,
-  blockers,
-  warnings,
   footer,
   onBack,
   onSaveDraft,
@@ -58,6 +41,8 @@ export function PropertySetupWorkspaceShell({
   continueLabel,
   extraFooter,
   footerTestId,
+  hideTitle,
+  wide,
 }: {
   cardNumber: PropertySetupCardNumber;
   title?: string;
@@ -87,6 +72,8 @@ export function PropertySetupWorkspaceShell({
   continueLabel?: string;
   extraFooter?: ReactNode;
   footerTestId?: string;
+  hideTitle?: boolean;
+  wide?: boolean;
 }) {
   return (
     <div
@@ -94,46 +81,40 @@ export function PropertySetupWorkspaceShell({
       data-testid="property-setup-workspace-shell"
     >
       <div className="@container min-h-0 min-w-0 w-full flex-1 overflow-y-auto">
-        <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-5 sm:px-6 @min-[56rem]:flex-row">
-          <div className="min-w-0 flex-1 space-y-5">
-            <div className="flex items-center justify-between pb-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleBackToPrevious}
-                className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
-              >
-                <ArrowLeft className="size-3.5" />
-                Back to previous page
-              </Button>
-            </div>
+        <div
+          className={cn(
+            "min-h-0 w-full px-4 pb-6 sm:px-6",
+            wide
+              ? "mx-auto max-w-[90rem] space-y-3 pt-3 lg:px-8"
+              : "mx-auto max-w-5xl space-y-4 pt-4",
+          )}
+        >
+            {settingsReturnTo() ? (
+              <div className="flex items-center justify-between pb-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBackToPrevious}
+                  className="h-8 gap-1.5 px-3 text-xs font-semibold text-[#5C5346] hover:text-[#251605] border-[#D6CDBF] bg-white shadow-xs"
+                >
+                  <ArrowLeft className="size-3.5" />
+                  Back to previous page
+                </Button>
+              </div>
+            ) : null}
 
-            <CardWorkspaceHeader
-              cardNumber={cardNumber}
-              title={title}
-              description={description}
-              status={status}
-              context={context}
-              actions={headerActions}
-            />
+            {hideTitle ? null : (
+              <CardWorkspaceHeader
+                cardNumber={cardNumber}
+                title={title}
+                actions={headerActions}
+              />
+            )}
 
             {stepNav}
 
             <div className="min-w-0">{children}</div>
-          </div>
-
-          {rail ?? (
-            <PropertySetupStatusRail
-              percent={percent}
-              sections={sections}
-              complete={complete}
-              inProgress={inProgress}
-              notStarted={notStarted}
-              blockers={blockers}
-              warnings={warnings}
-            />
-          )}
         </div>
       </div>
 

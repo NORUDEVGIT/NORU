@@ -8,13 +8,18 @@ import { isPreferredContactMethod, isPreferredContactTime } from "./guest-profil
 import { occupancyBlockMessage, targetRoomRequired } from "./fo-amendments";
 import { stayDateTargetsOneRoom } from "./fo-unit-desk";
 import { authoritativeRoomChargeDelta, stayNightLabel } from "./fo-stay-date-finance";
-import { isStayRangeValid } from "./create-reservation-phase1";
+import {
+  CREATE_RESERVATION_MIN_NIGHTS,
+  isStayRangeValid,
+} from "./create-reservation-phase1";
+import { nightsBetween } from "./reservation-dates";
 import type { FrontOfficeStay, InHouseStayQuote } from "./frontoffice.functions";
 import type { ReservationStatus } from "./reservation-dates";
 
 export const FO_EDIT_DETAILS_PLACEHOLDERS = {
   arrival: "Select check-in date",
   departure: "Select check-out date",
+  nights: "Enter nights",
   roomType: "Select room category",
   room: "Select assigned room",
   adults: "Enter adults count",
@@ -39,6 +44,7 @@ export const FO_EDIT_DETAILS_ROOM_TYPE_ROOM = "Assign a room of the new type.";
 export type FoEditDetailsDraft = {
   arrival: string;
   departure: string;
+  nights: string;
   roomTypeId: string;
   adults: string;
   children: string;
@@ -88,6 +94,7 @@ export function foEditDetailsSeed(input: {
   return {
     arrival: input.stay.arrivalDate,
     departure: input.stay.departureDate,
+    nights: String(nightsBetween(input.stay.arrivalDate, input.stay.departureDate)),
     roomTypeId: input.stay.roomTypeId,
     adults: String(input.stay.adults),
     children: String(input.stay.children ?? 0),
@@ -183,6 +190,10 @@ export function foEditDetailsErrors(input: {
   if (!draft.departure) errors.departure = FO_EDIT_DETAILS_PLACEHOLDERS.departure;
   else if (draft.arrival && !isStayRangeValid(draft.arrival, draft.departure)) {
     errors.departure = "Check-out must be after check-in.";
+  }
+  const nights = wholeNumber(draft.nights);
+  if (nights == null || nights < CREATE_RESERVATION_MIN_NIGHTS) {
+    errors.nights = "Enter a whole number of nights of at least 1.";
   }
   if (!draft.roomTypeId) errors.roomType = FO_EDIT_DETAILS_PLACEHOLDERS.roomType;
   else if (

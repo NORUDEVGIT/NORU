@@ -15,7 +15,6 @@ import {
 } from "@/shared/components/ui/select";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
-  Card3InheritedStrip,
   Card3ListSection,
   Card3OverlapSheet,
   Card3StatusDot,
@@ -30,7 +29,6 @@ import {
   saveTaxCard3,
 } from "@/packages/pms/lib/taxes-card3.functions";
 import {
-  CARD3_TAXES_SET1_COPY,
   CARD3_TAXES_TABS,
   EXEMPTION_REASON_LABELS,
   EXEMPTION_REASONS,
@@ -223,7 +221,6 @@ export function PmsPropertySetupCard3Taxes({
         </p>
       ) : (
         <div className="space-y-4" data-testid="pms-card3-taxes">
-          <Card3InheritedStrip>{CARD3_TAXES_SET1_COPY}</Card3InheritedStrip>
           <section
             className="rounded-xl border border-border bg-card p-4 shadow-sm"
             data-testid="card3-default-room-tax-group"
@@ -231,7 +228,7 @@ export function PmsPropertySetupCard3Taxes({
             <div className="space-y-2">
               <Label htmlFor="default-room-tax-group">Default room tax group</Label>
               <p className="text-xs text-muted-foreground">
-                Used when posting room charges if set; otherwise taxes with room or all basis apply.
+                Applied automatically to room charges when configured.
               </p>
               <Select
                 value={snapshot.defaultRoomTaxGroupId ?? "__none__"}
@@ -341,7 +338,7 @@ export function PmsPropertySetupCard3Taxes({
             placeholder="Search exemption rules"
             canEdit={canEdit}
             addLabel="Add exemption rule"
-            empty="No exemption rules saved yet. These are configuration only."
+            empty="No exemption rules saved yet."
             columns={["Code", "Name", "Reason", "Docs", "Approval", "Status"]}
             rows={filteredRules.map((row) => ({
               id: row.id,
@@ -621,7 +618,7 @@ function TaxDrawer({
       open={open}
       onClose={onClose}
       title={value ? "Edit tax" : "Add tax"}
-      description="Cashiering uses this rule on matching charges. It does not change the SET1 till rate."
+      description="Applied to matching charges at cashiering."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save tax"
@@ -721,7 +718,7 @@ function ServiceDrawer({
       open={open}
       onClose={onClose}
       title={value ? "Edit service charge" : "Add service charge"}
-      description="Cashiering uses this rule on matching charges. It does not change the SET1 service rate."
+      description="Applied to matching charges at cashiering."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save service charge"
@@ -886,7 +883,7 @@ function RuleDrawer({
       open={open}
       onClose={onClose}
       title={value ? "Edit exemption rule" : "Add exemption rule"}
-      description="Configuration only. This does not apply an exemption to a reservation or folio."
+      description="Defines when an exemption can be requested."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save exemption rule"

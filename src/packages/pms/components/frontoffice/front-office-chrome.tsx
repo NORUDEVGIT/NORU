@@ -16,14 +16,13 @@ import {
 } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { FoHelpSheet } from "@/packages/pms/components/frontoffice/fo-help-sheet";
+import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import {
   FO_DESK_DESCRIPTION,
   FO_DESK_TITLE,
   FO_NAV_ITEMS,
-  actionsForMenu,
   type FoNavId,
 } from "@/packages/pms/lib/front-office-shell";
 import { Button } from "@/shared/components/ui/button";
@@ -34,7 +33,7 @@ import { cn } from "@/shared/lib/utils";
  * One NORU icon per Front Office destination. Keep in sync with FO_NAV_ITEMS —
  * every id must resolve to an icon or the nav menu throws.
  */
-/** Rack toolbar registers itself so the burger can float on that row without taking space. */
+/** Rack toolbar registers a leading slot so the burger sits in the shared control row. */
 const FoToolbarSlotContext = createContext<((node: HTMLElement | null) => void) | null>(null);
 
 export function useFoToolbarSlot() {
@@ -57,14 +56,8 @@ export function FrontOfficeChrome({
   membership,
   active,
   onNavigate,
-  onQuickAction,
   onGuestSearch,
   exceptionBadge = 0,
-  onNotifications,
-  onFoActivity,
-  helpOpen,
-  onHelpOpenChange,
-  canOpenCashiering = false,
   returnTo,
   returnToLabel,
   children,
@@ -72,14 +65,8 @@ export function FrontOfficeChrome({
   membership: RestaurantMembership;
   active: FoNavId;
   onNavigate: (id: FoNavId) => void;
-  onQuickAction: (actionId: string) => void;
   onGuestSearch: (term?: string) => void;
   exceptionBadge?: number;
-  onNotifications?: () => void;
-  onFoActivity?: () => void;
-  helpOpen?: boolean;
-  onHelpOpenChange?: (open: boolean) => void;
-  canOpenCashiering?: boolean;
   returnTo?: string | undefined;
   returnToLabel?: string | undefined;
   children: ReactNode;
@@ -96,62 +83,35 @@ export function FrontOfficeChrome({
     onNavigate(id);
   }
 
-  const overflowItems = [
-    { label: "FO activity", testId: "fo-activity", onSelect: () => onFoActivity?.() },
-    { label: "Exceptions", onSelect: () => onNotifications?.() ?? onNavigate("exceptions") },
-    ...actionsForMenu("quick").map((action) => ({
-      label: action.label,
-      onSelect: () => onQuickAction(action.id),
-    })),
-  ];
-
   return (
     <RoomInventoryChrome
       membership={membership}
       activeModule="Front Office"
       searchPlaceholder="Search guest, reservation, room…"
       searchTestId="fo-module-search"
-      helpLabel="Front Office Desk operational workspace"
+      helpLabel="Help"
       shellTestId="fo-command-shell"
       onRoomSearch={(value) => onGuestSearch(value)}
-      onHelpClick={() => onHelpOpenChange?.(true)}
-      overflowItems={overflowItems}
       suppressReturnButton
     >
       <FoToolbarSlotContext.Provider value={setToolbarSlot}>
       <div className="relative min-w-0 bg-[#F7F4EE]" data-testid="fo-desk">
-        {/*
-         * Floating Front Office nav. When the rack toolbar is mounted the
-         * trigger is portaled onto that row's left edge. It stays absolute,
-         * so it does not add a row or change toolbar height.
-         */}
         {(() => {
           const trigger = (
-        <div
-          className={cn(
-            "pointer-events-none z-30",
-            toolbarSlot
-              ? "absolute left-1 top-1/2 -translate-y-1/2"
-              : "absolute top-3 left-3",
-          )}
-          data-testid="fo-desk-topbar"
-        >
+        <div className="shrink-0" data-testid="fo-desk-topbar">
           <Popover open={navOpen} onOpenChange={setNavOpen}>
             <PopoverTrigger asChild>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 aria-label="Front Office navigation"
                 title="Front Office navigation"
                 data-testid="fo-nav-trigger"
-                className={cn(
-                  "pointer-events-auto inline-flex size-8 items-center justify-center rounded-md text-[#251605]",
-                  "opacity-50 transition-opacity hover:bg-[#F3EEE4] hover:opacity-100",
-                  "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
-                  "data-[state=open]:bg-[#F3EEE4] data-[state=open]:opacity-100",
-                )}
+                className={SHELL_ICON_BUTTON}
               >
                 <Menu className="size-4" aria-hidden="true" />
-              </button>
+              </Button>
             </PopoverTrigger>
             <PopoverContent
               align="start"
@@ -204,7 +164,7 @@ export function FrontOfficeChrome({
           </Popover>
         </div>
           );
-          return toolbarSlot ? createPortal(trigger, toolbarSlot) : trigger;
+          return toolbarSlot ? createPortal(trigger, toolbarSlot) : null;
         })()}
         {hasPrevious ? (
           <div className="px-3 pt-2 sm:px-4">
@@ -223,12 +183,6 @@ export function FrontOfficeChrome({
         <div className="space-y-3 p-3 sm:p-4 lg:p-5">{children}</div>
       </div>
       </FoToolbarSlotContext.Provider>
-      <FoHelpSheet
-        open={!!helpOpen}
-        onOpenChange={(open) => onHelpOpenChange?.(open)}
-        onNavigate={onNavigate}
-        canOpenCashiering={canOpenCashiering}
-      />
     </RoomInventoryChrome>
   );
 }

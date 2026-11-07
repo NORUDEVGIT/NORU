@@ -1,6 +1,11 @@
 import { shiftMoment } from "@/core/lib/workforce-rules";
-import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import { addDays, nightsBetween } from "@/packages/pms/lib/reservation-dates";
+import { isGroupReservation } from "@/packages/pms/lib/reservation-detail-group";
 import { NOTE_MAX } from "@/packages/pms/lib/reservation-detail-notes";
+import {
+  isClosedReservation,
+  reservationMutationBlock,
+} from "@/packages/pms/lib/reservation-lifecycle";
 import type { StayAmendmentResult } from "@/packages/pms/lib/reservation-stay-amendment";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 
@@ -67,6 +72,112 @@ export function stayAmendmentCopy(
 export function stayNights(arrival: string, departure: string): number {
   if (!arrival || !departure || departure <= arrival) return 0;
   return nightsBetween(arrival, departure);
+}
+
+export const IN_HOUSE_STAY_OWNED_BY_FO =
+  "This stay is currently in-house. Stay changes are managed from Front Office.";
+
+export type StayCoreDraft = {
+  arrival: string;
+  departure: string;
+  nights: number;
+  rooms: number;
+};
+
+function unitIsActive(status: string | null | undefined): boolean {
+  return status !== "cancelled" && status !== "no_show";
+}
+
+export function stayActiveRoomCount(reservation: ReservationDetail): number {
+  const units = (reservation.rooms ?? []).filter((unit) => unitIsActive(unit.status));
+  if (units.length > 0) return units.length;
+  return Math.max(1, reservation.roomsRequested || 1);
+}
+
+export function stayHasInHouseUnit(reservation: ReservationDetail): boolean {
+  if (reservation.status === "checked_in") return true;
+  return (reservation.rooms ?? []).some((unit) => unit.status === "checked_in");
+}
+
+export function stayCoreAmendable(input: {
+  reservation: ReservationDetail;
+  businessDate: string;
+  canManage: boolean;
+}): boolean {
+  const { reservation, businessDate, canManage } = input;
+  if (!canManage) return false;
+  if (isClosedReservation(reservation.status)) return false;
+  if (stayHasInHouseUnit(reservation)) return false;
+  if (reservation.status !== "pending" && reservation.status !== "confirmed") return false;
+  return (
+    reservationMutationBlock({
+      status: reservation.status,
+      arrivalDate: reservation.arrivalDate,
+      businessDate,
+    }) == null
+  );
+}
+
+export function stayDatesAmendable(input: {
+  reservation: ReservationDetail;
+  businessDate: string;
+  canManage: boolean;
+}): boolean {
+  if (!stayCoreAmendable(input)) return false;
+  return stayActiveRoomCount(input.reservation) <= 1 && !isGroupReservation(input.reservation);
+}
+
+export function stayRoomsAmendable(input: {
+  reservation: ReservationDetail;
+  businessDate: string;
+  canManage: boolean;
+}): boolean {
+  if (!stayCoreAmendable(input)) return false;
+  return (input.reservation.rooms ?? []).every(
+    (unit) =>
+      !unitIsActive(unit.status) || unit.status === "pending" || unit.status === "confirmed",
+  );
+}
+
+export function buildStayCoreDraft(reservation: ReservationDetail): StayCoreDraft {
+  const nights = stayNights(reservation.arrivalDate, reservation.departureDate);
+  return {
+    arrival: reservation.arrivalDate,
+    departure: reservation.departureDate,
+    nights: Math.max(1, nights),
+    rooms: stayActiveRoomCount(reservation),
+  };
+}
+
+export function applyStayArrival(draft: StayCoreDraft, arrival: string): StayCoreDraft {
+  if (!arrival) return draft;
+  const nights = Math.max(1, draft.nights);
+  return { ...draft, arrival, nights, departure: addDays(arrival, nights) };
+}
+
+export function applyStayDeparture(draft: StayCoreDraft, departure: string): StayCoreDraft {
+  if (!departure || departure <= draft.arrival) {
+    return { ...draft, departure: addDays(draft.arrival, 1), nights: 1 };
+  }
+  return {
+    ...draft,
+    departure,
+    nights: Math.max(1, nightsBetween(draft.arrival, departure)),
+  };
+}
+
+export function applyStayNights(draft: StayCoreDraft, nights: number): StayCoreDraft {
+  const next = Math.max(1, Math.floor(nights) || 1);
+  return { ...draft, nights: next, departure: addDays(draft.arrival, next) };
+}
+
+export function stayCoreDirty(original: StayCoreDraft, draft: StayCoreDraft): boolean {
+  return (
+    original.arrival !== draft.arrival ||
+    original.departure !== draft.departure ||
+    original.nights !== draft.nights ||
+    original.rooms !== draft.rooms
+  );
 }
 
 export function buildStayDraft(reservation: ReservationDetail): ReservationStayDraft {

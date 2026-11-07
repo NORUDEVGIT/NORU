@@ -30,13 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,8 +55,6 @@ import {
   type ServiceTypeDraft,
   type ServiceTypeRecord,
 } from "@/packages/pms/lib/service-types-card4.server";
-import { cn } from "@/shared/lib/utils";
-
 function recordToDraft(row: ServiceTypeRecord): ServiceTypeDraft {
   return {
     id: row.id,
@@ -138,7 +130,9 @@ export function PmsCard4ServiceTypes({
           name: draft.name,
           code: normalizeServiceTypeCode(draft.code),
           description: draft.description,
-          active: draft.active,
+          active: draft.id
+            ? (types.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
           chargeableToFolio: draft.chargeableToFolio,
           displayOrder: draft.displayOrder,
         },
@@ -239,23 +233,14 @@ export function PmsCard4ServiceTypes({
     setEditorOpen(false);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-service-types">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">Service Types</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Define individual guest services under each service category.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-        </div>
+    <div className="space-y-3" data-testid="card4-service-types">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Service Types</h2>
         {canEdit ? (
           <Button
             type="button"
+            size="sm"
             onClick={openCreate}
             disabled={categories.filter((row) => row.active).length === 0}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
@@ -265,7 +250,7 @@ export function PmsCard4ServiceTypes({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <div className="space-y-2 p-6">
             {["a", "b", "c"].map((row) => (
@@ -290,16 +275,6 @@ export function PmsCard4ServiceTypes({
             <p className="mt-1 text-sm text-muted-foreground">
               Create a service type under a service category.
             </p>
-            {canEdit ? (
-              <Button
-                type="button"
-                className="mt-4 bg-[#C89933] text-[#251605]"
-                onClick={openCreate}
-                disabled={categories.filter((row) => row.active).length === 0}
-              >
-                <Plus className="mr-1 size-4" /> Add Service Type
-              </Button>
-            ) : null}
           </div>
         ) : (
           <>
@@ -332,47 +307,34 @@ export function PmsCard4ServiceTypes({
                     <TableHead>Code</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Folio / Chargeable</TableHead>
                     <TableHead>Active</TableHead>
-                    <TableHead>Folio</TableHead>
-                    <TableHead className="w-12">Actions</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visible.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                      <TableCell>{row.code}</TableCell>
-                      <TableCell>{categoryName(row.categoryId)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {row.description ?? "—"}
+                      <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
+                      <TableCell className="py-2">{row.code}</TableCell>
+                      <TableCell className="py-2">{categoryName(row.categoryId)}</TableCell>
+                      <TableCell className="max-w-[14rem] truncate py-2 text-muted-foreground">
+                        <span title={row.description || undefined}>{row.description || "—"}</span>
                       </TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                            row.active
-                              ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                              : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                          )}
-                        >
-                          {row.active ? "Active" : "Inactive"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
+                      <TableCell className="py-2 text-xs text-muted-foreground">
                         {row.chargeableToFolio ? "Chargeable" : "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <Switch
                           checked={row.active}
                           disabled={!canEdit || toggleMutation.isPending}
-                          aria-label={`${row.active ? "Disable" : "Enable"} ${row.name}`}
+                          aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
                           onCheckedChange={(active) =>
                             toggleMutation.mutate({ id: row.id, active })
                           }
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -383,7 +345,7 @@ export function PmsCard4ServiceTypes({
                               <MoreHorizontal className="size-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
                             <DropdownMenuItem onSelect={() => openEdit(row)}>Edit</DropdownMenuItem>
                             {canEdit ? (
                               <DropdownMenuItem
@@ -391,7 +353,7 @@ export function PmsCard4ServiceTypes({
                                   toggleMutation.mutate({ id: row.id, active: !row.active })
                                 }
                               >
-                                {row.active ? "Disable" : "Enable"}
+                                {row.active ? "Deactivate" : "Activate"}
                               </DropdownMenuItem>
                             ) : null}
                             {canEdit ? (
@@ -411,135 +373,128 @@ export function PmsCard4ServiceTypes({
         )}
       </div>
 
-      <Sheet
+      <Card3OverlapSheet
         open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) requestClose();
-          else setEditorOpen(true);
+        title={draft.id ? "Edit Service Type" : "Add Service Type"}
+        onClose={requestClose}
+        onSubmit={() => {
+          if (!canEdit || errors.length > 0) {
+            toast.error(errors[0]?.message ?? "Fix the service type before saving.");
+            return;
+          }
+          saveMutation.mutate();
         }}
+        submitLabel={draft.id ? "Save Changes" : "Add Service Type"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
       >
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{draft.id ? "Edit Service Type" : "Add Service Type"}</SheetTitle>
-            <SheetDescription>
-              Service types belong to a category. Pricing and SLA rules are configured later.
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-4 space-y-3 px-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canEdit || errors.length > 0) {
-                toast.error(errors[0]?.message ?? "Fix the service type before saving.");
-                return;
-              }
-              saveMutation.mutate();
-            }}
+        <div className="space-y-1">
+          <Label htmlFor="st-category">Category *</Label>
+          <Select
+            value={draft.categoryId || undefined}
+            disabled={!canEdit}
+            onValueChange={(value) => mark("categoryId", value)}
           >
-            <div className="space-y-1">
-              <Label htmlFor="st-category">Category *</Label>
-              <Select
-                value={draft.categoryId || undefined}
-                disabled={!canEdit}
-                onValueChange={(value) => mark("categoryId", value)}
-              >
-                <SelectTrigger id="st-category">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {editorCategories.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name}
-                      {row.active ? "" : " (Inactive)"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errorFor("categoryId") ? (
-                <p className="text-xs text-destructive">{errorFor("categoryId")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="st-name">Service Type Name *</Label>
-              <Input
-                id="st-name"
-                value={draft.name}
-                disabled={!canEdit}
-                onChange={(event) => mark("name", event.target.value)}
-              />
-              {errorFor("name") ? (
-                <p className="text-xs text-destructive">{errorFor("name")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="st-code">Code *</Label>
-              <Input
-                id="st-code"
-                value={draft.code}
-                disabled={!canEdit}
-                onChange={(event) => mark("code", normalizeServiceTypeCode(event.target.value))}
-              />
-              {errorFor("code") ? (
-                <p className="text-xs text-destructive">{errorFor("code")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="st-description">Description</Label>
-              <Textarea
-                id="st-description"
-                value={draft.description}
-                disabled={!canEdit}
-                maxLength={400}
-                onChange={(event) => mark("description", event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="st-order">Display Order</Label>
-              <Input
-                id="st-order"
-                type="number"
-                min={1}
-                value={draft.displayOrder}
-                disabled={!canEdit}
-                onChange={(event) => mark("displayOrder", Number(event.target.value) || 1)}
-              />
-              {errorFor("displayOrder") ? (
-                <p className="text-xs text-destructive">{errorFor("displayOrder")}</p>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="st-chargeable">Chargeable to folio</Label>
-                <p className="text-xs text-muted-foreground">
-                  Cashiers can post this service only when it also has a price and one billing department.
-                </p>
-              </div>
-              <Switch
-                id="st-chargeable"
-                checked={draft.chargeableToFolio}
-                disabled={!canEdit}
-                onCheckedChange={(chargeableToFolio) => mark("chargeableToFolio", chargeableToFolio)}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="st-active">Active</Label>
-              <Switch
-                id="st-active"
-                checked={draft.active}
-                disabled={!canEdit}
-                onCheckedChange={(active) => mark("active", active)}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={!canEdit || saveMutation.isPending || errors.length > 0}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {saveMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+            <SelectTrigger id="st-category">
+              <SelectValue placeholder="Select a category" />
+            </SelectTrigger>
+            <SelectContent>
+              {editorCategories.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name}
+                  {row.active ? "" : " (Inactive)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errorFor("categoryId") ? (
+            <p className="text-xs text-destructive">{errorFor("categoryId")}</p>
+          ) : null}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="st-name">Service Type Name *</Label>
+            <Input
+              id="st-name"
+              value={draft.name}
+              disabled={!canEdit}
+              onChange={(event) => mark("name", event.target.value)}
+            />
+            {errorFor("name") ? (
+              <p className="text-xs text-destructive">{errorFor("name")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="st-code">Code *</Label>
+            <Input
+              id="st-code"
+              value={draft.code}
+              disabled={!canEdit}
+              onChange={(event) => mark("code", normalizeServiceTypeCode(event.target.value))}
+            />
+            {errorFor("code") ? (
+              <p className="text-xs text-destructive">{errorFor("code")}</p>
+            ) : null}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="st-description">Description</Label>
+          <Textarea
+            id="st-description"
+            value={draft.description}
+            disabled={!canEdit}
+            maxLength={400}
+            onChange={(event) => mark("description", event.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor="st-chargeable">Chargeable to folio</Label>
+            <p className="text-xs text-muted-foreground">
+              Cashiers can post this service only when it also has a price and one billing department.
+            </p>
+          </div>
+          <Switch
+            id="st-chargeable"
+            checked={draft.chargeableToFolio}
+            disabled={!canEdit}
+            onCheckedChange={(chargeableToFolio) => mark("chargeableToFolio", chargeableToFolio)}
+          />
+        </div>
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="st-active">Active</Label>
+            <Switch
+              id="st-active"
+              checked={draft.active}
+              disabled={!canEdit}
+              onCheckedChange={(active) => mark("active", active)}
+            />
+          </div>
+        ) : null}
+        <details className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-[#251605]">
+            Advanced Settings
+          </summary>
+          <div className="mt-3 space-y-1">
+            <Label htmlFor="st-order">Display Order</Label>
+            <Input
+              id="st-order"
+              type="number"
+              min={1}
+              value={draft.displayOrder}
+              disabled={!canEdit}
+              onChange={(event) => mark("displayOrder", Number(event.target.value) || 1)}
+            />
+            {errorFor("displayOrder") ? (
+              <p className="text-xs text-destructive">{errorFor("displayOrder")}</p>
+            ) : null}
+          </div>
+        </details>
+      </Card3OverlapSheet>
 
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -586,19 +541,5 @@ export function PmsCard4ServiceTypes({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4ServiceTypesGuide({ count }: { count: number }) {
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-        <li className="text-[#436436]">Configure Service Categories</li>
-        <li className={count > 0 ? "text-[#436436]" : undefined}>Add Service Types</li>
-        <li>Review and Save</li>
-      </ol>
-      <p className="mt-3 text-sm text-[#251605]">{count} configured</p>
-    </section>
   );
 }

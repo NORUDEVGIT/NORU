@@ -63,9 +63,7 @@ describe("FO large-screen chrome — command surface", () => {
   it("does not repeat hotel · date · Active · user · Log out identity chrome", () => {
     const chrome = readChrome();
     assert.doesNotMatch(chrome, /fo-user-menu/);
-    assert.doesNotMatch(chrome, /Log out/);
-    assert.match(chrome, /fo-activity/);
-    assert.match(chrome, /FO activity/);
+    assert.match(chrome, /PmsAccountMenu/);
     assert.match(chrome, /fo-module-search/);
     assert.match(chrome, /fo-help/);
     assert.match(chrome, /NoruLogo/);

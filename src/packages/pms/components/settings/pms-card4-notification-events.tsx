@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Filter, MoreHorizontal, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { FieldShell } from "@/packages/pms/components/settings/pms-card6-integration-bits";
 import { getPmsCard4CommunicationChannels } from "@/packages/pms/lib/communication-channels-card4.functions";
 import {
@@ -41,7 +42,6 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -76,7 +76,6 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { cn } from "@/shared/lib/utils";
 
 const PAGE_SIZE = 8;
 
@@ -94,8 +93,6 @@ type NotificationEventDraft = {
   active: boolean;
   isSystem: boolean;
 };
-
-type PendingAction = NotificationEventRecord | "new" | "reset" | null;
 
 function isSystemEvent(row: NotificationEventRecord): boolean {
   return row.isSystem === true;
@@ -217,32 +214,19 @@ export function PmsCard4NotificationEvents({
   const [channelFilter, setChannelFilter] = useState<CommunicationChannelType | "all">("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<NotificationEventDraft>(() => emptyDraft([]));
   const [dirty, setDirty] = useState(false);
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [attemptedSave, setAttemptedSave] = useState(false);
+  const [pendingClose, setPendingClose] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NotificationEventRecord | null>(null);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
-  useEffect(() => {
-    if (dirty || creating) return;
-    if (events.length === 0) {
-      setSelectedId(null);
-      setDraft(emptyDraft(channels));
-      return;
-    }
-    const selected = events.find((row) => row.id === selectedId) ?? events[0];
-    if (!selected) return;
-    setSelectedId(selected.id);
-    setDraft(eventToDraft(selected));
-  }, [events, selectedId, dirty, creating, channels]);
-
   const errors = validateDraft(draft);
   const errorFor = (field: string) =>
-    errors.find((row) => row.field === field)?.message ?? null;
+    attemptedSave ? (errors.find((row) => row.field === field)?.message ?? null) : null;
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return events.filter((row) => {
@@ -297,7 +281,8 @@ export function PmsCard4NotificationEvents({
       await queryClient.invalidateQueries({ queryKey: eventsQueryKey });
       setCreating(false);
       setDirty(false);
-      if (result.id) setSelectedId(result.id);
+      setEditorOpen(false);
+      setAttemptedSave(false);
       toast.success("Notification event saved successfully.");
     },
     onError: (error: Error) =>
@@ -319,7 +304,7 @@ export function PmsCard4NotificationEvents({
       setDeleteTarget(null);
       setCreating(false);
       setDirty(false);
-      setSelectedId(null);
+      setEditorOpen(false);
       toast.success("Notification event deleted.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -344,7 +329,7 @@ export function PmsCard4NotificationEvents({
     deleteMutation.isPending ||
     testMutation.isPending;
   const dataReady = Boolean(eventsQuery.data && channelsQuery.data && templatesQuery.data);
-  const canSave = canEdit && dataReady && !busy && errors.length === 0;
+  const canSave = canEdit && dataReady && !busy && (!editorOpen || errors.length === 0);
   useEffect(() => {
     onSavingChange(busy, canSave);
   }, [busy, canSave, onSavingChange]);
@@ -357,12 +342,13 @@ export function PmsCard4NotificationEvents({
       toast.error("Unable to save notification events.");
       return;
     }
-    if (!creating && !dirty) {
+    if (!editorOpen || (!creating && !dirty)) {
       toast.success("Notification events saved successfully.");
       onSaved(thenNextRef.current);
       return;
     }
     if (errors.length > 0) {
+      setAttemptedSave(true);
       toast.error(errors[0]?.message ?? "Fix the notification event before saving.");
       return;
     }
@@ -373,6 +359,7 @@ export function PmsCard4NotificationEvents({
     saveRequest,
     canEdit,
     dataReady,
+    editorOpen,
     creating,
     dirty,
     errors,
@@ -389,85 +376,48 @@ export function PmsCard4NotificationEvents({
   }
 
   function selectEvent(row: NotificationEventRecord) {
-    if ((dirty || creating) && row.id !== selectedId) {
-      setPendingAction(row);
-      return;
-    }
     setCreating(false);
-    setSelectedId(row.id);
     setDraft(eventToDraft(row));
     setDirty(false);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
   function startAdd() {
-    if (dirty || creating) {
-      setPendingAction("new");
-      return;
-    }
     setCreating(true);
-    setSelectedId(null);
     setDraft(emptyDraft(channels));
     setDirty(true);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
-  function resetDraft() {
-    if (creating) {
+  function requestClose() {
+    if (dirty) setPendingClose(true);
+    else {
+      setEditorOpen(false);
       setCreating(false);
-      const selected = events.find((row) => row.id === selectedId) ?? events[0];
-      setSelectedId(selected?.id ?? null);
-      setDraft(
-        selected
-          ? eventToDraft(selected)
-          : emptyDraft(channels),
-      );
-    } else {
-      const selected = events.find((row) => row.id === selectedId);
-      if (selected) setDraft(eventToDraft(selected));
     }
-    setDirty(false);
   }
 
-  function discardAndContinue() {
-    const next = pendingAction;
-    setPendingAction(null);
-    setDirty(false);
-    if (next === "new") {
-      setCreating(true);
-      setSelectedId(null);
-      setDraft(emptyDraft(channels));
-      setDirty(true);
+  function submitEvent() {
+    setAttemptedSave(true);
+    if (!canEdit || errors.length > 0) {
+      toast.error(errors[0]?.message ?? "Fix the notification event before saving.");
       return;
     }
-    if (next === "reset") {
-      resetDraft();
-      return;
-    }
-    if (next) {
-      setCreating(false);
-      setSelectedId(next.id);
-      setDraft(eventToDraft(next));
-    }
+    saveMutation.mutate();
   }
 
   const loading = eventsQuery.isLoading || channelsQuery.isLoading || templatesQuery.isLoading;
   const loadError = eventsQuery.isError || channelsQuery.isError || templatesQuery.isError;
-  const lastUpdated = eventsQuery.data?.lastUpdatedAt
-    ? new Date(eventsQuery.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-notification-events">
+    <div className="space-y-3" data-testid="card4-notification-events">
       <section className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Notification Events</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Define the events that trigger property notifications.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg text-[#251605]">Notification Events</h2>
           <Button
             type="button"
+            size="sm"
             onClick={startAdd}
             disabled={!canEdit || loading}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
@@ -476,7 +426,7 @@ export function PmsCard4NotificationEvents({
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+        <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
           <div className="flex flex-wrap gap-2 border-b border-[#CCCCCC] p-3">
             <div className="relative min-w-[14rem] flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -604,81 +554,37 @@ export function PmsCard4NotificationEvents({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10">
-                        <Checkbox
-                          checked={
-                            paged.length > 0 && paged.every((row) => selectedRows.includes(row.id))
-                          }
-                          aria-label="Select all visible events"
-                          onCheckedChange={(checked) =>
-                            setSelectedRows(
-                              checked
-                                ? Array.from(
-                                    new Set([...selectedRows, ...paged.map((row) => row.id)]),
-                                  )
-                                : selectedRows.filter((id) => !paged.some((row) => row.id === id)),
-                            )
-                          }
-                        />
-                      </TableHead>
-                      <TableHead>Event Name</TableHead>
+                      <TableHead>Event</TableHead>
                       <TableHead>Module</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Default Channel</TableHead>
                       <TableHead>Default Template</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead className="w-12 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paged.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className={cn(selectedId === row.id && !creating && "bg-[#C89933]/5")}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedRows.includes(row.id)}
-                            aria-label={`Select ${row.name}`}
-                            onCheckedChange={(checked) =>
-                              setSelectedRows((current) =>
-                                checked
-                                  ? Array.from(new Set([...current, row.id]))
-                                  : current.filter((id) => id !== row.id),
-                              )
+                      <TableRow key={row.id}>
+                        <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
+                        <TableCell className="py-2">{NOTIFICATION_EVENT_MODULE_LABELS[row.module]}</TableCell>
+                        <TableCell className="py-2">
+                          {COMMUNICATION_TEMPLATE_CATEGORY_LABELS[row.category]}
+                        </TableCell>
+                        <TableCell className="py-2">{channelLabel(row.defaultChannelType)}</TableCell>
+                        <TableCell className="py-2">{templateLabel(row.defaultTemplateId, templates)}</TableCell>
+                        <TableCell className="py-2">
+                          <Switch
+                            checked={row.active}
+                            disabled={!canEdit || toggleMutation.isPending}
+                            aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
+                            onCheckedChange={(active) =>
+                              toggleMutation.mutate({ id: row.id, active })
                             }
                           />
                         </TableCell>
-                        <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                        <TableCell>{NOTIFICATION_EVENT_MODULE_LABELS[row.module]}</TableCell>
-                        <TableCell>
-                          {COMMUNICATION_TEMPLATE_CATEGORY_LABELS[row.category]}
-                        </TableCell>
-                        <TableCell>{channelLabel(row.defaultChannelType)}</TableCell>
-                        <TableCell>{templateLabel(row.defaultTemplateId, templates)}</TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                              row.active
-                                ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                                : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                            )}
-                          >
-                            {row.active ? "Active" : "Inactive"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => selectEvent(row)}
-                            >
-                              Edit
-                            </Button>
-                            <DropdownMenu>
+                        <TableCell className="py-2 text-right">
+                          <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   type="button"
@@ -717,7 +623,6 @@ export function PmsCard4NotificationEvents({
                                 ) : null}
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -756,43 +661,24 @@ export function PmsCard4NotificationEvents({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Event Details</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Configure the selected notification event.
-            </p>
-          </div>
-          <div className="min-w-[14rem] space-y-1">
-            <Label htmlFor="event-details-selector">Event</Label>
-            <Select
-              value={creating ? "new" : (draft.id ?? "")}
-              disabled={events.length === 0 && !creating}
-              onValueChange={(value) => {
-                if (value === "new") startAdd();
-                else {
-                  const row = events.find((item) => item.id === value);
-                  if (row) selectEvent(row);
-                }
-              }}
-            >
-              <SelectTrigger id="event-details-selector">
-                <SelectValue placeholder="Select an event" />
-              </SelectTrigger>
-              <SelectContent>
-                {creating ? <SelectItem value="new">New event</SelectItem> : null}
-                {events.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <Card3OverlapSheet
+        open={editorOpen}
+        title={draft.id ? "Edit Notification Event" : "Add Notification Event"}
+        onClose={requestClose}
+        onSubmit={submitEvent}
+        submitLabel={draft.id ? "Save Changes" : "Add Event"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[880px]"
+        className="max-h-[88vh]"
+        footerJustify="between"
+      >
+        {draft.isSystem ? (
+          <p className="text-xs text-muted-foreground">
+            System events keep their module and category. Other fields remain editable.
+          </p>
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
           <FieldShell
             id="notification-event-name"
             label="Event Name"
@@ -954,39 +840,39 @@ export function PmsCard4NotificationEvents({
           />
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {draft.id ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!canEdit || testMutation.isPending}
-              onClick={() => testMutation.mutate(draft.id as string)}
-            >
-              {testMutation.isPending ? "Testing…" : "Test Event"}
-            </Button>
-          ) : null}
-          {(dirty || creating) && canEdit ? (
-            <Button type="button" variant="outline" onClick={() => setPendingAction("reset")}>
-              Cancel Changes
-            </Button>
-          ) : null}
-        </div>
-      </section>
+        {draft.id ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!canEdit || testMutation.isPending}
+            onClick={() => testMutation.mutate(draft.id as string)}
+          >
+            {testMutation.isPending ? "Testing…" : "Test Event"}
+          </Button>
+        ) : null}
+      </Card3OverlapSheet>
 
-      <AlertDialog
-        open={Boolean(pendingAction)}
-        onOpenChange={(open) => !open && setPendingAction(null)}
-      >
+      <AlertDialog open={pendingClose} onOpenChange={(open) => !open && setPendingClose(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>You have unsaved changes.</AlertDialogTitle>
             <AlertDialogDescription>
-              Discard them before continuing with another notification event?
+              Discard them to close this notification event form?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Continue Editing</AlertDialogCancel>
-            <AlertDialogAction onClick={discardAndContinue}>Discard Changes</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingClose(false);
+                setEditorOpen(false);
+                setCreating(false);
+                setDirty(false);
+                setAttemptedSave(false);
+              }}
+            >
+              Discard Changes
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1015,38 +901,5 @@ export function PmsCard4NotificationEvents({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4NotificationEventsGuide({
-  events,
-}: {
-  events: readonly NotificationEventRecord[];
-}) {
-  const active = events.filter((row) => row.active).length;
-  const system = events.filter(isSystemEvent).length;
-  return (
-    <>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Select a system event or add a custom event</li>
-          <li>Choose its module and category</li>
-          <li>Assign a default channel</li>
-          <li>Choose a matching communication template</li>
-          <li>Test and activate the event</li>
-        </ol>
-        <p className="mt-3 text-sm text-[#251605]">
-          {active} of {events.length} events active
-        </p>
-      </section>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Event Summary</p>
-        <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-          <p>{system} system events</p>
-          <p>{events.length - system} custom events</p>
-        </div>
-      </section>
-    </>
   );
 }

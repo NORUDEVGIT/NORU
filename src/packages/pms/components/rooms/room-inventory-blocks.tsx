@@ -39,7 +39,12 @@ import {
   type HotelRoom,
   type RoomType,
 } from "@/packages/pms/lib/rooms.functions";
-import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
+import {
+  PmsFilterDateRange,
+  PmsFilterPopover,
+  PmsFilterSection,
+  PmsFilterSelect,
+} from "@/packages/pms/components/pms-filter-popover";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
@@ -179,6 +184,7 @@ export function RoomInventoryBlocksView({
   const [building, setBuilding] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -519,59 +525,67 @@ export function RoomInventoryBlocksView({
     </div>
   );
   const blockFilter = (
-    <PmsFilterMenu
+    <PmsFilterPopover
+      title="Filter Blocks"
       activeCount={blockFilterCount}
+      open={filterOpen}
+      onOpenChange={setFilterOpen}
       onClear={clearFilters}
+      onApply={() => setFilterOpen(false)}
       buttonTestId="blocks-filters-button"
       menuTestId="blocks-filters-menu"
     >
-      <PmsFilterChoiceRow
-        label="Block Type"
-        value={blockType}
-        current={blockType === "all" ? "" : titleCase(blockType)}
-        options={[["all", "All Types"], ...rules.map((rule) => [rule.blockType, titleCase(rule.blockType)] as const)]}
-        onChange={setBlockType}
-      />
-      <PmsFilterChoiceRow
-        label="Status"
-        value={status}
-        current={status === "all" ? "" : titleCase(status)}
-        options={[
-          ["all", "All Statuses"],
-          ["draft", "Draft"],
-          ["pending_approval", "Pending Approval"],
-          ["active", "Active"],
-          ["released", "Released"],
-          ["cancelled", "Cancelled"],
-        ]}
-        onChange={setStatus}
-      />
-      <PmsFilterChoiceRow
-        label="Target Type"
-        value={targetKind}
-        current={targetKind === "all" ? "" : titleCase(targetKind)}
-        options={[
-          ["all", "All Targets"],
-          ["room", "Room"],
-          ["room_type", "Room Type"],
-          ["quantity", "Quantity"],
-        ]}
-        onChange={setTargetKind}
-      />
-      <PmsFilterChoiceRow
-        label="Building"
-        value={building}
-        current={building === "all" ? "" : building}
-        options={[["all", "All Buildings"], ...buildings.map((value) => [value, value] as const)]}
-        onChange={setBuilding}
-      />
-      <PmsFilterNoteRow label="Date Range">
-        <div className="flex flex-col gap-2">
-          <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="h-9 text-xs" />
-          <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="h-9 text-xs" />
-        </div>
-      </PmsFilterNoteRow>
-    </PmsFilterMenu>
+      <PmsFilterSection title="Block Type">
+        <PmsFilterSelect
+          value={blockType}
+          onValueChange={setBlockType}
+          options={[
+            ["all", "All Types"],
+            ...rules.map((rule) => [rule.blockType, titleCase(rule.blockType)] as const),
+          ]}
+          ariaLabel="Block Type"
+        />
+      </PmsFilterSection>
+      <PmsFilterSection title="Status">
+        <PmsFilterSelect
+          value={status}
+          onValueChange={setStatus}
+          options={[
+            ["all", "All Statuses"],
+            ["draft", "Draft"],
+            ["pending_approval", "Pending Approval"],
+            ["active", "Active"],
+            ["released", "Released"],
+            ["cancelled", "Cancelled"],
+          ]}
+          ariaLabel="Status"
+        />
+      </PmsFilterSection>
+      <PmsFilterSection title="Target Type">
+        <PmsFilterSelect
+          value={targetKind}
+          onValueChange={setTargetKind}
+          options={[
+            ["all", "All Targets"],
+            ["room", "Room"],
+            ["room_type", "Room Type"],
+            ["quantity", "Quantity"],
+          ]}
+          ariaLabel="Target Type"
+        />
+      </PmsFilterSection>
+      <PmsFilterSection title="Building">
+        <PmsFilterSelect
+          value={building}
+          onValueChange={setBuilding}
+          options={[["all", "All Buildings"], ...buildings.map((value) => [value, value] as const)]}
+          ariaLabel="Building"
+        />
+      </PmsFilterSection>
+      <PmsFilterSection title="Date Range">
+        <PmsFilterDateRange from={fromDate} to={toDate} onFrom={setFromDate} onTo={setToDate} />
+      </PmsFilterSection>
+    </PmsFilterPopover>
   );
 
   return (

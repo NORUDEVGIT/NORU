@@ -1,8 +1,13 @@
 import { useState, type ReactNode } from "react";
-import { Filter } from "lucide-react";
 
-import { PMS_ICON_BUTTON } from "@/packages/pms/components/pms-week-controls";
-import { Button } from "@/shared/components/ui/button";
+import {
+  PMS_FILTER_CASCADE_DATE,
+  PMS_FILTER_CASCADE_MENU,
+  PMS_FILTER_CASCADE_SUB,
+  PMS_FILTER_ITEM,
+  PMS_FILTER_ROW,
+  PmsFilterTrigger,
+} from "@/packages/pms/components/pms-filter-popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,21 +21,12 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { cn } from "@/shared/lib/utils";
 
-export const PMS_FILTER_ROW =
-  "rounded-md px-2 py-2 text-sm font-medium text-[#4a2c1a] focus:bg-[#F7F4EE] data-[state=open]:bg-[#F7F4EE]";
-export const PMS_FILTER_SUB =
-  "max-h-80 min-w-52 overflow-y-auto rounded-md border border-[#DDD4C5] bg-white p-1 text-[#4a2c1a] shadow-md";
-export const PMS_FILTER_ITEM =
-  "rounded-md text-sm text-[#4a2c1a] focus:bg-[#F7F4EE] focus:text-[#251605]";
-export const PMS_FILTER_MENU_CLASS =
-  "w-72 rounded-md border border-[#DDD4C5] bg-white p-1.5 text-[#4a2c1a] shadow-md";
-
-const COUNT_BADGE =
-  "absolute -right-1 -top-1 min-w-4 rounded-full bg-[#C89933] px-1 text-center text-[10px] leading-4 text-[#251605]";
+export { PMS_FILTER_ITEM, PMS_FILTER_ROW };
+export const PMS_FILTER_SUB = PMS_FILTER_CASCADE_SUB;
+export const PMS_FILTER_MENU_CLASS = PMS_FILTER_CASCADE_MENU;
 
 /**
- * Shared Filter button and menu shell used by Front Office and Reservations.
- * Each workspace supplies its own rows.
+ * Pattern A — compact cascading filter menu (Reservations and other high-count categorical filters).
  */
 export function PmsFilterMenu({
   activeCount,
@@ -62,34 +58,28 @@ export function PmsFilterMenu({
   return (
     <DropdownMenu open={isOpen} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className={PMS_ICON_BUTTON}
-          aria-label="Filters"
-          title="Filters"
-          data-testid={buttonTestId}
-        >
-          <Filter className="size-4" />
-          {activeCount > 0 ? (
-            <span data-testid={countTestId} className={COUNT_BADGE}>
-              {activeCount}
-            </span>
-          ) : null}
-        </Button>
+        <PmsFilterTrigger
+          activeCount={activeCount}
+          buttonTestId={buttonTestId}
+          countTestId={countTestId}
+        />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={PMS_FILTER_MENU_CLASS} data-testid={menuTestId}>
+      <DropdownMenuContent
+        align="end"
+        collisionPadding={12}
+        className={PMS_FILTER_CASCADE_MENU}
+        data-testid={menuTestId}
+      >
         {children}
         {activeCount > 0 && onClear ? (
           <>
             <DropdownMenuSeparator className="bg-[#DDD4C5]" />
             <button
               type="button"
-              className="w-full rounded-md px-2 py-2 text-left text-sm font-medium text-[#4a2c1a] hover:bg-[#F7F4EE]"
+              className={cn(PMS_FILTER_ROW, "w-full text-left")}
               onClick={onClear}
             >
-              Clear
+              Clear filters
             </button>
           </>
         ) : null}
@@ -119,12 +109,10 @@ export function PmsFilterChoiceRow({
       <DropdownMenuSubTrigger className={PMS_FILTER_ROW}>
         <span className="flex-1 text-left">{label}</span>
         {active && current ? (
-          <span className="max-w-28 truncate text-xs font-normal capitalize text-[#8C6D23]">
-            {current}
-          </span>
+          <span className="max-w-28 truncate text-xs font-normal text-[#8C6D23]">{current}</span>
         ) : null}
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className={PMS_FILTER_SUB}>
+      <DropdownMenuSubContent collisionPadding={12} className={PMS_FILTER_CASCADE_SUB}>
         <DropdownMenuRadioGroup value={value || neutralValue} onValueChange={onChange}>
           {options.map(([id, name]) => (
             <DropdownMenuRadioItem
@@ -148,7 +136,10 @@ export function PmsFilterNoteRow({ label, children }: { label: string; children:
       <DropdownMenuSubTrigger className={PMS_FILTER_ROW}>
         <span className="flex-1 text-left">{label}</span>
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className={cn(PMS_FILTER_SUB, "w-64 overflow-visible p-3")}>
+      <DropdownMenuSubContent
+        collisionPadding={12}
+        className={cn(PMS_FILTER_CASCADE_DATE, "w-64")}
+      >
         {children}
       </DropdownMenuSubContent>
     </DropdownMenuSub>

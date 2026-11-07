@@ -20,7 +20,6 @@ import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-
 import { getCard8Readiness } from "@/packages/pms/lib/pms-property-setup-card8.functions";
 import type { Card8DomainReport, Card8Verdict } from "@/packages/pms/lib/card8-readiness.server";
 import {
-  CARD8_SIDEBAR_OUT,
   CARD8_SUBTITLE,
   CARD8_TABS,
   type Card8TabId,
@@ -118,7 +117,6 @@ export function PmsPropertySetupCard8Section({
       data-testid="pms-card8-workspace"
       data-card-fullscreen="true"
     >
-      <div className="sr-only">{CARD8_SIDEBAR_OUT}</div>
       <div className="min-w-0 overflow-x-auto flex-1" data-testid="pms-card8-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={8}
@@ -185,7 +183,7 @@ export function PmsPropertySetupCard8Section({
             <section
               className="mb-4 min-w-0 rounded-2xl border bg-card p-4"
               data-testid="pms-card8-readiness-report"
-              aria-label="Card 8 readiness report"
+              aria-label="Go-live readiness report"
             >
               <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 {(

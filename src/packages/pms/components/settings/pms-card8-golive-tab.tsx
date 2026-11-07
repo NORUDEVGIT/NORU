@@ -271,7 +271,7 @@ export function Card8GoliveTab({
           <Confirmation
             title="Business date"
             value={query.data?.snapshot.businessDate ?? "Unavailable"}
-            detail="Card 1 / Night Audit authority. Only this confirmation is stored."
+            detail="Night Audit authority. Only this confirmation is stored."
             checked={plan.businessDateConfirmed}
             disabled={!editable || !query.data?.snapshot.businessDate}
             onChecked={(checked) =>

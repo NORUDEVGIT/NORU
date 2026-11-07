@@ -5,12 +5,12 @@ import { MoreHorizontal, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  createPmsCard4CustomDepartment,
   deletePmsCard4ServiceDepartmentAssignment,
   getPmsCard4ServiceDepartmentAssignments,
   savePmsCard4ServiceDepartmentAssignment,
   setPmsCard4ServiceDepartmentAssignmentActive,
 } from "@/packages/pms/lib/service-department-assignment-card4.functions";
+import { CARD5_HREF } from "@/packages/pms/lib/pms-property-setup-card5";
 import {
   emptyServiceDepartmentAssignmentDraft,
   selectableAssignmentDepartments,
@@ -31,14 +31,6 @@ import {
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -53,13 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { Switch } from "@/shared/components/ui/switch";
 import {
   Table,
@@ -69,8 +55,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
-import { cn } from "@/shared/lib/utils";
-
 function recordToDraft(row: ServiceDepartmentAssignmentRecord): ServiceDepartmentAssignmentDraft {
   return {
     id: row.id,
@@ -97,7 +81,6 @@ export function PmsCard4ServiceDepartmentAssignment({
   const queryClient = useQueryClient();
   const load = useServerFn(getPmsCard4ServiceDepartmentAssignments);
   const save = useServerFn(savePmsCard4ServiceDepartmentAssignment);
-  const createDepartment = useServerFn(createPmsCard4CustomDepartment);
   const setActive = useServerFn(setPmsCard4ServiceDepartmentAssignmentActive);
   const remove = useServerFn(deletePmsCard4ServiceDepartmentAssignment);
   const queryKey = ["pms-card4-department-assignment", restaurantId];
@@ -117,9 +100,6 @@ export function PmsCard4ServiceDepartmentAssignment({
     emptyServiceDepartmentAssignmentDraft(),
   );
   const [dirty, setDirty] = useState(false);
-  const [customDepartmentOpen, setCustomDepartmentOpen] = useState(false);
-  const [customDepartmentName, setCustomDepartmentName] = useState("");
-  const [customDepartmentCode, setCustomDepartmentCode] = useState("");
   const [pendingDelete, setPendingDelete] = useState<ServiceDepartmentAssignmentRecord | null>(
     null,
   );
@@ -167,7 +147,9 @@ export function PmsCard4ServiceDepartmentAssignment({
           ...(draft.id ? { id: draft.id } : {}),
           serviceTypeId: draft.serviceTypeId,
           departmentId: draft.departmentId,
-          active: draft.active,
+          active: draft.id
+            ? (assignments.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
           isBillingDepartment: draft.isBillingDepartment,
         },
       }),
@@ -182,26 +164,6 @@ export function PmsCard4ServiceDepartmentAssignment({
     },
     onError: (error: Error) =>
       toast.error(error.message || "Unable to save department assignment."),
-  });
-
-  const createDepartmentMutation = useMutation({
-    mutationFn: () =>
-      createDepartment({
-        data: {
-          restaurantId,
-          name: customDepartmentName.trim(),
-          code: customDepartmentCode.trim(),
-        },
-      }),
-    onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey });
-      mark("departmentId", result.id);
-      setCustomDepartmentOpen(false);
-      setCustomDepartmentName("");
-      setCustomDepartmentCode("");
-      toast.success("Custom department created and selected.");
-    },
-    onError: (error: Error) => toast.error(error.message || "Unable to create department."),
   });
 
   const toggleMutation = useMutation({
@@ -224,11 +186,7 @@ export function PmsCard4ServiceDepartmentAssignment({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const busy =
-    saveMutation.isPending ||
-    createDepartmentMutation.isPending ||
-    toggleMutation.isPending ||
-    deleteMutation.isPending;
+  const busy = saveMutation.isPending || toggleMutation.isPending || deleteMutation.isPending;
   const canSave = canEdit && !busy && (!editorOpen || errors.length === 0) && Boolean(query.data);
   useEffect(() => {
     onSavingChange(busy, canSave);
@@ -289,33 +247,29 @@ export function PmsCard4ServiceDepartmentAssignment({
     setEditorOpen(false);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-department-assignment">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">Department Assignment</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Choose an existing department or create a custom one for each guest service type.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-        </div>
-        {canEdit ? (
-          <Button
-            type="button"
-            onClick={openCreate}
-            disabled={!canCreate}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-          >
-            <Plus className="mr-1 size-4" /> Add Assignment
+    <div className="space-y-3" data-testid="card4-department-assignment">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Department Assignment</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" variant="outline" asChild>
+            <a href={CARD5_HREF}>Manage Departments</a>
           </Button>
-        ) : null}
+          {canEdit ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={openCreate}
+              disabled={!canCreate}
+              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            >
+              <Plus className="mr-1 size-4" /> Add Assignment
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <div className="space-y-2 p-6">
             {["a", "b", "c"].map((row) => (
@@ -342,16 +296,6 @@ export function PmsCard4ServiceDepartmentAssignment({
                 ? "Assign an active service type to an existing department."
                 : "Add an active service type and an active department before assigning."}
             </p>
-            {canEdit ? (
-              <Button
-                type="button"
-                className="mt-4 bg-[#C89933] text-[#251605]"
-                onClick={openCreate}
-                disabled={!canCreate}
-              >
-                <Plus className="mr-1 size-4" /> Add Assignment
-              </Button>
-            ) : null}
           </div>
         ) : (
           <>
@@ -368,10 +312,9 @@ export function PmsCard4ServiceDepartmentAssignment({
                   <TableRow>
                     <TableHead>Service Type</TableHead>
                     <TableHead>Department</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Active</TableHead>
                     <TableHead>Billing</TableHead>
-                    <TableHead className="w-12">Actions</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -380,44 +323,26 @@ export function PmsCard4ServiceDepartmentAssignment({
                     const department = departmentFor(row.departmentId);
                     return (
                       <TableRow key={row.id}>
-                        <TableCell className="font-medium text-[#251605]">
+                        <TableCell className="py-2 font-medium text-[#251605]">
                           {serviceType?.name ?? "Unknown service type"}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {serviceType?.code}
-                          </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">
                           {department?.name ?? "Unknown department"}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {department?.code}
-                          </span>
                         </TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                              row.active
-                                ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                                : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                            )}
-                          >
-                            {row.active ? "Active" : "Inactive"}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="py-2 text-xs text-muted-foreground">
                           {row.isBillingDepartment ? "Billing" : "—"}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">
                           <Switch
                             checked={row.active}
                             disabled={!canEdit || toggleMutation.isPending}
-                            aria-label={`${row.active ? "Disable" : "Enable"} assignment for ${serviceType?.name ?? "service"}`}
+                            aria-label={`${row.active ? "Deactivate" : "Activate"} assignment for ${serviceType?.name ?? "service"}`}
                             onCheckedChange={(active) =>
                               toggleMutation.mutate({ id: row.id, active })
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -438,7 +363,7 @@ export function PmsCard4ServiceDepartmentAssignment({
                                     toggleMutation.mutate({ id: row.id, active: !row.active })
                                   }
                                 >
-                                  {row.active ? "Disable" : "Enable"}
+                                  {row.active ? "Deactivate" : "Activate"}
                                 </DropdownMenuItem>
                               ) : null}
                               {canEdit ? (
@@ -459,194 +384,100 @@ export function PmsCard4ServiceDepartmentAssignment({
         )}
       </div>
 
-      <Sheet
+      <Card3OverlapSheet
         open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) requestClose();
-          else setEditorOpen(true);
+        title={draft.id ? "Edit Department Assignment" : "Add Department Assignment"}
+        onClose={requestClose}
+        onSubmit={() => {
+          if (!canEdit || errors.length > 0) {
+            toast.error(errors[0]?.message ?? "Fix the assignment before saving.");
+            return;
+          }
+          saveMutation.mutate();
         }}
+        submitLabel={draft.id ? "Save Changes" : "Add Assignment"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
       >
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>
-              {draft.id ? "Edit Department Assignment" : "Add Department Assignment"}
-            </SheetTitle>
-            <SheetDescription>
-              Assign a PMS department. You can create a custom department without leaving this form.
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-4 space-y-3 px-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canEdit || errors.length > 0) {
-                toast.error(errors[0]?.message ?? "Fix the assignment before saving.");
-                return;
-              }
-              saveMutation.mutate();
-            }}
+        <div className="space-y-1">
+          <Label htmlFor="da-service-type">Service Type *</Label>
+          <Select
+            value={draft.serviceTypeId || undefined}
+            disabled={!canEdit}
+            onValueChange={(value) => mark("serviceTypeId", value)}
           >
-            <div className="space-y-1">
-              <Label htmlFor="da-service-type">Service Type *</Label>
-              <Select
-                value={draft.serviceTypeId || undefined}
-                disabled={!canEdit}
-                onValueChange={(value) => mark("serviceTypeId", value)}
-              >
-                <SelectTrigger id="da-service-type">
-                  <SelectValue placeholder="Select a service type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {editorServiceTypes.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name} ({row.code}){row.active ? "" : " — Inactive"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errorFor("serviceTypeId") ? (
-                <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="da-department">Department *</Label>
-              <Select
-                value={draft.departmentId || undefined}
-                disabled={!canEdit}
-                onValueChange={(value) => mark("departmentId", value)}
-              >
-                <SelectTrigger id="da-department">
-                  <SelectValue placeholder="Select a department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {editorDepartments.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name} ({row.code}){row.active ? "" : " — Inactive"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errorFor("departmentId") ? (
-                <p className="text-xs text-destructive">{errorFor("departmentId")}</p>
-              ) : null}
-              {canEdit ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-1"
-                  onClick={() => setCustomDepartmentOpen(true)}
-                >
-                  <Plus className="mr-1 size-3.5" /> Create custom department
-                </Button>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="da-billing">Billing department</Label>
-                <p className="text-xs text-muted-foreground">
-                  Cashiering uses this department and automatically turns on Chargeable to folio for
-                  the selected service. Only one assignment can be the billing department.
-                </p>
-              </div>
-              <Switch
-                id="da-billing"
-                checked={draft.isBillingDepartment}
-                disabled={!canEdit}
-                onCheckedChange={(isBillingDepartment) =>
-                  mark("isBillingDepartment", isBillingDepartment)
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="da-active">Active</Label>
-              <Switch
-                id="da-active"
-                checked={draft.active}
-                disabled={!canEdit}
-                onCheckedChange={(active) => mark("active", active)}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={!canEdit || saveMutation.isPending || errors.length > 0}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {saveMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
-
-      <Dialog
-        open={customDepartmentOpen}
-        onOpenChange={(open) => {
-          if (!createDepartmentMutation.isPending) setCustomDepartmentOpen(open);
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create Custom Department</DialogTitle>
-            <DialogDescription>
-              The new active department will be added to the department list and selected for this
-              assignment.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              createDepartmentMutation.mutate();
-            }}
+            <SelectTrigger id="da-service-type">
+              <SelectValue placeholder="Select a service type" />
+            </SelectTrigger>
+            <SelectContent>
+              {editorServiceTypes.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name} ({row.code}){row.active ? "" : " — Inactive"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errorFor("serviceTypeId") ? (
+            <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="da-department">Department *</Label>
+          <Select
+            value={draft.departmentId || undefined}
+            disabled={!canEdit}
+            onValueChange={(value) => mark("departmentId", value)}
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="custom-department-name">Department name *</Label>
-              <Input
-                id="custom-department-name"
-                maxLength={80}
-                value={customDepartmentName}
-                placeholder="Guest Relations"
-                onChange={(event) => setCustomDepartmentName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="custom-department-code">Department code *</Label>
-              <Input
-                id="custom-department-code"
-                maxLength={20}
-                value={customDepartmentCode}
-                placeholder="GUEST_REL"
-                onChange={(event) =>
-                  setCustomDepartmentCode(
-                    event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""),
-                  )
-                }
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={createDepartmentMutation.isPending}
-                onClick={() => setCustomDepartmentOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                disabled={
-                  createDepartmentMutation.isPending ||
-                  !customDepartmentName.trim() ||
-                  !customDepartmentCode.trim()
-                }
-              >
-                {createDepartmentMutation.isPending ? "Creating…" : "Create Department"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <SelectTrigger id="da-department">
+              <SelectValue placeholder="Select a department" />
+            </SelectTrigger>
+            <SelectContent>
+              {editorDepartments.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name} ({row.code}){row.active ? "" : " — Inactive"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errorFor("departmentId") ? (
+            <p className="text-xs text-destructive">{errorFor("departmentId")}</p>
+          ) : null}
+          <Button type="button" variant="outline" size="sm" className="mt-1" asChild>
+            <a href={CARD5_HREF}>Manage Departments</a>
+          </Button>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor="da-billing">Billing department</Label>
+            <p className="text-xs text-muted-foreground">
+              Cashiering uses this department and automatically turns on Chargeable to folio for
+              the selected service. Only one assignment can be the billing department.
+            </p>
+          </div>
+          <Switch
+            id="da-billing"
+            checked={draft.isBillingDepartment}
+            disabled={!canEdit}
+            onCheckedChange={(isBillingDepartment) =>
+              mark("isBillingDepartment", isBillingDepartment)
+            }
+          />
+        </div>
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="da-active">Active</Label>
+            <Switch
+              id="da-active"
+              checked={draft.active}
+              disabled={!canEdit}
+              onCheckedChange={(active) => mark("active", active)}
+            />
+          </div>
+        ) : null}
+      </Card3OverlapSheet>
 
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -694,29 +525,5 @@ export function PmsCard4ServiceDepartmentAssignment({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4ServiceDepartmentAssignmentGuide({
-  assignmentCount,
-  activeDepartmentCount,
-}: {
-  assignmentCount: number;
-  activeDepartmentCount: number;
-}) {
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-        <li className="text-[#436436]">Configure Service Categories</li>
-        <li className="text-[#436436]">Add Service Types</li>
-        <li className="text-[#436436]">Set Service Pricing</li>
-        <li className={assignmentCount > 0 ? "text-[#436436]" : undefined}>Assign Departments</li>
-      </ol>
-      <p className="mt-3 text-sm text-[#251605]">
-        {assignmentCount} assignment{assignmentCount === 1 ? "" : "s"} · {activeDepartmentCount}{" "}
-        active department{activeDepartmentCount === 1 ? "" : "s"}
-      </p>
-    </section>
   );
 }

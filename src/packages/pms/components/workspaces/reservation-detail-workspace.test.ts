@@ -60,9 +60,9 @@ describe("Phase 3 reservation detail gaps", () => {
     expect(functions).toContain("actor_membership_id");
     expect(functions).toContain("resolveReservationActorNames");
     expect(functions).toContain("actorName: event.actor_membership_id");
-    expect(detail).toContain("reservationHistoryChanges");
-    expect(detail).toContain("entry.actorName");
-    expect(detail).toContain("{change.from} → {change.to}");
+    expect(detail).toContain("presentReservationHistory");
+    expect(detail).toContain("row.actor");
+    expect(detail).toContain("View details");
   });
 
   it("reviews amend impact, copies a stay, and still launches FO dialogs", () => {

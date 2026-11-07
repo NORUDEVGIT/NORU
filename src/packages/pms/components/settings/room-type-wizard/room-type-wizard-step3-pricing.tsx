@@ -1,9 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Info, ArrowLeft, ArrowRight } from "lucide-react";
+import { Info } from "lucide-react";
 
-import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
 import {
@@ -25,6 +24,7 @@ export function RoomTypeWizardStep2Pricing() {
     attemptedStep2Submit,
     setAttemptedStep2Submit,
     setStep,
+    setFooter,
   } = useRoomTypeWizard();
   const disabled = !canEdit || !roomTypeId;
   const saveTypeFn = useServerFn(saveRoomType);
@@ -137,8 +137,21 @@ export function RoomTypeWizardStep2Pricing() {
     }
   }
 
+  const saveAndContinueRef = useRef(saveAndContinue);
+  saveAndContinueRef.current = saveAndContinue;
+
+  useEffect(() => {
+    setFooter({
+      continueLabel: "Continue",
+      continueBusy: saving,
+      continueDisabled: disabled || saving || hasErrors,
+      onContinue: () => void saveAndContinueRef.current(),
+    });
+    return () => setFooter(null);
+  }, [disabled, hasErrors, saving, setFooter]);
+
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-4">
       {/* SECTION A: Pricing Defaults */}
       <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
         <div className="border-b border-[#EDE6D8] pb-3">
@@ -341,29 +354,6 @@ export function RoomTypeWizardStep2Pricing() {
         </div>
       </div>
 
-      {/* Sticky Bottom Actions Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9D2C4] bg-white/95 px-6 py-3.5 backdrop-blur-xs shadow-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="border-[#D9D2C4] text-[#251605] hover:bg-[#F4EDE0]"
-            onClick={() => setStep(1)}
-          >
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Back to Room Type
-          </Button>
-          <Button
-            type="button"
-            disabled={disabled || saving || hasErrors}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 font-medium"
-            onClick={() => void saveAndContinue()}
-          >
-            {saving ? "Saving…" : "Save & Continue to Amenities"}
-            <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -4,10 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { Plus, X } from "lucide-react";
 
 import {
-  FilterGroup,
-  FilterOption,
-  MoreFiltersMenu,
-} from "@/packages/pms/components/more-filters-menu";
+  PmsFilterPopover,
+  PmsFilterSection,
+  PmsFilterSelect,
+} from "@/packages/pms/components/pms-filter-popover";
 import { CreateGroupWizard } from "@/packages/pms/components/reservations/create-group-wizard";
 import {
   ReservationShellSlot,
@@ -102,50 +102,38 @@ export function GroupsWorkspace({
   return (
     <div className="space-y-3" data-testid="groups-blocks-workspace">
       <ReservationShellSlot name="filter">
-        <MoreFiltersMenu
-          iconOnly
+        <PmsFilterPopover
+          title="Filter Groups"
+          activeCount={status !== "all" ? 1 : 0}
           open={filterOpen}
           onOpenChange={(open) => {
             setFilterOpen(open);
             if (open) setStatusDraft(status);
           }}
-          activeCount={status !== "all" ? 1 : 0}
-          title="Filter groups"
+          onClear={() => {
+            setStatus("all");
+            setStatusDraft("all");
+            setFilterOpen(false);
+          }}
           onApply={() => {
             setStatus(statusDraft);
             setFilterOpen(false);
           }}
-          onClear={() => {
-            setStatus("all");
-            setFilterOpen(false);
-          }}
         >
-          <FilterGroup
-            id="status"
-            title="Status"
-            count={statusDraft !== "all" ? 1 : 0}
-            open
-            onToggle={() => {}}
-          >
-            <FilterOption
-              type="radio"
-              name="groups-filter-status"
-              label="All statuses"
-              checked={statusDraft === "all"}
-              onChange={() => setStatusDraft("all")}
+          <PmsFilterSection title="Status">
+            <PmsFilterSelect
+              value={statusDraft}
+              onValueChange={(value) =>
+                setStatusDraft(value as (typeof GROUP_STATUSES)[number] | "all")
+              }
+              options={[
+                ["all", "All statuses"],
+                ...GROUP_STATUSES.map((value) => [value, value.replaceAll("_", " ")] as const),
+              ]}
+              ariaLabel="Status"
             />
-            {GROUP_STATUSES.map((value) => (
-              <FilterOption
-                key={value}
-                type="radio"
-                name="groups-filter-status"
-                label={value.replaceAll("_", " ")}
-                checked={statusDraft === value}
-                onChange={() => setStatusDraft(value)}
-              />
-            ))}
-          </FilterGroup>
-        </MoreFiltersMenu>
+          </PmsFilterSection>
+        </PmsFilterPopover>
       </ReservationShellSlot>
       {canWrite ? (
         <ReservationShellSlot name="primary">

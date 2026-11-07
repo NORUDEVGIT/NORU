@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui
 import { StaffAccessMembers } from "@/packages/pms/components/settings/staff-access-members";
 import { StaffAccessRoles } from "@/packages/pms/components/settings/staff-access-roles";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
-import { STAFF_ACCESS_TITLE, staffAccessStepVisible } from "@/packages/pms/lib/staff-access";
+import { staffAccessStepVisible } from "@/packages/pms/lib/staff-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 /** Staff & Access. Visibility and actions follow catalogue permissions. */
@@ -30,13 +30,9 @@ export function StaffAccessWorkspace({ restaurantId }: { restaurantId: string })
   const actor = { isOwner: access.isOwner, codes: access.permissions };
 
   return (
-    <section className="space-y-4" data-testid="staff-access-workspace">
-      <header>
-        <h2 className="font-display text-xl text-[#251605]">{STAFF_ACCESS_TITLE}</h2>
-        <p className="text-sm text-[#756A5B]">Manage hotel staff, roles, and permissions.</p>
-      </header>
+    <section className="min-w-0 space-y-3" data-testid="staff-access-workspace">
       <Tabs value={tab} onValueChange={(value) => setTab(value as "staff" | "roles")}>
-        <TabsList className="h-auto flex-wrap justify-start">
+        <TabsList className="h-8 w-fit justify-start rounded-md border border-[#DDD4C5] bg-white p-0.5">
           {canStaff ? (
             <TabsTrigger value="staff" data-testid="staff-members-tab">
               Staff Members
@@ -49,7 +45,7 @@ export function StaffAccessWorkspace({ restaurantId }: { restaurantId: string })
           ) : null}
         </TabsList>
         {canStaff ? (
-          <TabsContent value="staff">
+          <TabsContent value="staff" className="mt-3">
             <StaffAccessMembers
               restaurantId={restaurantId}
               actor={actor}
@@ -62,7 +58,7 @@ export function StaffAccessWorkspace({ restaurantId }: { restaurantId: string })
           </TabsContent>
         ) : null}
         {canRoles ? (
-          <TabsContent value="roles">
+          <TabsContent value="roles" className="mt-3">
             <StaffAccessRoles
               restaurantId={restaurantId}
               actor={actor}

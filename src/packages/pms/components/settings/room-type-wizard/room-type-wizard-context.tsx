@@ -1,6 +1,13 @@
 import { createContext, useContext } from "react";
 import type { StagedRoom, WizardStepId, WizardTypeForm } from "./room-type-wizard-types";
 
+export type RoomTypeWizardFooterConfig = {
+  continueLabel: string;
+  continueDisabled?: boolean;
+  continueBusy?: boolean;
+  onContinue: () => void;
+};
+
 export type RoomTypeWizardContextValue = {
   restaurantId: string;
   canEdit: boolean;
@@ -22,6 +29,7 @@ export type RoomTypeWizardContextValue = {
   setExcludedBulkNumbers: React.Dispatch<React.SetStateAction<string[]>>;
   onClose: () => void;
   onCompleted: () => void;
+  setFooter: (config: RoomTypeWizardFooterConfig | null) => void;
 };
 
 export const RoomTypeWizardContext = createContext<RoomTypeWizardContextValue | null>(null);

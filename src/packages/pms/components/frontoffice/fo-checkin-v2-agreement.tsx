@@ -633,8 +633,8 @@ export const FoCheckInV2Agreement = forwardRef<
                 Guest Signature <span aria-hidden="true">*</span>
                 <span className="sr-only">(required)</span>
               </h3>
-              <p className="mt-1 text-sm text-[#251605]" id="fo-ci-v2-signature-help">
-                Please provide your signature to acknowledge and accept the above terms.
+              <p className="mt-1 text-xs text-[#6B5E4E]" id="fo-ci-v2-signature-help">
+                Sign to acknowledge the agreement.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button

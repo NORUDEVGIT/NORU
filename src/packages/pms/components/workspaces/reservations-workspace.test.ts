@@ -114,12 +114,12 @@ describe("UI-01 Reservation Desk workspace", () => {
     expect(workspace).not.toContain("folio_transactions");
   });
 
-  it("selects rows locally and loads Quick View only after selection", () => {
-    expect(workspace).toContain("setSelectedId(row.reservationId)");
-    expect(workspace).toContain("getReservationQuickView");
-    expect(workspace).toContain("enabled: selectedId !== null");
-    expect(quickView).toContain("Select a reservation to view details");
-    expect(quickView).toContain("function FinancialCard");
+  it("opens the Reservation Detail overlay from desk row clicks", () => {
+    expect(workspace).toContain("onClick={() => onOpen(row.reservationId)}");
+    expect(workspace).toContain('setOverlay({ type: "reservation-detail", reservationId: id })');
+    expect(workspace).not.toContain("<ReservationQuickViewPanel");
+    expect(workspace).not.toContain("getReservationQuickView");
+    expect(workspace).not.toContain('to: "/restaurant/pms/reservations/$reservationId"');
   });
 
   it("routes Open Reservation and gates operational actions with backend hints", () => {
@@ -156,9 +156,8 @@ describe("UI-01 Reservation Desk workspace", () => {
     expect(workspace).toContain("toDeskSearchQuerySlice");
     expect(workspace).toContain("countActiveAdvancedFilters");
     expect(workspace).not.toContain("Reservation Type");
-    expect(workspace).toContain("<Sheet");
-    expect(workspace).toContain("xl:grid-cols-[180px_minmax(0,1fr)_300px]");
-    expect(workspace).toContain("xl:grid-cols-[56px_minmax(0,1fr)_56px]");
+    expect(workspace).toContain('className="min-w-0 w-full overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm"');
+    expect(workspace).not.toContain("xl:grid-cols-[minmax(0,1fr)_300px]");
     expect(workspace).toContain("max-lg:overflow-x-auto");
     expect(workspace).toContain("lg:overflow-x-hidden");
     expect(workspace).not.toContain("min-w-[1120px]");

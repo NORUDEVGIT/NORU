@@ -32,7 +32,6 @@ import type {
   PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
-  CARD2_SIDEBAR_OUT,
   CARD2_STEPS,
   CARD2_SUBTITLE,
   card2StepById,
@@ -349,7 +348,6 @@ export function PmsPropertySetupCard2Section({
       data-testid="pms-card2-workspace"
       data-card-fullscreen="true"
     >
-      <div className="sr-only">{CARD2_SIDEBAR_OUT}</div>
       <div className="min-w-0 flex-1" data-testid="pms-card2-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={2}

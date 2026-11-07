@@ -23,7 +23,6 @@ import {
   senderSettingToDraft,
   validateSenderSettingsDraft,
   type SenderSettingsDraft,
-  type SenderSettingsRecord,
 } from "@/packages/pms/lib/sender-settings-card4.server";
 import {
   INTEGRATION_AUTH_METHOD_LABELS,
@@ -319,23 +318,30 @@ export function PmsCard4SenderSettings({
   }, [saveRequest, canEdit, errors, dirty, onSaved, saveMutation]);
 
   const fields = senderProviderFields(draft);
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
   const internal = isInternalChannel(draft.channelType);
 
   return (
-    <div className="space-y-5" data-testid="card4-sender-settings">
-      <section className="space-y-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">Sender Settings</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Configure the From identity and provider for each communication channel. Credentials are
-            used only for this test session and are never saved.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-        </div>
-      </section>
+    <div className="space-y-3" data-testid="card4-sender-settings">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Sender Settings</h2>
+        {canEdit ? (
+          <Button
+            type="button"
+            size="sm"
+            disabled={!canEdit || saveMutation.isPending}
+            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            onClick={() => {
+              if (errors.length > 0) {
+                toast.error(errors[0]?.message ?? "Fix sender settings before saving.");
+                return;
+              }
+              saveMutation.mutate();
+            }}
+          >
+            {saveMutation.isPending ? "Saving…" : "Save"}
+          </Button>
+        ) : null}
+      </div>
 
       {query.isLoading ? (
         <div className="space-y-2 rounded-2xl border border-[#CCCCCC] bg-white p-6">
@@ -354,7 +360,7 @@ export function PmsCard4SenderSettings({
         <Tabs
           value={channelType}
           onValueChange={(value) => chooseChannel(value as CommunicationChannelType)}
-          className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm"
+          className="rounded-xl border border-[#CCCCCC] bg-white p-4"
         >
           <TabsList className="h-auto w-full flex-wrap justify-start">
             {COMMUNICATION_CHANNEL_TYPES.map((type) => (
@@ -372,6 +378,8 @@ export function PmsCard4SenderSettings({
               </p>
             ) : null}
 
+            <section className="space-y-3 rounded-lg border border-[#E6E1D8] p-4">
+              <h3 className="text-sm font-medium text-[#251605]">Sender Identity</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <FieldShell
                 id="sender-name"
@@ -457,9 +465,11 @@ export function PmsCard4SenderSettings({
                 />
               </FieldShell>
             ) : null}
+            </section>
 
             {internal ? null : (
-              <div className="space-y-3">
+              <section className="space-y-3 rounded-lg border border-[#E6E1D8] p-4">
+                <h3 className="text-sm font-medium text-[#251605]">Provider Configuration</h3>
                 <p className="text-xs text-muted-foreground">
                   Credentials are used only for this test session and are never saved. Leave a
                   secret empty to leave it unchanged — NORU still does not store it.
@@ -499,9 +509,11 @@ export function PmsCard4SenderSettings({
                     This provider has no additional non-secret fields.
                   </p>
                 )}
-              </div>
+              </section>
             )}
 
+            <section className="space-y-3 rounded-lg border border-[#E6E1D8] p-4">
+              <h3 className="text-sm font-medium text-[#251605]">Connection</h3>
             <div className="flex items-center justify-between rounded-xl border border-[#CCCCCC] p-3">
               <div>
                 <Label htmlFor="sender-active">Active</Label>
@@ -525,6 +537,7 @@ export function PmsCard4SenderSettings({
             >
               {testMutation.isPending ? "Testing…" : "Test Connection"}
             </Button>
+            </section>
           </TabsContent>
         </Tabs>
       )}
@@ -555,44 +568,5 @@ export function PmsCard4SenderSettings({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4SenderSettingsGuide({
-  settings,
-}: {
-  settings: readonly SenderSettingsRecord[];
-}) {
-  const email = settings.find((row) => row.channelType === "email");
-  const active = settings.filter((row) => row.active).length;
-  return (
-    <>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Open each channel tab</li>
-          <li>Set the sender name and email</li>
-          <li>Complete non-secret provider fields</li>
-          <li>Enter credentials only to test the connection</li>
-          <li>Save Draft or Save & Next</li>
-        </ol>
-        <p className="mt-3 text-sm text-[#251605]">
-          {active} of {settings.length} sender channels active
-        </p>
-      </section>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Email sender</p>
-        {email ? (
-          <div className="mt-2 space-y-1 text-sm">
-            <p>{email.senderName || "Not set"}</p>
-            <p className="text-muted-foreground">{email.senderEmail || "No sender email yet"}</p>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">
-            Configure Channels first so sender settings can be created.
-          </p>
-        )}
-      </section>
-    </>
   );
 }

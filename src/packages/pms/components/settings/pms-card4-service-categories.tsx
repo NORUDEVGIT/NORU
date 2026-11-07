@@ -23,13 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,8 +47,6 @@ import {
   type ServiceCategoryDraft,
   type ServiceCategoryRecord,
 } from "@/packages/pms/lib/service-categories-card4.server";
-import { cn } from "@/shared/lib/utils";
-
 function recordToDraft(row: ServiceCategoryRecord): ServiceCategoryDraft {
   return {
     id: row.id,
@@ -118,7 +110,9 @@ export function PmsCard4ServiceCategories({
           name: draft.name,
           code: normalizeServiceCategoryCode(draft.code),
           description: draft.description,
-          active: draft.active,
+          active: draft.id
+            ? (categories.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
           displayOrder: draft.displayOrder,
         },
       }),
@@ -205,23 +199,14 @@ export function PmsCard4ServiceCategories({
     setEditorOpen(false);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-service-categories">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">Service Categories</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Organize guest services into categories for easier management.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-        </div>
+    <div className="space-y-3" data-testid="card4-service-categories">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Service Categories</h2>
         {canEdit ? (
           <Button
             type="button"
+            size="sm"
             onClick={openCreate}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
           >
@@ -230,7 +215,7 @@ export function PmsCard4ServiceCategories({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <div className="space-y-2 p-6">
             {["a", "b", "c"].map((row) => (
@@ -255,15 +240,6 @@ export function PmsCard4ServiceCategories({
             <p className="mt-1 text-sm text-muted-foreground">
               Create a service category to organize your guest services.
             </p>
-            {canEdit ? (
-              <Button
-                type="button"
-                className="mt-4 bg-[#C89933] text-[#251605]"
-                onClick={openCreate}
-              >
-                <Plus className="mr-1 size-4" /> Add Service Category
-              </Button>
-            ) : null}
           </div>
         ) : (
           <>
@@ -278,45 +254,32 @@ export function PmsCard4ServiceCategories({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category Name</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Active</TableHead>
-                    <TableHead className="w-12">Actions</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visible.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                      <TableCell>{row.code}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {row.description ?? "—"}
+                      <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
+                      <TableCell className="py-2">{row.code}</TableCell>
+                      <TableCell className="max-w-[16rem] truncate py-2 text-muted-foreground">
+                        <span title={row.description || undefined}>{row.description || "—"}</span>
                       </TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                            row.active
-                              ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                              : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                          )}
-                        >
-                          {row.active ? "Active" : "Inactive"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <Switch
                           checked={row.active}
                           disabled={!canEdit || toggleMutation.isPending}
-                          aria-label={`${row.active ? "Disable" : "Enable"} ${row.name}`}
+                          aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
                           onCheckedChange={(active) =>
                             toggleMutation.mutate({ id: row.id, active })
                           }
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -327,7 +290,7 @@ export function PmsCard4ServiceCategories({
                               <MoreHorizontal className="size-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
                             <DropdownMenuItem onSelect={() => openEdit(row)}>Edit</DropdownMenuItem>
                             {canEdit ? (
                               <DropdownMenuItem
@@ -335,7 +298,7 @@ export function PmsCard4ServiceCategories({
                                   toggleMutation.mutate({ id: row.id, active: !row.active })
                                 }
                               >
-                                {row.active ? "Disable" : "Enable"}
+                                {row.active ? "Deactivate" : "Activate"}
                               </DropdownMenuItem>
                             ) : null}
                             {canEdit ? (
@@ -355,98 +318,91 @@ export function PmsCard4ServiceCategories({
         )}
       </div>
 
-      <Sheet
+      <Card3OverlapSheet
         open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) requestClose();
-          else setEditorOpen(true);
+        title={draft.id ? "Edit Service Category" : "Add Service Category"}
+        onClose={requestClose}
+        onSubmit={() => {
+          if (!canEdit || errors.length > 0) {
+            toast.error(errors[0]?.message ?? "Fix the category before saving.");
+            return;
+          }
+          saveMutation.mutate();
         }}
+        submitLabel={draft.id ? "Save Changes" : "Add Service Category"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
       >
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{draft.id ? "Edit Service Category" : "Add Service Category"}</SheetTitle>
-            <SheetDescription>
-              Categories group guest services. Individual services are configured later.
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-4 space-y-3 px-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canEdit || errors.length > 0) {
-                toast.error(errors[0]?.message ?? "Fix the category before saving.");
-                return;
-              }
-              saveMutation.mutate();
-            }}
-          >
-            <div className="space-y-1">
-              <Label htmlFor="sc-name">Category Name *</Label>
-              <Input
-                id="sc-name"
-                value={draft.name}
-                disabled={!canEdit}
-                onChange={(event) => mark("name", event.target.value)}
-              />
-              {errorFor("name") ? (
-                <p className="text-xs text-destructive">{errorFor("name")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sc-code">Code *</Label>
-              <Input
-                id="sc-code"
-                value={draft.code}
-                disabled={!canEdit}
-                onChange={(event) => mark("code", normalizeServiceCategoryCode(event.target.value))}
-              />
-              {errorFor("code") ? (
-                <p className="text-xs text-destructive">{errorFor("code")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sc-description">Description</Label>
-              <Textarea
-                id="sc-description"
-                value={draft.description}
-                disabled={!canEdit}
-                maxLength={400}
-                onChange={(event) => mark("description", event.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sc-order">Display Order</Label>
-              <Input
-                id="sc-order"
-                type="number"
-                min={1}
-                value={draft.displayOrder}
-                disabled={!canEdit}
-                onChange={(event) => mark("displayOrder", Number(event.target.value) || 1)}
-              />
-              {errorFor("displayOrder") ? (
-                <p className="text-xs text-destructive">{errorFor("displayOrder")}</p>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="sc-active">Active</Label>
-              <Switch
-                id="sc-active"
-                checked={draft.active}
-                disabled={!canEdit}
-                onCheckedChange={(active) => mark("active", active)}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={!canEdit || saveMutation.isPending || errors.length > 0}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {saveMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="sc-name">Category Name *</Label>
+            <Input
+              id="sc-name"
+              value={draft.name}
+              disabled={!canEdit}
+              onChange={(event) => mark("name", event.target.value)}
+            />
+            {errorFor("name") ? (
+              <p className="text-xs text-destructive">{errorFor("name")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="sc-code">Code *</Label>
+            <Input
+              id="sc-code"
+              value={draft.code}
+              disabled={!canEdit}
+              onChange={(event) => mark("code", normalizeServiceCategoryCode(event.target.value))}
+            />
+            {errorFor("code") ? (
+              <p className="text-xs text-destructive">{errorFor("code")}</p>
+            ) : null}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sc-description">Description</Label>
+          <Textarea
+            id="sc-description"
+            value={draft.description}
+            disabled={!canEdit}
+            maxLength={400}
+            onChange={(event) => mark("description", event.target.value)}
+          />
+        </div>
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="sc-active">Active</Label>
+            <Switch
+              id="sc-active"
+              checked={draft.active}
+              disabled={!canEdit}
+              onCheckedChange={(active) => mark("active", active)}
+            />
+          </div>
+        ) : null}
+        <details className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-[#251605]">
+            Advanced Settings
+          </summary>
+          <div className="mt-3 space-y-1">
+            <Label htmlFor="sc-order">Display Order</Label>
+            <Input
+              id="sc-order"
+              type="number"
+              min={1}
+              value={draft.displayOrder}
+              disabled={!canEdit}
+              onChange={(event) => mark("displayOrder", Number(event.target.value) || 1)}
+            />
+            {errorFor("displayOrder") ? (
+              <p className="text-xs text-destructive">{errorFor("displayOrder")}</p>
+            ) : null}
+          </div>
+        </details>
+      </Card3OverlapSheet>
 
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -493,19 +449,5 @@ export function PmsCard4ServiceCategories({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4ServiceCategoriesGuide({ count }: { count: number }) {
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-        <li className={count > 0 ? "text-[#436436]" : undefined}>Configure Service Categories</li>
-        <li>Add Service Types</li>
-        <li>Review and Save</li>
-      </ol>
-      <p className="mt-3 text-sm text-[#251605]">{count} configured</p>
-    </section>
   );
 }

@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { FoHelpSheet } from "@/packages/pms/components/frontoffice/fo-help-sheet";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import { propertySetupCardIcon } from "@/packages/pms/lib/pms-property-setup-card-identity";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
@@ -18,14 +17,10 @@ import { cn } from "@/shared/lib/utils";
 
 export function SettingsDashboardChrome({
   membership,
-  helpOpen,
-  onHelpOpenChange,
   children,
   contentClassName = "px-4 py-5 sm:px-6",
 }: {
   membership: RestaurantMembership;
-  helpOpen: boolean;
-  onHelpOpenChange: (open: boolean) => void;
   children: ReactNode;
   contentClassName?: string;
 }) {
@@ -33,18 +28,11 @@ export function SettingsDashboardChrome({
     <RoomInventoryChrome
       membership={membership}
       activeModule="Settings"
-      helpLabel="Settings workspace"
+      helpLabel="Help"
       shellTestId="settings-command-shell"
       contentClassName={contentClassName}
-      onHelpClick={() => onHelpOpenChange(true)}
       suppressReturnButton
     >
-      <FoHelpSheet
-        open={helpOpen}
-        onOpenChange={onHelpOpenChange}
-        onNavigate={() => onHelpOpenChange(false)}
-        canOpenCashiering={false}
-      />
       {children}
     </RoomInventoryChrome>
   );
@@ -58,24 +46,20 @@ export function SettingsSetupProgressPanel({
   const progress = evaluateSettingsDashboardProgress(statuses);
 
   return (
-    <section
-      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-[#DDD4C5] bg-white px-3 py-2 shadow-sm"
+    <span
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-[#6B6458]"
       data-testid="settings-setup-progress"
-      aria-label="Setup progress"
+      aria-label={`Setup ${progress.overallPercent}%`}
+      title={`${progress.complete} complete · ${progress.inProgress} need attention · ${progress.notStarted} not started`}
     >
-      <span className="text-xs font-semibold text-[#251605]">
-        Setup progress {progress.overallPercent}%
-      </span>
-      <div className="h-1.5 min-w-24 flex-1 overflow-hidden rounded-full bg-[#E6E1D8]">
-        <div
-          className="h-full rounded-full bg-[#C89933]"
+      <span className="font-medium text-[#251605]">Setup {progress.overallPercent}%</span>
+      <span className="h-1 w-10 overflow-hidden rounded-full bg-[#E6E1D8]">
+        <span
+          className="block h-full rounded-full bg-[#C89933]"
           style={{ width: `${progress.overallPercent}%` }}
         />
-      </div>
-      <span className="text-[11px] text-[#436436]">{progress.complete} complete</span>
-      <span className="text-[11px] text-[#8A6A24]">{progress.inProgress} need attention</span>
-      <span className="text-[11px] text-[#756A5B]">{progress.notStarted} not started</span>
-    </section>
+      </span>
+    </span>
   );
 }
 

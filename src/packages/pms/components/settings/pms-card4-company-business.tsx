@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Pencil, Plus, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -32,13 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -184,6 +178,10 @@ export function PmsCard4CompanyBusiness({
   const [pendingDelete, setPendingDelete] = useState<BusinessProfileTypeRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
   const [roleDraft, setRoleDraft] = useState<BusinessContactRoleDraft>(emptyContactRoleDraft());
+  const [roleEditorOpen, setRoleEditorOpen] = useState(false);
+  const [roleAttempted, setRoleAttempted] = useState(false);
+  const requiredFieldsRef = useRef<HTMLDivElement>(null);
+  const [editorFocus, setEditorFocus] = useState<"details" | "fields">("details");
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
@@ -291,16 +289,13 @@ export function PmsCard4CompanyBusiness({
   useEffect(() => {
     if (!query.data) return;
     if (!settingsDirty) setSettings(query.data.settings);
-    if (selectedId && query.data.types.some((row) => row.id === selectedId)) return;
-    setSelectedId(query.data.types[0]?.id ?? null);
-  }, [query.data, selectedId, settingsDirty]);
+  }, [query.data, settingsDirty]);
 
   const visibleTypes = types.filter((row) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return row.name.toLowerCase().includes(q) || row.code.toLowerCase().includes(q);
   });
-  const selected = types.find((row) => row.id === selectedId) ?? null;
   const typeErrors = validateBusinessTypeDraft(draft, types, fields);
   const settingsErrors = validateBusinessSettings(settings, types);
   const errorFor = (field: string) =>
@@ -322,7 +317,9 @@ export function PmsCard4CompanyBusiness({
           name: draft.name,
           code: normalizeBusinessTypeCode(draft.code),
           description: draft.description,
-          active: draft.active,
+          active: draft.id
+            ? (types.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
           requiredFieldIds: draft.requiredFieldIds,
           taxIdRequired: draft.taxIdRequired,
           contactRequired: draft.contactRequired,
@@ -377,6 +374,8 @@ export function PmsCard4CompanyBusiness({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
       setRoleDraft(emptyContactRoleDraft());
+      setRoleAttempted(false);
+      setRoleEditorOpen(false);
       toast.success("Contact role saved.");
     },
     onError: (error: Error) => toast.error(error.message || "Unable to save contact role."),
@@ -484,15 +483,38 @@ export function PmsCard4CompanyBusiness({
   function openCreate() {
     setDraft(emptyBusinessTypeDraft());
     setDraftDirty(true);
+    setEditorFocus("details");
     setEditorOpen(true);
   }
 
-  function openEdit(row: BusinessProfileTypeRecord) {
+  function openEdit(row: BusinessProfileTypeRecord, focus: "details" | "fields" = "details") {
     setSelectedId(row.id);
     setDraft(recordToDraft(row));
     setDraftDirty(false);
+    setEditorFocus(focus);
     setEditorOpen(true);
   }
+
+  function openAddRole() {
+    setRoleDraft(emptyContactRoleDraft());
+    setRoleAttempted(false);
+    setRoleEditorOpen(true);
+  }
+
+  function openEditRole(row: { id: string; name: string; code: string; active: boolean }) {
+    setRoleDraft({
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      active: row.active,
+    });
+    setRoleAttempted(false);
+    setRoleEditorOpen(true);
+  }
+
+  const roleErrors = validateContactRoleDraft(roleDraft, query.data?.roles ?? []);
+  const roleErrorFor = (field: string) =>
+    roleAttempted ? (roleErrors.find((row) => row.field === field)?.message ?? null) : null;
 
   function requestCloseEditor() {
     if (draftDirty) {
@@ -502,24 +524,21 @@ export function PmsCard4CompanyBusiness({
     setEditorOpen(false);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
   const activeTypes = types.filter((row) => row.active);
 
+  useEffect(() => {
+    if (!editorOpen || editorFocus !== "fields") return;
+    requiredFieldsRef.current?.scrollIntoView({ block: "nearest" });
+  }, [editorOpen, editorFocus]);
+
   return (
-    <div className="space-y-5" data-testid="card4-company-business">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">6.1 Business Profile Types</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Select the business profile types you want to offer at your property.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-        </div>
+    <div className="space-y-4" data-testid="card4-company-business">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Business Profile Types</h2>
         {canEdit ? (
           <Button
             type="button"
+            size="sm"
             onClick={openCreate}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
           >
@@ -528,7 +547,7 @@ export function PmsCard4CompanyBusiness({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <div className="space-y-2 p-6">
             {["a", "b", "c"].map((row) => (
@@ -576,96 +595,81 @@ export function PmsCard4CompanyBusiness({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Type Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Active</TableHead>
                     <TableHead>Required Fields</TableHead>
-                    <TableHead>Tax ID Required</TableHead>
-                    <TableHead>Contact Required</TableHead>
+                    <TableHead>Tax ID</TableHead>
+                    <TableHead>Contact</TableHead>
                     <TableHead>Credit Account</TableHead>
-                    <TableHead className="w-20">Actions</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visibleTypes.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className={cn(row.id === selectedId && "bg-[#C89933]/5")}
-                      onClick={() => setSelectedId(row.id)}
-                    >
-                      <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                      <TableCell>{row.code}</TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={row.active}
-                          disabled={!canEdit || toggleMutation.isPending}
-                          aria-label={`${row.active ? "Disable" : "Enable"} ${row.name}`}
-                          onCheckedChange={(active) =>
-                            toggleMutation.mutate({ id: row.id, active })
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
+                    <TableRow key={row.id} className="hover:bg-[#FAF8F5]/80">
+                      <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
+                      <TableCell className="py-2">{row.code}</TableCell>
+                      <TableCell className="py-2">
                         {row.requiredFieldIds.length}
                         {row.staleRequiredFieldIds.length > 0 ? (
                           <span className="ml-1 text-xs text-destructive">needs review</span>
                         ) : null}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <YesNo value={row.taxIdRequired} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <YesNo value={row.contactRequired} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <YesNo value={row.creditAccountAllowed} />
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Edit ${row.name}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openEdit(row);
-                            }}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label={`Actions for ${row.name}`}
-                                onClick={(event) => event.stopPropagation()}
+                      <TableCell className="py-2">
+                        <Switch
+                          checked={row.active}
+                          disabled={!canEdit || toggleMutation.isPending}
+                          aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
+                          onCheckedChange={(active) =>
+                            toggleMutation.mutate({ id: row.id, active })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="py-2 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label={`Actions for ${row.name}`}
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52 border-[#DDD4C5]">
+                            <DropdownMenuItem onSelect={() => openEdit(row, "details")}>
+                              Edit Business Type
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openEdit(row, "fields")}>
+                              Configure Required Fields
+                            </DropdownMenuItem>
+                            {canEdit ? (
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  toggleMutation.mutate({ id: row.id, active: !row.active })
+                                }
                               >
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => openEdit(row)}>
-                                Edit
+                                {row.active ? "Deactivate" : "Activate"}
                               </DropdownMenuItem>
-                              {canEdit ? (
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    toggleMutation.mutate({ id: row.id, active: !row.active })
-                                  }
-                                >
-                                  {row.active ? "Disable" : "Enable"}
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canEdit ? (
-                                <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
-                                  Delete
-                                </DropdownMenuItem>
-                              ) : null}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                            ) : null}
+                            {canEdit ? (
+                              <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
+                                Delete
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -676,192 +680,138 @@ export function PmsCard4CompanyBusiness({
         )}
       </div>
 
-      {selected ? (
-        <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4">
-          <h3 className="text-sm font-medium text-[#251605]">Business Type Details</h3>
-          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-muted-foreground">Type Name</dt>
-              <dd>{selected.name}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Code</dt>
-              <dd>{selected.code}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Active</dt>
-              <dd>{selected.active ? "Yes" : "No"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Required Fields</dt>
-              <dd>{selected.requiredFieldIds.length}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Tax ID Required</dt>
-              <dd>{selected.taxIdRequired ? "Yes" : "No"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Contact Required</dt>
-              <dd>{selected.contactRequired ? "Yes" : "No"}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Credit Account Allowed</dt>
-              <dd>{selected.creditAccountAllowed ? "Yes" : "No"}</dd>
-            </div>
-          </dl>
-        </section>
-      ) : null}
-
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-4">
-        <div>
-          <h2 className="font-display text-xl text-[#251605]">6.2 Business Profile Settings</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Configure general settings for business profiles.
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#CCCCCC] px-3 py-3">
-          <div>
-            <p className="text-sm font-medium text-[#251605]">Enable Business Profile</p>
-            <p className="text-xs text-muted-foreground">Allow business profiles in the system.</p>
+      <section className="rounded-xl border border-[#CCCCCC] bg-white p-4">
+        <h2 className="font-display text-lg text-[#251605]">Business Profile Settings</h2>
+        <div className="mt-3 grid gap-4 md:grid-cols-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="bp-enabled" className="text-sm font-medium text-[#251605]">
+              Business Profiles
+            </Label>
+            <Switch
+              id="bp-enabled"
+              checked={settings.enabled}
+              disabled={!canEdit}
+              onCheckedChange={(enabled) => markSettings("enabled", enabled)}
+            />
           </div>
-          <Switch
-            checked={settings.enabled}
-            disabled={!canEdit}
-            onCheckedChange={(enabled) => markSettings("enabled", enabled)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Default Business Type</Label>
-          {activeTypes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No active business types configured.</p>
-          ) : (
-            <Select
-              value={settings.defaultBusinessTypeId ?? ""}
-              disabled={!canEdit || !settings.enabled}
-              onValueChange={(value) => markSettings("defaultBusinessTypeId", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a default type" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeTypes.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {settingsError || settings.defaultInvalid ? (
-            <p className="text-xs text-destructive">
-              {settingsError ?? "The default business type must be an active configured type."}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#CCCCCC] px-3 py-3">
-          <div>
-            <p className="text-sm font-medium text-[#251605]">Auto-Approval</p>
+          <div className="space-y-1.5">
+            <Label>Default Business Type</Label>
+            {activeTypes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No active business types configured.</p>
+            ) : (
+              <Select
+                value={settings.defaultBusinessTypeId ?? ""}
+                disabled={!canEdit || !settings.enabled}
+                onValueChange={(value) => markSettings("defaultBusinessTypeId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a default type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeTypes.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {settingsError || settings.defaultInvalid ? (
+              <p className="text-xs text-destructive">
+                {settingsError ?? "The default business type must be an active configured type."}
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="bp-auto-approval" className="text-sm font-medium text-[#251605]">
+                Auto Approval
+              </Label>
+              <Switch
+                id="bp-auto-approval"
+                checked={settings.autoApproval}
+                disabled={!canEdit}
+                onCheckedChange={(autoApproval) => markSettings("autoApproval", autoApproval)}
+              />
+            </div>
             <p className="text-xs text-muted-foreground">
-              Automatically approve new business profiles.
+              Automatically approve newly created business profiles.
             </p>
           </div>
-          <Switch
-            checked={settings.autoApproval}
-            disabled={!canEdit}
-            onCheckedChange={(autoApproval) => markSettings("autoApproval", autoApproval)}
-          />
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-4" data-testid="card4-contact-roles">
-        <div>
-          <h2 className="font-display text-xl text-[#251605]">Contact Roles</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Roles assigned to company contact persons. Inactive roles stay readable on existing contacts.
-          </p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="space-y-1">
-            <Label>Role name</Label>
-            <Input
-              value={roleDraft.name}
-              disabled={!canEdit}
-              onChange={(event) => setRoleDraft((current) => ({ ...current, name: event.target.value }))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Code</Label>
-            <Input
-              value={roleDraft.code}
-              disabled={!canEdit}
-              onChange={(event) => setRoleDraft((current) => ({ ...current, code: event.target.value }))}
-            />
-          </div>
-          <div className="flex items-end">
+      <section className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white" data-testid="card4-contact-roles">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <h2 className="font-display text-lg text-[#251605]">Contact Roles</h2>
+          {canEdit ? (
             <Button
               type="button"
-              disabled={!canEdit || roleMutation.isPending}
-              onClick={() => roleMutation.mutate()}
+              size="sm"
+              onClick={openAddRole}
+              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             >
-              {roleDraft.id ? "Save role" : "Add role"}
+              <Plus className="mr-1 size-4" /> Add Role
             </Button>
-          </div>
+          ) : null}
         </div>
-        {validateContactRoleDraft(roleDraft, query.data?.roles ?? []).map((error) => (
-          <p key={error.field} className="text-xs text-destructive">{error.message}</p>
-        ))}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(query.data?.roles ?? []).map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{row.name}</TableCell>
-                <TableCell>{row.code}</TableCell>
-                <TableCell>{row.active ? "Active" : "Inactive"}</TableCell>
-                <TableCell className="text-right">
-                  <Button type="button" variant="ghost" size="sm" disabled={!canEdit} onClick={() => setRoleDraft({
-                    id: row.id,
-                    name: row.name,
-                    code: row.code,
-                    active: row.active,
-                  })}>
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={!canEdit}
-                    onClick={() => roleActiveMutation.mutate({ id: row.id, active: !row.active })}
-                  >
-                    {row.active ? "Deactivate" : "Activate"}
-                  </Button>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Role</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-12 text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {(query.data?.roles ?? []).map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="py-2">{row.name}</TableCell>
+                  <TableCell className="py-2">{row.code}</TableCell>
+                  <TableCell className="py-2">{row.active ? "Active" : "Inactive"}</TableCell>
+                  <TableCell className="py-2 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label={`Actions for ${row.name}`}
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
+                        <DropdownMenuItem disabled={!canEdit} onSelect={() => openEditRole(row)}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={!canEdit}
+                          onSelect={() =>
+                            roleActiveMutation.mutate({ id: row.id, active: !row.active })
+                          }
+                        >
+                          {row.active ? "Deactivate" : "Activate"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white" data-testid="card4-company-document-types">
+      <section className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white" data-testid="card4-company-document-types">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#CCCCCC] px-4 py-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium text-[#251605]">Document Types</h3>
-              <Badge variant="outline" className="text-xs font-normal">
-                {docTypes.length} configured
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Single source of truth for compliance documents required across Company and Travel Agency creation.
-            </p>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-lg text-[#251605]">Document Types</h2>
+            <Badge variant="outline" className="text-xs font-normal">
+              {docTypes.length} configured
+            </Badge>
           </div>
           {canEdit ? (
             <Button
@@ -1058,22 +1008,20 @@ export function PmsCard4CompanyBusiness({
                   <TableRow>
                     <TableHead>Document Type</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Description</TableHead>
                     <TableHead>Requirement</TableHead>
                     <TableHead>Applies To</TableHead>
                     <TableHead>Active</TableHead>
-                    <TableHead className="w-28 text-right">Actions</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visibleDocTypes.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                      <TableCell className="font-mono text-xs">{row.code}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
-                        {row.description || "—"}
+                      <TableCell className="max-w-[16rem] truncate py-2 font-medium text-[#251605]">
+                        <span title={row.name}>{row.name}</span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2 font-mono text-xs">{row.code}</TableCell>
+                      <TableCell className="py-2">
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={row.required}
@@ -1081,34 +1029,31 @@ export function PmsCard4CompanyBusiness({
                             onCheckedChange={(required) =>
                               docTypeRequiredMutation.mutate({ id: row.id, required })
                             }
-                            aria-label={`Toggle requirement for ${row.name}`}
+                            aria-label={`${row.required ? "Make optional" : "Make required"} ${row.name}`}
                           />
-                          <Badge
-                            variant={row.required ? "default" : "secondary"}
-                            className={row.required ? "bg-[#436436]" : ""}
-                          >
+                          <span className="text-xs text-muted-foreground">
                             {row.required ? "Required" : "Optional"}
-                          </Badge>
+                          </span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <div className="flex flex-wrap gap-1">
                           {row.appliesToCompany ? (
-                            <Badge variant="secondary" className="text-[10px] bg-[#FAF8F5] border border-[#DDD4C5] text-[#251605]">
+                            <span className="rounded-full border border-[#DDD4C5] bg-[#FAF8F5] px-2 py-0.5 text-[10px] text-[#251605]">
                               Company
-                            </Badge>
+                            </span>
                           ) : null}
                           {row.appliesToTravelAgency ? (
-                            <Badge variant="secondary" className="text-[10px] bg-[#FAF8F5] border border-[#DDD4C5] text-[#251605]">
+                            <span className="rounded-full border border-[#DDD4C5] bg-[#FAF8F5] px-2 py-0.5 text-[10px] text-[#251605]">
                               Travel Agency
-                            </Badge>
+                            </span>
                           ) : null}
                           {!row.appliesToCompany && !row.appliesToTravelAgency ? (
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : null}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
                         <Switch
                           checked={row.active}
                           disabled={!canEdit || docTypeActiveMutation.isPending}
@@ -1118,62 +1063,53 @@ export function PmsCard4CompanyBusiness({
                           aria-label={`Toggle active for ${row.name}`}
                         />
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={!canEdit}
-                            className="h-8 px-2.5 text-xs font-medium"
-                            onClick={() => setDocTypeDraft(row)}
-                          >
-                            Edit
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                aria-label={`Actions for ${row.name}`}
+                      <TableCell className="py-2 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label={`Actions for ${row.name}`}
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
+                            <DropdownMenuItem onSelect={() => setDocTypeDraft(row)}>
+                              Edit
+                            </DropdownMenuItem>
+                            {canEdit ? (
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  docTypeRequiredMutation.mutate({
+                                    id: row.id,
+                                    required: !row.required,
+                                  })
+                                }
                               >
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => setDocTypeDraft(row)}>
-                                Edit
+                                {row.required ? "Make Optional" : "Make Required"}
                               </DropdownMenuItem>
-                              {canEdit ? (
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    docTypeRequiredMutation.mutate({ id: row.id, required: !row.required })
-                                  }
-                                >
-                                  {row.required ? "Make Optional" : "Make Required"}
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canEdit ? (
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    docTypeActiveMutation.mutate({ id: row.id, active: !row.active })
-                                  }
-                                >
-                                  {row.active ? "Disable" : "Enable"}
-                                </DropdownMenuItem>
-                              ) : null}
-                              {canEdit ? (
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onSelect={() => setPendingDeleteDocType(row)}
-                                >
-                                  Delete
-                                </DropdownMenuItem>
-                              ) : null}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                            ) : null}
+                            {canEdit ? (
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  docTypeActiveMutation.mutate({ id: row.id, active: !row.active })
+                                }
+                              >
+                                {row.active ? "Deactivate" : "Activate"}
+                              </DropdownMenuItem>
+                            ) : null}
+                            {canEdit ? (
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onSelect={() => setPendingDeleteDocType(row)}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1210,157 +1146,176 @@ export function PmsCard4CompanyBusiness({
         )}
       </section>
 
-      <Sheet
+      <Card3OverlapSheet
         open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) requestCloseEditor();
-          else setEditorOpen(true);
+        title={draft.id ? "Edit Business Type" : "Add Business Type"}
+        onClose={requestCloseEditor}
+        onSubmit={() => {
+          if (!canEdit || typeErrors.length > 0) {
+            toast.error(typeErrors[0]?.message ?? "Fix the business type before saving.");
+            return;
+          }
+          typeMutation.mutate();
         }}
+        submitLabel="Save Changes"
+        pending={typeMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[850px]"
+        footerJustify="between"
       >
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{draft.id ? "Edit Business Profile Type" : "Add Business Type"}</SheetTitle>
-            <SheetDescription>
-              Business classification for company profiles. This does not change billing or guest
-              records.
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-4 space-y-4 px-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canEdit || typeErrors.length > 0) {
-                toast.error(typeErrors[0]?.message ?? "Fix the business type before saving.");
-                return;
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="bt-name">Type Name *</Label>
+            <Input
+              id="bt-name"
+              value={draft.name}
+              disabled={!canEdit}
+              onChange={(event) => markType("name", event.target.value)}
+            />
+            {errorFor("name") ? (
+              <p className="text-xs text-destructive">{errorFor("name")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="bt-code">Code *</Label>
+            <Input
+              id="bt-code"
+              value={draft.code}
+              disabled={!canEdit}
+              onChange={(event) =>
+                markType("code", normalizeBusinessTypeCode(event.target.value))
               }
-              typeMutation.mutate();
-            }}
-          >
-            <div className="space-y-1">
-              <Label htmlFor="bt-name">Type Name *</Label>
-              <Input
-                id="bt-name"
-                value={draft.name}
-                disabled={!canEdit}
-                onChange={(event) => markType("name", event.target.value)}
-              />
-              {errorFor("name") ? (
-                <p className="text-xs text-destructive">{errorFor("name")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="bt-code">Code *</Label>
-              <Input
-                id="bt-code"
-                value={draft.code}
-                disabled={!canEdit}
-                onChange={(event) =>
-                  markType("code", normalizeBusinessTypeCode(event.target.value))
-                }
-              />
-              {errorFor("code") ? (
-                <p className="text-xs text-destructive">{errorFor("code")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="bt-description">Description</Label>
-              <Textarea
-                id="bt-description"
-                value={draft.description}
-                disabled={!canEdit}
-                maxLength={400}
-                onChange={(event) => markType("description", event.target.value)}
-              />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-[#251605]">Required Fields</p>
-              <p className="text-xs text-muted-foreground">
-                Select the mandatory fields for this business type.
-              </p>
-              <p className="mt-1 text-xs text-[#251605]">
-                {draft.requiredFieldIds.length} fields selected
-              </p>
-              <div className="mt-2 space-y-2">
-                {activeFields.map((field) => (
-                  <div key={field.id} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`bf-${field.id}`}
-                      checked={draft.requiredFieldIds.includes(field.id)}
-                      disabled={!canEdit}
-                      onCheckedChange={(checked) =>
-                        markType(
-                          "requiredFieldIds",
-                          toggleId(draft.requiredFieldIds, field.id, checked === true),
-                        )
-                      }
-                    />
-                    <Label htmlFor={`bf-${field.id}`} className="font-normal">
-                      {field.name}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              {staleOnDraft.length > 0 ? (
-                <p className="mt-2 text-xs text-destructive">
-                  {staleOnDraft.length} selected field(s) are missing or inactive.
-                </p>
-              ) : null}
-              {errorFor("requiredFieldIds") ? (
-                <p className="mt-1 text-xs text-destructive">{errorFor("requiredFieldIds")}</p>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={onGoRequiredFields}
-              >
-                Manage Fields
-              </Button>
-            </div>
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-[#251605]">Business Rules</p>
-              <YesNoSelect
-                id="bt-tax"
-                label="Tax ID Required"
-                value={draft.taxIdRequired}
-                disabled={!canEdit}
-                onChange={(value) => markType("taxIdRequired", value)}
-              />
-              <YesNoSelect
-                id="bt-contact"
-                label="Contact Required"
-                value={draft.contactRequired}
-                disabled={!canEdit}
-                onChange={(value) => markType("contactRequired", value)}
-              />
-              <YesNoSelect
-                id="bt-credit"
-                label="Credit Account Allowed"
-                value={draft.creditAccountAllowed}
-                disabled={!canEdit}
-                onChange={(value) => markType("creditAccountAllowed", value)}
-              />
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="bt-active">Active</Label>
-                <Switch
-                  id="bt-active"
-                  checked={draft.active}
+            />
+            {errorFor("code") ? (
+              <p className="text-xs text-destructive">{errorFor("code")}</p>
+            ) : null}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="bt-description">Description</Label>
+          <Textarea
+            id="bt-description"
+            value={draft.description}
+            disabled={!canEdit}
+            maxLength={400}
+            onChange={(event) => markType("description", event.target.value)}
+          />
+        </div>
+        <div ref={requiredFieldsRef}>
+          <p className="text-sm font-medium text-[#251605]">Required Fields</p>
+          <p className="text-xs text-muted-foreground">
+            Select the mandatory fields for this business type.
+          </p>
+          <p className="mt-1 text-xs text-[#251605]">
+            {draft.requiredFieldIds.length} fields selected
+          </p>
+          <div className="mt-2 space-y-2">
+            {activeFields.map((field) => (
+              <div key={field.id} className="flex items-center gap-2">
+                <Checkbox
+                  id={`bf-${field.id}`}
+                  checked={draft.requiredFieldIds.includes(field.id)}
                   disabled={!canEdit}
-                  onCheckedChange={(active) => markType("active", active)}
+                  onCheckedChange={(checked) =>
+                    markType(
+                      "requiredFieldIds",
+                      toggleId(draft.requiredFieldIds, field.id, checked === true),
+                    )
+                  }
                 />
+                <Label htmlFor={`bf-${field.id}`} className="font-normal">
+                  {field.name}
+                </Label>
               </div>
-            </div>
-            <Button
-              type="submit"
-              disabled={!canEdit || typeMutation.isPending || typeErrors.length > 0}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {typeMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+            ))}
+          </div>
+          {staleOnDraft.length > 0 ? (
+            <p className="mt-2 text-xs text-destructive">
+              {staleOnDraft.length} selected field(s) are missing or inactive.
+            </p>
+          ) : null}
+          {errorFor("requiredFieldIds") ? (
+            <p className="mt-1 text-xs text-destructive">{errorFor("requiredFieldIds")}</p>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={onGoRequiredFields}
+          >
+            Manage Fields
+          </Button>
+        </div>
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-[#251605]">Business Rules</p>
+          <YesNoSelect
+            id="bt-tax"
+            label="Tax ID Required"
+            value={draft.taxIdRequired}
+            disabled={!canEdit}
+            onChange={(value) => markType("taxIdRequired", value)}
+          />
+          <YesNoSelect
+            id="bt-contact"
+            label="Contact Required"
+            value={draft.contactRequired}
+            disabled={!canEdit}
+            onChange={(value) => markType("contactRequired", value)}
+          />
+          <YesNoSelect
+            id="bt-credit"
+            label="Credit Account Allowed"
+            value={draft.creditAccountAllowed}
+            disabled={!canEdit}
+            onChange={(value) => markType("creditAccountAllowed", value)}
+          />
+        </div>
+      </Card3OverlapSheet>
+
+      <Card3OverlapSheet
+        open={roleEditorOpen}
+        title={roleDraft.id ? "Edit Contact Role" : "Add Role"}
+        onClose={() => {
+          setRoleEditorOpen(false);
+          setRoleAttempted(false);
+        }}
+        onSubmit={() => {
+          setRoleAttempted(true);
+          if (roleErrors.length > 0) return;
+          roleMutation.mutate();
+        }}
+        submitLabel={roleDraft.id ? "Save Changes" : "Add Role"}
+        pending={roleMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-md"
+        footerJustify="between"
+      >
+        <div className="space-y-1">
+          <Label htmlFor="cr-name">Role Name</Label>
+          <Input
+            id="cr-name"
+            value={roleDraft.name}
+            disabled={!canEdit}
+            onChange={(event) => setRoleDraft((current) => ({ ...current, name: event.target.value }))}
+          />
+          {roleErrorFor("name") ? (
+            <p className="text-xs text-destructive">{roleErrorFor("name")}</p>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="cr-code">Code</Label>
+          <Input
+            id="cr-code"
+            value={roleDraft.code}
+            disabled={!canEdit}
+            onChange={(event) => setRoleDraft((current) => ({ ...current, code: event.target.value }))}
+          />
+          {roleErrorFor("code") ? (
+            <p className="text-xs text-destructive">{roleErrorFor("code")}</p>
+          ) : null}
+        </div>
+      </Card3OverlapSheet>
 
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -1480,184 +1435,123 @@ function CompanyDocumentTypeSheet({
     }
   }, [open, value]);
 
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="overflow-y-auto sm:max-w-md">
-        <SheetHeader>
-          <SheetTitle>{value ? "Edit Document Type" : "Add Document Type"}</SheetTitle>
-          <SheetDescription>
-            Configure document requirements and applicability for corporate companies and travel agencies.
-          </SheetDescription>
-        </SheetHeader>
-        <form
-          className="mt-4 space-y-4 px-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!canEdit || !name.trim() || !code.trim()) {
-              toast.error("Please enter a valid document name and code.");
-              return;
-            }
-            onSave({
-              ...(value ? { id: value.id } : {}),
-              name: name.trim(),
-              code: code.trim().toUpperCase(),
-              description: description.trim() || undefined,
-              required,
-              appliesToContract: appliesToCompany,
-              appliesToCompany,
-              appliesToTravelAgency,
-              displayOrder: Number(displayOrder) || 0,
-              active,
-            });
-          }}
-        >
-          <div className="space-y-1">
-            <Label htmlFor="dt-name">Document Name *</Label>
-            <Input
-              id="dt-name"
-              value={name}
-              disabled={!canEdit}
-              placeholder="e.g. Tax Registration Certificate"
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dt-code">Code *</Label>
-            <Input
-              id="dt-code"
-              value={code}
-              disabled={!canEdit}
-              placeholder="e.g. TAX_CERT, TRADE_LIC"
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dt-desc">Description</Label>
-            <Textarea
-              id="dt-desc"
-              value={description}
-              disabled={!canEdit}
-              maxLength={400}
-              placeholder="Operational instructions for verification"
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dt-order">Display Order</Label>
-            <Input
-              id="dt-order"
-              type="number"
-              min={0}
-              value={displayOrder}
-              disabled={!canEdit}
-              onChange={(e) => setDisplayOrder(e.target.value)}
-            />
-          </div>
-          <div className="space-y-3 pt-2 border-t">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="dt-required">Mandatory Requirement</Label>
-                <p className="text-xs text-muted-foreground">If enabled, registration will require this document.</p>
-              </div>
-              <Switch
-                id="dt-required"
-                checked={required}
-                disabled={!canEdit}
-                onCheckedChange={setRequired}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="dt-applies-company">Applies to Company</Label>
-                <p className="text-xs text-muted-foreground">Visible in Company creation and profile documents.</p>
-              </div>
-              <Switch
-                id="dt-applies-company"
-                checked={appliesToCompany}
-                disabled={!canEdit}
-                onCheckedChange={setAppliesToCompany}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="dt-applies-travel-agency">Applies to Travel Agency</Label>
-                <p className="text-xs text-muted-foreground">Visible in Travel Agency registration and documents.</p>
-              </div>
-              <Switch
-                id="dt-applies-travel-agency"
-                checked={appliesToTravelAgency}
-                disabled={!canEdit}
-                onCheckedChange={setAppliesToTravelAgency}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="dt-active">Active</Label>
-              <Switch
-                id="dt-active"
-                checked={active}
-                disabled={!canEdit}
-                onCheckedChange={setActive}
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={!canEdit || pending || !name.trim() || !code.trim()}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {pending ? "Saving…" : "Save Document Type"}
-            </Button>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
-  );
-}
+  function submitDocumentType() {
+    if (!canEdit || !name.trim() || !code.trim()) {
+      toast.error("Please enter a valid document name and code.");
+      return;
+    }
+    onSave({
+      ...(value ? { id: value.id } : {}),
+      name: name.trim(),
+      code: code.trim().toUpperCase(),
+      description: description.trim() || undefined,
+      required,
+      appliesToContract: appliesToCompany,
+      appliesToCompany,
+      appliesToTravelAgency,
+      displayOrder: Number(displayOrder) || 0,
+      active,
+    });
+  }
 
-export function Card4CompanyBusinessGuide({
-  typeCount,
-  typesWithFields,
-  settingsReady,
-  saved,
-}: {
-  typeCount: number;
-  typesWithFields: number;
-  settingsReady: boolean;
-  saved: boolean;
-}) {
-  const rulesReady = typeCount > 0;
   return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <ol className="mt-2 list-decimal space-y-2 pl-4 text-sm">
-        <li className={typeCount > 0 ? "text-[#436436]" : "text-muted-foreground"}>
-          Configure Business Types
-          <span className="mt-0.5 block text-muted-foreground">{typeCount} configured</span>
-        </li>
-        <li className={typesWithFields > 0 ? "text-[#436436]" : "text-muted-foreground"}>
-          Define Required Fields
-          <span className="mt-0.5 block text-muted-foreground">{typesWithFields} configured</span>
-        </li>
-        <li className={rulesReady ? "text-[#436436]" : "text-muted-foreground"}>
-          Set Business Rules
-          <span className="mt-0.5 block text-muted-foreground">
-            {rulesReady ? "Configured" : "Incomplete"}
-          </span>
-        </li>
-        <li className={settingsReady ? "text-[#436436]" : "text-muted-foreground"}>
-          Configure General Settings
-          <span className="mt-0.5 block text-muted-foreground">
-            {settingsReady ? "Configured" : "Incomplete"}
-          </span>
-        </li>
-        <li className={saved && settingsReady ? "text-[#436436]" : "text-muted-foreground"}>
-          Review and Save
-        </li>
-      </ol>
-    </section>
+    <Card3OverlapSheet
+      open={open}
+      title={value ? "Edit Document Type" : "Add Document Type"}
+      onClose={onClose}
+      onSubmit={submitDocumentType}
+      submitLabel={value ? "Save Document Type" : "Add Document Type"}
+      pending={pending}
+      canEdit={canEdit}
+      maxWidth="max-w-[750px]"
+      footerJustify="between"
+    >
+      <div className="space-y-1">
+        <Label htmlFor="dt-name">Document Name *</Label>
+        <Input
+          id="dt-name"
+          value={name}
+          disabled={!canEdit}
+          placeholder="e.g. Tax Registration Certificate"
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="dt-code">Code *</Label>
+        <Input
+          id="dt-code"
+          value={code}
+          disabled={!canEdit}
+          placeholder="e.g. TAX_CERT, TRADE_LIC"
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="dt-desc">Description</Label>
+        <Textarea
+          id="dt-desc"
+          value={description}
+          disabled={!canEdit}
+          maxLength={400}
+          placeholder="Operational instructions for verification"
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+      <div className="space-y-3 border-t border-[#E6E1D8] pt-3">
+        <p className="text-sm font-medium text-[#251605]">Usage</p>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="dt-required">Mandatory Requirement</Label>
+          <Switch
+            id="dt-required"
+            checked={required}
+            disabled={!canEdit}
+            onCheckedChange={setRequired}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="dt-applies-company">Applies to Company</Label>
+          <Switch
+            id="dt-applies-company"
+            checked={appliesToCompany}
+            disabled={!canEdit}
+            onCheckedChange={setAppliesToCompany}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="dt-applies-travel-agency">Applies to Travel Agency</Label>
+          <Switch
+            id="dt-applies-travel-agency"
+            checked={appliesToTravelAgency}
+            disabled={!canEdit}
+            onCheckedChange={setAppliesToTravelAgency}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="dt-active">Active</Label>
+          <Switch
+            id="dt-active"
+            checked={active}
+            disabled={!canEdit}
+            onCheckedChange={setActive}
+          />
+        </div>
+      </div>
+      <details className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3 py-2">
+        <summary className="cursor-pointer text-sm font-medium text-[#251605]">
+          Advanced Settings
+        </summary>
+        <div className="mt-3 space-y-1">
+          <Label htmlFor="dt-order">Display Order</Label>
+          <Input
+            id="dt-order"
+            type="number"
+            min={0}
+            value={displayOrder}
+            disabled={!canEdit}
+            onChange={(e) => setDisplayOrder(e.target.value)}
+          />
+        </div>
+      </details>
+    </Card3OverlapSheet>
   );
 }

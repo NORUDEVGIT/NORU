@@ -194,7 +194,8 @@ describe("NORU PMS — Guest Profile Phase 3 — Individual Guest Detail Workspa
 
   it("26. Guest Information card displays demographics and has Edit action", () => {
     assert.match(overviewCode, /Guest Information/);
-    assert.match(overviewCode, /onNavigateView\("personal-contact"\)/);
+    assert.match(overviewCode, /Profile No\./);
+    assert.match(overviewCode, /Member Since/);
   });
 
   it("27. Contact & Address card displays phone, email, address, and View on Map only if coordinates are present (Caution 2)", () => {
@@ -218,18 +219,17 @@ describe("NORU PMS — Guest Profile Phase 3 — Individual Guest Detail Workspa
 
   it("30. Key Preferences card renders preference chips and Edit action", () => {
     assert.match(overviewCode, /prefsQuery\.data/);
-    assert.match(overviewCode, /onNavigateView\("preferences"\)/);
+    assert.match(overviewCode, /OVERVIEW_PREFERENCES_EMPTY/);
   });
 
   it("31. Identity Status card renders masked ID, expiration, verification badge, and View All action", () => {
     assert.match(overviewCode, /idNumberMasked/);
     assert.match(overviewCode, /guest\.idVerified/);
-    assert.match(overviewCode, /onNavigateView\("identity"\)/);
   });
 
   it("32. Relationships card renders linked accounts and View All action", () => {
     assert.match(overviewCode, /linksQuery\.data/);
-    assert.match(overviewCode, /onNavigateView\("relationships"\)/);
+    assert.match(overviewCode, /No linked corporate or agency accounts/);
   });
 
   it("33. Operational Overview Row 4 renders Important Notes & Alerts card with Add Note action", () => {

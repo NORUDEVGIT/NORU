@@ -38,6 +38,8 @@ import {
   upgradeRoomBlocked,
   type CompanionKind,
   type GuestRequestStatus,
+  FO_STAY_AMENDMENT_EVENT_TYPES,
+  type FoStayAmendmentHistoryRow,
   type SpecialRequestCategory,
 } from "./fo-amendments";
 import { mapCashierShiftError } from "./fo-cancel-noshow";
@@ -387,6 +389,74 @@ async function loadServiceCatalogue(
 function companionSnapshot(primaryName: string, companions: Array<{ name: string }>): string {
   return formatCompanionParty([primaryName, ...companions.map((c) => c.name)]);
 }
+
+/**
+ * One batched read of canonical stay-date amendment history for Front Office
+ * Rack/Table/Overview. Does not write. Filter ids are derived from these rows.
+ */
+export const listFoStayAmendmentHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<FoStayAmendmentHistoryRow[]> => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("hotel_reservation_history")
+      .select("reservation_id, event_type, created_at, previous_values, new_values, actor_membership_id")
+      .eq("restaurant_id", data.restaurantId)
+      .in("event_type", [...FO_STAY_AMENDMENT_EVENT_TYPES])
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const historyRows = (rows ?? []) as Array<{
+      reservation_id: string;
+      event_type: string;
+      created_at: string;
+      previous_values: Record<string, unknown> | null;
+      new_values: Record<string, unknown> | null;
+      actor_membership_id: string | null;
+    }>;
+    const actorIds = [...new Set(historyRows.map((row) => row.actor_membership_id).filter((id): id is string => !!id))];
+    const actorNames = new Map<string, string>();
+    if (actorIds.length > 0) {
+      const { data: members } = await supabaseAdmin
+        .from("restaurant_users")
+        .select("id, user_id")
+        .eq("restaurant_id", data.restaurantId)
+        .in("id", actorIds);
+      const memberRows = (members ?? []) as Array<{ id: string; user_id: string }>;
+      const userIds = [...new Set(memberRows.map((member) => member.user_id))];
+      const { data: profiles } =
+        userIds.length > 0
+          ? await supabaseAdmin.from("profiles").select("id, first_name, last_name, email").in("id", userIds)
+          : { data: [] };
+      const profileByUser = new Map(
+        (
+          (profiles ?? []) as Array<{
+            id: string;
+            first_name: string | null;
+            last_name: string | null;
+            email: string | null;
+          }>
+        ).map((profile) => [
+          profile.id,
+          [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() ||
+            profile.email ||
+            "Staff member",
+        ]),
+      );
+      for (const member of memberRows) {
+        actorNames.set(member.id, profileByUser.get(member.user_id) ?? "Staff member");
+      }
+    }
+    return historyRows.map((row) => ({
+      reservationId: row.reservation_id,
+      eventType: row.event_type,
+      createdAt: row.created_at,
+      actorName: row.actor_membership_id ? (actorNames.get(row.actor_membership_id) ?? null) : null,
+      previousValues: row.previous_values ?? null,
+      newValues: row.new_values ?? null,
+    }));
+  });
 
 export const getAmendContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { Plus } from "lucide-react";
+
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -11,8 +13,39 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
+import {
+  CARD5_ACTIONS_TD_CLASS,
+  CARD5_ACTIONS_TH_CLASS,
+  CARD5_FILTER_CLASS,
+  CARD5_SEARCH_CLASS,
+  CARD5_SELECT_CONTENT_CLASS,
+  CARD5_SELECT_ITEM_CLASS,
+  CARD5_STATUS_TD_CLASS,
+  CARD5_STATUS_TH_CLASS,
+  CARD5_TH_CLASS,
+  CARD5_THEAD_CLASS,
+  CARD5_TOOLBAR_CLASS,
+  Card5CreateButton,
+  Card5RowMenuButton,
+  Card5Status,
+  Card5TableShell,
+} from "@/packages/pms/components/settings/pms-property-setup-card5-workspace";
 import { invalidatePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   ACTIVE_STAFF_NEEDS_ROLE,
@@ -136,33 +169,37 @@ export function StaffAccessMembers({
   });
 
   return (
-    <div className="space-y-3" data-testid="staff-members-tab">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-display text-lg text-[#251605]">Staff Members</h3>
-        {showAdd ? (
-          <Button type="button" onClick={() => setEditor("create")} data-testid="add-staff">
-            Add Staff
-          </Button>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
+    <div className="min-w-0 space-y-3" data-testid="staff-members-tab">
+      <h3 className="font-display text-lg text-[#251605]">Staff Members</h3>
+      <div className={CARD5_TOOLBAR_CLASS}>
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search..."
+          placeholder="Search staff"
           aria-label="Search staff"
-          className="h-9 max-w-xs border-[#DDD4C5] bg-white"
+          className={CARD5_SEARCH_CLASS}
         />
-        <select
-          aria-label="Staff status"
-          value={status}
-          onChange={(event) => setStatus(event.target.value as typeof status)}
-          className="h-9 rounded-md border border-[#DDD4C5] bg-white px-2 text-sm"
-        >
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="disabled">Disabled</option>
-        </select>
+        <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
+          <SelectTrigger className={`${CARD5_FILTER_CLASS} w-[7.5rem]`} aria-label="Staff status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className={CARD5_SELECT_CONTENT_CLASS}>
+            <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="all">
+              All
+            </SelectItem>
+            <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="active">
+              Active
+            </SelectItem>
+            <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="disabled">
+              Disabled
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        {showAdd ? (
+          <Card5CreateButton onClick={() => setEditor("create")} data-testid="add-staff">
+            <Plus className="size-4" /> Add Staff
+          </Card5CreateButton>
+        ) : null}
       </div>
       {staffQuery.isLoading ? <p className="text-sm text-[#756A5B]">Checking access…</p> : null}
       {staffQuery.isError ? (
@@ -172,9 +209,9 @@ export function StaffAccessMembers({
         <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 text-sm text-[#5A4833]">
           No staff members have been added yet.
           {showAdd ? (
-            <Button type="button" className="ml-3" onClick={() => setEditor("create")}>
-              Add Staff
-            </Button>
+            <Card5CreateButton className="ml-3" onClick={() => setEditor("create")}>
+              <Plus className="size-4" /> Add Staff
+            </Card5CreateButton>
           ) : null}
         </div>
       ) : null}
@@ -182,15 +219,22 @@ export function StaffAccessMembers({
         <p className="text-sm text-[#756A5B]">No staff members match this search.</p>
       ) : null}
       {visible.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-[#DDD4C5] bg-white">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-[#756A5B]">
+        <Card5TableShell>
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col />
+              <col />
+              <col />
+              <col className="w-[7.5rem]" />
+              <col className="w-[4.5rem]" />
+            </colgroup>
+            <thead className={CARD5_THEAD_CLASS}>
               <tr>
-                <th className="px-3 py-2 font-medium">Name</th>
-                <th className="px-3 py-2 font-medium">Email</th>
-                <th className="px-3 py-2 font-medium">Assigned Roles</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Actions</th>
+                <th className={CARD5_TH_CLASS}>Name</th>
+                <th className={CARD5_TH_CLASS}>Email</th>
+                <th className={CARD5_TH_CLASS}>Assigned Roles</th>
+                <th className={CARD5_STATUS_TH_CLASS}>Status</th>
+                <th className={CARD5_ACTIONS_TH_CLASS}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -218,33 +262,42 @@ export function StaffAccessMembers({
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2">{row.active ? "Active" : "Disabled"}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="text-xs font-medium text-[#8A641A]" onClick={() => setEditor(row)}>
-                        View/Edit
-                      </button>
-                      {!row.isOwner && canActivate ? (
-                        <button
-                          type="button"
-                          className="text-xs font-medium text-[#8A641A]"
-                          onClick={() => setConfirm({ row, active: !row.active })}
-                        >
-                          {row.active ? "Deactivate" : "Activate"}
-                        </button>
-                      ) : null}
-                      {!row.isOwner && canReset ? (
-                        <button type="button" className="text-xs font-medium text-[#8A641A]" onClick={() => setConfirm({ row, reset: true })}>
-                          Reset Access
-                        </button>
-                      ) : null}
-                    </div>
+                  <td className={CARD5_STATUS_TD_CLASS}>
+                    <Card5Status
+                      active={row.active}
+                      activeLabel="Active"
+                      inactiveLabel="Disabled"
+                    />
+                  </td>
+                  <td className={CARD5_ACTIONS_TD_CLASS}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Card5RowMenuButton label={`Actions for ${displayName(row)}`} />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
+                        <DropdownMenuItem onSelect={() => setEditor(row)}>
+                          View / Edit
+                        </DropdownMenuItem>
+                        {!row.isOwner && canReset ? (
+                          <DropdownMenuItem onSelect={() => setConfirm({ row, reset: true })}>
+                            Reset Access
+                          </DropdownMenuItem>
+                        ) : null}
+                        {!row.isOwner && canActivate ? (
+                          <DropdownMenuItem
+                            onSelect={() => setConfirm({ row, active: !row.active })}
+                          >
+                            {row.active ? "Deactivate" : "Activate"}
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card5TableShell>
       ) : null}
 
       <StaffEditor
@@ -461,12 +514,35 @@ function StaffEditor({
   const zeroRoleBlock = !row?.isOwner && active && roleIds.length === 0;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{creating ? "Add Staff" : "Staff member"}</DialogTitle>
-          <DialogDescription>Manage hotel staff, roles, and the access those roles grant.</DialogDescription>
-        </DialogHeader>
+    <Card3OverlapSheet
+      open={open}
+      title={creating ? "Add Staff" : "Staff member"}
+      description={creating ? "Create a staff member and assign roles." : undefined}
+      onClose={onClose}
+      onSubmit={
+        creating
+          ? () => {
+              if (!firstName.trim() || !lastName.trim() || !email.trim() || (active && roleIds.length === 0)) {
+                return;
+              }
+              onCreate({
+                restaurantId,
+                fullName: `${firstName.trim()} ${lastName.trim()}`.trim(),
+                email: email.trim(),
+                phone: phone.trim() || undefined,
+                roleIds,
+                active,
+              });
+            }
+          : undefined
+      }
+      submitLabel="Create"
+      pending={pending}
+      canEdit={creating}
+      maxWidth="max-w-xl"
+      className="max-h-[85vh]"
+      footerJustify="between"
+    >
         <div className="space-y-4">
           <section className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#756A5B]">Basic Information</p>
@@ -577,26 +653,8 @@ function StaffEditor({
               ))}
             </section>
           ) : null}
-          <div className="flex justify-end gap-2">
-            {creating ? (
-              <Button
-                type="button"
-                disabled={pending || !firstName.trim() || !lastName.trim() || !email.trim() || (active && roleIds.length === 0)}
-                onClick={() =>
-                  onCreate({
-                    restaurantId,
-                    fullName: `${firstName.trim()} ${lastName.trim()}`.trim(),
-                    email: email.trim(),
-                    phone: phone.trim() || undefined,
-                    roleIds,
-                    active,
-                  })
-                }
-              >
-                Create
-              </Button>
-            ) : row && !row.isOwner ? (
-              <>
+          {row && !row.isOwner ? (
+            <div className="flex justify-end gap-2">
                 {canEdit ? (
                   <Button
                     type="button"
@@ -622,12 +680,10 @@ function StaffEditor({
                     Save roles
                   </Button>
                 ) : null}
-              </>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
-      </DialogContent>
-    </Dialog>
+    </Card3OverlapSheet>
   );
 }
 

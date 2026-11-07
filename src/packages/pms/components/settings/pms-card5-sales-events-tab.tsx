@@ -2,10 +2,9 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { MoreHorizontal } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { cn } from "@/shared/lib/utils";
-import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +14,7 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
@@ -24,9 +23,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
+import { Card3OverlapSheet } from "./pms-property-setup-card3-primitives";
 import { PipelineStageDialog } from "./pipeline-stage-dialog";
-import { PmsPropertySetupCard5Workspace } from "./pms-property-setup-card5-workspace";
-import { propertySetupStatusLabel } from "../../lib/pms-property-setup-card1";
+import {
+  CARD5_ACTIONS_TD_CLASS,
+  CARD5_ACTIONS_TH_CLASS,
+  CARD5_FILTER_CLASS,
+  CARD5_SEARCH_CLASS,
+  CARD5_SELECT_CONTENT_CLASS,
+  CARD5_SELECT_ITEM_CLASS,
+  CARD5_STATUS_TD_CLASS,
+  CARD5_STATUS_TH_CLASS,
+  CARD5_TH_CLASS,
+  CARD5_THEAD_CLASS,
+  CARD5_TOOLBAR_CLASS,
+  Card5ConfigNotice,
+  Card5CreateButton,
+  Card5RowMenuButton,
+  Card5Status,
+  Card5TableShell,
+  PmsPropertySetupCard5Workspace,
+} from "./pms-property-setup-card5-workspace";
+import { LocalSectionNavigator } from "./setup-kit";
 import {
   getCard5SalesEvents,
   saveCard5ContractDefault,
@@ -279,6 +297,7 @@ export function Card5SalesEventsTab({
     onSuccess: (result) => {
       cache(result);
       toast.success("Saved.");
+      setDraft(null);
       setValidated(null);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -329,88 +348,113 @@ export function Card5SalesEventsTab({
   }
 
   const shownReadiness = validated ?? readiness;
+  const addLabel =
+    catalogue === "market_segments"
+      ? "+ Add Market Segment"
+      : catalogue === "source_codes"
+        ? "+ Add Sales Source"
+        : catalogue === "lead_types"
+          ? "+ Add Lead Type"
+          : catalogue === "event_types"
+            ? "+ Add Event Type"
+            : catalogue === "event_statuses"
+              ? "+ Add Event Status"
+              : catalogue === "function_spaces"
+                ? "+ Add Function Space"
+                : catalogue === "pipeline_stages"
+                  ? "+ Add Pipeline Stage"
+                  : catalogue === "package_templates"
+                    ? "+ Add Package Template"
+                    : "+ Add Contract Default";
 
   return (
+    <>
     <PmsPropertySetupCard5Workspace
-      validate={
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            const next = evaluateCard5SalesReadiness(snapshot);
-            setValidated(next);
-            if (next.ready) toast.success("Sales & Events setup is ready.");
-            else toast.error(next.blockers[0] ?? "Sales & Events setup is not ready.");
-          }}
-        >
-          Validate
-        </Button>
-      }
       search={
-        <div className="space-y-3">
-          <Tabs
-            value={catalogue}
-            onValueChange={(value) => {
-              setCatalogue(value as Card5SalesCatalogue);
+        <div className="space-y-2">
+          <LocalSectionNavigator
+            testId="pms-card5-sales-local-nav"
+            activeId={catalogue}
+            onSelect={(id) => {
+              setCatalogue(id as Card5SalesCatalogue);
               setDraft(null);
             }}
-          >
-            <TabsList
-              className="mb-1 flex h-auto flex-wrap justify-start"
-              data-testid="pms-card5-sales-catalogues"
-            >
+            items={CARD5_SALES_CATALOGUES.map((item) => ({
+              id: item,
+              label: CARD5_SALES_CATALOGUE_LABELS[item],
+            }))}
+          />
+          <Tabs value={catalogue} className="sr-only">
+            <TabsList data-testid="pms-card5-sales-catalogues">
               {CARD5_SALES_CATALOGUES.map((item) => (
-                <TabsTrigger key={item} value={item} className="text-xs">
+                <TabsTrigger key={item} value={item}>
                   {CARD5_SALES_CATALOGUE_LABELS[item]}
                 </TabsTrigger>
               ))}
             </TabsList>
           </Tabs>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[12rem] flex-1 space-y-1">
-              <Label htmlFor="card5-sales-search">Search</Label>
-              <Input
-                id="card5-sales-search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Name or code"
-              />
-            </div>
-            <div className="w-36 space-y-1">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <h3 className="font-display text-lg text-[#251605]">
+            {CARD5_SALES_CATALOGUE_LABELS[catalogue]}
+          </h3>
+          <div className={CARD5_TOOLBAR_CLASS}>
+            <Input
+              id="card5-sales-search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search"
+              className={CARD5_SEARCH_CLASS}
+            />
+            <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
+              <SelectTrigger className={`${CARD5_FILTER_CLASS} w-[7.5rem]`} aria-label="Status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className={CARD5_SELECT_CONTENT_CLASS}>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="all">
+                  All
+                </SelectItem>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="active">
+                  Active
+                </SelectItem>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="inactive">
+                  Inactive
+                </SelectItem>
+              </SelectContent>
+            </Select>
             {editor ? (
-              <Button
-                type="button"
-                onClick={openCreate}
-                className="bg-[#251605] hover:bg-[#3D260F] text-white"
-              >
-                Add
-              </Button>
+              <Card5CreateButton onClick={openCreate}>
+                <Plus className="size-4" /> {addLabel.replace(/^\+ /, "")}
+              </Card5CreateButton>
             ) : null}
           </div>
+          <Card5ConfigNotice
+            loading={query.isLoading}
+            blockers={shownReadiness.blockers}
+            warnings={shownReadiness.warnings}
+          />
         </div>
       }
-      drawer={
-        catalogue === "pipeline_stages" ? null : draft ? (
+    >
+    <Card3OverlapSheet
+      open={catalogue !== "pipeline_stages" && Boolean(draft)}
+      title={
+        draft && "id" in draft.value && draft.value.id
+          ? `Edit ${CARD5_SALES_CATALOGUE_LABELS[catalogue]}`
+          : addLabel.replace(/^\+ /, "")
+      }
+      onClose={() => setDraft(null)}
+      onSubmit={draft && editor ? () => mutation.mutate(draft) : undefined}
+      submitLabel="Save"
+      pending={mutation.isPending}
+      canEdit={editor}
+      maxWidth="max-w-2xl"
+      className="max-h-[85vh]"
+      footerJustify="between"
+    >
+      {draft && catalogue !== "pipeline_stages" ? (
           <div
-            className="rounded-2xl border border-[#E6D7B8] bg-card p-4"
             data-testid="pms-card5-sales-drawer"
           >
-            <h2 className="font-display text-lg text-[#251605]">
-              {CARD5_SALES_CATALOGUE_LABELS[catalogue]}
-            </h2>
-            <div className="mt-3 space-y-3">
+            <div className="space-y-3">
               {draft.kind === "contract" ? (
                 <>
                   <div className="space-y-1">
@@ -782,39 +826,10 @@ export function Card5SalesEventsTab({
                 />
               </div>
             </div>
-            <div className="mt-4 flex gap-2">
-              {editor ? (
-                <Button onClick={() => mutation.mutate(draft)} disabled={mutation.isPending}>
-                  Save
-                </Button>
-              ) : null}
-              <Button variant="outline" onClick={() => setDraft(null)}>
-                Close
-              </Button>
-            </div>
           </div>
-        ) : (
-          <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-4 text-sm text-muted-foreground">
-            Select a catalogue row to edit it in this drawer.
-          </p>
-        )
-      }
-      status={
-        <div className="text-sm">
-          <p>
-            Sales & Events:{" "}
-            {query.isLoading
-              ? "Checking…"
-              : `${propertySetupStatusLabel(shownReadiness.status)}${shownReadiness.ready ? " — ready" : ""}`}
-          </p>
-          {shownReadiness.blockers[0] ? (
-            <p className="text-destructive">{shownReadiness.blockers[0]}</p>
-          ) : shownReadiness.warnings[0] ? (
-            <p className="text-[#C89933]">{shownReadiness.warnings[0]}</p>
-          ) : null}
-        </div>
-      }
-    >
+        ) : null}
+      </Card3OverlapSheet>
+
       {query.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading Sales & Events setup…</p>
       ) : query.isError ? (
@@ -827,19 +842,19 @@ export function Card5SalesEventsTab({
               : `No ${CARD5_SALES_CATALOGUE_LABELS[catalogue].toLowerCase()} match this view.`}
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border bg-card">
+          <Card5TableShell>
             <table
-              className="w-full min-w-[45rem] text-left text-sm"
+              className="w-full table-fixed text-left text-sm"
               data-testid="pms-card5-pipeline-stages-table"
             >
-              <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground bg-[#FAF8F5]/60">
+              <thead className={CARD5_THEAD_CLASS}>
                 <tr>
-                  <th className="px-3 py-2.5 font-medium">Order</th>
-                  <th className="px-3 py-2.5 font-medium">Stage Name</th>
-                  <th className="px-3 py-2.5 font-medium">Description</th>
-                  <th className="px-3 py-2.5 font-medium">Probability</th>
-                  <th className="px-3 py-2.5 font-medium">Status</th>
-                  <th className="px-3 py-2.5 font-medium text-right">Actions</th>
+                  <th className={`w-20 ${CARD5_TH_CLASS}`}>Order</th>
+                  <th className={CARD5_TH_CLASS}>Stage Name</th>
+                  <th className={CARD5_TH_CLASS}>Description</th>
+                  <th className={`w-32 ${CARD5_TH_CLASS}`}>Probability</th>
+                  <th className={CARD5_STATUS_TH_CLASS}>Status</th>
+                  <th className={CARD5_ACTIONS_TH_CLASS}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -874,30 +889,18 @@ export function Card5SalesEventsTab({
                         {descDisplay}
                       </td>
                       <td className="px-3 py-2.5 text-[#251605]">{probDisplay}</td>
-                      <td className="px-3 py-2.5">
-                        <span
-                          className={cn(
-                            "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                            stage.active
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-stone-100 text-stone-600 border border-stone-200",
-                          )}
-                        >
-                          {stage.active ? "Enabled" : "Disabled"}
-                        </span>
+                      <td className={CARD5_STATUS_TD_CLASS}>
+                        <Card5Status
+                          active={stage.active}
+                          activeLabel="Enabled"
+                          inactiveLabel="Disabled"
+                        />
                       </td>
-                      <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className={CARD5_ACTIONS_TD_CLASS} onClick={(e) => e.stopPropagation()}>
                         {editor ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-[#251605]"
-                                aria-label={`Actions for ${stage.name}`}
-                              >
-                                <MoreHorizontal className="size-4" />
-                              </Button>
+                              <Card5RowMenuButton label={`Actions for ${stage.name}`} />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-white border-[#E6D7B8]">
                               <DropdownMenuItem
@@ -918,25 +921,25 @@ export function Card5SalesEventsTab({
                 })}
               </tbody>
             </table>
-          </div>
+          </Card5TableShell>
         )
       ) : rows.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-6 text-sm text-muted-foreground">
           No {CARD5_SALES_CATALOGUE_LABELS[catalogue].toLowerCase()} match this view.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border bg-card">
+        <Card5TableShell>
           <table
-            className="w-full min-w-[40rem] text-left text-sm"
+            className="w-full table-fixed text-left text-sm"
             data-testid="pms-card5-sales-table"
           >
-            <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={CARD5_THEAD_CLASS}>
               <tr>
-                <th className="px-3 py-2 font-medium">Name</th>
-                <th className="px-3 py-2 font-medium">Code</th>
-                <th className="px-3 py-2 font-medium">Detail</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Actions</th>
+                <th className={CARD5_TH_CLASS}>Name</th>
+                <th className={`w-28 ${CARD5_TH_CLASS}`}>Code</th>
+                <th className={CARD5_TH_CLASS}>Detail</th>
+                <th className={CARD5_STATUS_TH_CLASS}>Status</th>
+                <th className={CARD5_ACTIONS_TH_CLASS}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -980,71 +983,74 @@ export function Card5SalesEventsTab({
                     <td className="px-3 py-2 font-medium text-[#251605]">{row.name}</td>
                     <td className="px-3 py-2">{"code" in row ? row.code : "—"}</td>
                     <td className="px-3 py-2">{detail || "—"}</td>
-                    <td className="px-3 py-2">{row.active ? "Active" : "Inactive"}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={open}>
-                          Edit
-                        </Button>
-                        {editor ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const next = { ...row, active: !row.active };
-                              if (catalogue === "event_statuses")
-                                mutation.mutate({
-                                  kind: "status",
-                                  value: next as Card5OrderedItem,
-                                });
-                              else if (catalogue === "pipeline_stages")
-                                mutation.mutate({
-                                  kind: "pipeline",
-                                  value: next as Card5PipelineStage,
-                                });
-                              else if (catalogue === "function_spaces")
-                                mutation.mutate({
-                                  kind: "space",
-                                  value: next as Card5FunctionSpace,
-                                });
-                              else if (catalogue === "package_templates")
-                                mutation.mutate({
-                                  kind: "package",
-                                  value: next as Card5PackageTemplate,
-                                });
-                              else if (catalogue === "contract_defaults")
-                                mutation.mutate({
-                                  kind: "contract",
-                                  value: {
-                                    ...(snapshot.contractDefaults.find(
-                                      (item) => item.id === row.id,
-                                    ) as Card5ContractDefault),
-                                    active: !row.active,
-                                  },
-                                });
-                              else
-                                mutation.mutate({
-                                  kind: "item",
-                                  catalogue: catalogue as
-                                    | "market_segments"
-                                    | "source_codes"
-                                    | "lead_types"
-                                    | "event_types",
-                                  value: next as Card5SalesItem,
-                                });
-                            }}
-                          >
-                            {row.active ? "Deactivate" : "Activate"}
-                          </Button>
-                        ) : null}
-                      </div>
+                    <td className={CARD5_STATUS_TD_CLASS}>
+                      <Card5Status active={row.active} />
+                    </td>
+                    <td className={CARD5_ACTIONS_TD_CLASS}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Card5RowMenuButton label={`Actions for ${row.name}`} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
+                          <DropdownMenuItem onSelect={open}>Edit</DropdownMenuItem>
+                          {editor ? (
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                const next = { ...row, active: !row.active };
+                                if (catalogue === "event_statuses")
+                                  mutation.mutate({
+                                    kind: "status",
+                                    value: next as Card5OrderedItem,
+                                  });
+                                else if (catalogue === "pipeline_stages")
+                                  mutation.mutate({
+                                    kind: "pipeline",
+                                    value: next as Card5PipelineStage,
+                                  });
+                                else if (catalogue === "function_spaces")
+                                  mutation.mutate({
+                                    kind: "space",
+                                    value: next as Card5FunctionSpace,
+                                  });
+                                else if (catalogue === "package_templates")
+                                  mutation.mutate({
+                                    kind: "package",
+                                    value: next as Card5PackageTemplate,
+                                  });
+                                else if (catalogue === "contract_defaults")
+                                  mutation.mutate({
+                                    kind: "contract",
+                                    value: {
+                                      ...(snapshot.contractDefaults.find(
+                                        (item) => item.id === row.id,
+                                      ) as Card5ContractDefault),
+                                      active: !row.active,
+                                    },
+                                  });
+                                else
+                                  mutation.mutate({
+                                    kind: "item",
+                                    catalogue: catalogue as
+                                      | "market_segments"
+                                      | "source_codes"
+                                      | "lead_types"
+                                      | "event_types",
+                                    value: next as Card5SalesItem,
+                                  });
+                              }}
+                            >
+                              {row.active ? "Deactivate" : "Activate"}
+                            </DropdownMenuItem>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+        </Card5TableShell>
       )}
       {catalogue === "pipeline_stages" ? (
         <PipelineStageDialog
@@ -1059,5 +1065,6 @@ export function Card5SalesEventsTab({
         />
       ) : null}
     </PmsPropertySetupCard5Workspace>
+    </>
   );
 }

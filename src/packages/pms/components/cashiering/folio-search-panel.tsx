@@ -29,7 +29,6 @@ import {
 
 import { FolioActionMenu } from "@/packages/pms/components/cashiering/folio-action-menu";
 import type { FolioPermissionGrants } from "@/packages/pms/lib/folio-workspace";
-import type { FolioPermissionGrants } from "@/packages/pms/lib/folio-workspace";
 import {
   FolioSearchFolioStatusBadge,
   FolioSearchStayStatusBadge,

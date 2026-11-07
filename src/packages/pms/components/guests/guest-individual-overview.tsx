@@ -11,7 +11,6 @@ import {
   FileCheck,
   Heart,
   MapPin,
-  Pencil,
   Plus,
   ShieldAlert,
   Sparkles,
@@ -39,6 +38,7 @@ import {
   type GuestHistoryEntry,
   type GuestProfile,
 } from "@/packages/pms/lib/guests.functions";
+import { isInHouseStay } from "@/packages/pms/lib/guest-profile-wave3";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { Button } from "@/shared/components/ui/button";
 import type { GuestDetailViewId } from "@/packages/pms/lib/guest-detail-view";
@@ -72,17 +72,17 @@ function SectionCard({
 }) {
   return (
     <section
-      className="flex flex-col rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm"
       data-testid={dataTestId || testId}
     >
-      <div className="flex items-center justify-between border-b border-[#DDD4C5]/60 pb-3 mb-3">
+      <div className="mb-2 flex items-center justify-between border-b border-[#DDD4C5]/60 pb-2">
         <div className="flex items-center gap-2">
           {Icon && <Icon className="size-4 text-[#8A641A]" />}
           <h2 className="font-display text-base font-semibold text-[#251605]">{title}</h2>
         </div>
         {actions}
       </div>
-      <div className="flex-1 space-y-2 text-xs">{children}</div>
+      <div className="space-y-1 text-xs">{children}</div>
     </section>
   );
 }
@@ -97,7 +97,7 @@ function InfoRow({
   truncate?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-2 py-0.5 border-b border-[#EFE9DF]/50 last:border-b-0">
+    <div className="flex items-baseline justify-between gap-2 border-b border-[#EFE9DF]/50 py-px last:border-b-0">
       <span className="shrink-0 text-[#756A5B]">{label}</span>
       <span
         className={`text-right font-medium text-[#251605] ${
@@ -115,7 +115,7 @@ export function GuestIndividualOverview({
   guest,
   timezone,
   history,
-  onNavigateView,
+  onNavigateView: _onNavigateView,
 }: {
   restaurantId: string;
   guest: GuestProfile;
@@ -168,6 +168,21 @@ export function GuestIndividualOverview({
 
   const memberSince = guest.createdAt ? formatStayDate(guest.createdAt.slice(0, 10)) : "—";
   const notes = history.filter((entry) => entry.eventType === "note_added" && entry.notes?.trim());
+  const featuredStay = overview?.featuredStay ?? null;
+  const currentStay = featuredStay && isInHouseStay(featuredStay.status) ? featuredStay : null;
+  const upcomingStay = overview?.nextStay ?? null;
+  const stayCardTitle = currentStay ? "Current Stay" : "Upcoming Reservation";
+  const kpiStayLabel = currentStay ? "Current Stay" : "Upcoming Stay";
+  const kpiStayValue = currentStay
+    ? [
+        formatStayDate(currentStay.arrivalDate),
+        currentStay.roomNumber ? currentStay.roomNumber : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : upcomingStay
+      ? formatStayDate(upcomingStay.arrivalDate)
+      : "—";
   const company = (linksQuery.data ?? []).find(
     (link) => link.role === "employer" || link.role === "bill_to",
   );
@@ -178,7 +193,7 @@ export function GuestIndividualOverview({
     : "—";
 
   return (
-    <div className="space-y-4" data-testid="guest-individual-overview">
+    <div className="space-y-3" data-testid="guest-individual-overview">
       {/* ROW 1: Compact 6-KPI Summary Strip matching Reservation & Room Workspaces (Caution 1) */}
       <div
         className="grid grid-cols-2 divide-y divide-[#DDD4C5] rounded-xl border border-[#DDD4C5] bg-white p-2.5 sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-6 shadow-sm"
@@ -233,19 +248,13 @@ export function GuestIndividualOverview({
           </span>
         </div>
 
-        {/* KPI 4: Upcoming Stay */}
+        {/* KPI 4: Current Stay when in-house; otherwise genuine Upcoming Stay */}
         <div className="flex flex-col px-3 py-1.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#756A5B]">
-            Upcoming Stay
+            {kpiStayLabel}
           </span>
-          <span className="mt-1 text-xs font-semibold text-[#251605] truncate">
-            {overviewQuery.isLoading ? (
-              "…"
-            ) : overview?.nextStay ? (
-              formatStayDate(overview.nextStay.arrivalDate)
-            ) : (
-              "—"
-            )}
+          <span className="mt-1 truncate text-xs font-semibold text-[#251605]">
+            {overviewQuery.isLoading ? "…" : kpiStayValue}
           </span>
         </div>
 
@@ -271,22 +280,12 @@ export function GuestIndividualOverview({
       </div>
 
       {/* ROW 2: 3 Operational Cards (Guest Information | Contact & Address | Upcoming Reservation) */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {/* Card 1: Guest Information */}
         <SectionCard
           title="Guest Information"
           icon={Users}
           data-testid="guest-overview-info"
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigateView("personal-contact")}
-            >
-              <Pencil className="mr-1 size-3" /> Edit
-            </Button>
-          }
         >
           <InfoRow label="Profile No." value={guest.profileNumber} />
           <InfoRow label="Full Name" value={guest.fullName} />
@@ -312,16 +311,6 @@ export function GuestIndividualOverview({
           title="Contact & Address"
           icon={MapPin}
           data-testid="guest-overview-contact"
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigateView("personal-contact")}
-            >
-              <Pencil className="mr-1 size-3" /> Edit
-            </Button>
-          }
         >
           <InfoRow label="Mobile Phone" value={guest.phone} />
           <InfoRow label="Alternate Phone" value={guest.phoneAlt} />
@@ -356,152 +345,110 @@ export function GuestIndividualOverview({
 
         {/* Card 3: Upcoming Reservation (Caution 3: Only truthful fields) */}
         <SectionCard
-          title="Upcoming Reservation"
+          title={stayCardTitle}
           icon={Calendar}
           data-testid="guest-overview-upcoming"
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigateView("stays")}
-            >
-              View All
-            </Button>
-          }
         >
           {overviewQuery.isLoading ? (
-            <p className="py-4 text-center text-xs text-[#756A5B]">Loading stays…</p>
+            <p className="py-1 text-center text-xs text-[#756A5B]">Loading stays…</p>
           ) : overviewQuery.isError ? (
-            <p className="py-4 text-center text-xs text-rose-700">
+            <p className="py-1 text-center text-xs text-rose-700">
               Upcoming reservation could not be loaded.
             </p>
-          ) : overview?.featuredStay ? (
-            <div className="space-y-2">
+          ) : featuredStay && overview ? (
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-[#8A641A]">
-                  {overview.featuredStay.confirmationNumber}
+                  {featuredStay.confirmationNumber}
                 </span>
-                <span className="rounded-full bg-[#FAF8F5] border border-[#DDD4C5] px-2 py-0.5 text-[10px] font-semibold capitalize text-[#251605]">
-                  {overview.featuredStay.status.replace("_", " ")}
+                <span className="rounded-full border border-[#DDD4C5] bg-[#FAF8F5] px-2 py-0.5 text-[10px] font-semibold capitalize text-[#251605]">
+                  {featuredStay.status.replace("_", " ")}
                 </span>
               </div>
               <InfoRow
                 label="Dates"
-                value={`${formatStayDate(overview.featuredStay.arrivalDate)} → ${formatStayDate(
-                  overview.featuredStay.departureDate,
+                value={`${formatStayDate(featuredStay.arrivalDate)} → ${formatStayDate(
+                  featuredStay.departureDate,
                 )}`}
               />
-              <InfoRow label="Nights" value={String(overview.featuredStay.nights)} />
-              {/* Caution 3: Room, Rate Plan, Source only when present in read model */}
+              <InfoRow label="Nights" value={String(featuredStay.nights)} />
               <InfoRow
                 label="Room"
                 value={
-                  overview.featuredStay.roomTypeName
-                    ? overview.featuredStay.roomNumber
-                      ? `${overview.featuredStay.roomTypeName} · ${overview.featuredStay.roomNumber}`
-                      : overview.featuredStay.roomTypeName
+                  featuredStay.roomTypeName
+                    ? featuredStay.roomNumber
+                      ? `${featuredStay.roomTypeName} · ${featuredStay.roomNumber}`
+                      : featuredStay.roomTypeName
                     : "—"
                 }
               />
               <InfoRow
                 label="Rate Plan"
-                value={overview.featuredStay.ratePlanName ?? "—"}
+                value={featuredStay.ratePlanName ?? "—"}
               />
               <InfoRow
                 label="Source"
-                value={overview.featuredStay.sourceLabel ?? "—"}
+                value={featuredStay.sourceLabel ?? "—"}
               />
               <InfoRow
                 label="Guests"
-                value={`${overview.featuredStay.adults} adult${
-                  overview.featuredStay.adults === 1 ? "" : "s"
-                }${overview.featuredStay.children > 0 ? `, ${overview.featuredStay.children} child` : ""}`}
+                value={`${featuredStay.adults} adult${
+                  featuredStay.adults === 1 ? "" : "s"
+                }${featuredStay.children > 0 ? `, ${featuredStay.children} child` : ""}`}
               />
 
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#DDD4C5]/60">
+              <div className="flex flex-wrap items-center gap-2 border-t border-[#DDD4C5]/60 pt-2">
                 <Button
                   asChild
                   size="sm"
-                  className="h-7 text-xs bg-[#8A641A] hover:bg-[#725215] text-white font-medium shadow-sm"
+                  className="h-7 bg-[#8A641A] text-xs font-medium text-white shadow-sm hover:bg-[#725215]"
                 >
                   <Link
                     to="/restaurant/pms/reservations/$reservationId"
-                    params={{ reservationId: overview.featuredStay.id }}
+                    params={{ reservationId: featuredStay.id }}
                   >
                     Open Reservation
                   </Link>
                 </Button>
                 <GuestStayActions
-                  stay={overview.featuredStay}
+                  stay={featuredStay}
                   access={overview.access}
                   today={today}
                   size="sm"
+                  presentation="menu"
+                  omitView
                 />
               </div>
             </div>
           ) : (
-            <div className="py-6 text-center text-[#756A5B] space-y-2">
-              <p>{OVERVIEW_UPCOMING_EMPTY}</p>
-              {actions?.canCreateReservation ? (
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-                >
-                  <Link to="/restaurant/pms/reservations" search={{ create: "new", guestId: guest.id }}>
-                    <Plus className="mr-1 size-3" /> New Reservation
-                  </Link>
-                </Button>
-              ) : null}
-            </div>
+            <p className="py-1 text-xs text-[#756A5B]">{OVERVIEW_UPCOMING_EMPTY}</p>
           )}
         </SectionCard>
       </div>
 
       {/* ROW 3: 3 Secondary Cards (Key Preferences | Identity Status | Relationships) */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {/* Card 4: Key Preferences */}
         <SectionCard
           title="Key Preferences"
           icon={Heart}
           data-testid="guest-overview-preferences"
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigateView("preferences")}
-            >
-              <Pencil className="mr-1 size-3" /> Edit
-            </Button>
-          }
         >
           {prefsQuery.isLoading ? (
-            <p className="py-4 text-center text-xs text-[#756A5B]">Loading preferences…</p>
+            <p className="py-1 text-xs text-[#756A5B]">Loading preferences…</p>
           ) : (prefsQuery.data?.chips.length ?? 0) === 0 ? (
-            <p className="py-4 text-center text-xs text-[#756A5B]">{OVERVIEW_PREFERENCES_EMPTY}</p>
+            <p className="py-1 text-xs text-[#756A5B]">{OVERVIEW_PREFERENCES_EMPTY}</p>
           ) : (
-            <div className="flex flex-wrap gap-1.5 pt-1">
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
               {prefsQuery.data!.chips.slice(0, 8).map((chip) => (
                 <span
                   key={`${chip.code}-${chip.value}`}
                   className="inline-flex items-center rounded-md border border-[#DDD4C5] bg-[#FAF8F5] px-2 py-0.5 text-[11px] text-[#251605]"
                 >
-                  <span className="font-semibold text-[#8A641A] mr-1">{chip.label}:</span>
+                  <span className="mr-1 font-semibold text-[#8A641A]">{chip.label}:</span>
                   {chip.value}
                 </span>
               ))}
-              {(prefsQuery.data?.chips.length ?? 0) > 8 && (
-                <button
-                  type="button"
-                  onClick={() => onNavigateView("preferences")}
-                  className="text-[11px] text-[#8A641A] hover:underline self-center px-1 font-semibold"
-                >
-                  +{(prefsQuery.data?.chips.length ?? 0) - 8} more
-                </button>
-              )}
             </div>
           )}
         </SectionCard>
@@ -511,16 +458,6 @@ export function GuestIndividualOverview({
           title="Identity Status"
           icon={FileCheck}
           data-testid="guest-overview-identity"
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigateView("identity")}
-            >
-              View All
-            </Button>
-          }
         >
           <InfoRow label="ID Document" value={guest.idType ? guest.idType.toUpperCase() : "Not recorded"} />
           <InfoRow
@@ -551,32 +488,22 @@ export function GuestIndividualOverview({
           title="Relationships"
           icon={Building2}
           data-testid="guest-overview-relationships"
-          actions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigateView("relationships")}
-            >
-              View All
-            </Button>
-          }
         >
           {linksQuery.isLoading ? (
-            <p className="py-4 text-center text-xs text-[#756A5B]">Loading relationships…</p>
+            <p className="py-1 text-xs text-[#756A5B]">Loading relationships…</p>
           ) : (linksQuery.data?.length ?? 0) === 0 ? (
-            <p className="py-4 text-center text-xs text-[#756A5B]">
-              No linked corporate or agency accounts
+            <p className="py-1 text-xs text-[#756A5B]">
+              No linked corporate or agency accounts.
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {linksQuery.data!.slice(0, 3).map((link) => (
                 <div
                   key={link.id}
-                  className="flex items-center justify-between rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-2.5"
+                  className="flex items-center justify-between rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] px-2.5 py-1.5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-[#251605] text-xs">{link.masterName}</p>
+                    <p className="truncate text-xs font-semibold text-[#251605]">{link.masterName}</p>
                     <p className="text-[10px] text-[#756A5B]">
                       {GUEST_ACCOUNT_TYPE_LABELS[link.masterType]} · Role: {link.role}
                     </p>
@@ -594,26 +521,16 @@ export function GuestIndividualOverview({
         icon={ShieldAlert}
         data-testid="guest-overview-notes"
         actions={
-          <div className="flex items-center gap-1.5">
+          actions?.canManage ? (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-7 text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
-              onClick={() => onNavigateView("communication-notes")}
+              className="h-7 border-[#DDD4C5] bg-white text-xs text-[#251605] hover:bg-[#F7F4EE]"
+              onClick={actions.openNote}
             >
-              View All
+              <Plus className="mr-1 size-3" /> Add Note
             </Button>
-            {actions?.canManage && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-                onClick={actions.openNote}
-              >
-                <Plus className="mr-1 size-3" /> Add Note
-              </Button>
-            )}
-          </div>
+          ) : null
         }
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

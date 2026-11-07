@@ -46,13 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { Switch } from "@/shared/components/ui/switch";
 import {
   Table,
@@ -62,8 +56,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
-import { cn } from "@/shared/lib/utils";
-
 function recordToDraft(row: ServicePricingRecord): ServicePricingDraft {
   return {
     id: row.id,
@@ -150,7 +142,9 @@ export function PmsCard4ServicePricing({
           serviceTypeId: draft.serviceTypeId,
           amount: draft.amount,
           pricingUnit: draft.pricingUnit,
-          active: draft.active,
+          active: draft.id
+            ? (pricing.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
         },
       }),
     onSuccess: async () => {
@@ -238,25 +232,14 @@ export function PmsCard4ServicePricing({
     setEditorOpen(false);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-service-pricing">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">Service Pricing</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Set the configured charge and pricing unit for each guest service.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Property currency: {currencyCode || "Not configured"} · Last updated {lastUpdated}
-          </p>
-        </div>
+    <div className="space-y-3" data-testid="card4-service-pricing">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Service Pricing</h2>
         {canEdit ? (
           <Button
             type="button"
+            size="sm"
             onClick={openCreate}
             disabled={!unpricedActiveType}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
@@ -266,7 +249,7 @@ export function PmsCard4ServicePricing({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <div className="space-y-2 p-6">
             {["a", "b", "c"].map((row) => (
@@ -291,16 +274,6 @@ export function PmsCard4ServicePricing({
             <p className="mt-1 text-sm text-muted-foreground">
               Add pricing to an active service type.
             </p>
-            {canEdit ? (
-              <Button
-                type="button"
-                className="mt-4 bg-[#C89933] text-[#251605]"
-                onClick={openCreate}
-                disabled={!unpricedActiveType}
-              >
-                <Plus className="mr-1 size-4" /> Add Service Pricing
-              </Button>
-            ) : null}
           </div>
         ) : (
           <>
@@ -319,9 +292,8 @@ export function PmsCard4ServicePricing({
                     <TableHead>Category</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Pricing Unit</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Active</TableHead>
-                    <TableHead className="w-12">Actions</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -329,40 +301,25 @@ export function PmsCard4ServicePricing({
                     const serviceType = serviceTypeFor(row.serviceTypeId);
                     return (
                       <TableRow key={row.id}>
-                        <TableCell className="font-medium text-[#251605]">
+                        <TableCell className="py-2 font-medium text-[#251605]">
                           {serviceType?.name ?? "Unknown service type"}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {serviceType?.code}
-                          </span>
                         </TableCell>
-                        <TableCell>{categoryName(serviceType?.categoryId ?? "")}</TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">{categoryName(serviceType?.categoryId ?? "")}</TableCell>
+                        <TableCell className="py-2">
                           {formatServicePricingAmount(row.amount, row.currencyCode)}
                         </TableCell>
-                        <TableCell>{SERVICE_PRICING_UNIT_LABELS[row.pricingUnit]}</TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                              row.active
-                                ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                                : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                            )}
-                          >
-                            {row.active ? "Active" : "Inactive"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">{SERVICE_PRICING_UNIT_LABELS[row.pricingUnit]}</TableCell>
+                        <TableCell className="py-2">
                           <Switch
                             checked={row.active}
                             disabled={!canEdit || toggleMutation.isPending}
-                            aria-label={`${row.active ? "Disable" : "Enable"} pricing for ${serviceType?.name ?? "service"}`}
+                            aria-label={`${row.active ? "Deactivate" : "Activate"} pricing for ${serviceType?.name ?? "service"}`}
                             onCheckedChange={(active) =>
                               toggleMutation.mutate({ id: row.id, active })
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -373,7 +330,7 @@ export function PmsCard4ServicePricing({
                                 <MoreHorizontal className="size-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
                               <DropdownMenuItem onSelect={() => openEdit(row)}>
                                 Edit
                               </DropdownMenuItem>
@@ -383,7 +340,7 @@ export function PmsCard4ServicePricing({
                                     toggleMutation.mutate({ id: row.id, active: !row.active })
                                   }
                                 >
-                                  {row.active ? "Disable" : "Enable"}
+                                  {row.active ? "Deactivate" : "Activate"}
                                 </DropdownMenuItem>
                               ) : null}
                               {canEdit ? (
@@ -404,111 +361,96 @@ export function PmsCard4ServicePricing({
         )}
       </div>
 
-      <Sheet
+      <Card3OverlapSheet
         open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) requestClose();
-          else setEditorOpen(true);
+        title={draft.id ? "Edit Service Pricing" : "Add Service Pricing"}
+        onClose={requestClose}
+        onSubmit={() => {
+          if (!canEdit || errors.length > 0) {
+            toast.error(errors[0]?.message ?? "Fix the pricing record before saving.");
+            return;
+          }
+          saveMutation.mutate();
         }}
+        submitLabel={draft.id ? "Save Changes" : "Add Service Pricing"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
       >
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{draft.id ? "Edit Service Pricing" : "Add Service Pricing"}</SheetTitle>
-            <SheetDescription>
-              Pricing uses the property currency. Tax, departments and SLA rules are configured
-              separately.
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-4 space-y-3 px-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canEdit || errors.length > 0) {
-                toast.error(errors[0]?.message ?? "Fix the pricing record before saving.");
-                return;
-              }
-              saveMutation.mutate();
-            }}
+        <div className="space-y-1">
+          <Label htmlFor="sp-service-type">Service Type *</Label>
+          <Select
+            value={draft.serviceTypeId || undefined}
+            disabled={!canEdit}
+            onValueChange={(value) => mark("serviceTypeId", value)}
           >
-            <div className="space-y-1">
-              <Label htmlFor="sp-service-type">Service Type *</Label>
-              <Select
-                value={draft.serviceTypeId || undefined}
-                disabled={!canEdit}
-                onValueChange={(value) => mark("serviceTypeId", value)}
-              >
-                <SelectTrigger id="sp-service-type">
-                  <SelectValue placeholder="Select a service type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {editorServiceTypes.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name} ({row.code}){row.active ? "" : " — Inactive"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errorFor("serviceTypeId") ? (
-                <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sp-amount">Amount ({currencyCode || "property currency"}) *</Label>
-              <Input
-                id="sp-amount"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={draft.amount}
-                disabled={!canEdit}
-                onChange={(event) => mark("amount", event.target.value)}
-              />
-              {errorFor("amount") ? (
-                <p className="text-xs text-destructive">{errorFor("amount")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sp-unit">Pricing Unit *</Label>
-              <Select
-                value={draft.pricingUnit}
-                disabled={!canEdit}
-                onValueChange={(value) =>
-                  mark("pricingUnit", value as ServicePricingDraft["pricingUnit"])
-                }
-              >
-                <SelectTrigger id="sp-unit">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SERVICE_PRICING_UNITS.map((unit) => (
-                    <SelectItem key={unit} value={unit}>
-                      {SERVICE_PRICING_UNIT_LABELS[unit]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errorFor("pricingUnit") ? (
-                <p className="text-xs text-destructive">{errorFor("pricingUnit")}</p>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="sp-active">Active</Label>
-              <Switch
-                id="sp-active"
-                checked={draft.active}
-                disabled={!canEdit}
-                onCheckedChange={(active) => mark("active", active)}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={!canEdit || saveMutation.isPending || errors.length > 0}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {saveMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+            <SelectTrigger id="sp-service-type">
+              <SelectValue placeholder="Select a service type" />
+            </SelectTrigger>
+            <SelectContent>
+              {editorServiceTypes.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name} ({row.code}){row.active ? "" : " — Inactive"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errorFor("serviceTypeId") ? (
+            <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sp-amount">Amount ({currencyCode || "property currency"}) *</Label>
+          <Input
+            id="sp-amount"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={draft.amount}
+            disabled={!canEdit}
+            onChange={(event) => mark("amount", event.target.value)}
+          />
+          {errorFor("amount") ? (
+            <p className="text-xs text-destructive">{errorFor("amount")}</p>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sp-unit">Pricing Unit *</Label>
+          <Select
+            value={draft.pricingUnit}
+            disabled={!canEdit}
+            onValueChange={(value) =>
+              mark("pricingUnit", value as ServicePricingDraft["pricingUnit"])
+            }
+          >
+            <SelectTrigger id="sp-unit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SERVICE_PRICING_UNITS.map((unit) => (
+                <SelectItem key={unit} value={unit}>
+                  {SERVICE_PRICING_UNIT_LABELS[unit]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errorFor("pricingUnit") ? (
+            <p className="text-xs text-destructive">{errorFor("pricingUnit")}</p>
+          ) : null}
+        </div>
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="sp-active">Active</Label>
+            <Switch
+              id="sp-active"
+              checked={draft.active}
+              disabled={!canEdit}
+              onCheckedChange={(active) => mark("active", active)}
+            />
+          </div>
+        ) : null}
+      </Card3OverlapSheet>
 
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -555,27 +497,5 @@ export function PmsCard4ServicePricing({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4ServicePricingGuide({
-  pricedCount,
-  activeServiceTypeCount,
-}: {
-  pricedCount: number;
-  activeServiceTypeCount: number;
-}) {
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-        <li className="text-[#436436]">Configure Service Categories</li>
-        <li className="text-[#436436]">Add Service Types</li>
-        <li className={pricedCount > 0 ? "text-[#436436]" : undefined}>Set Service Pricing</li>
-      </ol>
-      <p className="mt-3 text-sm text-[#251605]">
-        {pricedCount} of {activeServiceTypeCount} active services priced
-      </p>
-    </section>
   );
 }

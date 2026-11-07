@@ -4,7 +4,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   AlertCircle,
-  ArrowRight,
   Check,
   ChevronDown,
   ChevronUp,
@@ -162,6 +161,7 @@ export function RoomTypeWizardStep1() {
     attemptedStep1Submit,
     setAttemptedStep1Submit,
     setStep,
+    setFooter,
   } = useRoomTypeWizard();
 
   const queryClient = useQueryClient();
@@ -186,7 +186,7 @@ export function RoomTypeWizardStep1() {
   const singleBuildingTriggerRef = useRef<HTMLButtonElement>(null);
   const singleRoomNumberInputRef = useRef<HTMLInputElement>(null);
 
-  const [roomMode, setRoomMode] = useState<"single" | "bulk" | null>("single");
+  const [roomMode, setRoomMode] = useState<"single" | "bulk" | null>(null);
   const [single, setSingle] = useState({
     id: undefined as string | undefined,
     localKey: undefined as string | undefined,
@@ -235,7 +235,7 @@ export function RoomTypeWizardStep1() {
   const [advancedTypeOpen, setAdvancedTypeOpen] = useState(false);
   const [advancedSingleOpen, setAdvancedSingleOpen] = useState(false);
   const [advancedBulkOpen, setAdvancedBulkOpen] = useState(false);
-  const [physicalRoomsOpen, setPhysicalRoomsOpen] = useState(true);
+  const [physicalRoomsOpen, setPhysicalRoomsOpen] = useState(() => stagedRooms.length > 0);
 
   // Add classification dialogs
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
@@ -892,8 +892,21 @@ export function RoomTypeWizardStep1() {
     }
   }
 
+  const continueToPricingRef = useRef(continueToPricing);
+  continueToPricingRef.current = continueToPricing;
+
+  useEffect(() => {
+    setFooter({
+      continueLabel: "Continue",
+      continueBusy: savingContinue,
+      continueDisabled: disabled || savingContinue || Boolean(codeCheck && !codeCheck.available),
+      onContinue: () => void continueToPricingRef.current(),
+    });
+    return () => setFooter(null);
+  }, [codeCheck, disabled, savingContinue, setFooter]);
+
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-3">
       {/* Top Validation Alert when Continue clicked with invalid fields */}
       {formValidationErrors.length > 0 && (
         <div
@@ -915,17 +928,14 @@ export function RoomTypeWizardStep1() {
       )}
 
       {/* CARD A: Room Type Identity */}
-      <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
-        <div className="border-b border-[#EDE6D8] pb-3">
+      <section className="rounded-lg border border-[#E6E1D8] bg-white p-3.5 shadow-xs">
+        <div className="border-b border-[#EDE6D8] pb-2">
           <h3 className="font-display text-base font-semibold text-[#251605]">
             Room Type Identity
           </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Basic naming and classification for PMS operations and rate distribution.
-          </p>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <PropertySetupFormGrid>
             <PropertySetupField
               label="Room Type Name *"
@@ -1018,15 +1028,12 @@ export function RoomTypeWizardStep1() {
       </section>
 
       {/* CARD B: Capacity */}
-      <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
-        <div className="border-b border-[#EDE6D8] pb-3">
+      <section className="rounded-lg border border-[#E6E1D8] bg-white p-3.5 shadow-xs">
+        <div className="border-b border-[#EDE6D8] pb-2">
           <h3 className="font-display text-base font-semibold text-[#251605]">Capacity</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Maximum guest thresholds applied to booking availability and front-desk reservations.
-          </p>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3">
           <PropertySetupFormGrid>
             <PropertySetupField
               label="Maximum Occupancy *"
@@ -1135,15 +1142,12 @@ export function RoomTypeWizardStep1() {
       </section>
 
       {/* CARD C: Bed Configuration */}
-      <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
-        <div className="border-b border-[#EDE6D8] pb-3">
+      <section className="rounded-lg border border-[#E6E1D8] bg-white p-3.5 shadow-xs">
+        <div className="border-b border-[#EDE6D8] pb-2">
           <h3 className="font-display text-base font-semibold text-[#251605]">Bed Configuration</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Configure the types and counts of physical beds available in this room type.
-          </p>
         </div>
 
-        <div className="mt-4 space-y-2.5">
+        <div className="mt-3 space-y-2.5">
           {typeForm.beds.map((bed, index) => (
             <div
               key={index}
@@ -1235,15 +1239,12 @@ export function RoomTypeWizardStep1() {
       </section>
 
       {/* CARD D: Room Details */}
-      <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
-        <div className="border-b border-[#EDE6D8] pb-3">
+      <section className="rounded-lg border border-[#E6E1D8] bg-white p-3.5 shadow-xs">
+        <div className="border-b border-[#EDE6D8] pb-2">
           <h3 className="font-display text-base font-semibold text-[#251605]">Room Details</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Physical dimensions and descriptive highlights for guest presentation.
-          </p>
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-3">
           <PropertySetupFormGrid>
             <PropertySetupField
               label="Room Size"
@@ -1286,17 +1287,14 @@ export function RoomTypeWizardStep1() {
       </section>
 
       {/* CARD E: Availability & Options */}
-      <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
-        <div className="border-b border-[#EDE6D8] pb-3">
+      <section className="rounded-lg border border-[#E6E1D8] bg-white p-3.5 shadow-xs">
+        <div className="border-b border-[#EDE6D8] pb-2">
           <h3 className="font-display text-base font-semibold text-[#251605]">
             Availability & Options
           </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Operational availability and guest reservation options.
-          </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex items-center justify-between rounded-lg border border-[#EDE6D8] bg-[#FBF9F5] p-3">
             <div>
               <label
@@ -1401,7 +1399,7 @@ export function RoomTypeWizardStep1() {
       <Collapsible
         open={advancedTypeOpen}
         onOpenChange={setAdvancedTypeOpen}
-        className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs"
+        className="rounded-lg border border-[#E6E1D8] bg-white p-3.5 shadow-xs"
       >
         <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
           <div className="flex items-center gap-2">
@@ -1635,63 +1633,56 @@ export function RoomTypeWizardStep1() {
       <Collapsible
         open={physicalRoomsOpen}
         onOpenChange={setPhysicalRoomsOpen}
-        className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs"
+        className="rounded-lg border border-[#E6E1D8] bg-white p-3.5 shadow-xs"
       >
         <div
           className={cn(
-            "flex flex-wrap items-center justify-between gap-3",
-            physicalRoomsOpen && "border-b border-[#EDE6D8] pb-3",
+            "flex flex-wrap items-center justify-between gap-2",
+            physicalRoomsOpen && "border-b border-[#EDE6D8] pb-2",
           )}
         >
-          <div className="flex-1 min-w-[240px]">
+          <div className="flex-1 min-w-[200px]">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-display text-base font-semibold text-[#251605]">
-                PHYSICAL ROOMS
+                Physical Rooms
               </h3>
-              <span className="inline-flex items-center rounded border border-[#E6E1D8] bg-[#F4EDE0] px-2 py-0.5 font-mono text-xs font-medium text-[#251605]">
-                {typeForm.name.trim() || "Room Type"} · {typeForm.code || "CODE"}
-              </span>
               <span className="inline-flex items-center rounded-full border border-[#D9D2C4] bg-[#F7F4EE] px-2 py-0.5 text-xs font-medium text-[#5C4528]">
                 {stagedRooms.length} {stagedRooms.length === 1 ? "room" : "rooms"}
               </span>
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Create the actual rooms that belong to{" "}
-              <span className="font-medium text-[#251605]">
-                {typeForm.name || "this room type"}
-              </span>
-              . Rooms are directly linked without needing a room type selector.
-            </p>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Mode Switch Tabs (visible when open) */}
-            {physicalRoomsOpen && (
-              <div className="inline-flex rounded-lg border border-[#E6DFD3] bg-[#F7F4EE] p-0.5">
-                <button
-                  type="button"
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    roomMode === "single"
-                      ? "bg-white text-[#251605] shadow-xs font-semibold"
-                      : "text-muted-foreground hover:text-[#251605]"
-                  }`}
-                  onClick={() => setRoomMode("single")}
-                >
-                  Single Room
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    roomMode === "bulk"
-                      ? "bg-white text-[#251605] shadow-xs font-semibold"
-                      : "text-muted-foreground hover:text-[#251605]"
-                  }`}
-                  onClick={() => setRoomMode("bulk")}
-                >
-                  Bulk Generation
-                </button>
-              </div>
-            )}
+            <div className="inline-flex rounded-lg border border-[#E6DFD3] bg-[#F7F4EE] p-0.5">
+              <button
+                type="button"
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  roomMode === "single"
+                    ? "bg-white text-[#251605] shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-[#251605]"
+                }`}
+                onClick={() => {
+                  setRoomMode("single");
+                  setPhysicalRoomsOpen(true);
+                }}
+              >
+                Single Room
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  roomMode === "bulk"
+                    ? "bg-white text-[#251605] shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-[#251605]"
+                }`}
+                onClick={() => {
+                  setRoomMode("bulk");
+                  setPhysicalRoomsOpen(true);
+                }}
+              >
+                Bulk Generation
+              </button>
+            </div>
 
             <CollapsibleTrigger asChild>
               <Button
@@ -2512,21 +2503,6 @@ export function RoomTypeWizardStep1() {
           </div>
         </CollapsibleContent>
       </Collapsible>
-
-      {/* Sticky Bottom Actions Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9D2C4] bg-white/95 px-6 py-3.5 backdrop-blur-xs shadow-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-end gap-3">
-          <Button
-            type="button"
-            disabled={disabled || savingContinue || Boolean(codeCheck && !codeCheck.available)}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 font-medium px-5"
-            onClick={() => void continueToPricing()}
-          >
-            {savingContinue ? "Saving…" : "Save & Continue to Pricing"}
-            <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
-      </footer>
 
       {/* Add Custom Category / Class Modal */}
       {(addCategoryOpen || addClassOpen) && (

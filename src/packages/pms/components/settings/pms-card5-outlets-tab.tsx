@@ -1,10 +1,17 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { ROLE_LABELS } from "@/core/lib/module-access";
-import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -17,8 +24,25 @@ import {
 import { Switch } from "@/shared/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { cn } from "@/shared/lib/utils";
-import { PmsPropertySetupCard5Workspace } from "./pms-property-setup-card5-workspace";
+import {
+  CARD5_ACTIONS_TD_CLASS,
+  CARD5_ACTIONS_TH_CLASS,
+  CARD5_FILTER_CLASS,
+  CARD5_SEARCH_CLASS,
+  CARD5_SELECT_CONTENT_CLASS,
+  CARD5_SELECT_ITEM_CLASS,
+  CARD5_STATUS_TD_CLASS,
+  CARD5_STATUS_TH_CLASS,
+  CARD5_TH_CLASS,
+  CARD5_THEAD_CLASS,
+  CARD5_TOOLBAR_CLASS,
+  Card5ConfigNotice,
+  Card5CreateButton,
+  Card5RowMenuButton,
+  Card5Status,
+  Card5TableShell,
+  PmsPropertySetupCard5Workspace,
+} from "./pms-property-setup-card5-workspace";
 import { getCard5Facilities, saveCard5Facility } from "../../lib/outlets-card5.functions";
 import {
   CARD5_AVAILABILITY_MODES,
@@ -36,12 +60,9 @@ import {
 import {
   CARD5_STAFF_ROLES,
   emptyOperatingHours,
-  hoursConfigured,
   type Card5HoursWindow,
   type Card5OperatingHours,
 } from "../../lib/departments-card5.server";
-import { propertySetupStatusLabel } from "../../lib/pms-property-setup-card1";
-
 const DRAWER_SECTIONS = [
   "Basic",
   "Location",
@@ -244,11 +265,7 @@ export function Card5OutletsTab({
         snapshot: result.snapshot,
         readiness: result.readiness,
       });
-      const saved =
-        result.snapshot.facilities.find((row) => row.id === draft?.id) ??
-        result.snapshot.facilities.find((row) => row.code === draft?.code) ??
-        null;
-      setDraft(saved);
+      setDraft(null);
       setValidated(null);
       toast.success("Facility saved.");
     },
@@ -298,77 +315,180 @@ export function Card5OutletsTab({
   );
 
   return (
+    <>
     <PmsPropertySetupCard5Workspace
-      validate={
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            const next = evaluateCard5FacilitiesReadiness(snapshot);
-            setValidated(next);
-            if (next.ready) toast.success("Outlets & Facilities are ready.");
-            else toast.error(next.blockers[0] ?? "Outlets & Facilities are not ready.");
-          }}
-        >
-          Validate
-        </Button>
-      }
       search={
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[14rem] flex-1 space-y-1">
-              <Label htmlFor="card5-facility-search">Search</Label>
-              <Input
-                id="card5-facility-search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Name, code or facility type"
-              />
-            </div>
-            <div className="w-36 space-y-1">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {editor ? <Button onClick={openCreate}>Add Facility</Button> : null}
+        <div className="space-y-2">
+          <h3 className="font-display text-lg text-[#251605]">Outlets & Facilities</h3>
+          <div className={CARD5_TOOLBAR_CLASS}>
+            <Input
+              id="card5-facility-search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search facilities"
+              className={CARD5_SEARCH_CLASS}
+            />
+            <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
+              <SelectTrigger className={`${CARD5_FILTER_CLASS} w-[7.5rem]`} aria-label="Status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className={CARD5_SELECT_CONTENT_CLASS}>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="all">
+                  All
+                </SelectItem>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="active">
+                  Active
+                </SelectItem>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="inactive">
+                  Inactive
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={category}
+              onValueChange={(value) => setCategory(value as typeof category)}
+            >
+              <SelectTrigger className={`${CARD5_FILTER_CLASS} w-40`} aria-label="Facility category filters">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className={CARD5_SELECT_CONTENT_CLASS}>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="all">
+                  All categories
+                </SelectItem>
+                {CARD5_FACILITY_CATEGORIES.map((item) => (
+                  <SelectItem className={CARD5_SELECT_ITEM_CLASS} key={item} value={item}>
+                    {CARD5_FACILITY_CATEGORY_LABELS[item]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {editor ? (
+              <Card5CreateButton onClick={openCreate}>
+                <Plus className="size-4" /> Add Facility
+              </Card5CreateButton>
+            ) : null}
           </div>
-          <div className="flex flex-wrap gap-2" aria-label="Facility category filters">
-            {(["all", ...CARD5_FACILITY_CATEGORIES] as const).map((item) => (
-              <Button
-                key={item}
-                type="button"
-                size="sm"
-                variant={category === item ? "default" : "outline"}
-                className="rounded-full"
-                onClick={() => setCategory(item)}
-              >
-                {item === "all" ? "All categories" : CARD5_FACILITY_CATEGORY_LABELS[item]}
-              </Button>
-            ))}
-          </div>
+          <Card5ConfigNotice
+            loading={query.isLoading}
+            blockers={shownReadiness.blockers}
+            warnings={shownReadiness.warnings}
+          />
         </div>
       }
-      drawer={
-        draft ? (
-          <div
-            className="rounded-2xl border border-[#E6D7B8] bg-card p-4"
-            data-testid="pms-card5-facility-drawer"
+    >
+      {query.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading facilities…</p>
+      ) : query.isError ? (
+        <p className="text-sm text-destructive">{(query.error as Error).message}</p>
+      ) : rows.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-6 text-sm text-muted-foreground">
+          No facilities match this view. Add a facility to begin the property catalogue.
+        </p>
+      ) : (
+        <Card5TableShell>
+          <table
+            className="w-full table-fixed text-left text-sm"
+            data-testid="pms-card5-facility-table"
           >
-            <h2 className="font-display text-lg text-[#251605]">
-              {draft.id ? draft.name || "Edit facility" : "Add facility"}
-            </h2>
+            <thead className={CARD5_THEAD_CLASS}>
+              <tr>
+                <th className={CARD5_TH_CLASS}>Facility</th>
+                <th className={`w-24 ${CARD5_TH_CLASS}`}>Code</th>
+                <th className={CARD5_TH_CLASS}>Category / Type</th>
+                <th className={`w-24 ${CARD5_TH_CLASS}`}>Capacity</th>
+                <th className={`w-32 ${CARD5_TH_CLASS}`}>Availability</th>
+                <th className={CARD5_STATUS_TH_CLASS}>Status</th>
+                <th className={CARD5_ACTIONS_TH_CLASS}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b last:border-0">
+                  <td className="px-3 py-2 font-medium text-[#251605]">{row.name}</td>
+                  <td className="px-3 py-2">{row.code}</td>
+                  <td className="px-3 py-2">
+                    <span className="rounded-full bg-[#C89933]/10 px-2 py-1 text-xs">
+                      {CARD5_FACILITY_CATEGORY_LABELS[row.facilityCategory]}
+                    </span>
+                    <span className="ml-2 text-muted-foreground">
+                      {title(row.facilityTypeCode)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {row.standardCapacity ?? row.maximumCapacity ?? "—"}
+                  </td>
+                  <td className="px-3 py-2">{title(row.availabilityMode)}</td>
+                  <td className={CARD5_STATUS_TD_CLASS}>
+                    <Card5Status active={row.active} />
+                  </td>
+                  <td className={CARD5_ACTIONS_TD_CLASS}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Card5RowMenuButton label={`Actions for ${row.name}`} />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setDraft({
+                              ...row,
+                              operatingHours: emptyOperatingHours(row.operatingHours),
+                            });
+                            setSection("Basic");
+                          }}
+                        >
+                          Edit
+                        </DropdownMenuItem>
+                        {editor ? (
+                          <DropdownMenuItem
+                            onSelect={() => mutation.mutate({ ...row, active: !row.active })}
+                          >
+                            {row.active ? "Deactivate" : "Activate"}
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card5TableShell>
+      )}
+    </PmsPropertySetupCard5Workspace>
+
+      <Card3OverlapSheet
+        open={Boolean(draft)}
+        title={draft?.id ? "Edit Facility" : "Add Facility"}
+        onClose={() => setDraft(null)}
+        onSubmit={
+          draft && editor
+            ? () => {
+                if (!draft.name.trim()) {
+                  setSection("Basic");
+                  toast.error("Facility name is required.");
+                  return;
+                }
+                if (!draft.code.trim()) {
+                  setSection("Basic");
+                  toast.error("Facility unique code is required.");
+                  return;
+                }
+                mutation.mutate(draft);
+              }
+            : undefined
+        }
+        submitLabel="Save"
+        pending={mutation.isPending}
+        canEdit={editor}
+        maxWidth="max-w-3xl"
+        className="max-h-[85vh]"
+        footerJustify="between"
+      >
+        {draft ? (
+          <div data-testid="pms-card5-facility-drawer">
             <Tabs
               value={section}
               onValueChange={(value) => setSection(value as typeof section)}
-              className="mt-3"
             >
               <TabsList className="mb-3 flex h-auto flex-wrap justify-start">
                 {DRAWER_SECTIONS.map((item) => (
@@ -708,129 +828,9 @@ export function Card5OutletsTab({
                 ))}
               </TabsContent>
             </Tabs>
-            <div className="mt-4 flex gap-2">
-              {editor ? (
-                <Button
-                  onClick={() => {
-                    if (!draft.name.trim()) {
-                      setSection("Basic");
-                      toast.error("Facility name is required.");
-                      return;
-                    }
-                    if (!draft.code.trim()) {
-                      setSection("Basic");
-                      toast.error("Facility unique code is required.");
-                      return;
-                    }
-                    mutation.mutate(draft);
-                  }}
-                  disabled={mutation.isPending}
-                >
-                  Save
-                </Button>
-              ) : null}
-              <Button variant="outline" onClick={() => setDraft(null)}>
-                Close
-              </Button>
-            </div>
           </div>
-        ) : (
-          <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-4 text-sm text-muted-foreground">
-            Select a facility to edit it in this drawer.
-          </p>
-        )
-      }
-      status={
-        <div className="text-sm">
-          <p>
-            Outlets & Facilities:{" "}
-            {query.isLoading
-              ? "Checking…"
-              : `${propertySetupStatusLabel(shownReadiness.status)}${shownReadiness.ready ? " — ready" : ""}`}
-          </p>
-          {shownReadiness.blockers[0] ? (
-            <p className="text-destructive">{shownReadiness.blockers[0]}</p>
-          ) : shownReadiness.warnings[0] ? (
-            <p className="text-[#C89933]">{shownReadiness.warnings[0]}</p>
-          ) : null}
-        </div>
-      }
-    >
-      {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading facilities…</p>
-      ) : query.isError ? (
-        <p className="text-sm text-destructive">{(query.error as Error).message}</p>
-      ) : rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-6 text-sm text-muted-foreground">
-          No facilities match this view. Add a facility to begin the property catalogue.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border bg-card">
-          <table
-            className="w-full min-w-[46rem] text-left text-sm"
-            data-testid="pms-card5-facility-table"
-          >
-            <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Facility</th>
-                <th className="px-3 py-2 font-medium">Code</th>
-                <th className="px-3 py-2 font-medium">Category / type</th>
-                <th className="px-3 py-2 font-medium">Capacity</th>
-                <th className="px-3 py-2 font-medium">Availability</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b last:border-0">
-                  <td className="px-3 py-2 font-medium text-[#251605]">{row.name}</td>
-                  <td className="px-3 py-2">{row.code}</td>
-                  <td className="px-3 py-2">
-                    <span className="rounded-full bg-[#C89933]/10 px-2 py-1 text-xs">
-                      {CARD5_FACILITY_CATEGORY_LABELS[row.facilityCategory]}
-                    </span>
-                    <span className="ml-2 text-muted-foreground">
-                      {title(row.facilityTypeCode)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.standardCapacity ?? row.maximumCapacity ?? "—"}
-                  </td>
-                  <td className="px-3 py-2">{title(row.availabilityMode)}</td>
-                  <td className="px-3 py-2">{row.active ? "Active" : "Inactive"}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setDraft({
-                            ...row,
-                            operatingHours: emptyOperatingHours(row.operatingHours),
-                          });
-                          setSection("Basic");
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      {editor ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => mutation.mutate({ ...row, active: !row.active })}
-                        >
-                          {row.active ? "Deactivate" : "Activate"}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </PmsPropertySetupCard5Workspace>
+        ) : null}
+      </Card3OverlapSheet>
+    </>
   );
 }
