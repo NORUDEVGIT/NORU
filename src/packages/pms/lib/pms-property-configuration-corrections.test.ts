@@ -677,5 +677,172 @@ describe("Property Configuration Corrections (Card 1 Step 1)", () => {
       assert.match(sectionFile, /pms-card1-discard-session-draft/);
     });
   });
+
+  describe("Settings Card 1 Step 3: Business Date & Night Audit UI and System Displays", () => {
+    const stepsFile = readFileSync(
+      new URL("../components/settings/pms-property-setup-card1-steps.tsx", import.meta.url),
+      "utf8",
+    );
+    const fnFile = readFileSync(
+      new URL("./pms-property-setup-card1.functions.ts", import.meta.url),
+      "utf8",
+    );
+
+    it("restores read-only System Date and live Property Time displays in System & Property Information", () => {
+      // Subsection headings
+      assert.match(stepsFile, /System & Property Information/);
+      assert.match(stepsFile, /Night Audit Configuration/);
+
+      // System Date field
+      assert.match(stepsFile, /id="card1-system-date"/);
+      assert.match(stepsFile, /label="System Date"/);
+
+      // Property Time field
+      assert.match(stepsFile, /id="card1-local-time"/);
+      assert.match(stepsFile, /label="Property Time"/);
+
+      // Current Business Date field
+      assert.match(stepsFile, /id="card1-business-date-current"/);
+      assert.match(stepsFile, /<Label htmlFor="card1-business-date-current">Current Business Date<\/Label>/);
+      assert.match(stepsFile, /card1-business-date-normal-copy/);
+
+      // Last Successful Night Audit field with "Never" fallback
+      assert.match(stepsFile, /id="card1-last-na"/);
+      assert.match(stepsFile, /label="Last Successful Night Audit"/);
+      assert.match(stepsFile, /effectiveCurrentState\.lastSuccessfulNightAudit \|\| "Never"/);
+
+      // Night Audit Window Start and End selectors
+      assert.match(stepsFile, /id="card1-na-start"/);
+      assert.match(stepsFile, /label="Night Audit Window Start"/);
+      assert.match(stepsFile, /id="card1-na-end"/);
+      assert.match(stepsFile, /label="Night Audit Window End"/);
+      assert.match(stepsFile, /card1-night-audit-window-error/);
+    });
+
+    it("calculates live Property Time using configured property timezone and format preference", () => {
+      // Dynamic timer updates
+      assert.match(stepsFile, /const \[now, setNow\] = useState\(\(\) => new Date\(\)\);/);
+      assert.match(stepsFile, /setInterval/);
+
+      // Property Time format adheres to draft.timeFormat and draft.timezone
+      const instant = new Date("2026-11-07T18:30:00Z");
+      const addis24 = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Africa/Addis_Ababa",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(instant);
+      assert.equal(addis24, "21:30");
+
+      const addis12 = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Africa/Addis_Ababa",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(instant);
+      assert.equal(addis12, "9:30 PM");
+
+      const ny24 = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/New_York",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(instant);
+      assert.equal(ny24, "13:30");
+
+      const ny12 = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(instant);
+      assert.equal(ny12, "1:30 PM");
+    });
+
+    it("calculates System Date using configured property timezone and updates when date changes", () => {
+      const instantTz1 = new Date("2026-11-07T23:30:00Z");
+      const addisDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Africa/Addis_Ababa",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(instantTz1);
+      assert.equal(addisDate, "2026-11-08");
+
+      const nyDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(instantTz1);
+      assert.equal(nyDate, "2026-11-07");
+    });
+
+    it("confirms removed nonfunctional controls remain absent from Step 3", () => {
+      // Day boundary removed
+      assert.doesNotMatch(stepsFile, /id="card1-boundary"/);
+      assert.doesNotMatch(stepsFile, /Business day boundary/);
+
+      // Automatic rollover removed
+      assert.doesNotMatch(stepsFile, /id="card1-auto-roll"/);
+      assert.doesNotMatch(stepsFile, /Automatic rollover/);
+
+      // Manual rollover approval & role buttons removed
+      assert.doesNotMatch(stepsFile, /id="card1-approval"/);
+      assert.doesNotMatch(stepsFile, /card1-manual-rollover-roles/);
+
+      // Lock during audit removed
+      assert.doesNotMatch(stepsFile, /id="card1-lock"/);
+      assert.doesNotMatch(stepsFile, /Lock business date during audit/);
+
+      // Calendar display removed
+      assert.doesNotMatch(stepsFile, /id="card1-calendar"/);
+
+      // Block Date Advance checkboxes and preview panel removed
+      assert.doesNotMatch(stepsFile, /Panel title="Block Date Advance When"/);
+      assert.doesNotMatch(stepsFile, /card1-live-block-preview/);
+
+      // Recommended defaults panel removed
+      assert.doesNotMatch(stepsFile, /Panel title="Recommended Defaults"/);
+    });
+
+    it("preserves all operational check-in, check-out, early/late fee, and child policy fields", () => {
+      // Check-in / Check-out times
+      assert.match(stepsFile, /id="card1-ci"/);
+      assert.match(stepsFile, /id="card1-co"/);
+
+      // Lead time, cutoff, grace period
+      assert.match(stepsFile, /id="card1-lead"/);
+      assert.match(stepsFile, /id="card1-cutoff"/);
+      assert.match(stepsFile, /id="card1-grace"/);
+
+      // Early check-in & late check-out
+      assert.match(stepsFile, /Early Check-In/);
+      assert.match(stepsFile, /Late Check-Out/);
+      assert.match(stepsFile, /StayPolicyFields/);
+
+      // Child policy
+      assert.match(stepsFile, /card1-child-summary/);
+      assert.match(stepsFile, /card1-child-\$\{key\}/);
+      assert.match(stepsFile, /Minimum Child Age/);
+      assert.match(stepsFile, /Maximum Child Age/);
+      assert.match(stepsFile, /Free Until Age/);
+      assert.match(stepsFile, /Charge From Age/);
+
+      // Operational toggles & policies
+      assert.match(stepsFile, /id="card1-day-use"/);
+      assert.match(stepsFile, /id="card1-24h"/);
+      assert.match(stepsFile, /id="card1-extra-bed"/);
+      assert.match(stepsFile, /id="card1-id"/);
+      assert.match(stepsFile, /id="card1-ci-policy"/);
+      assert.match(stepsFile, /id="card1-co-policy"/);
+    });
+
+    it("loads Last Successful Night Audit strictly from closed runs with valid closed_at", () => {
+      assert.match(fnFile, /\.not\("closed_at", "is", null\)/);
+      assert.match(fnFile, /\.order\("business_date", \{ ascending: false \}\)/);
+      assert.match(fnFile, /\.order\("closed_at", \{ ascending: false \}\)/);
+    });
+  });
 });
 

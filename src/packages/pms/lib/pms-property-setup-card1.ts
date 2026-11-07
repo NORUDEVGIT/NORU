@@ -1582,14 +1582,12 @@ export function card1ContactsSubstepComplete(draft: Card1Draft): boolean {
 
 export function card1BusinessDateSubstepComplete(draft: Card1Draft): boolean {
   return Boolean(
-    draft.businessDateConfig.dayBoundary.trim() &&
     draft.businessDateConfig.nightAuditWindowStart.trim() &&
     draft.businessDateConfig.nightAuditWindowEnd.trim() &&
     !nightAuditWindowConfigProblem(
       draft.businessDateConfig.nightAuditWindowStart,
       draft.businessDateConfig.nightAuditWindowEnd,
-    ) &&
-    draft.businessDateConfig.manualRolloverRoles.length > 0,
+    ),
   );
 }
 

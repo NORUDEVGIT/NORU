@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -34,7 +35,12 @@ import {
 } from "@/shared/components/ui/select";
 import { SearchableSelect } from "@/shared/components/ui/searchable-select";
 import { supabase } from "@/integrations/supabase/client";
-import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
+import {
+  COMMON_CURRENCIES,
+  COMMON_TIMEZONES,
+  DEFAULT_TIMEZONE,
+  localDateInZone,
+} from "@/shared/lib/property-time";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { BUSINESS_DATE_NORMAL_COPY } from "@/packages/pms/lib/business-date-recovery";
 import { nightAuditWindowConfigProblem } from "@/packages/pms/lib/night-audit-window";
@@ -72,18 +78,13 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   CARD1_ADDRESS_ADAPT_COPY,
-  CARD1_BLOCKER_LABELS,
   CARD1_BRAND_IMAGE_HELPER,
   CARD1_BRAND_IMAGE_UPLOAD_ERROR,
   CARD1_BUSINESS_DATE_CURRENT_COPY,
-  CARD1_CALENDAR_DISPLAY_LABELS,
-  CARD1_CALENDAR_DISPLAYS,
   CARD1_CAPACITY_COPY,
-  CARD1_DEFAULT_BLOCKERS,
   CARD1_FULL_ADDRESS_COPY,
   CARD1_IDENTITY_HELPER,
   CARD1_INDEPENDENT_HELPER,
-  CARD1_MANUAL_ROLLOVER_ROLES,
   CARD1_OPENING_DATE_IN,
   CARD1_PROPERTY_AREA_OPTIONS,
   CARD1_PROPERTY_CODE_TOOLTIP,
@@ -102,7 +103,6 @@ import {
   generateHourlyTimeOptions,
   isHttpOrDataAsset,
   validateBrandImageFile,
-  liveBlockPreview,
   structureRoomCodeExample,
   vatCertificateRequired,
   type Card1AddressFieldErrors,
@@ -1291,6 +1291,24 @@ export function CheckinStep({
   businessDateAction?: ReactNode;
 }) {
   const effectiveCurrentState = currentState ?? emptyCurrentState();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const systemDate = useMemo(() => {
+    if (!draft.timezone) return effectiveCurrentState.systemDate || localDateInZone(DEFAULT_TIMEZONE, now);
+    try {
+      return localDateInZone(draft.timezone, now);
+    } catch {
+      return effectiveCurrentState.systemDate || localDateInZone(DEFAULT_TIMEZONE, now);
+    }
+  }, [draft.timezone, effectiveCurrentState.systemDate, now]);
+
   const localClock = useMemo(() => {
     if (!draft.timezone) return effectiveCurrentState.propertyLocalTime || "—";
     try {
@@ -1299,12 +1317,12 @@ export function CheckinStep({
         hour: draft.timeFormat === "12h" ? "numeric" : "2-digit",
         minute: "2-digit",
         hour12: draft.timeFormat === "12h",
-      }).format(new Date());
+      }).format(now);
     } catch {
       return effectiveCurrentState.propertyLocalTime || "—";
     }
-  }, [draft.timezone, draft.timeFormat, effectiveCurrentState.propertyLocalTime]);
-  const preview = liveBlockPreview(draft.businessDateBlockers);
+  }, [draft.timezone, draft.timeFormat, effectiveCurrentState.propertyLocalTime, now]);
+
   const nightAuditWindowProblem = nightAuditWindowConfigProblem(
     draft.businessDateConfig.nightAuditWindowStart,
     draft.businessDateConfig.nightAuditWindowEnd,
@@ -1525,271 +1543,101 @@ export function CheckinStep({
         </div>
       </Panel>
 
-      <Panel title="CURRENT STATE" helper={CARD1_BUSINESS_DATE_CURRENT_COPY} icon="date">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-business-date-current">Business Date</Label>
-            <Input
-              id="card1-business-date-current"
-              value={effectiveCurrentState.businessDate ?? "—"}
-              readOnly
-              disabled
-              data-testid="card1-business-date-current"
-              className="h-11 bg-muted/40"
-            />
-            <p
-              className="text-xs text-muted-foreground"
-              data-testid="card1-business-date-normal-copy"
-            >
-              {BUSINESS_DATE_NORMAL_COPY}
-            </p>
-            {businessDateAction}
-          </div>
-          <Field
-            id="card1-system-date"
-            label="System Date"
-            value={effectiveCurrentState.systemDate || "—"}
-            readOnly
-          />
-          <Field
-            id="card1-local-time"
-            label="Property Local Time"
-            value={localClock}
-            readOnly
-          />
-          <Field
-            id="card1-bd-status"
-            label="Status"
-            value={effectiveCurrentState.status}
-            readOnly
-          />
-          <Field
-            id="card1-last-na"
-            label="Last Successful Night Audit"
-            value={effectiveCurrentState.lastSuccessfulNightAudit || "Never"}
-            readOnly
-          />
-        </div>
-      </Panel>
-      <Panel title="CONFIGURATION" icon="time">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Business date time zone</Label>
-            <Input value={draft.timezone || "—"} readOnly disabled className="h-11 bg-muted/40" />
-            <a
-              href={`${SET1_HUB_HREF}#property-business`}
-              className="text-xs font-medium text-[#C89933]"
-              onClick={() => {
-                window.location.hash = "property-business";
-              }}
-            >
-              Edit in Property Identity
-            </a>
-          </div>
-          <TimeSelect
-            id="card1-boundary"
-            label="Business day boundary"
-            required
-            value={draft.businessDateConfig.dayBoundary}
-            timeFormat={draft.timeFormat}
-            disabled={!canEdit}
-            onChange={(dayBoundary) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, dayBoundary },
-              }))
-            }
-          />
-          <TimeSelect
-            id="card1-na-start"
-            label="Expected Night Audit window start"
-            required
-            value={draft.businessDateConfig.nightAuditWindowStart}
-            timeFormat={draft.timeFormat}
-            disabled={!canEdit}
-            onChange={(nightAuditWindowStart) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowStart },
-              }))
-            }
-          />
-          <TimeSelect
-            id="card1-na-end"
-            label="Expected Night Audit window end"
-            required
-            value={draft.businessDateConfig.nightAuditWindowEnd}
-            timeFormat={draft.timeFormat}
-            disabled={!canEdit}
-            onChange={(nightAuditWindowEnd) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowEnd },
-              }))
-            }
-          />
-        </div>
-        {nightAuditWindowProblem ? (
-          <p
-            className="text-xs font-medium text-destructive"
-            data-testid="card1-night-audit-window-error"
-          >
-            {nightAuditWindowProblem}
-          </p>
-        ) : null}
-        <ToggleRow
-          id="card1-auto-roll"
-          label="Automatic date rollover — Only after successful Night Audit"
-          checked={draft.businessDateConfig.automaticRollover}
-          disabled={!canEdit}
-          onChange={(automaticRollover) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, automaticRollover },
-            }))
-          }
-        />
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-[#251605]">
-            Manual rollover (permissions) <span className="text-red-600">*</span>
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {CARD1_MANUAL_ROLLOVER_ROLES.map((role) => {
-              const on = draft.businessDateConfig.manualRolloverRoles.includes(role.id);
-              return (
-                <button
-                  key={role.id}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() =>
-                    setDraft((p) => {
-                      const roles = on
-                        ? p.businessDateConfig.manualRolloverRoles.filter((id) => id !== role.id)
-                        : [...p.businessDateConfig.manualRolloverRoles, role.id];
-                      return {
-                        ...p,
-                        businessDateConfig: {
-                          ...p.businessDateConfig,
-                          manualRolloverRoles: roles,
-                        },
-                      };
-                    })
-                  }
-                  className={`rounded-full border px-3 py-1 text-xs ${on ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]" : "border-[#CCCCCC] text-muted-foreground"}`}
+      <Panel
+        title="Business Date & Night Audit"
+        helper={CARD1_BUSINESS_DATE_CURRENT_COPY}
+        icon="time"
+        testId="card1-business-date-panel"
+      >
+        <div className="space-y-6">
+          <div>
+            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              System & Property Information
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Field
+                id="card1-system-date"
+                label="System Date"
+                value={systemDate}
+                readOnly
+              />
+              <Field
+                id="card1-local-time"
+                label="Property Time"
+                value={localClock}
+                readOnly
+              />
+              <div className="space-y-1.5">
+                <Label htmlFor="card1-business-date-current">Current Business Date</Label>
+                <Input
+                  id="card1-business-date-current"
+                  value={effectiveCurrentState.businessDate ?? "—"}
+                  readOnly
+                  disabled
+                  data-testid="card1-business-date-current"
+                  className="h-11 bg-muted/40"
+                />
+                <p
+                  className="text-xs text-muted-foreground"
+                  data-testid="card1-business-date-normal-copy"
                 >
-                  {role.label}
-                </button>
-              );
-            })}
+                  {BUSINESS_DATE_NORMAL_COPY}
+                </p>
+                {businessDateAction}
+              </div>
+              <Field
+                id="card1-last-na"
+                label="Last Successful Night Audit"
+                value={effectiveCurrentState.lastSuccessfulNightAudit || "Never"}
+                readOnly
+              />
+            </div>
           </div>
-        </div>
-        <ToggleRow
-          id="card1-approval"
-          label="Approval required"
-          checked={draft.businessDateConfig.approvalRequired}
-          disabled={!canEdit}
-          onChange={(approvalRequired) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, approvalRequired },
-            }))
-          }
-        />
-        <ToggleRow
-          id="card1-lock"
-          label="Business date lock during audit"
-          checked={draft.businessDateConfig.lockDuringAudit}
-          disabled={!canEdit}
-          onChange={(lockDuringAudit) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, lockDuringAudit },
-            }))
-          }
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field
-            id="card1-sell-date"
-            label="Reservation sell date rule"
-            value={`Uses business date: ${effectiveCurrentState.businessDate ?? "—"}`}
-            readOnly
-          />
-          <Field
-            id="card1-hk-date"
-            label="Housekeeping board date"
-            value={effectiveCurrentState.businessDate ?? "—"}
-            readOnly
-          />
-          <Field
-            id="card1-fo-date"
-            label="Front Office desk date"
-            value={effectiveCurrentState.businessDate ?? "—"}
-            readOnly
-          />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-calendar">Calendar display</Label>
-            <Select
-              value={draft.businessDateConfig.calendarDisplay}
-              onValueChange={(calendarDisplay) =>
-                setDraft((p) => ({
-                  ...p,
-                  businessDateConfig: {
-                    ...p.businessDateConfig,
-                    calendarDisplay: calendarDisplay as typeof p.businessDateConfig.calendarDisplay,
-                  },
-                }))
-              }
-              disabled={!canEdit}
-            >
-              <SelectTrigger id="card1-calendar" className={SELECT_TRIGGER_CLASS}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CARD1_CALENDAR_DISPLAYS.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {CARD1_CALENDAR_DISPLAY_LABELS[item]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Panel>
-      <Panel title="Block Date Advance When" icon="security">
-        <div className="space-y-2">
-          {CARD1_DEFAULT_BLOCKERS.map((id) => (
-            <label key={id} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={draft.businessDateBlockers.includes(id)}
+
+          <div className="border-t border-[#E8E2D6] pt-5">
+            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Night Audit Configuration
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TimeSelect
+                id="card1-na-start"
+                label="Night Audit Window Start"
+                required
+                value={draft.businessDateConfig.nightAuditWindowStart}
+                timeFormat={draft.timeFormat}
                 disabled={!canEdit}
-                onCheckedChange={(checked) =>
+                onChange={(nightAuditWindowStart) =>
                   setDraft((p) => ({
                     ...p,
-                    businessDateBlockers:
-                      checked === true
-                        ? [...new Set([...p.businessDateBlockers, id])]
-                        : p.businessDateBlockers.filter((row) => row !== id),
+                    businessDateConfig: { ...p.businessDateConfig, nightAuditWindowStart },
                   }))
                 }
               />
-              {CARD1_BLOCKER_LABELS[id]}
-            </label>
-          ))}
+              <TimeSelect
+                id="card1-na-end"
+                label="Night Audit Window End"
+                required
+                value={draft.businessDateConfig.nightAuditWindowEnd}
+                timeFormat={draft.timeFormat}
+                disabled={!canEdit}
+                onChange={(nightAuditWindowEnd) =>
+                  setDraft((p) => ({
+                    ...p,
+                    businessDateConfig: { ...p.businessDateConfig, nightAuditWindowEnd },
+                  }))
+                }
+              />
+            </div>
+            {nightAuditWindowProblem ? (
+              <p
+                className="mt-2 text-xs font-medium text-destructive"
+                data-testid="card1-night-audit-window-error"
+              >
+                {nightAuditWindowProblem}
+              </p>
+            ) : null}
+          </div>
         </div>
-        <div
-          className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800"
-          data-testid="card1-live-block-preview"
-        >
-          <p className="font-medium">Live Block Preview</p>
-          <p className="mt-1">{preview}</p>
-        </div>
-      </Panel>
-      <Panel title="Recommended Defaults" icon="document">
-        <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Rollover only after successful Night Audit</li>
-          <li>FO / HK / Reservations follow business date</li>
-          <li>Time zone managed in Property Identity</li>
-        </ul>
       </Panel>
     </div>
   );

@@ -178,7 +178,9 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(steps, /card1-full-address/);
     assert.match(steps, /readOnly/);
     assert.match(steps, /card1-business-date-current/);
-    assert.match(steps, /CURRENT STATE/);
+    assert.match(steps, /System & Property Information/);
+    assert.match(steps, /card1-system-date/);
+    assert.match(steps, /card1-local-time/);
     assert.doesNotMatch(steps, /name="fullAddress"/);
     assert.doesNotMatch(steps, /name="businessDate"/);
     assert.doesNotMatch(steps, /setDraft\(\(p\) => \(\{ \.\.\.p, fullAddress/);
@@ -439,7 +441,10 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(hub, /PmsPropertySetupCard1Section/);
     assert.match(hub, /PmsPropertySetupCard2Section/);
     assert.match(hub, /PmsPropertySetupCard3Section/);
-    assert.match(hub, /Complete \/ In Progress \/ Not Started|propertySetupStatusLabel/);
+    assert.match(
+      hub,
+      /Complete \/ In Progress \/ Not Started|propertySetupStatusLabel|settingsDashboardStatusLabel/,
+    );
     assert.doesNotMatch(hub, /FO-CHROME1/);
     assert.doesNotMatch(hub, /overbooking/i);
     assert.doesNotMatch(hub, /Agreement/);
@@ -778,7 +783,8 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
           checkOutTime: "11:00",
           businessDateConfig: {
             ...emptyCard1Draft().businessDateConfig,
-            manualRolloverRoles: [],
+            nightAuditWindowStart: "00:00",
+            nightAuditWindowEnd: "00:00",
           },
         }),
       ),

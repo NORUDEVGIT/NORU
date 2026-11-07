@@ -322,16 +322,19 @@ function localTime(timezone: string, timeFormat: Card1TimeFormat = "24h"): strin
 }
 
 async function loadLastNightAudit(supabaseAdmin: Admin, restaurantId: string): Promise<string> {
+  if (!restaurantId || typeof restaurantId !== "string") return "";
   const { data, error } = await supabaseAdmin
     .from("night_audit_runs")
     .select("closed_at, business_date, status")
     .eq("restaurant_id", restaurantId)
     .eq("status", "closed")
+    .not("closed_at", "is", null)
+    .order("business_date", { ascending: false })
     .order("closed_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error || !data) return "";
-  return String(data.closed_at ?? data.business_date ?? "");
+  if (error || !data || !data.closed_at) return "";
+  return data.business_date ? String(data.business_date).slice(0, 10) : String(data.closed_at).slice(0, 10);
 }
 
 async function assignPropertyCode(supabaseAdmin: Admin, current: string): Promise<string> {
