@@ -259,7 +259,7 @@ async function requireFiscalRow(db: Db, restaurantId: string) {
 
 export const getFiscalIntegrationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     const db = await admin();
@@ -405,7 +405,7 @@ const connectionSchema = z.object({
 
 export const saveFiscalIntegrationConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => connectionSchema.parse(input))
+  .validator((input: unknown) => connectionSchema.parse(input))
   .handler(async ({ data, context }) => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
@@ -464,7 +464,7 @@ export const saveFiscalIntegrationConfig = createServerFn({ method: "POST" })
 
 export const saveFiscalCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -504,7 +504,7 @@ export const saveFiscalCredentials = createServerFn({ method: "POST" })
 
 export const getFiscalCredentialStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     const db = await admin();
@@ -514,7 +514,7 @@ export const getFiscalCredentialStatus = createServerFn({ method: "POST" })
 
 export const testFiscalConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const db = await admin();
@@ -612,7 +612,7 @@ async function touchMapping(db: Db, restaurantId: string, userId: string, integr
 
 export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -775,7 +775,7 @@ async function assignFiscalItemCode(
 
 export const saveFiscalItemMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -876,7 +876,7 @@ export const saveFiscalItemMapping = createServerFn({ method: "POST" })
 
 export const saveFiscalModeMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -918,7 +918,7 @@ export const saveFiscalModeMapping = createServerFn({ method: "POST" })
 
 export const saveFiscalBuyerCodeMapping = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -967,7 +967,7 @@ export const saveFiscalBuyerCodeMapping = createServerFn({ method: "POST" })
 
 export const runFiscalOutbox = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FISCAL_DOCUMENT_AUTHORIZE);
     return processFiscalOutbox(await admin(), 10);
@@ -975,7 +975,7 @@ export const runFiscalOutbox = createServerFn({ method: "POST" })
 
 export const retryFiscalRegistrationNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, registrationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -995,7 +995,7 @@ export const retryFiscalRegistrationNow = createServerFn({ method: "POST" })
 
 export const getCreditNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1005,7 +1005,7 @@ export const getCreditNoteFiscal = createServerFn({ method: "POST" })
 
 export const registerCreditNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1045,7 +1045,7 @@ export const registerCreditNoteFiscal = createServerFn({ method: "POST" })
 
 export const getDebitNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1055,7 +1055,7 @@ export const getDebitNoteFiscal = createServerFn({ method: "POST" })
 
 export const registerDebitNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1095,7 +1095,7 @@ export const registerDebitNoteFiscal = createServerFn({ method: "POST" })
 
 export const getGuestInvoiceSalesReceiptFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1105,7 +1105,7 @@ export const getGuestInvoiceSalesReceiptFiscal = createServerFn({ method: "POST"
 
 export const registerGuestAllocationSalesReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, allocationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1149,7 +1149,7 @@ export const registerGuestAllocationSalesReceipt = createServerFn({ method: "POS
 
 export const correctGuestSalesReceiptAllocation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1223,7 +1223,7 @@ async function allocationInvoiceId(db: Db, restaurantId: string, allocationId: s
 
 export const getCompanyInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1233,7 +1233,7 @@ export const getCompanyInvoiceFiscal = createServerFn({ method: "POST" })
 
 export const registerCompanyInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1273,7 +1273,7 @@ export const registerCompanyInvoiceFiscal = createServerFn({ method: "POST" })
 
 export const getCompanyCreditNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1283,7 +1283,7 @@ export const getCompanyCreditNoteFiscal = createServerFn({ method: "POST" })
 
 export const registerCompanyCreditNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, creditNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1323,7 +1323,7 @@ export const registerCompanyCreditNoteFiscal = createServerFn({ method: "POST" }
 
 export const getCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1333,7 +1333,7 @@ export const getCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
 
 export const registerCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, debitNoteId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1373,7 +1373,7 @@ export const registerCompanyDebitNoteFiscal = createServerFn({ method: "POST" })
 
 export const getCompanyInvoiceSalesReceiptFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1383,7 +1383,7 @@ export const getCompanyInvoiceSalesReceiptFiscal = createServerFn({ method: "POS
 
 export const registerCompanyAllocationSalesReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, allocationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1427,7 +1427,7 @@ export const registerCompanyAllocationSalesReceipt = createServerFn({ method: "P
 
 export const correctCompanySalesReceiptAllocation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1474,7 +1474,7 @@ async function companyAllocationInvoiceId(db: Db, restaurantId: string, allocati
 
 export const listInvoiceFiscalStatuses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1523,7 +1523,7 @@ export const listInvoiceFiscalStatuses = createServerFn({ method: "POST" })
 
 export const getGuestInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1533,7 +1533,7 @@ export const getGuestInvoiceFiscal = createServerFn({ method: "POST" })
 
 export const getFiscalRegistrationExchange = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, registrationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1547,7 +1547,7 @@ export const getFiscalRegistrationExchange = createServerFn({ method: "POST" })
 
 export const registerGuestInvoiceFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         restaurantId: idSchema,
@@ -1599,7 +1599,7 @@ export const registerGuestInvoiceFiscal = createServerFn({ method: "POST" })
 
 export const getCompanyInvoiceWithholdingFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, invoiceId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -1615,7 +1615,7 @@ export const getCompanyInvoiceWithholdingFiscal = createServerFn({ method: "POST
 
 export const registerCompanyWithholdingFiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ restaurantId: idSchema, certificateId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {

@@ -1,10 +1,12 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, CalendarDays, ChevronDown, HelpCircle, MoreHorizontal, Search } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronDown, HelpCircle, Search } from "lucide-react";
 
 import { NoruLogo } from "@/core/components/noru-logo";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { PmsAccountMenu } from "@/packages/pms/components/pms-account-menu";
 import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
+import { PmsHelpPanel } from "@/packages/pms/components/pms-help-panel";
 import { getFirstAccessiblePmsRoute, pmsModuleVisible } from "@/packages/pms/lib/pms-client-access";
 import { PMS_MODULE_NAV, type PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
@@ -57,9 +59,7 @@ export function RoomInventoryChrome({
   searchTestId,
   initialSearch = "",
   showSearch = false,
-  helpLabel = "Room & Inventory operational workspace",
-  onHelpClick,
-  overflowItems = [],
+  helpLabel: _helpLabel = "Help",
   shellTestId = "room-inventory-command-shell",
   contentClassName = "p-0",
   fillViewport = false,
@@ -78,8 +78,6 @@ export function RoomInventoryChrome({
   initialSearch?: string;
   showSearch?: boolean;
   helpLabel?: string;
-  onHelpClick?: () => void;
-  overflowItems?: Array<{ label: string; onSelect: () => void; testId?: string }>;
   shellTestId?: string;
   contentClassName?: string;
   fillViewport?: boolean;
@@ -108,6 +106,8 @@ export function RoomInventoryChrome({
     membership.restaurant.timezone,
   );
   const [search, setSearch] = useState(initialSearch);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   useEffect(() => {
     setSearch(initialSearch);
@@ -118,13 +118,19 @@ export function RoomInventoryChrome({
     onRoomSearch?.(search.trim());
   }
 
-  const initials = membership.restaurant.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
   const moreContainsActive = moreNav.some((item) => item.label === activeModule);
+  const businessDateLabel = new Date(`${businessDate}T00:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+  function openHelp() {
+    setAccountOpen(false);
+    setHelpOpen(true);
+  }
 
   return (
     <PmsCommandChrome
@@ -236,24 +242,15 @@ export function RoomInventoryChrome({
       }
       rightControls={
         <>
-          <div className="hidden items-center gap-1.5 border-l border-white/15 pl-3 text-xs text-white/85 xl:flex">
-            <span className="max-w-36 truncate">{membership.restaurant.name}</span>
-            <ChevronDown className="size-3" />
+          <div className="hidden max-w-[11rem] items-center gap-1.5 border-l border-white/15 pl-3 text-xs text-white/85 lg:flex">
+            <span className="truncate">{membership.restaurant.name}</span>
           </div>
           <div className="hidden items-center gap-1.5 text-xs text-white/75 md:flex">
-            <CalendarDays className="size-3.5" />
-            <span>
-              {new Date(`${businessDate}T00:00:00Z`).toLocaleDateString("en-GB", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-                timeZone: "UTC",
-              })}
-            </span>
+            <CalendarDays className="size-3.5 shrink-0" />
+            <span className="whitespace-nowrap">{businessDateLabel}</span>
           </div>
           {showSearch ? (
-            <form onSubmit={submitSearch} className="hidden lg:block">
+            <form onSubmit={submitSearch} className="hidden min-[1400px]:block">
               <label className="flex h-8 w-52 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 focus-within:border-[#C89933]/70">
                 <Search className="size-3.5 shrink-0" />
                 <input
@@ -275,47 +272,37 @@ export function RoomInventoryChrome({
               <button
                 type="button"
                 className="rounded-lg p-1.5 text-white/75 hover:bg-white/10 hover:text-white"
-                aria-label={`${activeModule} help`}
-                data-testid={onHelpClick ? "fo-help" : undefined}
-                onClick={onHelpClick}
+                aria-label="Help"
+                data-testid="fo-help"
+                onClick={openHelp}
               >
                 <HelpCircle className="size-4" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>{helpLabel}</TooltipContent>
+            <TooltipContent>Help</TooltipContent>
           </Tooltip>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="rounded-lg p-1.5 text-white/75 hover:bg-white/10 hover:text-white"
-                aria-label="More PMS destinations"
-              >
-                <MoreHorizontal className="size-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {overflowItems.map((item) => (
-                <DropdownMenuItem
-                  key={item.label}
-                  data-testid={item.testId}
-                  onSelect={item.onSelect}
-                >
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem onSelect={() => void navigate({ to: homePath as never })}>
-                PMS home
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <span className="flex size-8 items-center justify-center rounded-full bg-[#F4E9D0] text-[11px] font-semibold text-[#251605]">
-            {initials || "P"}
-          </span>
+          <PmsAccountMenu
+            membership={membership}
+            businessDateLabel={businessDateLabel}
+            open={accountOpen}
+            onOpenChange={(next) => {
+              if (next) setHelpOpen(false);
+              setAccountOpen(next);
+            }}
+            onOpenHelp={openHelp}
+          />
         </>
       }
     >
       {children}
+      <PmsHelpPanel
+        open={helpOpen}
+        onOpenChange={(next) => {
+          if (next) setAccountOpen(false);
+          setHelpOpen(next);
+        }}
+        activeModule={activeModule ?? null}
+      />
     </PmsCommandChrome>
   );
 }

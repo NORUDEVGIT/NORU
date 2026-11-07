@@ -21,8 +21,8 @@ import {
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { FoAmendKindSheet, type FoAmendKind } from "@/packages/pms/components/frontoffice/fo-amend-sheet";
 import { LateCheckoutDialog } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
+import { FoMaintenanceActionModal } from "@/packages/pms/components/frontoffice/fo-maintenance-action-modal";
 import { FO_INHOUSE_EXCEPTION_LABELS } from "@/packages/pms/lib/fo-inhouse";
-import { MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
 import { siblingUnitSummary } from "@/packages/pms/lib/fo-unit-desk";
 import {
   listFrontOfficeInHouseDesk,
@@ -125,6 +125,7 @@ export function InHouseWorkspace({
   const [checkOutStay, setCheckOutStay] = useState<FoInHouseDeskRow["stay"] | null>(null);
   const [lateQv, setLateQv] = useState<FoInHouseQuickView | null>(null);
   const [amend, setAmend] = useState<{ stay: FoInHouseDeskRow["stay"]; kind: FoAmendKind } | null>(null);
+  const [maintenanceStay, setMaintenanceStay] = useState<FoInHouseDeskRow["stay"] | null>(null);
 
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchDesk = useServerFn(listFrontOfficeInHouseDesk);
@@ -206,7 +207,7 @@ export function InHouseWorkspace({
     }
     if (action === "open_maintenance") {
       closeOverlays();
-      void navigate({ to: MAINTENANCE_HREF });
+      setMaintenanceStay(qv.stay);
       return;
     }
     closeOverlays();
@@ -414,7 +415,7 @@ export function InHouseWorkspace({
         restaurantId={restaurantId}
         reservationId={qvId}
         reservationRoomId={qvRoomId}
-        open={Boolean(qvId) && !moveStay && !datesStay && !checkOutStay && !lateQv && !amend}
+        open={Boolean(qvId) && !moveStay && !datesStay && !checkOutStay && !lateQv && !amend && !maintenanceStay}
         onOpenChange={(open) => {
           if (!open) {
             setQvId(null);
@@ -487,6 +488,19 @@ export function InHouseWorkspace({
           onOpenChange={(open) => {
             if (!open) {
               setAmend(null);
+              refreshDesk();
+            }
+          }}
+        />
+      ) : null}
+      {maintenanceStay ? (
+        <FoMaintenanceActionModal
+          restaurantId={restaurantId}
+          stay={maintenanceStay}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setMaintenanceStay(null);
               refreshDesk();
             }
           }}

@@ -48,13 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { Switch } from "@/shared/components/ui/switch";
 import {
   Table,
@@ -64,7 +58,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
-import { cn } from "@/shared/lib/utils";
 
 function recordToDraft(row: ServiceAvailabilityRecord): ServiceAvailabilityDraft {
   return {
@@ -151,7 +144,9 @@ export function PmsCard4ServiceAvailability({
           ...(draft.id ? { id: draft.id } : {}),
           serviceTypeId: draft.serviceTypeId,
           weeklySchedule: draft.weeklySchedule,
-          active: draft.active,
+          active: draft.id
+            ? (availability.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
         },
       }),
     onSuccess: async () => {
@@ -242,25 +237,19 @@ export function PmsCard4ServiceAvailability({
     else setEditorOpen(false);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-service-availability">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-3" data-testid="card4-service-availability">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-2xl text-[#251605]">Service Availability</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Define when each guest service can be offered.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Times use {query.data?.timezone ?? "the property timezone"} · Last updated {lastUpdated}
-          </p>
+          <h2 className="font-display text-lg text-[#251605]">Service Availability</h2>
+          {query.data?.timezone ? (
+            <p className="text-xs text-muted-foreground">Times use {query.data.timezone}</p>
+          ) : null}
         </div>
         {canEdit ? (
           <Button
             type="button"
+            size="sm"
             onClick={openCreate}
             disabled={!availableType}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
@@ -270,7 +259,7 @@ export function PmsCard4ServiceAvailability({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <div className="space-y-2 p-6">
             {["a", "b", "c"].map((row) => (
@@ -290,21 +279,11 @@ export function PmsCard4ServiceAvailability({
             </Button>
           </div>
         ) : availability.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="p-6 text-center">
             <p className="font-medium text-[#251605]">No availability configured</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Add a weekly schedule to an active service type.
+              Add a weekly schedule to a service type.
             </p>
-            {canEdit ? (
-              <Button
-                type="button"
-                className="mt-4 bg-[#C89933] text-[#251605]"
-                onClick={openCreate}
-                disabled={!availableType}
-              >
-                <Plus className="mr-1 size-4" /> Add Availability
-              </Button>
-            ) : null}
           </div>
         ) : (
           <>
@@ -323,9 +302,8 @@ export function PmsCard4ServiceAvailability({
                     <TableHead>Category</TableHead>
                     <TableHead>Weekly Availability</TableHead>
                     <TableHead>Timezone</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Active</TableHead>
-                    <TableHead className="w-12">Actions</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -343,18 +321,6 @@ export function PmsCard4ServiceAvailability({
                         <TableCell>{formatAvailabilitySummary(row.weeklySchedule)}</TableCell>
                         <TableCell>{query.data?.timezone ?? "UTC"}</TableCell>
                         <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                              row.active
-                                ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                                : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                            )}
-                          >
-                            {row.active ? "Active" : "Inactive"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
                           <Switch
                             checked={row.active}
                             disabled={!canEdit || toggleMutation.isPending}
@@ -364,7 +330,7 @@ export function PmsCard4ServiceAvailability({
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -409,179 +375,164 @@ export function PmsCard4ServiceAvailability({
         )}
       </div>
 
-      <Sheet
+      <Card3OverlapSheet
         open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) requestClose();
-          else setEditorOpen(true);
+        title={draft.id ? "Edit Service Availability" : "Add Service Availability"}
+        onClose={requestClose}
+        onSubmit={() => {
+          if (!canEdit || errors.length > 0) {
+            toast.error(errors[0]?.message ?? "Fix the schedule before saving.");
+            return;
+          }
+          saveMutation.mutate();
         }}
+        submitLabel={draft.id ? "Save Changes" : "Add Availability"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
       >
-        <SheetContent className="overflow-y-auto sm:max-w-xl">
-          <SheetHeader>
-            <SheetTitle>
-              {draft.id ? "Edit Service Availability" : "Add Service Availability"}
-            </SheetTitle>
-            <SheetDescription>
-              Configure recurring weekly windows in the property timezone.
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-4 space-y-4 px-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canEdit || errors.length > 0) {
-                toast.error(errors[0]?.message ?? "Fix the schedule before saving.");
-                return;
-              }
-              saveMutation.mutate();
-            }}
+        <div className="space-y-1">
+          <Label htmlFor="availability-service-type">Service Type *</Label>
+          <Select
+            value={draft.serviceTypeId || undefined}
+            disabled={!canEdit}
+            onValueChange={(value) => mark("serviceTypeId", value)}
           >
-            <div className="space-y-1">
-              <Label htmlFor="availability-service-type">Service Type *</Label>
-              <Select
-                value={draft.serviceTypeId || undefined}
-                disabled={!canEdit}
-                onValueChange={(value) => mark("serviceTypeId", value)}
-              >
-                <SelectTrigger id="availability-service-type">
-                  <SelectValue placeholder="Select a service type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {editorServiceTypes.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name} ({row.code}){row.active ? "" : " — Inactive"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errorFor("serviceTypeId") ? (
-                <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
-              ) : null}
-            </div>
+            <SelectTrigger id="availability-service-type">
+              <SelectValue placeholder="Select a service type" />
+            </SelectTrigger>
+            <SelectContent>
+              {editorServiceTypes.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name} ({row.code}){row.active ? "" : " — Inactive"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errorFor("serviceTypeId") ? (
+            <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
+          ) : null}
+        </div>
 
-            <div className="space-y-3">
-              <div>
-                <Label>Weekly Schedule *</Label>
-                <p className="text-xs text-muted-foreground">
-                  Add one or more non-overlapping windows for each available day.
-                </p>
-              </div>
-              {SERVICE_AVAILABILITY_DAYS.map((day) => {
-                const windows = draft.weeklySchedule[day.id];
-                const enabled = windows.length > 0;
-                return (
-                  <div key={day.id} className="space-y-2 rounded-lg border border-[#CCCCCC] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor={`availability-${day.id}`}>{day.label}</Label>
-                      <Switch
-                        id={`availability-${day.id}`}
-                        checked={enabled}
+        <div className="space-y-3">
+          <div>
+            <Label>Weekly Schedule *</Label>
+            <p className="text-xs text-muted-foreground">
+              Windows use {query.data?.timezone ?? "the property timezone"}. Add one or more
+              non-overlapping windows for each available day.
+            </p>
+          </div>
+          {SERVICE_AVAILABILITY_DAYS.map((day) => {
+            const windows = draft.weeklySchedule[day.id];
+            const enabled = windows.length > 0;
+            return (
+              <div key={day.id} className="space-y-2 rounded-lg border border-[#CCCCCC] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor={`availability-${day.id}`}>{day.label}</Label>
+                  <Switch
+                    id={`availability-${day.id}`}
+                    checked={enabled}
+                    disabled={!canEdit}
+                    onCheckedChange={(checked) =>
+                      setDayWindows(day.id, checked ? [{ start: "08:00", end: "17:00" }] : [])
+                    }
+                  />
+                </div>
+                {windows.map((window, index) => (
+                  <div
+                    key={`${day.id}-${index}`}
+                    className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
+                  >
+                    <div className="space-y-1">
+                      <Label className="text-xs" htmlFor={`${day.id}-${index}-start`}>
+                        Start
+                      </Label>
+                      <Input
+                        id={`${day.id}-${index}-start`}
+                        type="time"
+                        value={window.start}
                         disabled={!canEdit}
-                        onCheckedChange={(checked) =>
-                          setDayWindows(day.id, checked ? [{ start: "08:00", end: "17:00" }] : [])
+                        onChange={(event) =>
+                          setDayWindows(
+                            day.id,
+                            windows.map((item, itemIndex) =>
+                              itemIndex === index
+                                ? { ...item, start: event.target.value }
+                                : item,
+                            ),
+                          )
                         }
                       />
                     </div>
-                    {windows.map((window, index) => (
-                      <div
-                        key={`${day.id}-${index}`}
-                        className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
-                      >
-                        <div className="space-y-1">
-                          <Label className="text-xs" htmlFor={`${day.id}-${index}-start`}>
-                            Start
-                          </Label>
-                          <Input
-                            id={`${day.id}-${index}-start`}
-                            type="time"
-                            value={window.start}
-                            disabled={!canEdit}
-                            onChange={(event) =>
-                              setDayWindows(
-                                day.id,
-                                windows.map((item, itemIndex) =>
-                                  itemIndex === index
-                                    ? { ...item, start: event.target.value }
-                                    : item,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs" htmlFor={`${day.id}-${index}-end`}>
-                            End
-                          </Label>
-                          <Input
-                            id={`${day.id}-${index}-end`}
-                            type="time"
-                            value={window.end}
-                            disabled={!canEdit}
-                            onChange={(event) =>
-                              setDayWindows(
-                                day.id,
-                                windows.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, end: event.target.value } : item,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                        <PropertySetupRemoveButton
-                          disabled={!canEdit}
-                          label={`Remove ${day.label} window ${index + 1}`}
-                          onClick={() =>
-                            setDayWindows(
-                              day.id,
-                              windows.filter((_, itemIndex) => itemIndex !== index),
-                            )
-                          }
-                        />
-                      </div>
-                    ))}
-                    {enabled ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
+                    <div className="space-y-1">
+                      <Label className="text-xs" htmlFor={`${day.id}-${index}-end`}>
+                        End
+                      </Label>
+                      <Input
+                        id={`${day.id}-${index}-end`}
+                        type="time"
+                        value={window.end}
                         disabled={!canEdit}
-                        onClick={() =>
-                          setDayWindows(day.id, [...windows, { start: "08:00", end: "17:00" }])
+                        onChange={(event) =>
+                          setDayWindows(
+                            day.id,
+                            windows.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, end: event.target.value } : item,
+                            ),
+                          )
                         }
-                      >
-                        <Plus className="mr-1 size-3.5" /> Add Window
-                      </Button>
-                    ) : null}
-                    {errorFor(day.id) ? (
-                      <p className="text-xs text-destructive">{errorFor(day.id)}</p>
-                    ) : null}
+                      />
+                    </div>
+                    <PropertySetupRemoveButton
+                      disabled={!canEdit}
+                      label={`Remove ${day.label} window ${index + 1}`}
+                      onClick={() =>
+                        setDayWindows(
+                          day.id,
+                          windows.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                    />
                   </div>
-                );
-              })}
-              {errorFor("weeklySchedule") ? (
-                <p className="text-xs text-destructive">{errorFor("weeklySchedule")}</p>
-              ) : null}
-            </div>
+                ))}
+                {enabled ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!canEdit}
+                    onClick={() =>
+                      setDayWindows(day.id, [...windows, { start: "08:00", end: "17:00" }])
+                    }
+                  >
+                    <Plus className="mr-1 size-3.5" /> Add Window
+                  </Button>
+                ) : null}
+                {errorFor(day.id) ? (
+                  <p className="text-xs text-destructive">{errorFor(day.id)}</p>
+                ) : null}
+              </div>
+            );
+          })}
+          {errorFor("weeklySchedule") ? (
+            <p className="text-xs text-destructive">{errorFor("weeklySchedule")}</p>
+          ) : null}
+        </div>
 
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="availability-active">Active</Label>
-              <Switch
-                id="availability-active"
-                checked={draft.active}
-                disabled={!canEdit}
-                onCheckedChange={(active) => mark("active", active)}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={!canEdit || saveMutation.isPending || errors.length > 0}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {saveMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="availability-active">Active</Label>
+            <Switch
+              id="availability-active"
+              checked={draft.active}
+              disabled={!canEdit}
+              onCheckedChange={(active) => mark("active", active)}
+            />
+          </div>
+        ) : null}
+      </Card3OverlapSheet>
 
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -629,32 +580,5 @@ export function PmsCard4ServiceAvailability({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4ServiceAvailabilityGuide({
-  configuredCount,
-  activeServiceTypeCount,
-}: {
-  configuredCount: number;
-  activeServiceTypeCount: number;
-}) {
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-        <li className="text-[#436436]">Configure Service Categories</li>
-        <li className="text-[#436436]">Add Service Types</li>
-        <li className="text-[#436436]">Set Service Pricing</li>
-        <li className="text-[#436436]">Assign Departments</li>
-        <li className="text-[#436436]">Set SLA Rules</li>
-        <li className={configuredCount > 0 ? "text-[#436436]" : undefined}>
-          Set Service Availability
-        </li>
-      </ol>
-      <p className="mt-3 text-sm text-[#251605]">
-        {configuredCount} of {activeServiceTypeCount} active services have availability
-      </p>
-    </section>
   );
 }

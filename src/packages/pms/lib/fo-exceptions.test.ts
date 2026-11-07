@@ -290,22 +290,25 @@ describe("FO-FS0 / chrome locks", () => {
   it("Help opens a real panel and the user menu has FO activity", () => {
     const chrome =
       readFileSync(new URL("../components/frontoffice/front-office-chrome.tsx", import.meta.url), "utf8") +
+      readFileSync(new URL("../components/rooms/room-inventory-chrome.tsx", import.meta.url), "utf8") +
       readFileSync(new URL("../components/pms-command-chrome.tsx", import.meta.url), "utf8");
     assert.match(chrome, /FO activity/);
     assert.match(chrome, /fo-activity/);
     assert.match(chrome, /fo-help/);
-    assert.match(chrome, /FoHelpSheet/);
+    assert.match(chrome, /PmsHelpPanel/);
+    assert.doesNotMatch(chrome, /FoHelpSheet/);
     assert.doesNotMatch(chrome, /Help — Coming soon/);
     assert.match(chrome, /fo-notifications/);
     assert.match(chrome, /notificationsComingSoon/);
     assert.match(chrome, /exceptionBadge/);
 
-    const help = readFileSync(new URL("../components/frontoffice/fo-help-sheet.tsx", import.meta.url), "utf8");
+    const help =
+      readFileSync(new URL("../components/pms-help-panel.tsx", import.meta.url), "utf8") +
+      readFileSync(new URL("./pms-help-content.ts", import.meta.url), "utf8");
     assert.match(help, /Room Rack/);
     assert.match(help, /Exceptions/);
-    assert.match(help, /empty means clear/);
     assert.match(help, /Cashiering/);
-    assert.match(help, /Void/);
+    assert.doesNotMatch(help, /silent write/);
     assert.doesNotMatch(help, /fake success/i);
     assert.equal(EXCEPTION_HONESTY_HELP, "Exceptions only show real feeds — empty means clear.");
 

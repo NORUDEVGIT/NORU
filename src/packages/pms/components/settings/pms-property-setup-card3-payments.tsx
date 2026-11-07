@@ -16,7 +16,6 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
-  Card3InheritedStrip,
   Card3ListSection,
   Card3OverlapSheet,
   Card3StatusDot,
@@ -160,14 +159,6 @@ export function PmsPropertySetupCard3Payments({
         </p>
       ) : (
         <div className="space-y-4" data-testid="pms-card3-payments">
-          <Card3InheritedStrip>
-            Payment methods reuse the existing accepted-tenders catalogue. Deposit policies are Card
-            3 setup rules in {currencyCode}. Cancellation policies are managed in Rate &amp; Pricing.
-            SET1 restaurants.deposit_* columns are not written
-            here. Gateways stay on Card 6. This configuration makes no reservation or folio
-            operational changes.
-          </Card3InheritedStrip>
-
           <Card3ListSection
             title="Payment methods"
             icon="payment"
@@ -205,7 +196,7 @@ export function PmsPropertySetupCard3Payments({
               "Code",
               "Name",
               "Type",
-              `Value (${currencyCode})`,
+              "Value",
               "Required",
               "Default",
               "Status",
@@ -219,7 +210,10 @@ export function PmsPropertySetupCard3Payments({
                 row.depositTypeLabel,
                 row.depositType === "percent"
                   ? `${row.depositValue}%`
-                  : `${currencyCode} ${row.depositValue}`.trim(),
+                  : `${currencyCode} ${Number(row.depositValue).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`.trim(),
                 row.required ? "Required" : "Optional",
                 row.isDefault ? "Default" : "—",
                 <Card3StatusDot active={row.active} />,
@@ -313,7 +307,7 @@ function PaymentMethodSheet({
       open={open}
       onClose={onClose}
       title={value ? "Edit payment method" : "Add payment method"}
-      description="Accepted tender for this property. Not a payment gateway."
+      description="Not a payment gateway."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save payment method"
@@ -442,7 +436,7 @@ export function DepositPolicySheet({
       onClose={onClose}
       className={className ?? "z-[60]"}
       title={value ? "Edit deposit policy" : "Add deposit policy"}
-      description={`Stored setup figure in ${currencyCode || "the property base currency"}. Not a posted deposit.`}
+      description="Not a posted deposit."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save deposit policy"

@@ -17,7 +17,12 @@ import {
   type FoEditDetailsDraft,
   type FoEditDetailsErrors,
 } from "@/packages/pms/lib/fo-edit-details";
-import { isStayRangeValid } from "@/packages/pms/lib/create-reservation-phase1";
+import {
+  CREATE_RESERVATION_MIN_NIGHTS,
+  isStayRangeValid,
+  linkedStayFromDeparture,
+  linkedStayFromNights,
+} from "@/packages/pms/lib/create-reservation-phase1";
 import { stayDateWriteInput, type RackDatesDraft } from "@/packages/pms/lib/fo-rack-power";
 import { quoteInHouseStayChange, changeStayDates } from "@/packages/pms/lib/frontoffice.functions";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
@@ -196,6 +201,31 @@ export function FoEditDetailsForm({
     setDraft((current) => ({ ...current, ...partial }));
   }
 
+  function onArrivalChange(arrival: string) {
+    const next = linkedStayFromDeparture(arrival, draft.departure);
+    patch({ arrival, nights: String(next.nights) });
+  }
+
+  function onDepartureChange(departure: string) {
+    const next = linkedStayFromDeparture(draft.arrival, departure);
+    patch({ departure, nights: String(next.nights) });
+  }
+
+  function onNightsChange(nights: string) {
+    const parsed = /^\d+$/.test(nights.trim()) ? Number(nights.trim()) : NaN;
+    if (!Number.isFinite(parsed) || parsed < CREATE_RESERVATION_MIN_NIGHTS || !draft.arrival) {
+      patch({ nights });
+      return;
+    }
+    const next = linkedStayFromNights(draft.arrival, parsed);
+    patch({ nights: String(next.nights), departure: next.departure });
+  }
+
+  const stayIntervalValid =
+    isStayRangeValid(draft.arrival, draft.departure) &&
+    /^\d+$/.test(draft.nights.trim()) &&
+    Number(draft.nights) >= CREATE_RESERVATION_MIN_NIGHTS;
+
   const save = useMutation({
     mutationFn: async () => {
       const nextErrors = foEditDetailsErrors({
@@ -324,7 +354,7 @@ export function FoEditDetailsForm({
               placeholder={FO_EDIT_DETAILS_PLACEHOLDERS.arrival}
               className={cn(CONTROL, "pl-9", !draft.arrival && "text-transparent")}
               data-testid="fo-edit-details-arrival"
-              onChange={(event) => patch({ arrival: event.target.value })}
+              onChange={(event) => onArrivalChange(event.target.value)}
             />
           </div>
           <FieldError message={errors.arrival} />
@@ -348,13 +378,28 @@ export function FoEditDetailsForm({
               placeholder={FO_EDIT_DETAILS_PLACEHOLDERS.departure}
               className={cn(CONTROL, "pl-9", !draft.departure && "text-transparent")}
               data-testid="fo-edit-details-departure"
-              onChange={(event) => patch({ departure: event.target.value })}
+              onChange={(event) => onDepartureChange(event.target.value)}
             />
           </div>
           <FieldError message={errors.departure} />
         </div>
 
-        <SectionLabel>Room</SectionLabel>
+        <div className="space-y-1.5">
+          <FieldLabel htmlFor="fo-edit-nights" required>
+            Nights
+          </FieldLabel>
+          <Input
+            id="fo-edit-nights"
+            inputMode="numeric"
+            value={draft.nights}
+            placeholder={FO_EDIT_DETAILS_PLACEHOLDERS.nights}
+            className={CONTROL}
+            data-testid="fo-edit-details-nights"
+            onChange={(event) => onNightsChange(event.target.value)}
+          />
+          <FieldError message={errors.nights} />
+        </div>
+
         <div className="space-y-1.5">
           <FieldLabel htmlFor="fo-edit-room-type" required>
             Room category
@@ -536,7 +581,7 @@ export function FoEditDetailsForm({
           type="button"
           className={cn("rounded-md", GOLD_BUTTON)}
           data-testid="fo-edit-details-save"
-          disabled={save.isPending}
+          disabled={save.isPending || !stayIntervalValid}
           onClick={() => save.mutate()}
         >
           Save Changes

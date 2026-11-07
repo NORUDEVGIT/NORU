@@ -125,7 +125,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   }
   if (
     allowed(
-      canManage,
+      allow("assignRoom"),
       input.actionHints.canAssignRoom,
       input.status === "pending" || input.status === "confirmed",
       !staleBooking,
@@ -134,16 +134,16 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
     actions.push({ id: "assign_room", label: "Assign Room" });
   }
   if (
-    allowed(canManage, input.actionHints.canCheckIn, input.status === "confirmed", !staleBooking)
+    allowed(allow("checkIn"), input.actionHints.canCheckIn, input.status === "confirmed", !staleBooking)
   ) {
     actions.push({ id: "check_in", label: "Check In" });
   }
-  if (allowed(canManage, input.actionHints.canCheckOut, input.status === "checked_in", true)) {
+  if (allowed(allow("checkOut"), input.actionHints.canCheckOut, input.status === "checked_in", true)) {
     actions.push({ id: "check_out", label: "Check Out" });
   }
   if (
     allowed(
-      canManage,
+      allow("changeRoom"),
       input.actionHints.canChangeRoom,
       input.status === "checked_in" && input.roomAssigned,
       true,
@@ -153,7 +153,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   }
   if (
     allowed(
-      canManage,
+      allow("cancel"),
       input.actionHints.canCancel,
       (input.status === "pending" || input.status === "confirmed") &&
         isAllowedBookingStatusTransition(input.status, "cancelled"),
@@ -164,7 +164,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   }
   if (
     allowed(
-      canManage,
+      allow("noShow"),
       input.actionHints.canNoShow,
       input.status === "confirmed" && input.arrivalDate < input.businessDate,
       true,
@@ -174,7 +174,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   }
   if (
     allowed(
-      canManage,
+      allow("reactivate"),
       input.actionHints.canReactivate,
       input.status === "cancelled" && isAllowedBookingStatusTransition(input.status, "pending"),
       true,
@@ -182,7 +182,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   ) {
     actions.push({ id: "reactivate", label: "Reactivate Reservation" });
   }
-  if (allowed(canManage, input.actionHints.canCopyStay, true, !historical)) {
+  if (allowed(allow("copy"), input.actionHints.canCopyStay, true, !historical)) {
     actions.push({ id: "copy", label: "Copy stay" });
   }
   if (input.actionHints.canOpenFolio) {

@@ -25,6 +25,12 @@ export default defineConfig({
   nitro: { preset: "vercel" },
 
   vite: {
+    // Lovable defaults to Lightning CSS, which does not understand Tailwind v4
+    // `@theme` / `@utility` (including tw-animate-css). PostCSS lets @tailwindcss/vite
+    // compile those at-rules first.
+    css: {
+      transformer: "postcss",
+    },
     server: {
       allowedHosts: [
         "bubbling-unexposed-willfully.ngrok-free.dev",

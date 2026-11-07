@@ -26,7 +26,6 @@ import {
   type CommunicationTemplateCategory,
 } from "@/packages/pms/lib/communication-defaults-card4.server";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
-import { CARD1_LANGUAGES } from "@/packages/pms/lib/pms-property-setup-card1";
 import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
 import {
   AlertDialog,
@@ -181,32 +180,28 @@ export function PmsCard4CommunicationDefaults({
     });
   }, [saveRequest, canEdit, draft, errors, dirty, onSaved, saveMutation]);
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
-  function channelLabel(id: string | null) {
-    const row = channels.find((item) => item.id === id);
-    return row ? channelOptionLabel(row) : "Unavailable — reselect";
-  }
-  function senderLabel(id: string | null) {
-    const row = senders.find((item) => item.id === id);
-    return row ? senderOptionLabel(row) : "Unavailable — reselect";
-  }
-  function languageLabel(id: string) {
-    return languages.find((row) => row.id === id)?.label ?? id;
-  }
-
   return (
-    <div className="space-y-5" data-testid="card4-communication-defaults">
-      <section className="space-y-1">
-        <h2 className="font-display text-2xl text-[#251605]">Communication Defaults</h2>
-        <p className="text-sm text-muted-foreground">
-          Property-level defaults for guest, internal, and marketing communication. These do not
-          override explicit templates, automation rules, or guest preferences.
-        </p>
-        <p className="text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-      </section>
+    <div className="space-y-3" data-testid="card4-communication-defaults">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Communication Defaults</h2>
+        {canEdit ? (
+          <Button
+            type="button"
+            size="sm"
+            disabled={!canEdit || saveMutation.isPending || !draft?.id}
+            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            onClick={() => {
+              if (!draft || errors.length > 0) {
+                toast.error(errors[0]?.message ?? "Fix communication defaults before saving.");
+                return;
+              }
+              saveMutation.mutate();
+            }}
+          >
+            {saveMutation.isPending ? "Saving…" : "Save"}
+          </Button>
+        ) : null}
+      </div>
 
       {query.isLoading ? (
         <div className="space-y-2 rounded-2xl border border-[#CCCCCC] bg-white p-6">
@@ -229,7 +224,7 @@ export function PmsCard4CommunicationDefaults({
         </div>
       ) : (
         <>
-          <section className="space-y-4 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
+          <section className="space-y-4 rounded-xl border border-[#CCCCCC] bg-white p-4">
             <h3 className="font-display text-xl text-[#251605]">Default Channels</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <FieldShell
@@ -304,7 +299,7 @@ export function PmsCard4CommunicationDefaults({
             </div>
           </section>
 
-          <section className="space-y-4 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
+          <section className="space-y-4 rounded-xl border border-[#CCCCCC] bg-white p-4">
             <h3 className="font-display text-xl text-[#251605]">Language & Localization</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <FieldShell
@@ -402,7 +397,7 @@ export function PmsCard4CommunicationDefaults({
             </div>
           </section>
 
-          <section className="space-y-4 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
+          <section className="space-y-4 rounded-xl border border-[#CCCCCC] bg-white p-4">
             <h3 className="font-display text-xl text-[#251605]">Default Sender</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <FieldShell
@@ -458,7 +453,7 @@ export function PmsCard4CommunicationDefaults({
             </FieldShell>
           </section>
 
-          <section className="space-y-4 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
+          <section className="space-y-4 rounded-xl border border-[#CCCCCC] bg-white p-4">
             <h3 className="font-display text-xl text-[#251605]">Communication Preferences</h3>
             {(
               [
@@ -505,7 +500,7 @@ export function PmsCard4CommunicationDefaults({
             ) : null}
           </section>
 
-          <section className="space-y-4 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
+          <section className="space-y-4 rounded-xl border border-[#CCCCCC] bg-white p-4">
             <h3 className="font-display text-xl text-[#251605]">Other Defaults</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <FieldShell
@@ -585,35 +580,6 @@ export function PmsCard4CommunicationDefaults({
             </Button>
           </div>
 
-          <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-            <h3 className="font-display text-xl text-[#251605]">Current Settings Summary</h3>
-            <ul className="mt-3 space-y-1 text-sm text-[#251605]">
-              <li>Guest channel: {channelLabel(draft.defaultGuestChannelId)}</li>
-              <li>Internal channel: {channelLabel(draft.defaultInternalChannelId)}</li>
-              <li>Marketing channel: {channelLabel(draft.defaultMarketingChannelId)}</li>
-              <li>Language: {languageLabel(draft.defaultLanguage)}</li>
-              <li>Time zone: {draft.timezone.replace(/_/g, " ")}</li>
-              <li>
-                Date / time: {COMMUNICATION_DATE_FORMAT_LABELS[draft.dateFormat]} ·{" "}
-                {COMMUNICATION_TIME_FORMAT_LABELS[draft.timeFormat]}
-              </li>
-              <li>Sender: {senderLabel(draft.defaultSenderId)}</li>
-              <li>Reply-to: {draft.replyToEmail.trim() || "Not set"}</li>
-              <li>
-                Guest / internal / marketing notifications:{" "}
-                {draft.guestNotificationsEnabled ? "On" : "Off"} /{" "}
-                {draft.internalNotificationsEnabled ? "On" : "Off"} /{" "}
-                {draft.marketingCommunicationsEnabled ? "On" : "Off"}
-              </li>
-              <li>Guest language: {draft.useGuestLanguage ? "On" : "Off"}</li>
-              <li>Branding: {draft.attachBranding ? "On" : "Off"}</li>
-              <li>Currency: {draft.currencyCode}</li>
-              <li>
-                Template category: {COMMUNICATION_TEMPLATE_CATEGORY_LABELS[draft.templateCategory]}
-              </li>
-              <li>Delivery time: {draft.deliveryTime}</li>
-            </ul>
-          </section>
         </>
       )}
 
@@ -623,8 +589,7 @@ export function PmsCard4CommunicationDefaults({
             <AlertDialogTitle>Reset to system defaults?</AlertDialogTitle>
             <AlertDialogDescription>
               This restores the current form to canonical communication defaults for this property.
-              Channels, templates, events, rules, and senders are not deleted. Save Draft or Save &
-              Next to persist.
+              Channels, templates, events, rules, and senders are not deleted. Save to persist.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -643,35 +608,5 @@ export function PmsCard4CommunicationDefaults({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4CommunicationDefaultsGuide({
-  draft,
-}: {
-  draft: CommunicationDefaultsDraft | null;
-}) {
-  return (
-    <>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Choose default guest, internal, and marketing channels</li>
-          <li>Confirm language, time zone, and formats</li>
-          <li>Select the default sender</li>
-          <li>Set communication preferences</li>
-          <li>Save Draft or Save & Next to finish Notifications</li>
-        </ol>
-      </section>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Current language</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {draft
-            ? (CARD1_LANGUAGES.find((row) => row.id === draft.defaultLanguage)?.label ??
-              draft.defaultLanguage)
-            : "Not loaded"}
-        </p>
-      </section>
-    </>
   );
 }

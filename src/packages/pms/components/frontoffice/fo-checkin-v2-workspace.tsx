@@ -9,9 +9,6 @@ import {
   Building2,
   Check,
   CheckCircle2,
-  ChevronRight,
-  Circle,
-  Clock,
   Home,
   Mail,
   Phone,
@@ -105,7 +102,9 @@ import { usePackageChargeRules } from "@/packages/pms/lib/use-package-charge-rul
 import { useReservationServiceCharges } from "@/packages/pms/lib/use-reservation-service-charges";
 import { serviceLineDetail } from "@/packages/pms/lib/reservation-service-lines";
 import { packageChargeFigures } from "@/packages/pms/lib/room-charge-guest-total";
+import { SHELL_ICON_BUTTON, SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Button } from "@/shared/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { Input } from "@/shared/components/ui/input";
 import {
   Popover,
@@ -113,12 +112,11 @@ import {
   PopoverTrigger,
 } from "@/shared/components/ui/popover";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
 
 function moneyText(money: (amount: number) => string, amount: number | null): string | null {
@@ -140,15 +138,6 @@ function physicalRoomLabel(status: string | null): string {
   return status.replaceAll("_", " ");
 }
 
-function expectedArrivalLabel(value: string | null): string | null {
-  if (!value) return null;
-  const date = value.slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return value;
-  const time = value.length >= 16 ? value.slice(11, 16) : "";
-  const dated = formatStayDate(date);
-  return time && time !== "00:00" ? `${dated} ${time}` : dated;
-}
-
 function SectionCard({
   title,
   icon,
@@ -163,11 +152,11 @@ function SectionCard({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white shadow-sm" data-testid={testId}>
-      <div className="flex items-center justify-between gap-3 border-b border-[#E8DFD0] px-4 py-2.5">
+    <section className="rounded-lg border border-[#DDD4C5] bg-white" data-testid={testId}>
+      <div className="flex items-center justify-between gap-3 border-b border-[#E8DFD0] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           {icon ? (
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#C89933]/15 text-[#8B6914]">
+            <span className="flex size-5 shrink-0 items-center justify-center text-[#8B6914]">
               {icon}
             </span>
           ) : null}
@@ -179,12 +168,28 @@ function SectionCard({
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">{actions}</div>
         ) : null}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-3">{children}</div>
     </section>
   );
 }
 
-function FieldRow({ label, value }: { label: string; value: ReactNode }) {
+function FieldRow({
+  label,
+  value,
+  stacked,
+}: {
+  label: string;
+  value: ReactNode;
+  stacked?: boolean;
+}) {
+  if (stacked) {
+    return (
+      <div className="py-0.5">
+        <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">{label}</dt>
+        <dd className="mt-0.5 min-w-0 text-sm font-medium text-[#251605]">{value}</dd>
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2 py-0.5 text-sm">
       <dt className="text-[#6B5E4E]">{label}</dt>
@@ -202,42 +207,81 @@ function StatusChip({ label }: { label: CheckInRoomChip }) {
   );
 }
 
-function StepRail({ currentStep, complete }: { currentStep: CheckInV2StepId; complete: boolean }) {
+function StepRail({
+  currentStep,
+  complete,
+  registrationCompletion,
+  paymentRecorded,
+  agreementSigned,
+}: {
+  currentStep: CheckInV2StepId;
+  complete: boolean;
+  registrationCompletion: RegistrationCompletionProjection | null;
+  paymentRecorded: boolean;
+  agreementSigned: boolean;
+}) {
   const currentIndex = CHECKIN_V2_STEPS.findIndex((step) => step.id === currentStep);
   return (
-    <nav aria-label="Check-In steps" className="flex items-center" data-testid="fo-ci-v2-stepper">
-      {CHECKIN_V2_STEPS.map((step, index) => {
-        const isDone = index < currentIndex || (complete && index <= currentIndex);
-        const isActive = step.id === currentStep && !isDone;
-        return (
-          <div key={step.id} className="flex items-center">
-            <div
-              className={cn(
-                "flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium",
-                isActive && "bg-[#C89933] text-[#251605]",
-                isDone && "bg-[#436436]/15 text-[#436436]",
-                !isActive && !isDone && "text-[#6B5E4E]",
-              )}
-              aria-current={isActive ? "step" : undefined}
-            >
+    <nav
+      aria-label="Check-In steps"
+      className="flex h-9 min-w-0 items-center overflow-x-auto"
+      data-testid="fo-ci-v2-stepper"
+    >
+      <ol className="flex min-w-0 items-center" data-testid="fo-ci-v2-progress">
+        {CHECKIN_V2_STEPS.map((step, index) => {
+          const registrationLabel =
+            step.id === "registration"
+              ? registrationProgressLabel({
+                  current: step.id === currentStep,
+                  visited: index < currentIndex,
+                  completion: registrationCompletion,
+                })
+              : null;
+          const backendDone =
+            (step.id === "payment_guarantee" && paymentRecorded) ||
+            (step.id === "review_checkin" && complete);
+          const agreementDone = step.id === "agreement_signature" && agreementSigned;
+          const reviewDone = step.id === "review_checkin" && complete;
+          const completed =
+            registrationLabel === "Completed" ||
+            (step.id !== "registration" &&
+              (index < currentIndex ||
+                agreementDone ||
+                reviewDone ||
+                (backendDone && step.id !== currentStep)));
+          const current = step.id === currentStep && !agreementDone && !reviewDone && !completed;
+          return (
+            <li key={step.id} data-testid={`fo-ci-v2-progress-${step.id}`}>
               <span
                 className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
-                  isActive && "bg-[#251605] text-[#C89933]",
-                  isDone && "bg-[#436436] text-white",
-                  !isActive && !isDone && "bg-[#E8DFD0] text-[#6B5E4E]",
+                  "relative flex h-9 items-center gap-1 px-2.5 text-xs font-medium",
+                  completed && "text-[#436436]",
+                  current && "text-[#251605]",
+                  !completed && !current && "text-muted-foreground",
                 )}
+                aria-current={current ? "step" : undefined}
               >
-                {isDone ? <Check className="size-3" /> : step.number}
+                {completed ? <CheckCircle2 className="size-3" /> : null}
+                {completed ? null : <span className="tabular-nums">{step.number}</span>}
+                <span className="hidden whitespace-nowrap sm:inline">{step.label}</span>
+                <span
+                  className="sr-only"
+                  data-testid={`fo-ci-v2-progress-label-${step.id}`}
+                >
+                  {registrationLabel ??
+                    (current ? "In progress" : completed ? "Completed" : "Pending")}
+                </span>
+                {completed ? (
+                  <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                ) : null}
+                {current ? (
+                  <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                ) : null}
               </span>
-              <span className="hidden md:inline">{step.label}</span>
-            </div>
-            {index < CHECKIN_V2_STEPS.length - 1 ? (
-              <ChevronRight className="mx-0.5 size-3.5 shrink-0 text-[#DDD4C5]" />
-            ) : null}
-          </div>
-        );
-      })}
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }
@@ -358,12 +402,12 @@ function CheckInFinanceLines({
       ? null
       : Math.max(0, (summary.depositRequired ?? 0) - (summary.depositReceived ?? 0));
   const rows: Array<[string, string]> = [
-    ["Payment received", ledgerFigure(summary.paymentReceived, money)],
-    ["Deposit required", summary.depositRequired == null ? "—" : money(summary.depositRequired)],
-    ["Deposit received", ledgerFigure(summary.depositReceived, money)],
+    ["Payment Received", ledgerFigure(summary.paymentReceived, money)],
+    ["Deposit Required", summary.depositRequired == null ? "—" : money(summary.depositRequired)],
+    ["Deposit Received", ledgerFigure(summary.depositReceived, money)],
     ["Outstanding", outstanding == null ? "—" : money(outstanding)],
     ...(summary.refunded ? [["Refunded", ledgerFigure(summary.refunded, money)] as [string, string]] : []),
-    ["Folio balance", ledgerFigure(summary.folioBalance, money)],
+    ["Folio Balance", ledgerFigure(summary.folioBalance, money)],
   ];
   return (
     <dl data-testid="fo-ci-v2-finance">
@@ -393,243 +437,84 @@ function CheckInFinanceSection({
       testId="fo-ci-v2-finance-section"
     >
       <CheckInFinanceLines summary={summary} pending={pending} money={money} />
-      <p className="mt-2 text-xs text-[#6B5E4E]">
-        Deposit required is the reservation requirement. Received amounts come from the folio.
-        {summary && summary.folioBalance == null ? " No folio is open." : ""}
-      </p>
     </SectionCard>
   );
 }
 
-function CheckInSummaryColumn({
+function GuestStaySummary({
+  restaurantId,
   unit,
-  profileNumber,
-  money,
-  currentStep,
-  registrationCompletion,
-  depositSummary,
-  agreementSummary,
-  checkedIn,
-  confirmationNumber,
-  roomReadiness,
-  cashiering,
-  cashieringPending,
+  reservation,
 }: {
+  restaurantId: string;
   unit: CheckInUnitRead;
-  profileNumber: string | null;
-  money: (amount: number) => string;
-  currentStep: CheckInV2StepId;
-  registrationCompletion: RegistrationCompletionProjection | null;
-  depositSummary: CheckInPaymentSummary | null;
-  agreementSummary: CheckInAgreementSummary | null;
-  checkedIn: boolean;
-  confirmationNumber: string | null;
-  roomReadiness: string | null;
-  cashiering: ReservationCashieringSummary | null;
-  cashieringPending: boolean;
+  reservation: ReservationDetail | null;
 }) {
   const view = checkInStep1Presentation(unit);
-  const charge = moneyText(money, unit.subtotal);
+  const fetchStays = useServerFn(getGuestStayOverview);
+  const stayQuery = useQuery({
+    queryKey: ["fo-ci-v2-guest-stays", restaurantId, view.guestId],
+    queryFn: () => fetchStays({ data: { restaurantId, guestId: view.guestId } }),
+    enabled: Boolean(view.guestId),
+    retry: false,
+  });
+  const returning = Boolean(stayQuery.data?.lastStay);
+  const guestKnown = Boolean(view.guestId) && stayQuery.isFetched;
   return (
-    <aside
-      className="flex flex-col gap-4 rounded-xl border border-[#E8DFD0] bg-white p-4 shadow-sm lg:sticky lg:top-0"
-      data-testid="fo-ci-v2-summary"
-      data-reservation-room-id={view.progressReservationRoomId ?? ""}
-      aria-label="Check-In Summary"
-    >
-      <p className="text-sm font-semibold text-[#251605]">Check-In Summary</p>
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">Guest</p>
-        <p className="font-semibold text-[#251605]" data-testid="fo-ci-v2-summary-guest-name">
+    <SectionCard title="Guest & Stay Summary" testId="fo-ci-v2-stay-summary">
+      <p className="sr-only">Reservation loaded</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-semibold text-[#251605]" data-testid="fo-ci-v2-guest-name">
           {view.guestName}
         </p>
-        {profileNumber ? <p className="text-xs text-[#6B5E4E]">{profileNumber}</p> : null}
         {view.bookerFallback ? (
-          <span className="mt-1 inline-block rounded-full bg-[#C89933]/15 px-2 py-0.5 text-[10px] font-medium text-[#8B6914]">
+          <span
+            className="rounded-full bg-[#C89933]/15 px-2 py-0.5 text-[10px] font-medium text-[#8B6914]"
+            data-testid="fo-ci-v2-booker-label"
+          >
             Booker
           </span>
         ) : null}
-      </div>
-      {confirmationNumber ? (
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-            Reservation
-          </p>
-          <p
-            className="text-sm font-medium text-[#251605]"
-            data-testid="fo-ci-v2-summary-confirmation"
-          >
-            {confirmationNumber}
-          </p>
-          <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-summary-status">
-            {checkedIn ? "Checked In" : (unit.status ?? "—")}
-          </p>
-        </div>
-      ) : checkedIn ? (
-        <p className="text-xs font-medium text-[#436436]" data-testid="fo-ci-v2-summary-status">
-          Checked In
-        </p>
-      ) : null}
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">Stay</p>
-        <p className="text-sm font-medium text-[#251605]">
-          {formatStayDate(unit.arrivalDate)} {"\u2192"} {formatStayDate(unit.departureDate)}
-        </p>
-        <p className="text-xs text-[#6B5E4E]">
-          {view.nights} night{view.nights === 1 ? "" : "s"}
-        </p>
-      </div>
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">Room</p>
-        <p className="text-sm font-medium text-[#251605]" data-testid="fo-ci-v2-summary-room">
-          {view.roomNumber ? `Room ${view.roomNumber}` : "No room assigned"}
-        </p>
-        {view.roomTypeName ? <p className="text-xs text-[#6B5E4E]">{view.roomTypeName}</p> : null}
-        {roomReadiness ? (
-          <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-summary-room-readiness">
-            {roomReadiness}
-          </p>
-        ) : null}
-      </div>
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">Guests</p>
-        <p className="text-sm font-medium text-[#251605]">
-          {unit.adults} Adult{unit.adults === 1 ? "" : "s"}
-          {unit.children > 0
-            ? ` \u00b7 ${unit.children} Child${unit.children === 1 ? "" : "ren"}`
-            : " \u00b7 0 Children"}
-        </p>
-      </div>
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-          Rate Plan
-        </p>
-        <p className="text-sm font-medium text-[#251605]">{unit.ratePlanName ?? "—"}</p>
-        {charge ? <p className="text-xs text-[#6B5E4E]">{charge} unit subtotal</p> : null}
-      </div>
-      <CheckInFinanceLines summary={cashiering} pending={cashieringPending} money={money} />
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-          Registration
-        </p>
-        <p className="text-sm font-medium text-[#251605]" data-testid="fo-ci-v2-registration-status">
-          {registrationCompletion?.label ?? "—"}
-        </p>
-        {registrationCompletion?.detail ? (
-          <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-registration-detail">
-            {registrationCompletion.detail}
-          </p>
-        ) : null}
-      </div>
-      {depositSummary ? (
-        <div data-testid="fo-ci-v2-summary-deposit">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-            Deposit
-          </p>
-          <p className="text-xs text-[#251605]">Required: {depositSummary.required}</p>
-          <p className="text-xs text-[#251605]">Received: {depositSummary.received}</p>
-          <p className="text-xs text-[#251605]">Outstanding: {depositSummary.outstanding}</p>
-          <p className="text-xs font-medium text-[#251605]">Status: {depositSummary.status}</p>
-          <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-            Guarantee
-          </p>
-          <p className="text-xs text-[#251605]" data-testid="fo-ci-v2-summary-guarantee">
-            {depositSummary.guarantee}
-          </p>
-          <p className="text-xs text-[#6B5E4E]">{depositSummary.guaranteeNote}</p>
-          <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-            Folio
-          </p>
-          <p className="text-xs text-[#251605]" data-testid="fo-ci-v2-summary-folio">
-            {depositSummary.folioScope} scoped
-          </p>
-        </div>
-      ) : null}
-      {agreementSummary ? (
-        <div data-testid="fo-ci-v2-summary-agreement">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-            Agreement
-          </p>
-          <p className="text-xs text-[#251605]">{agreementSummary.version}</p>
-          <p className="text-xs font-medium text-[#251605]">Status: {agreementSummary.status}</p>
-          {agreementSummary.signedBy ? (
-            <p className="text-xs text-[#251605]">Signed by: {agreementSummary.signedBy}</p>
-          ) : null}
-          {agreementSummary.signedAt ? (
-            <p className="text-xs text-[#251605]">Signed at: {agreementSummary.signedAt}</p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="border-t border-[#E8DFD0] pt-3" data-testid="fo-ci-v2-progress">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">Progress</p>
-        {CHECKIN_V2_STEPS.map((step) => {
-          const stepIndex = CHECKIN_V2_STEPS.findIndex((item) => item.id === step.id);
-          const currentIndex = CHECKIN_V2_STEPS.findIndex((item) => item.id === currentStep);
-          const registrationLabel =
-            step.id === "registration"
-              ? registrationProgressLabel({
-                  current: step.id === currentStep,
-                  visited: stepIndex < currentIndex,
-                  completion: registrationCompletion,
-                })
-              : null;
-          const backendDone =
-            (step.id === "payment_guarantee" && view.paymentRecorded) ||
-            (step.id === "review_checkin" && view.reviewComplete);
-          const agreementDone =
-            step.id === "agreement_signature" && agreementSummary?.status === "Signed";
-          const reviewDone = step.id === "review_checkin" && (checkedIn || view.reviewComplete);
-          const completed =
-            registrationLabel === "Completed" ||
-            (step.id !== "registration" &&
-              (stepIndex < currentIndex ||
-                agreementDone ||
-                reviewDone ||
-                (backendDone && step.id !== currentStep)));
-          const current =
-            step.id === currentStep && !agreementDone && !reviewDone && !completed;
-          return (
-            <div
-              key={step.id}
-              className="flex items-center gap-2 py-1"
-              data-testid={`fo-ci-v2-progress-${step.id}`}
+        {guestKnown ? (
+          returning ? (
+            <span
+              className="rounded-full bg-[#436436]/15 px-2 py-0.5 text-[10px] font-medium text-[#436436]"
+              data-testid="fo-ci-v2-returning-guest"
             >
-              <span
-                className={cn(
-                  "flex size-5 items-center justify-center rounded-full text-[10px] font-bold",
-                  completed && !current && "bg-[#436436] text-white",
-                  current && "bg-[#C89933] text-[#251605]",
-                  !completed && !current && "bg-[#E8DFD0] text-[#6B5E4E]",
-                )}
-              >
-                {completed ? <Check className="size-3" /> : step.number}
-              </span>
-              <span
-                className={cn(
-                  "text-xs",
-                  current ? "font-semibold text-[#251605]" : "text-[#6B5E4E]",
-                )}
-              >
-                {step.label}
-                <span
-                  className="mt-0.5 block text-[10px] font-medium"
-                  data-testid={`fo-ci-v2-progress-label-${step.id}`}
-                >
-                  {registrationLabel ??
-                    (current ? "In progress" : completed ? "Completed" : "Pending")}
-                </span>
-              </span>
-              {completed && !current ? (
-                <CheckCircle2 className="ml-auto size-3.5 text-[#436436]" />
-              ) : null}
-              {current ? (
-                <Circle className="ml-auto size-3.5 fill-[#C89933] text-[#C89933]" />
-              ) : null}
-            </div>
-          );
-        })}
+              Returning Guest
+            </span>
+          ) : (
+            <span className="rounded-full bg-[#E8DFD0] px-2 py-0.5 text-[10px] font-medium text-[#6B5E4E]">
+              New Guest
+            </span>
+          )
+        ) : null}
       </div>
-    </aside>
+      <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-4">
+        <FieldRow stacked label="Arrival" value={formatStayDate(unit.arrivalDate)} />
+        <FieldRow stacked label="Departure" value={formatStayDate(unit.departureDate)} />
+        <FieldRow stacked label="Nights" value={String(view.nights)} />
+        <FieldRow stacked label="Adults / Children" value={`${unit.adults} / ${unit.children}`} />
+        <FieldRow stacked label="Room Type" value={view.roomTypeName ?? "—"} />
+        <FieldRow stacked label="Rate Plan" value={unit.ratePlanName ?? "—"} />
+        <FieldRow
+          stacked
+          label="Unit / Room"
+          value={
+            <span data-testid="fo-ci-v2-summary-room">
+              {view.roomNumber ? `Room ${view.roomNumber}` : "Unassigned"}
+            </span>
+          }
+        />
+        {reservation?.status ? (
+          <FieldRow
+            stacked
+            label="Status"
+            value={<ReservationStatusBadge status={reservation.status} />}
+          />
+        ) : null}
+      </dl>
+    </SectionCard>
   );
 }
 
@@ -673,7 +558,6 @@ function GuestInformationSection({
         guest.country,
       ])
     : null;
-  const returning = Boolean(stayQuery.data?.lastStay);
 
   return (
     <SectionCard
@@ -702,164 +586,49 @@ function GuestInformationSection({
           onSaved={() => void guestQuery.refetch()}
         />
       ) : null}
-      <div className="flex gap-3">
-        <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-[#251605]/10 text-lg font-bold text-[#251605]">
-          {view.guestName.charAt(0).toUpperCase()}
-        </div>
-        <div className="min-w-0 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-[#251605]" data-testid="fo-ci-v2-guest-name">
-              {view.guestName}
-            </p>
-            {view.bookerFallback ? (
-              <span
-                className="rounded-full bg-[#C89933]/15 px-2 py-0.5 text-xs font-medium text-[#8B6914]"
-                data-testid="fo-ci-v2-booker-label"
-              >
-                Booker
-              </span>
-            ) : null}
-            {returning ? (
-              <span
-                className="rounded-full bg-[#436436]/15 px-2 py-0.5 text-xs font-medium text-[#436436]"
-                data-testid="fo-ci-v2-returning-guest"
-              >
-                Returning Guest
-              </span>
-            ) : null}
-            {guest?.vipStatus ? (
-              <span className="rounded-full bg-[#C89933]/15 px-2 py-0.5 text-xs font-medium text-[#8B6914]">
-                VIP
-              </span>
-            ) : null}
-          </div>
-          {profileNumber ? <p className="text-xs text-[#6B5E4E]">{profileNumber}</p> : null}
-          {guestQuery.isError ? (
-            <p className="text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-guest-unavailable">
-              Guest profile unavailable.
-            </p>
-          ) : null}
-          {guest?.phone ? (
-            <p className="flex items-center gap-1.5 text-sm text-[#251605]">
-              <Phone className="size-3.5 text-[#6B5E4E]" />
-              {guest.phone}
-            </p>
-          ) : null}
-          {guest?.email ? (
-            <p className="flex items-center gap-1.5 text-sm text-[#251605]">
-              <Mail className="size-3.5 text-[#6B5E4E]" />
-              {guest.email}
-            </p>
-          ) : null}
-          {guest?.nationality ? (
-            <p className="text-sm text-[#251605]">{guest.nationality}</p>
-          ) : null}
-          {address ? <p className="text-sm text-[#6B5E4E]">{address}</p> : null}
-          {stayQuery.data?.lastStay ? (
-            <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-previous-stay">
-              Last stay {formatStayDate(stayQuery.data.lastStay.arrivalDate)} {"\u2192"}{" "}
-              {formatStayDate(stayQuery.data.lastStay.departureDate)}
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </SectionCard>
-  );
-}
-
-function ReservationDetailsSection({
-  unit,
-  reservation,
-  confirmationNumber,
-  money,
-}: {
-  unit: CheckInUnitRead;
-  reservation: ReservationDetail | null;
-  confirmationNumber: string | null;
-  money: (amount: number) => string;
-}) {
-  const view = checkInStep1Presentation(unit);
-  const number = confirmationNumber ?? reservation?.confirmationNumber ?? null;
-  const source = reservation?.commercialBookingSource || reservation?.source || null;
-  const nightly =
-    view.siblings.length === 0 ? uniformNightlyAmount(reservation?.nightlyRates) : null;
-  const charge = moneyText(money, unit.subtotal);
-  const nightlyText = moneyText(money, nightly);
-  return (
-    <SectionCard
-      title="Reservation Details"
-      icon={<Building2 className="size-3.5" />}
-      testId="fo-ci-v2-reservation-details"
-    >
       <dl>
-        {number ? (
+        {profileNumber ? <FieldRow label="Guest ID" value={profileNumber} /> : null}
+        {guest?.vipStatus ? <FieldRow label="VIP" value="VIP" /> : null}
+        {guestQuery.isError ? (
+          <p className="text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-guest-unavailable">
+            Guest profile unavailable.
+          </p>
+        ) : null}
+        {guest?.phone ? (
           <FieldRow
-            label="Reservation No."
-            value={<span data-testid="fo-ci-v2-confirmation">{number}</span>}
+            label="Phone"
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                <Phone className="size-3.5 text-[#6B5E4E]" />
+                {guest.phone}
+              </span>
+            }
           />
         ) : null}
-        {reservation?.status ? (
-          <FieldRow label="Status" value={<ReservationStatusBadge status={reservation.status} />} />
-        ) : null}
-        {source ? <FieldRow label="Booking Source" value={source} /> : null}
-        <FieldRow label="Arrival" value={formatStayDate(unit.arrivalDate)} />
-        <FieldRow label="Departure" value={formatStayDate(unit.departureDate)} />
-        <FieldRow label="Nights" value={String(view.nights)} />
-        {view.roomTypeName ? <FieldRow label="Room Type" value={view.roomTypeName} /> : null}
-        {unit.ratePlanName ? <FieldRow label="Rate Plan" value={unit.ratePlanName} /> : null}
-        {nightlyText ? <FieldRow label="Nightly Amount" value={nightlyText} /> : null}
-        {charge ? (
+        {guest?.email ? (
           <FieldRow
-            label="Unit Subtotal"
-            value={<span data-testid="fo-ci-v2-subtotal">{charge}</span>}
+            label="Email"
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="size-3.5 text-[#6B5E4E]" />
+                {guest.email}
+              </span>
+            }
           />
         ) : null}
-        {reservation?.companyName ? (
-          <FieldRow label="Company" value={reservation.companyName} />
-        ) : null}
-        {reservation?.travelAgentName ? (
-          <FieldRow label="Travel Agency" value={reservation.travelAgentName} />
-        ) : null}
-        {reservation?.groupName ? <FieldRow label="Group" value={reservation.groupName} /> : null}
-      </dl>
-    </SectionCard>
-  );
-}
-
-function StayUnitDetailsSection({
-  unit,
-  reservation,
-}: {
-  unit: CheckInUnitRead;
-  reservation: ReservationDetail | null;
-}) {
-  const view = checkInStep1Presentation(unit);
-  const expected = expectedArrivalLabel(reservation?.expectedArrivalAt ?? null);
-  return (
-    <SectionCard
-      title="Stay Details"
-      icon={<Clock className="size-3.5" />}
-      testId="fo-ci-v2-stay-details"
-    >
-      <dl>
-        {unit.sequence != null ? (
-          <FieldRow label="Unit" value={`Room unit ${unit.sequence}`} />
-        ) : null}
-        <FieldRow label="Arrival" value={formatStayDate(unit.arrivalDate)} />
-        <FieldRow label="Departure" value={formatStayDate(unit.departureDate)} />
-        <FieldRow label="Adults" value={String(unit.adults)} />
-        <FieldRow label="Children" value={String(unit.children)} />
-        {expected ? <FieldRow label="Expected Arrival" value={expected} /> : null}
-        {reservation?.purposeOfStay ? (
-          <FieldRow label="Purpose of Visit" value={reservation.purposeOfStay} />
-        ) : null}
-        {unit.status ? (
+        {guest?.nationality ? <FieldRow label="Nationality" value={guest.nationality} /> : null}
+        {address ? <FieldRow label="Address" value={address} /> : null}
+        {stayQuery.data?.lastStay ? (
           <FieldRow
-            label="Unit Status"
-            value={<ReservationStatusBadge status={unit.status as never} />}
+            label="Last stay"
+            value={
+              <span data-testid="fo-ci-v2-previous-stay">
+                {formatStayDate(stayQuery.data.lastStay.arrivalDate)} {"\u2192"}{" "}
+                {formatStayDate(stayQuery.data.lastStay.departureDate)}
+              </span>
+            }
           />
         ) : null}
-        {view.legacyNoUnit ? <FieldRow label="Room Unit" value="Legacy stay" /> : null}
       </dl>
     </SectionCard>
   );
@@ -1044,8 +813,8 @@ function RoomAssignmentSection({
       }
     >
       {unit.roomNumber ? (
-        <div className="space-y-2">
-          <p className="text-lg font-semibold text-[#251605]" data-testid="fo-ci-v2-room-number">
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold text-[#251605]" data-testid="fo-ci-v2-room-number">
             Room {unit.roomNumber}
           </p>
           {unit.roomTypeName ? <p className="text-sm text-[#6B5E4E]">{unit.roomTypeName}</p> : null}
@@ -1088,15 +857,12 @@ function RoomAssignmentSection({
           ) : null}
         </div>
       ) : (
-        <div
-          className="rounded-xl border border-dashed border-[#C89933]/50 bg-[#C89933]/5 p-4 text-center"
+        <p
+          className="text-sm text-[#6B5E4E]"
           data-testid="fo-ci-v2-room-unassigned"
         >
-          <p className="text-sm font-semibold text-[#8B6914]">No room assigned</p>
-          <p className="mt-1 text-xs text-[#6B5E4E]">
-            Assign a room of this room type. Assignable and not-ready rooms are listed separately.
-          </p>
-        </div>
+          No room assigned
+        </p>
       )}
     </SectionCard>
   );
@@ -1175,7 +941,7 @@ function GuestListSection({
     : historical
       ? "Guests cannot be changed after this room is cancelled, checked out, or marked no-show."
       : atCapacity
-        ? "Add Guest is unavailable because named guests already match adults plus children."
+        ? "Guest capacity reached"
         : null;
   const mutation = useMutation({
     mutationFn: (input: { guestId: string; action: "add" | "remove" | "set_primary" }) => {
@@ -1234,17 +1000,16 @@ function GuestListSection({
             className="flex items-center justify-between gap-3"
             data-testid="fo-ci-v2-primary-occupant"
           >
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="font-semibold text-sm text-[#251605]">{view.occupants[0].name}</p>
-                <span className="rounded-full bg-[#C89933]/15 px-2 py-0.5 text-xs font-medium text-[#8B6914]">
-                  Primary Guest
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-[#6B5E4E]">
-                {unit.adults} Adult{unit.adults === 1 ? "" : "s"} · {unit.children} Child{unit.children === 1 ? "" : "ren"}
-              </p>
-            </div>
+            <p className="text-sm text-[#251605]">
+              {view.occupants[0].name}
+              <span className="text-[#6B5E4E]">
+                {" "}
+                · Primary · {unit.adults} Adult{unit.adults === 1 ? "" : "s"}
+                {unit.children > 0
+                  ? ` · ${unit.children} Child${unit.children === 1 ? "" : "ren"}`
+                  : ""}
+              </span>
+            </p>
             {mutable && !(view.occupants[0].isPrimary && view.occupants.length === 1) ? (
               <Button
                 type="button"
@@ -1262,7 +1027,7 @@ function GuestListSection({
           </div>
           {atCapacity ? (
             <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-capacity-reached">
-              Guest capacity reached.
+              Guest capacity reached
             </p>
           ) : null}
         </div>
@@ -1332,7 +1097,7 @@ function GuestListSection({
           </table>
           {atCapacity ? (
             <p className="mt-2 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-capacity-reached">
-              Guest capacity reached.
+              Guest capacity reached
             </p>
           ) : null}
         </div>
@@ -1422,77 +1187,37 @@ function AddGuestSearch({
   );
 }
 
-function SpecialRequestsSection({ requests }: { requests?: string | null }) {
+function ExpandableText({
+  text,
+  empty,
+  testId,
+}: {
+  text?: string | null;
+  empty: string;
+  testId: string;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = Boolean(requests && requests.length > 120);
-
+  const isLong = Boolean(text && text.length > 120);
+  if (!text) return <p className="mt-1 text-sm text-[#6B5E4E]">{empty}</p>;
   return (
-    <SectionCard
-      title="Special Requests"
-      icon={<Clock className="size-3.5" />}
-      testId="fo-ci-v2-requests"
-    >
-      {requests ? (
-        <div className="space-y-1">
-          <p
-            className={cn("text-sm text-[#251605]", !expanded && isLong && "line-clamp-2")}
-            data-testid="fo-ci-v2-special-requests"
-          >
-            {requests}
-          </p>
-          {isLong ? (
-            <button
-              type="button"
-              className="text-xs font-medium text-[#8A641A] hover:underline"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? "Show less" : "View all"}
-            </button>
-          ) : null}
-        </div>
-      ) : (
-        <p className="text-sm text-[#6B5E4E]">No special requests.</p>
-      )}
-    </SectionCard>
+    <div className="mt-1 space-y-1">
+      <p className={cn("text-sm text-[#251605]", !expanded && isLong && "line-clamp-2")} data-testid={testId}>
+        {text}
+      </p>
+      {isLong ? (
+        <button
+          type="button"
+          className="text-xs font-medium text-[#8A641A] hover:underline"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? "Show less" : "View all"}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
-function InternalNotesSection({ notes }: { notes?: string | null }) {
-  const [expanded, setExpanded] = useState(false);
-  const isLong = Boolean(notes && notes.length > 120);
-
-  return (
-    <SectionCard
-      title="Internal Notes"
-      icon={<Clock className="size-3.5" />}
-      testId="fo-ci-v2-internal-notes"
-    >
-      {notes ? (
-        <div className="space-y-1">
-          <p
-            className={cn("text-sm text-[#251605]", !expanded && isLong && "line-clamp-2")}
-            data-testid="fo-ci-v2-internal-note"
-          >
-            {notes}
-          </p>
-          {isLong ? (
-            <button
-              type="button"
-              className="text-xs font-medium text-[#8A641A] hover:underline"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? "Show less" : "View all"}
-            </button>
-          ) : null}
-        </div>
-      ) : (
-        <p className="text-sm text-[#6B5E4E]">No internal notes.</p>
-      )}
-    </SectionCard>
-  );
-}
-
-function PackagesRateSection({
+function RequestsNotesRateSection({
   restaurantId,
   unit,
   reservation,
@@ -1510,59 +1235,72 @@ function PackagesRateSection({
   const charge = moneyText(money, unit.subtotal);
   const packageRules = usePackageChargeRules(restaurantId, unit.packages.length > 0);
   const services = useReservationServiceCharges(restaurantId, reservation?.id ?? null);
+  const packageLabel =
+    unit.packages.length === 0
+      ? "None"
+      : unit.packages
+          .map((pkg) => {
+            const amount =
+              pkg.appliedAmount == null
+                ? null
+                : moneyText(money, packageChargeFigures(pkg.appliedAmount, packageRules.data).total);
+            return amount ? `${pkg.packageName} (${amount})` : pkg.packageName;
+          })
+          .join(", ");
   return (
-    <SectionCard
-      title="Packages & Rate"
-      icon={<Building2 className="size-3.5" />}
-      testId="fo-ci-v2-packages"
-    >
-      <dl>
-        <FieldRow label="Rate Plan" value={unit.ratePlanName || "BAR — Best Available Rate"} />
-        {nightlyText ? <FieldRow label="Nightly Amount" value={nightlyText} /> : null}
-        <FieldRow label="Unit Subtotal" value={charge || "—"} />
-        {unit.packages.length > 0 ? (
-          <>
-            <p className="my-1.5 text-xs text-[#6B5E4E]">
-              Package amounts include the taxes the folio posts on them.
-            </p>
-            {unit.packages.map((pkg) => (
-              <FieldRow
-                key={pkg.id}
-                label={pkg.packageName}
-                value={
-                  pkg.appliedAmount == null
-                    ? "—"
-                    : (moneyText(
-                        money,
-                        packageChargeFigures(pkg.appliedAmount, packageRules.data).total,
-                      ) ?? "—")
-                }
-              />
-            ))}
-          </>
-        ) : (
-          <FieldRow label="Packages" value="None" />
-        )}
-        {services.lines.length > 0 ? (
-          <div data-testid="fo-ci-v2-services">
-            <p className="my-1.5 text-xs text-[#6B5E4E]">
-              Reservation services post to the folio at check-in, taxed by pricing unit.
-            </p>
-            {services.lines.map(({ charge: line, figures }) => {
-              const detail = serviceLineDetail(line, money);
-              return (
-                <FieldRow
-                  key={line.id}
-                  label={detail ? `${line.serviceName} · ${detail}` : line.serviceName}
-                  value={`${figures.total != null ? money(figures.total) : "—"} · ${
-                    line.folioTransactionId ? "Posted" : "Pending"
-                  }`}
-                />
-              );
-            })}
-          </div>
-        ) : null}
-      </dl>
+    <SectionCard title="Requests, Notes & Rate" testId="fo-ci-v2-requests-notes-rate">
+      <div className="grid gap-4 md:grid-cols-3">
+        <div data-testid="fo-ci-v2-requests">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+            Special Requests
+          </p>
+          <ExpandableText
+            text={reservation?.specialRequests}
+            empty="No special requests."
+            testId="fo-ci-v2-special-requests"
+          />
+        </div>
+        <div data-testid="fo-ci-v2-internal-notes">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+            Internal Notes
+          </p>
+          <ExpandableText
+            text={reservation?.notes}
+            empty="No internal notes."
+            testId="fo-ci-v2-internal-note"
+          />
+        </div>
+        <div data-testid="fo-ci-v2-packages">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+            Rate & Package
+          </p>
+          <dl className="mt-1">
+            <FieldRow label="Rate Plan" value={unit.ratePlanName || "BAR — Best Available Rate"} />
+            {nightlyText ? <FieldRow label="Nightly Amount" value={nightlyText} /> : null}
+            <FieldRow
+              label="Unit Subtotal"
+              value={<span data-testid="fo-ci-v2-subtotal">{charge || "—"}</span>}
+            />
+            <FieldRow label="Package" value={packageLabel} />
+            {services.lines.length > 0 ? (
+              <div data-testid="fo-ci-v2-services">
+                {services.lines.map(({ charge: line, figures }) => {
+                  const detail = serviceLineDetail(line, money);
+                  return (
+                    <FieldRow
+                      key={line.id}
+                      label={detail ? `${line.serviceName} · ${detail}` : line.serviceName}
+                      value={`${figures.total != null ? money(figures.total) : "—"} · ${
+                        line.folioTransactionId ? "Posted" : "Pending"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
+          </dl>
+        </div>
+      </div>
     </SectionCard>
   );
 }
@@ -1653,6 +1391,7 @@ export function FoCheckInV2Workspace({
     busy: false,
     checkedIn: false,
     roomReadiness: null,
+    blockerHint: null,
   });
   const onAgreementReady = useCallback((signed: boolean) => {
     setAgreementSigned((current) => (current === signed ? current : signed));
@@ -1671,7 +1410,8 @@ export function FoCheckInV2Workspace({
       current.canComplete === actions.canComplete &&
       current.busy === actions.busy &&
       current.checkedIn === actions.checkedIn &&
-      current.roomReadiness === actions.roomReadiness
+      current.roomReadiness === actions.roomReadiness &&
+      current.blockerHint === actions.blockerHint
         ? current
         : actions,
     );
@@ -1714,6 +1454,7 @@ export function FoCheckInV2Workspace({
       busy: false,
       checkedIn: false,
       roomReadiness: null,
+      blockerHint: null,
     });
   }
 
@@ -1817,58 +1558,105 @@ export function FoCheckInV2Workspace({
   const canContinueStep = Boolean(unit && stepReadiness?.canContinue);
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent
-        side="right"
-        className={cn(
-          "z-[70] flex h-dvh flex-col gap-0 overflow-hidden border-l bg-[#FBF7F1] p-0 shadow-xl [&>button.absolute]:hidden",
-          FO_CHECKIN_V2_SHEET_CLASS,
-        )}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className={FO_CHECKIN_V2_SHEET_CLASS}
         data-testid="fo-ci-v2-workspace"
       >
-        <SheetHeader className="shrink-0 border-b border-[#E8DFD0] bg-white px-5 py-4 text-left">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <SheetTitle className="text-xl font-extrabold text-[#251605]">Check-In</SheetTitle>
-              <SheetDescription className="mt-0.5 text-xs text-[#6B5E4E]">
-                Find reservation and review guest and booking details
-              </SheetDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="fo-ci-v2-refresh"
-              onClick={() => {
-                void unitQuery.refetch();
-                void reservationQuery.refetch();
-                void readinessQuery.refetch();
-                void cashieringQuery.refetch();
-              }}
+        <header className="shrink-0 space-y-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+          <DialogDescription className="sr-only">
+            Check-In
+            {view ? ` · ${view.guestName}` : ""}
+            {(confirmationNumber ?? reservation?.confirmationNumber)
+              ? ` · ${confirmationNumber ?? reservation?.confirmationNumber}`
+              : ""}
+            {view?.roomNumber ? ` · Room ${view.roomNumber}` : " · Unassigned"}
+          </DialogDescription>
+          <div className="flex min-w-0 items-center gap-2">
+            <DialogTitle className="font-display text-sm font-semibold text-[#F3E9D8]">
+              Check-In
+            </DialogTitle>
+            {view ? (
+              <>
+                <span className="text-[#8A7A61]">·</span>
+                <span
+                  className="truncate font-display text-sm font-semibold text-[#F3E9D8]"
+                  data-testid="fo-ci-v2-header-guest-name"
+                >
+                  {view.guestName}
+                </span>
+              </>
+            ) : null}
+            {(confirmationNumber ?? reservation?.confirmationNumber) ? (
+              <span
+                className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-[11px] font-semibold text-[#C89933]"
+                data-testid="fo-ci-v2-header-confirmation"
+              >
+                {confirmationNumber ?? reservation?.confirmationNumber}
+              </span>
+            ) : null}
+            <span
+              className="hidden"
+              data-testid="fo-ci-v2-confirmation"
             >
-              Refresh
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="shrink-0"
-              onClick={() => handleOpenChange(false)}
-              aria-label="Close check-in workspace"
-              data-testid="fo-ci-v2-close-btn"
-            >
-              <X className="size-4" />
-            </Button>
+              {confirmationNumber ?? reservation?.confirmationNumber}
+            </span>
+            {view?.roomNumber ? (
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-[#F3E9D8]">
+                Room {view.roomNumber}
+              </span>
+            ) : view ? (
+              <span className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-[11px] font-semibold text-[#C89933]">
+                Unassigned
+              </span>
+            ) : null}
+            <span className="ml-auto flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={cn(SHELL_ICON_BUTTON, "size-8 border-white/10 bg-white/5 text-[#F3E9D8] hover:bg-white/10")}
+                    data-testid="fo-ci-v2-refresh"
+                    aria-label="Refresh check-in"
+                    onClick={() => {
+                      void unitQuery.refetch();
+                      void reservationQuery.refetch();
+                      void readinessQuery.refetch();
+                      void cashieringQuery.refetch();
+                    }}
+                  >
+                    <RefreshCw className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh check-in</TooltipContent>
+              </Tooltip>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+                onClick={() => handleOpenChange(false)}
+                aria-label="Close check-in workspace"
+                data-testid="fo-ci-v2-close-btn"
+              >
+                <X className="size-4" />
+              </Button>
+            </span>
           </div>
-          <div className="mt-3 overflow-x-auto pb-1">
-            <StepRail
-              currentStep={step}
-              complete={
-                step === "review_checkin" &&
-                (reviewActions.checkedIn || unitAlreadyCheckedIn(unitQuery.data?.status))
-              }
-            />
-          </div>
-        </SheetHeader>
+        </header>
+        <div className="flex h-9 shrink-0 items-center border-b border-[#DDD4C5] bg-white px-2">
+          <StepRail
+            currentStep={step}
+            complete={
+              step === "review_checkin" &&
+              (reviewActions.checkedIn || unitAlreadyCheckedIn(unitQuery.data?.status))
+            }
+            registrationCompletion={registrationCompletion}
+            paymentRecorded={Boolean(view?.paymentRecorded || depositSatisfied)}
+            agreementSigned={agreementSigned || agreementSummary?.status === "Signed"}
+          />
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {unitQuery.isLoading ? (
@@ -1909,53 +1697,27 @@ export function FoCheckInV2Workspace({
               testId="fo-ci-v2-error"
             />
           ) : !unit || !view ? null : (
-            <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:p-5">
-              <div className="min-w-0 space-y-4" data-testid="fo-ci-v2-step1-main">
+            <div className="p-4 lg:p-5">
+              <div
+                className="min-w-0 space-y-3"
+                data-testid="fo-ci-v2-step1-main"
+                data-reservation-room-id={view.progressReservationRoomId ?? ""}
+              >
                 {step === "guest_reservation" ? (
                   <>
-                    <div
-                      className="rounded-xl border border-[#E8DFD0] bg-white px-4 py-3"
-                      data-testid="fo-ci-v2-reservation-header"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-[#251605]">Reservation loaded</p>
-                        {(confirmationNumber ?? reservation?.confirmationNumber) ? (
-                          <span
-                            className="font-mono text-sm font-bold text-[#251605]"
-                            data-testid="fo-ci-v2-header-confirmation"
-                          >
-                            {confirmationNumber ?? reservation?.confirmationNumber}
-                          </span>
-                        ) : null}
-                        {unit.status ? (
-                          <ReservationStatusBadge status={unit.status as never} />
-                        ) : null}
-                      </div>
-                      <p
-                        className="mt-1 text-base font-bold text-[#251605]"
-                        data-testid="fo-ci-v2-header-guest-name"
-                      >
-                        {view.guestName}
-                      </p>
-                      <p className="text-xs text-[#6B5E4E]">
-                        {formatStayDate(unit.arrivalDate)} {"\u2192"}{" "}
-                        {formatStayDate(unit.departureDate)} {"\u00b7"} {view.nights} night
-                        {view.nights === 1 ? "" : "s"}
-                        {view.roomTypeName ? ` \u00b7 ${view.roomTypeName}` : ""}
-                        {view.roomNumber ? ` \u00b7 Room ${view.roomNumber}` : ""}
-                      </p>
-                      <p className="mt-1 text-xs text-[#6B5E4E]">
-                        Loaded reservation. This is not a check-in readiness result.
-                      </p>
+                    <div className="sr-only" data-testid="fo-ci-v2-reservation-header">
+                      Reservation loaded
                     </div>
                     {stepReadiness && stepReadiness.hardBlockers.length > 0 ? (
                       <div
-                        className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 px-4 py-3"
+                        className="rounded-lg border border-[#C89933]/40 bg-[#C89933]/10 px-3 py-2"
                         data-testid="fo-ci-v2-step1-blockers"
                       >
                         {stepReadiness.hardBlockers.map((blocker) => (
                           <p key={blocker.code} className="text-sm text-[#8B6914]">
-                            {blocker.message}
+                            {blocker.code === "ROOM_REQUIRED"
+                              ? "Assign a room to continue"
+                              : blocker.message}
                           </p>
                         ))}
                       </div>
@@ -1969,22 +1731,12 @@ export function FoCheckInV2Workspace({
                         Arrival is after the property business date. This does not block this step.
                       </p>
                     ) : null}
-                    <div className="grid gap-4 xl:grid-cols-3">
-                      <GuestInformationSection
-                        restaurantId={restaurantId}
-                        unit={unit}
-                        onProfileNumber={setProfileNumber}
-                      />
-                      <ReservationDetailsSection
-                        unit={unit}
-                        reservation={reservation}
-                        confirmationNumber={confirmationNumber ?? null}
-                        money={money}
-                      />
-                      <StayUnitDetailsSection unit={unit} reservation={reservation} />
-                    </div>
-                    {/* Operational Row: Room Assignment & Guests for this stay */}
-                    <div className="grid gap-4 lg:grid-cols-2">
+                    <GuestStaySummary
+                      restaurantId={restaurantId}
+                      unit={unit}
+                      reservation={reservation}
+                    />
+                    <div className="grid gap-3 lg:grid-cols-2">
                       <RoomAssignmentSection
                         restaurantId={restaurantId}
                         reservationId={reservationId}
@@ -1992,32 +1744,31 @@ export function FoCheckInV2Workspace({
                         assignmentNotes={unitNotes}
                         onChanged={reloadUnit}
                       />
+                      <GuestInformationSection
+                        restaurantId={restaurantId}
+                        unit={unit}
+                        onProfileNumber={setProfileNumber}
+                      />
+                    </div>
+                    <div className="grid gap-3 lg:grid-cols-2">
                       <GuestListSection
                         restaurantId={restaurantId}
                         reservationId={reservationId}
                         unit={unit}
                         onChanged={reloadUnit}
                       />
-                    </div>
-                    {/* Context Row: Special Requests & Internal Notes */}
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <SpecialRequestsSection requests={reservation?.specialRequests} />
-                      <InternalNotesSection notes={reservation?.notes} />
-                    </div>
-                    {/* Commercial Row: Payment & Deposit & Packages & Rate */}
-                    <div className="grid gap-4 lg:grid-cols-2">
                       <CheckInFinanceSection
                         summary={cashieringQuery.data ?? null}
                         pending={cashieringQuery.isLoading}
                         money={money}
                       />
-                      <PackagesRateSection
-                        restaurantId={restaurantId}
-                        unit={unit}
-                        reservation={reservation}
-                        money={money}
-                      />
                     </div>
+                    <RequestsNotesRateSection
+                      restaurantId={restaurantId}
+                      unit={unit}
+                      reservation={reservation}
+                      money={money}
+                    />
                     {unit.siblings.length > 0 ? (
                       <SiblingRoomsSection
                         siblings={unit.siblings}
@@ -2074,14 +1825,6 @@ export function FoCheckInV2Workspace({
                     onRefresh={reloadUnit}
                   />
                 ) : step === "review_checkin" ? (
-                  <div className="space-y-4">
-                    <FoCheckInV2Key
-                      restaurantId={restaurantId}
-                      reservationId={reservationId}
-                      reservationRoomId={activeRoomId}
-                      unit={unit}
-                      onRefresh={reloadUnit}
-                    />
                     <FoCheckInV2Review
                       ref={reviewRef}
                       restaurantId={restaurantId}
@@ -2096,83 +1839,76 @@ export function FoCheckInV2Workspace({
                       onActions={onReviewActions}
                       onClose={() => handleOpenChange(false)}
                       onRefresh={reloadUnit}
-                    />
-                  </div>
+                    >
+                      <FoCheckInV2Key
+                        restaurantId={restaurantId}
+                        reservationId={reservationId}
+                        reservationRoomId={activeRoomId}
+                        unit={unit}
+                        onRefresh={reloadUnit}
+                      />
+                    </FoCheckInV2Review>
                 ) : null}
-              </div>
-              <div data-testid="fo-ci-v2-summary-col">
-                <CheckInSummaryColumn
-                  unit={unit}
-                  profileNumber={profileNumber}
-                  money={money}
-                  currentStep={step}
-                  registrationCompletion={registrationCompletion}
-                  depositSummary={depositSummary}
-                  agreementSummary={agreementSummary}
-                  checkedIn={reviewActions.checkedIn || unitAlreadyCheckedIn(unit.status)}
-                  confirmationNumber={confirmationNumber ?? reservation?.confirmationNumber ?? null}
-                  roomReadiness={reviewActions.roomReadiness}
-                  cashiering={cashieringQuery.data ?? null}
-                  cashieringPending={cashieringQuery.isLoading}
-                />
               </div>
             </div>
           )}
         </div>
 
         <footer
-          className="shrink-0 border-t border-[#E8DFD0] bg-white px-5 py-3"
+          className="shrink-0 border-t border-[#E8DFD0] bg-white px-4 py-2"
           data-testid="fo-ci-v2-footer"
         >
           <div className="flex items-center justify-between gap-3">
-            {step === "registration" ? (
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => setStep("guest_reservation")}
-                data-testid="fo-ci-v2-back-guest"
-              >
-                Back
-              </Button>
-            ) : step === "payment_guarantee" ? (
-              <Button
-                variant="outline"
-                onClick={() => setStep("registration")}
-                data-testid="fo-ci-v2-back-registration"
-              >
-                Back
-              </Button>
-            ) : step === "agreement_signature" ? (
-              <Button
-                variant="outline"
-                onClick={() => setStep("payment_guarantee")}
-                data-testid="fo-ci-v2-back-payment"
-              >
-                Back
-              </Button>
-            ) : step === "guest_reservation" ? (
-              <Button
-                variant="ghost"
+                className="h-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]"
                 onClick={() => handleOpenChange(false)}
                 data-testid="fo-ci-v2-cancel-btn"
               >
                 Cancel
               </Button>
-            ) : step === "review_checkin" ? (
-              <Button
-                variant="outline"
-                onClick={() => setStep("agreement_signature")}
-                data-testid="fo-ci-v2-back-agreement"
-              >
-                Back
-              </Button>
-            ) : (
-              <Button variant="outline" onClick={() => setStep("payment_guarantee")}>
-                Back
-              </Button>
-            )}
+              {step === "registration" ? (
+                <Button
+                  variant="ghost"
+                  className="h-9 text-[#4a2c1a]"
+                  onClick={() => setStep("guest_reservation")}
+                  data-testid="fo-ci-v2-back-guest"
+                >
+                  Back
+                </Button>
+              ) : step === "payment_guarantee" ? (
+                <Button
+                  variant="ghost"
+                  className="h-9 text-[#4a2c1a]"
+                  onClick={() => setStep("registration")}
+                  data-testid="fo-ci-v2-back-registration"
+                >
+                  Back
+                </Button>
+              ) : step === "agreement_signature" ? (
+                <Button
+                  variant="ghost"
+                  className="h-9 text-[#4a2c1a]"
+                  onClick={() => setStep("payment_guarantee")}
+                  data-testid="fo-ci-v2-back-payment"
+                >
+                  Back
+                </Button>
+              ) : step === "review_checkin" ? (
+                <Button
+                  variant="ghost"
+                  className="h-9 text-[#4a2c1a]"
+                  onClick={() => setStep("agreement_signature")}
+                  data-testid="fo-ci-v2-back-agreement"
+                >
+                  Back
+                </Button>
+              ) : null}
+            </div>
             {step === "registration" ? (
               <Button
-                className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                className={SHELL_PRIMARY_BUTTON}
                 data-testid="fo-ci-v2-save-continue"
                 onClick={() => {
                   void registrationRef.current?.save().then((saved) => {
@@ -2180,23 +1916,38 @@ export function FoCheckInV2Workspace({
                   });
                 }}
               >
-                Save & Continue
+                Next: Payment & Guarantee
+                {/* Save & Continue */}
                 <ArrowRight className="ml-2 size-4" />
               </Button>
             ) : step === "payment_guarantee" ? (
               <Button
-                className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                className={SHELL_PRIMARY_BUTTON}
                 data-testid="fo-ci-v2-continue-agreement"
                 disabled={!depositSatisfied}
                 onClick={() => setStep("agreement_signature")}
               >
-                Continue to Agreement & Signature
+                Next: Agreement & Signature
                 <ArrowRight className="ml-2 size-4" />
               </Button>
             ) : step === "guest_reservation" ? (
               <div className="flex flex-col items-end gap-1">
+                {!canContinueStep ? (
+                  <p className="text-xs text-[#8B6914]" data-testid="fo-ci-v2-next-blocker">
+                    {readinessQuery.isError
+                      ? readinessQuery.error instanceof Error
+                        ? readinessQuery.error.message
+                        : "Check-in readiness could not be loaded."
+                      : stepReadiness?.hardBlockers[0]?.code === "ROOM_REQUIRED" ||
+                          stepReadiness?.continueMessage ===
+                            "Assign a room before completing check-in."
+                        ? "Assign a room to continue"
+                        : (stepReadiness?.continueMessage ??
+                          (unit ? "Checking check-in readiness…" : "Load the reservation first."))}
+                  </p>
+                ) : null}
                 <Button
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                  className={SHELL_PRIMARY_BUTTON}
                   onClick={() => setStep("registration")}
                   data-testid="fo-ci-v2-next-registration"
                   disabled={!canContinueStep}
@@ -2204,21 +1955,11 @@ export function FoCheckInV2Workspace({
                   Next: Registration
                   <ArrowRight className="ml-2 size-4" />
                 </Button>
-                {!canContinueStep ? (
-                  <p className="text-xs text-[#8B6914]" data-testid="fo-ci-v2-next-blocker">
-                    {readinessQuery.isError
-                      ? readinessQuery.error instanceof Error
-                        ? readinessQuery.error.message
-                        : "Check-in readiness could not be loaded."
-                      : (stepReadiness?.continueMessage ??
-                        (unit ? "Checking check-in readiness…" : "Load the reservation first."))}
-                  </p>
-                ) : null}
               </div>
             ) : step === "agreement_signature" ? (
               agreementSigned ? (
                 <Button
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                  className={SHELL_PRIMARY_BUTTON}
                   data-testid="fo-ci-v2-continue-review"
                   onClick={() => setStep("review_checkin")}
                 >
@@ -2236,7 +1977,7 @@ export function FoCheckInV2Workspace({
                     Save as Draft
                   </Button>
                   <Button
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                    className={SHELL_PRIMARY_BUTTON}
                     data-testid="fo-ci-v2-sign-agreement-footer"
                     disabled={!agreementActions.canSign || agreementActions.busy}
                     onClick={() => void agreementRef.current?.sign()}
@@ -2246,7 +1987,13 @@ export function FoCheckInV2Workspace({
                 </div>
               )
             ) : step === "review_checkin" ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex flex-col items-end gap-1">
+                {!reviewActions.canComplete && reviewActions.blockerHint ? (
+                  <p className="text-xs text-red-800" id="fo-ci-v2-complete-reason">
+                    {reviewActions.blockerHint}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button
                   variant="outline"
                   data-testid="fo-ci-v2-print-registration"
@@ -2256,20 +2003,28 @@ export function FoCheckInV2Workspace({
                 </Button>
                 {reviewActions.checkedIn || unitAlreadyCheckedIn(unit?.status) ? null : (
                   <Button
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                    className={cn(
+                      SHELL_PRIMARY_BUTTON,
+                      "disabled:opacity-70 disabled:text-[#251605]",
+                    )}
                     data-testid="fo-ci-v2-complete-checkin"
                     disabled={!reviewActions.canComplete || reviewActions.busy}
-                    aria-describedby="fo-ci-v2-complete-reason"
+                    aria-describedby={
+                      !reviewActions.canComplete && reviewActions.blockerHint
+                        ? "fo-ci-v2-complete-reason"
+                        : undefined
+                    }
                     onClick={() => reviewRef.current?.requestComplete()}
                   >
                     {reviewActions.busy ? "Completing…" : "Complete Check-In"}
                   </Button>
                 )}
+                </div>
               </div>
             ) : null}
           </div>
         </footer>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

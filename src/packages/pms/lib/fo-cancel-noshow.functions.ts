@@ -122,11 +122,10 @@ async function callCompleteNoShowRpc(
     _reservation_room_id?: string;
   },
 ): Promise<{ data: unknown; error: { message: string } | null }> {
-  const rpc = supabaseAdmin.rpc as unknown as (
-    name: "complete_hotel_reservation_no_show",
-    values: typeof args,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>;
-  return rpc("complete_hotel_reservation_no_show", args);
+  return supabaseAdmin.rpc(
+    "complete_hotel_reservation_no_show" as never,
+    args as never,
+  ) as Promise<{ data: unknown; error: { message: string } | null }>;
 }
 
 function joinName(first: string, last: string | null): string {

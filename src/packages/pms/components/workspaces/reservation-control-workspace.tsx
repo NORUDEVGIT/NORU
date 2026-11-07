@@ -14,10 +14,11 @@ import {
   CheckOutDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import {
-  FilterGroup,
-  FilterOption,
-  MoreFiltersMenu,
-} from "@/packages/pms/components/more-filters-menu";
+  PmsFilterGroup,
+  PmsFilterPopover,
+  PmsFilterSelect,
+  PmsFilterToggle,
+} from "@/packages/pms/components/pms-filter-popover";
 import { ReservationShellSlot } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { RESERVATION_STATUSES } from "@/packages/pms/lib/reservation-dates";
@@ -148,7 +149,6 @@ export function ReservationControlWorkspace({
 
   // More filters menu state.
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [menuDraft, setMenuDraft] = useState<ExceptionMenuDraft>(DEFAULT_MENU_DRAFT);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -217,12 +217,6 @@ export function ReservationControlWorkspace({
   /* More filters menu: choices are staged in `menuDraft` and applied together. */
   function patchMenuDraft(patch: Partial<ExceptionMenuDraft>) {
     setMenuDraft((current) => ({ ...current, ...patch }));
-  }
-
-  function toggleFilterGroup(id: string) {
-    setOpenGroups((current) =>
-      current.includes(id) ? current.filter((group) => group !== id) : [...current, id],
-    );
   }
 
   function applyMenuFilters(next: ExceptionMenuDraft) {
@@ -326,154 +320,132 @@ export function ReservationControlWorkspace({
       ) : null}
 
       <ReservationShellSlot name="filter">
-          <MoreFiltersMenu
-            iconOnly
+          <PmsFilterPopover
+            title="Filter Exceptions"
+            activeCount={filterChips.length}
             open={filterMenuOpen}
             onOpenChange={handleFilterMenuOpenChange}
-            activeCount={filterChips.length}
-            title="Filter exceptions"
-            onApply={() => applyMenuFilters(menuDraft)}
             onClear={() => applyMenuFilters(DEFAULT_MENU_DRAFT)}
+            onApply={() => applyMenuFilters(menuDraft)}
           >
-            <FilterGroup
-              id="severity"
+            <PmsFilterGroup
               title="Severity"
-              count={menuDraft.severity !== "all" ? 1 : 0}
-              open={openGroups.includes("severity")}
-              onToggle={toggleFilterGroup}
+              summary={
+                menuDraft.severity === "all"
+                  ? undefined
+                  : SEVERITY_OPTIONS.find(([id]) => id === menuDraft.severity)?.[1]
+              }
+              defaultOpen={menuDraft.severity !== "all"}
             >
-              {SEVERITY_OPTIONS.map(([id, label]) => (
-                <FilterOption
-                  key={id}
-                  type="radio"
-                  name="exception-filter-severity"
-                  label={label}
-                  checked={menuDraft.severity === id}
-                  onChange={() => patchMenuDraft({ severity: id })}
-                />
-              ))}
-            </FilterGroup>
-
-            <FilterGroup
-              id="type"
+              <PmsFilterSelect
+                value={menuDraft.severity}
+                onValueChange={(value) =>
+                  patchMenuDraft({ severity: value as ExceptionMenuDraft["severity"] })
+                }
+                options={SEVERITY_OPTIONS}
+                ariaLabel="Severity"
+              />
+            </PmsFilterGroup>
+            <PmsFilterGroup
               title="Exception type"
-              count={menuDraft.key !== "all" ? 1 : 0}
-              open={openGroups.includes("type")}
-              onToggle={toggleFilterGroup}
+              summary={
+                menuDraft.key === "all" ? undefined : RESERVATION_EXCEPTION_KEY_LABELS[menuDraft.key]
+              }
+              defaultOpen={menuDraft.key !== "all"}
             >
-              <FilterOption
-                type="radio"
-                name="exception-filter-type"
-                label="All types"
-                checked={menuDraft.key === "all"}
-                onChange={() => patchMenuDraft({ key: "all" })}
+              <PmsFilterSelect
+                value={menuDraft.key}
+                onValueChange={(value) =>
+                  patchMenuDraft({ key: value as ExceptionMenuDraft["key"] })
+                }
+                options={[
+                  ["all", "All types"],
+                  ...RESERVATION_EXCEPTION_KEYS.map(
+                    (value) => [value, RESERVATION_EXCEPTION_KEY_LABELS[value]] as const,
+                  ),
+                ]}
+                ariaLabel="Exception type"
               />
-              {RESERVATION_EXCEPTION_KEYS.map((value) => (
-                <FilterOption
-                  key={value}
-                  type="radio"
-                  name="exception-filter-type"
-                  label={RESERVATION_EXCEPTION_KEY_LABELS[value]}
-                  checked={menuDraft.key === value}
-                  onChange={() => patchMenuDraft({ key: value })}
-                />
-              ))}
-            </FilterGroup>
-
-            <FilterGroup
-              id="source"
+            </PmsFilterGroup>
+            <PmsFilterGroup
               title="Source"
-              count={menuDraft.sourceModule !== "all" ? 1 : 0}
-              open={openGroups.includes("source")}
-              onToggle={toggleFilterGroup}
+              summary={
+                menuDraft.sourceModule === "all"
+                  ? undefined
+                  : RESERVATION_EXCEPTION_SOURCE_LABELS[menuDraft.sourceModule]
+              }
+              defaultOpen={menuDraft.sourceModule !== "all"}
             >
-              <FilterOption
-                type="radio"
-                name="exception-filter-source"
-                label="All sources"
-                checked={menuDraft.sourceModule === "all"}
-                onChange={() => patchMenuDraft({ sourceModule: "all" })}
+              <PmsFilterSelect
+                value={menuDraft.sourceModule}
+                onValueChange={(value) =>
+                  patchMenuDraft({ sourceModule: value as ExceptionMenuDraft["sourceModule"] })
+                }
+                options={[
+                  ["all", "All sources"],
+                  ...RESERVATION_EXCEPTION_SOURCE_MODULES.map(
+                    (value) => [value, RESERVATION_EXCEPTION_SOURCE_LABELS[value]] as const,
+                  ),
+                ]}
+                ariaLabel="Source"
               />
-              {RESERVATION_EXCEPTION_SOURCE_MODULES.map((value) => (
-                <FilterOption
-                  key={value}
-                  type="radio"
-                  name="exception-filter-source"
-                  label={RESERVATION_EXCEPTION_SOURCE_LABELS[value]}
-                  checked={menuDraft.sourceModule === value}
-                  onChange={() => patchMenuDraft({ sourceModule: value })}
-                />
-              ))}
-            </FilterGroup>
-
-            <FilterGroup
-              id="owner"
+            </PmsFilterGroup>
+            <PmsFilterGroup
               title="Owner"
-              count={menuDraft.responsibleModule !== "all" ? 1 : 0}
-              open={openGroups.includes("owner")}
-              onToggle={toggleFilterGroup}
+              summary={
+                menuDraft.responsibleModule === "all"
+                  ? undefined
+                  : RESERVATION_EXCEPTION_OWNER_LABELS[menuDraft.responsibleModule]
+              }
+              defaultOpen={menuDraft.responsibleModule !== "all"}
             >
-              <FilterOption
-                type="radio"
-                name="exception-filter-owner"
-                label="All owners"
-                checked={menuDraft.responsibleModule === "all"}
-                onChange={() => patchMenuDraft({ responsibleModule: "all" })}
+              <PmsFilterSelect
+                value={menuDraft.responsibleModule}
+                onValueChange={(value) =>
+                  patchMenuDraft({
+                    responsibleModule: value as ExceptionMenuDraft["responsibleModule"],
+                  })
+                }
+                options={[
+                  ["all", "All owners"],
+                  ...RESERVATION_EXCEPTION_RESPONSIBLE_MODULES.map(
+                    (value) => [value, RESERVATION_EXCEPTION_OWNER_LABELS[value]] as const,
+                  ),
+                ]}
+                ariaLabel="Owner"
               />
-              {RESERVATION_EXCEPTION_RESPONSIBLE_MODULES.map((value) => (
-                <FilterOption
-                  key={value}
-                  type="radio"
-                  name="exception-filter-owner"
-                  label={RESERVATION_EXCEPTION_OWNER_LABELS[value]}
-                  checked={menuDraft.responsibleModule === value}
-                  onChange={() => patchMenuDraft({ responsibleModule: value })}
-                />
-              ))}
-            </FilterGroup>
-
-            <FilterGroup
-              id="status"
+            </PmsFilterGroup>
+            <PmsFilterGroup
               title="Reservation status"
-              count={menuDraft.status !== "all" ? 1 : 0}
-              open={openGroups.includes("status")}
-              onToggle={toggleFilterGroup}
+              summary={menuDraft.status === "all" ? undefined : menuDraft.status.replaceAll("_", " ")}
+              defaultOpen={menuDraft.status !== "all"}
             >
-              <FilterOption
-                type="radio"
-                name="exception-filter-status"
-                label="All statuses"
-                checked={menuDraft.status === "all"}
-                onChange={() => patchMenuDraft({ status: "all" })}
+              <PmsFilterSelect
+                value={menuDraft.status}
+                onValueChange={(value) =>
+                  patchMenuDraft({ status: value as ExceptionMenuDraft["status"] })
+                }
+                options={[
+                  ["all", "All statuses"],
+                  ...RESERVATION_STATUSES.map(
+                    (value) => [value, value.replaceAll("_", " ")] as const,
+                  ),
+                ]}
+                ariaLabel="Reservation status"
               />
-              {RESERVATION_STATUSES.map((value) => (
-                <FilterOption
-                  key={value}
-                  type="radio"
-                  name="exception-filter-status"
-                  label={value.replaceAll("_", " ")}
-                  checked={menuDraft.status === value}
-                  onChange={() => patchMenuDraft({ status: value })}
-                />
-              ))}
-            </FilterGroup>
-
-            <FilterGroup
-              id="blocking"
+            </PmsFilterGroup>
+            <PmsFilterGroup
               title="Blocking"
-              count={menuDraft.blockingOnly ? 1 : 0}
-              open={openGroups.includes("blocking")}
-              onToggle={toggleFilterGroup}
+              summary={menuDraft.blockingOnly ? "Blocking only" : undefined}
+              defaultOpen={menuDraft.blockingOnly}
             >
-              <FilterOption
-                type="checkbox"
-                name="exception-filter-blocking"
+              <PmsFilterToggle
                 label="Blocking exceptions only"
                 checked={menuDraft.blockingOnly}
-                onChange={() => patchMenuDraft({ blockingOnly: !menuDraft.blockingOnly })}
+                onChange={(blockingOnly) => patchMenuDraft({ blockingOnly })}
               />
-            </FilterGroup>
-          </MoreFiltersMenu>
+            </PmsFilterGroup>
+          </PmsFilterPopover>
       </ReservationShellSlot>
 
       {filterChips.length > 0 ? (

@@ -63,6 +63,23 @@ export const DETAIL_SIDEBAR_ITEMS: Array<{
   { id: "history", label: "History" },
 ];
 
+export const DETAIL_PRIMARY_TABS: Array<{
+  id: DetailWorkspaceTab;
+  label: string;
+  tabs: DetailWorkspaceTab[];
+}> = [
+  { id: "overview", label: "Overview", tabs: ["overview"] },
+  { id: "stay", label: "Stay & Rooms", tabs: ["stay", "rooms", "rates", "packages"] },
+  { id: "guest", label: "Guest", tabs: ["guest"] },
+  { id: "folio", label: "Folio & Payments", tabs: ["folio"] },
+  { id: "requests", label: "Requests & Notes", tabs: ["requests", "notes", "communication"] },
+  { id: "history", label: "History", tabs: ["history", "linked"] },
+];
+
+export function detailPrimaryTab(tab: DetailWorkspaceTab) {
+  return DETAIL_PRIMARY_TABS.find((item) => item.tabs.includes(tab)) ?? DETAIL_PRIMARY_TABS[0]!;
+}
+
 export type DetailDepositView = {
   required: boolean | null;
   amount: number | null;

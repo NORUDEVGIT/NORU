@@ -64,19 +64,15 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   CARD1_ADDRESS_ADAPT_COPY,
-  CARD1_ADDRESS_SUBTITLE,
-  CARD1_AGREEMENT_OUT,
   CARD1_BLOCKER_LABELS,
   CARD1_BRAND_IMAGE_HELPER,
   CARD1_BRAND_IMAGE_UPLOAD_ERROR,
-  CARD1_BRANDING_HELPER,
   CARD1_BUSINESS_DATE_CURRENT_COPY,
   CARD1_CALENDAR_DISPLAY_LABELS,
   CARD1_CALENDAR_DISPLAYS,
   CARD1_CAPACITY_COPY,
   CARD1_DEFAULT_BLOCKERS,
   CARD1_FULL_ADDRESS_COPY,
-  CARD1_IDENTITY_HELPER,
   CARD1_INDEPENDENT_HELPER,
   CARD1_MANUAL_ROLLOVER_ROLES,
   CARD1_OPENING_DATE_IN,
@@ -88,7 +84,6 @@ import {
   CARD1_ROOMS_HREF,
   CARD1_SOCIAL_PLATFORM_LABELS,
   CARD1_SOCIAL_PLATFORMS,
-  CARD1_STRUCTURE_CRUD_COPY,
   CARD1_VAT_GATE_COPY,
   LEGAL_ENTITY_TYPE_LABELS,
   LEGAL_ENTITY_TYPES,
@@ -244,7 +239,6 @@ export function IdentityStep({
     <div className="space-y-4" data-testid="pms-card1-step-identity">
       <Panel
         title="Property Identity"
-        helper={CARD1_IDENTITY_HELPER}
         testId="card1-identity-panel"
         icon="property"
       >
@@ -498,7 +492,6 @@ export function IdentityStep({
       </Panel>
       <Panel
         title="Branding & Visual Identity"
-        helper={CARD1_BRANDING_HELPER}
         testId="card1-branding-panel"
         icon="image"
       >
@@ -622,7 +615,6 @@ export function AddressStep({
     <div className="space-y-4" data-testid="pms-card1-step-address">
       <Panel
         title="Address & Location"
-        helper={CARD1_ADDRESS_SUBTITLE}
         testId="card1-address-panel"
         icon="address"
       >
@@ -1759,7 +1751,7 @@ export function LegalStep({
 }) {
   return (
     <div className="space-y-4" data-testid="pms-card1-step-legal">
-      <Panel title="Legal Identity" helper={CARD1_AGREEMENT_OUT} icon="briefcase">
+      <Panel title="Legal Identity" icon="briefcase">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <Field
             id="card1-legal-name"
@@ -2105,7 +2097,6 @@ export function StructureStep({
     >
       <Panel
         title="Property Structure"
-        helper={CARD1_STRUCTURE_CRUD_COPY}
         testId="card1-structure-tree"
         icon="facility"
       >
@@ -2887,8 +2878,8 @@ function ColourField({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <div className="flex items-center gap-2">
-        <label className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border border-[#CCCCCC]">
+      <div className="flex h-11 overflow-hidden rounded-md border border-[#CCCCCC] bg-white">
+        <label className="relative h-full w-11 shrink-0 overflow-hidden border-r border-[#CCCCCC]">
           <span className="sr-only">{label} swatch</span>
           <Input
             type="color"
@@ -2896,7 +2887,7 @@ function ColourField({
             value={pickerValue}
             disabled={disabled}
             onChange={(event) => onChange(event.target.value.toUpperCase())}
-            className="absolute inset-0 h-full w-full cursor-pointer border-0 p-0"
+            className="absolute inset-[-20%] h-[140%] w-[140%] cursor-pointer border-0 p-0"
           />
         </label>
         <Input
@@ -2907,7 +2898,7 @@ function ColourField({
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value)}
-          className={PROPERTY_SETUP_CONTROL_CLASS}
+          className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 font-mono text-sm shadow-none focus-visible:ring-0"
         />
       </div>
       {error ? (
@@ -2994,12 +2985,30 @@ function BrandImageField({
       <Label htmlFor={`${id}-file`}>{label}</Label>
       <div className={`flex items-center gap-3 ${landscape ? "sm:items-stretch" : ""}`}>
         <div
-          className={`overflow-hidden rounded-xl border border-[#E8E2D6] bg-[#F7F4EE] ${
+          className={`group relative overflow-hidden rounded-xl border border-[#E8E2D6] bg-[#F7F4EE] ${
             landscape ? "h-20 w-36" : "h-16 w-16"
           }`}
         >
           {shown ? (
-            <img src={shown} alt={`${label} preview`} className="h-full w-full object-cover" />
+            <>
+              <img src={shown} alt={`${label} preview`} className="h-full w-full object-cover" />
+              {!disabled ? (
+                <button
+                  type="button"
+                  aria-label="Remove Image"
+                  disabled={uploading}
+                  onClick={() => {
+                    if (localPreview) URL.revokeObjectURL(localPreview);
+                    setLocalPreview("");
+                    setLocalError("");
+                    onChange("");
+                  }}
+                  className="absolute right-1 top-1 rounded-md bg-white/90 p-1 text-red-600 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              ) : null}
+            </>
           ) : (
             <button
               type="button"
@@ -3013,27 +3022,15 @@ function BrandImageField({
         </div>
         <div className="min-w-0 space-y-1">
           {shown && !disabled ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? "Uploading…" : "Change Image"}
-              </Button>
-              <PropertySetupRemoveButton
-                label="Remove Image"
-                disabled={uploading}
-                onClick={() => {
-                  if (localPreview) URL.revokeObjectURL(localPreview);
-                  setLocalPreview("");
-                  setLocalError("");
-                  onChange("");
-                }}
-              />
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+            >
+              {uploading ? "Uploading…" : "Change Image"}
+            </Button>
           ) : null}
           <p className="text-xs text-muted-foreground">{CARD1_BRAND_IMAGE_HELPER}</p>
         </div>
@@ -3191,22 +3188,9 @@ function PropertyImagesField({
             )}
           </Label>
           <p className="text-xs text-muted-foreground">
-            Add multiple photos of your property. The designated cover photo will be displayed on guest documents and booking headers.
+            Cover photo is used on guest documents.
           </p>
         </div>
-        {!disabled && allImages.length > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={uploading}
-            onClick={() => fileRef.current?.click()}
-            className="h-8 gap-1.5 text-xs font-medium"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add More Images
-          </Button>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -3245,7 +3229,7 @@ function PropertyImagesField({
                     type="button"
                     aria-label="Remove image"
                     onClick={() => removeImage(path)}
-                    className="absolute right-2 top-2 rounded-md bg-white/90 p-1 text-red-600 opacity-90 shadow hover:bg-white hover:text-red-700 hover:opacity-100 transition-opacity"
+                    className="absolute right-2 top-2 rounded-md bg-white/90 p-1 text-red-600 opacity-0 shadow transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

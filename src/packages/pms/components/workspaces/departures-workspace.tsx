@@ -16,6 +16,7 @@ import { formatStayDate } from "@/packages/pms/components/bookings/reservation-b
 import { DepartureQuickViewSheet, type DepartureQuickViewAction } from "@/packages/pms/components/frontoffice/departure-quick-view";
 import { CheckOutDialog, NoShowDialog, RoomMoveDialog, StayDatesDialog } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { LateCheckoutDialog } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
+import { FoMaintenanceActionModal } from "@/packages/pms/components/frontoffice/fo-maintenance-action-modal";
 import { FO_DEPARTURE_EXCEPTION_LABELS } from "@/packages/pms/lib/fo-departure";
 import { siblingUnitSummary } from "@/packages/pms/lib/fo-unit-desk";
 import {
@@ -31,7 +32,6 @@ import { useMoney, useRestaurantTimezone } from "@/core/state/property-format";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
 import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
-import { MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
 import { cn } from "@/shared/lib/utils";
 
 const ALL = "all";
@@ -139,6 +139,7 @@ export function DeparturesWorkspace({
   const [moveStay, setMoveStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [unarrivedStay, setUnarrivedStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
   const [lateQv, setLateQv] = useState<FoDepartureQuickView | null>(null);
+  const [maintenanceStay, setMaintenanceStay] = useState<FoDepartureDeskRow["stay"] | null>(null);
 
   useEffect(() => {
     setSearch(initialSearch);
@@ -221,7 +222,7 @@ export function DeparturesWorkspace({
     }
     if (action === "open_maintenance") {
       closeOverlays();
-      void navigate({ to: MAINTENANCE_HREF });
+      setMaintenanceStay(qv.stay);
       return;
     }
     closeOverlays();
@@ -403,7 +404,7 @@ export function DeparturesWorkspace({
         restaurantId={restaurantId}
         reservationId={qvId}
         reservationRoomId={qvRoomId}
-        open={Boolean(qvId) && !datesStay && !checkOutStay && !lateQv && !moveStay && !unarrivedStay}
+        open={Boolean(qvId) && !datesStay && !checkOutStay && !lateQv && !moveStay && !unarrivedStay && !maintenanceStay}
         onOpenChange={(open) => {
           if (!open) {
             setQvId(null);
@@ -482,6 +483,19 @@ export function DeparturesWorkspace({
           refreshDesk();
         }}
       />
+      {maintenanceStay ? (
+        <FoMaintenanceActionModal
+          restaurantId={restaurantId}
+          stay={maintenanceStay}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setMaintenanceStay(null);
+              refreshDesk();
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 }

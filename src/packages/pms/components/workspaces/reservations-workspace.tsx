@@ -25,7 +25,6 @@ import {
   LogIn,
   LogOut,
   Menu,
-  PanelRight,
   RefreshCw,
   Search,
   Table2,
@@ -66,7 +65,6 @@ import {
   exportReservationsToPdf,
   openPdfWindow,
 } from "@/packages/pms/components/reservations/reservation-export-pdf";
-import { ReservationQuickViewPanel } from "@/packages/pms/components/reservations/reservation-quick-view";
 import { BookingCalendarPanel } from "@/packages/pms/components/reservations/booking-calendar";
 import {
   DEFAULT_CALENDAR_VIEW,
@@ -104,13 +102,10 @@ import { ReservationEditWorkspace } from "@/packages/pms/components/workspaces/r
 import { ReservationCancelWorkspace } from "@/packages/pms/components/workspaces/reservation-cancel-workspace";
 import { ReservationNoShowWorkspace } from "@/packages/pms/components/workspaces/reservation-noshow-workspace";
 import { getReservationDesk } from "@/packages/pms/lib/reservation-workspace/desk.server";
-import { getReservationQuickView } from "@/packages/pms/lib/reservation-workspace/quick-view.server";
-import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import type {
   OperationalReservationView,
   ReservationDeskRow,
   ReservationDeskSnapshot,
-  ReservationQuickView,
 } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import {
@@ -131,7 +126,6 @@ import {
 import { listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import { setReservationStatus, copyReservation } from "@/packages/pms/lib/reservations.functions";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import {
   Select,
@@ -141,7 +135,6 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
-import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
@@ -161,10 +154,9 @@ type ReservationActionDialog = "assign_room" | "change_room" | "check_in" | "che
 
 /** Reads refreshed by the shared toolbar Refresh button; the KPI row is always included. */
 const SECTION_REFRESH_KEYS: Record<CalendarWorkspaceSection, string[]> = {
-  desk: ["reservation-desk", "reservation-quick-view"],
+  desk: ["reservation-desk"],
   calendar: [
     "reservation-desk",
-    "reservation-quick-view",
     "reservation-calendar",
     "reservation-calendar-search",
     "reservation-calendar-exceptions",
@@ -348,9 +340,7 @@ export function ReservationsWorkspace({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const loadDesk = useServerFn(getReservationDesk);
-  const loadQuickView = useServerFn(getReservationQuickView);
   const loadRoomTypes = useServerFn(listRoomTypes);
-  const loadSet6 = useServerFn(getPmsSet6Snapshot);
   const submitStatus = useServerFn(setReservationStatus);
   const submitCopy = useServerFn(copyReservation);
   const access = usePmsPermissions(restaurantId);
@@ -386,7 +376,6 @@ export function ReservationsWorkspace({
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [quickViewOpen, setQuickViewOpen] = useState(false);
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
   const [primarySlot, setPrimarySlot] = useState<HTMLElement | null>(null);
@@ -400,8 +389,6 @@ export function ReservationsWorkspace({
   );
   const [calendarHorizon, setCalendarHorizon] = useState<CalendarHorizon>(7);
   const [calendarView, setCalendarView] = useState<CalendarViewState>(DEFAULT_CALENDAR_VIEW);
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
-  const [desktopQuickView, setDesktopQuickView] = useState(false);
   const [actionDialog, setActionDialog] = useState<{
     kind: ReservationActionDialog;
     row: ReservationDeskRow;
@@ -470,12 +457,6 @@ export function ReservationsWorkspace({
     staleTime: 5 * 60_000,
   });
 
-  const set6Query = useQuery({
-    queryKey: ["reservation-desk-set6", restaurantId],
-    queryFn: () => loadSet6({ data: { restaurantId } }),
-    staleTime: 5 * 60_000,
-  });
-
   const bar: DeskBarFilters = {
     arrivalFrom: dateFrom,
     arrivalTo: dateTo,
@@ -538,22 +519,6 @@ export function ReservationsWorkspace({
     return fromDesk;
   }, [deskQuery.data?.rows, selectedId, selectedRoomId, calendarRow]);
 
-  const quickViewQuery = useQuery({
-    queryKey: ["reservation-quick-view", restaurantId, selectedId, selectedRoomId],
-    queryFn: () =>
-      loadQuickView({
-        data: {
-          restaurantId,
-          reservationId: selectedId!,
-          ...(selectedRoomId ? { reservationRoomId: selectedRoomId } : {}),
-        },
-      }),
-    enabled: selectedId !== null,
-    retry: false,
-  });
-  const quickViewErrorDetail =
-    quickViewQuery.error instanceof Error ? quickViewQuery.error.message : null;
-
   function invalidateReservationReads() {
     void queryClient.invalidateQueries({ queryKey: ["reservation-desk", restaurantId] });
     void queryClient.invalidateQueries({ queryKey: ["reservation-quick-view", restaurantId] });
@@ -610,21 +575,11 @@ export function ReservationsWorkspace({
   }, [debouncedSearch]);
 
   useEffect(() => {
-    const media = window.matchMedia("(min-width: 1280px)");
-    const apply = () => setDesktopQuickView(media.matches);
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, []);
-
-  useEffect(() => {
     if (!selectedId) return;
     if (deskQuery.data?.rows.some((row) => row.reservationId === selectedId)) return;
     if (calendarRow?.reservationId === selectedId) return;
     setSelectedId(null);
     setSelectedRoomId(null);
-    setMobileDetailOpen(false);
-    setQuickViewOpen(false);
   }, [deskQuery.data?.rows, selectedId, calendarRow]);
 
   function resetPage() {
@@ -655,31 +610,20 @@ export function ReservationsWorkspace({
     setPage(1);
   }
 
-  function selectRow(row: ReservationDeskRow) {
-    setSelectedId(row.reservationId);
-    setSelectedRoomId(row.reservationRoomId ?? null);
-    if (!row.reservationRoomId) setCalendarRow(null);
-    setQuickViewOpen(true);
-    setMobileDetailOpen(true);
-  }
-
   function openReservation(id: string) {
-    setMobileDetailOpen(false);
+    setSelectedId(id);
     setOverlay({ type: "reservation-detail", reservationId: id });
   }
 
   function openEditReservation(id: string) {
-    setMobileDetailOpen(false);
     setOverlay({ type: "edit-reservation", reservationId: id });
   }
 
   function openCancelReservation(id: string) {
-    setMobileDetailOpen(false);
     setOverlay({ type: "cancel-reservation", reservationId: id });
   }
 
   function openNoShowReservation(id: string) {
-    setMobileDetailOpen(false);
     setOverlay({ type: "no-show-reservation", reservationId: id });
   }
 
@@ -688,8 +632,6 @@ export function ReservationsWorkspace({
     setWorkspaceSearch("");
     setSelectedId(null);
     setSelectedRoomId(null);
-    setQuickViewOpen(false);
-    setMobileDetailOpen(false);
     void navigate({
       to: "/restaurant/pms/reservations",
       search: { tab: tabFromWorkspaceSection(section) },
@@ -788,7 +730,6 @@ export function ReservationsWorkspace({
   function handleReservationAction(
     actionId: ReservationContextActionId,
     row: ReservationDeskRow,
-    _quickView?: ReservationQuickView,
   ) {
     switch (actionId) {
       case "open":
@@ -1155,123 +1096,87 @@ export function ReservationsWorkspace({
               </section>
 
           {workspaceSection === "desk" ? (
-            <>
-              <div
-                className={cn(
-                  "grid w-full min-w-0 gap-3",
-                  quickViewOpen && "xl:grid-cols-[minmax(0,1fr)_300px]",
-                )}
-              >
-                <section className="min-w-0 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
-                  {deskQuery.isFetching && !isInitialLoading ? (
-                    <p className="border-b border-border px-3 py-1 text-[11px] text-muted-foreground">
-                      Updating results…
-                    </p>
-                  ) : null}
+            <section className="min-w-0 w-full overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+              {deskQuery.isFetching && !isInitialLoading ? (
+                <p className="border-b border-border px-3 py-1 text-[11px] text-muted-foreground">
+                  Updating results…
+                </p>
+              ) : null}
 
-                  {deskQuery.isError ? (
-                    <InlineError
-                      message={
-                        deskQuery.error instanceof Error
-                          ? deskQuery.error.message
-                          : "Could not load the Reservation Desk."
-                      }
-                      onRetry={() => void deskQuery.refetch()}
-                    />
-                  ) : isInitialLoading ? (
-                    <DeskTableSkeleton />
-                  ) : snapshot?.rows.length === 0 ? (
-                    <div className="grid min-h-72 place-items-center px-6 text-center">
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {hasActiveDeskConstraints(search, bar, advanced)
-                            ? "No reservations match these filters"
-                            : "No reservations in this view"}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {hasActiveDeskConstraints(search, bar, advanced)
-                            ? "Try adjusting your dates, status, room, or advanced filters."
-                            : "Adjust the filters or clear the search to continue."}
-                        </p>
-                        {hasActiveDeskConstraints(search, bar, advanced) ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-4"
-                            onClick={clearFilters}
-                          >
-                            Clear Filters
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : (
-                    <ReservationTable
-                      rows={snapshot?.rows ?? []}
-                      selectedId={selectedId}
-                      businessDate={snapshot?.businessDate ?? ""}
-                      canManage={canManageActions}
-                      capabilities={reservationCapabilities}
-                      onSelect={selectRow}
-                      onOpen={openReservation}
-                      onAction={handleReservationAction}
-                    />
-                  )}
-
-                  <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
-                    <p className="text-xs text-muted-foreground">
-                      Page {snapshot?.query.page ?? page} of {pages} · {total} total · {PAGE_SIZE}{" "}
-                      per page
+              {deskQuery.isError ? (
+                <InlineError
+                  message={
+                    deskQuery.error instanceof Error
+                      ? deskQuery.error.message
+                      : "Could not load the Reservation Desk."
+                  }
+                  onRetry={() => void deskQuery.refetch()}
+                />
+              ) : isInitialLoading ? (
+                <DeskTableSkeleton />
+              ) : snapshot?.rows.length === 0 ? (
+                <div className="grid min-h-72 place-items-center px-6 text-center">
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {hasActiveDeskConstraints(search, bar, advanced)
+                        ? "No reservations match these filters"
+                        : "No reservations in this view"}
                     </p>
-                    <div className="flex items-center gap-1">
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {hasActiveDeskConstraints(search, bar, advanced)
+                        ? "Try adjusting your dates, status, room, or advanced filters."
+                        : "Adjust the filters or clear the search to continue."}
+                    </p>
+                    {hasActiveDeskConstraints(search, bar, advanced) ? (
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={page <= 1 || deskQuery.isFetching}
-                        onClick={() => setPage((current) => Math.max(1, current - 1))}
+                        className="mt-4"
+                        onClick={clearFilters}
                       >
-                        <ChevronLeft className="size-4" />
-                        Previous
+                        Clear Filters
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!snapshot?.query.hasMore || deskQuery.isFetching}
-                        onClick={() => setPage((current) => current + 1)}
-                      >
-                        Next
-                        <ChevronRight className="size-4" />
-                      </Button>
-                    </div>
+                    ) : null}
                   </div>
-                </section>
+                </div>
+              ) : (
+                <ReservationTable
+                  rows={snapshot?.rows ?? []}
+                  businessDate={snapshot?.businessDate ?? ""}
+                  canManage={canManageActions}
+                  capabilities={reservationCapabilities}
+                  onOpen={openReservation}
+                  onAction={handleReservationAction}
+                />
+              )}
 
-                {quickViewOpen ? (
-                  <aside className="hidden min-w-0 xl:block">
-                    <QuickViewRail
-                      collapsed={false}
-                      onToggle={() => setQuickViewOpen(false)}
-                      row={selectedRow}
-                      loading={quickViewQuery.isLoading}
-                      error={quickViewQuery.isError}
-                      errorDetail={quickViewErrorDetail}
-                      quickView={quickViewQuery.data}
-                      onRetry={() => void quickViewQuery.refetch()}
-                      businessDate={snapshot?.businessDate ?? ""}
-                      canManage={canManageActions}
-                      capabilities={reservationCapabilities}
-                      sourceCodes={set6Query.data?.snapshot.sourceCodes}
-                      marketSegments={set6Query.data?.snapshot.marketSegments}
-                      onAction={(actionId) => {
-                        if (selectedRow) {
-                          handleReservationAction(actionId, selectedRow, quickViewQuery.data);
-                        }
-                      }}
-                    />
-                  </aside>
-                ) : null}
+              <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Page {snapshot?.query.page ?? page} of {pages} · {total} total · {PAGE_SIZE}{" "}
+                  per page
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1 || deskQuery.isFetching}
+                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  >
+                    <ChevronLeft className="size-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!snapshot?.query.hasMore || deskQuery.isFetching}
+                    onClick={() => setPage((current) => current + 1)}
+                  >
+                    Next
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
               </div>
-            </>
+            </section>
           ) : workspaceSection === "arrivals-departures" ? (
             <ArrivalsDeparturesWorkspace
               restaurantId={restaurantId}
@@ -1313,12 +1218,7 @@ export function ReservationsWorkspace({
               onOpenReservation={openReservation}
             />
           ) : (
-            <div
-              className={cn(
-                "grid min-w-0 gap-3",
-                quickViewOpen && "xl:grid-cols-[minmax(0,1fr)_300px]",
-              )}
-            >
+            <div className="min-w-0 w-full">
               <BookingCalendarPanel
                 restaurantId={restaurantId}
                 canManage={canManageActions}
@@ -1337,75 +1237,15 @@ export function ReservationsWorkspace({
                   setCalendarRow(row);
                   setSelectedId(row.reservationId);
                   setSelectedRoomId(row.reservationRoomId ?? null);
-                  setQuickViewOpen(true);
-                  setMobileDetailOpen(true);
                 }}
                 onOpen={openReservation}
                 onAction={handleReservationAction}
               />
-              {quickViewOpen ? (
-                <aside className="hidden min-w-0 xl:block">
-                  <QuickViewRail
-                    collapsed={false}
-                    onToggle={() => setQuickViewOpen(false)}
-                    row={selectedRow}
-                    loading={quickViewQuery.isLoading}
-                    error={quickViewQuery.isError}
-                    errorDetail={quickViewErrorDetail}
-                    quickView={quickViewQuery.data}
-                    onRetry={() => void quickViewQuery.refetch()}
-                    businessDate={snapshot?.businessDate ?? ""}
-                    canManage={canManageActions}
-                    capabilities={reservationCapabilities}
-                    sourceCodes={set6Query.data?.snapshot.sourceCodes}
-                    marketSegments={set6Query.data?.snapshot.marketSegments}
-                    onAction={(actionId) => {
-                      if (selectedRow) {
-                        handleReservationAction(actionId, selectedRow, quickViewQuery.data);
-                      }
-                    }}
-                  />
-                </aside>
-              ) : null}
             </div>
           )}
         </main>
         </ReservationShellProvider>
       </div>
-
-      <Sheet
-        open={
-          !desktopQuickView &&
-          isDeskOrCalendar &&
-          mobileDetailOpen &&
-          selectedRow !== null
-        }
-        onOpenChange={(open) => {
-          setMobileDetailOpen(open);
-          if (!open) setQuickViewOpen(false);
-        }}
-      >
-        <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-md xl:hidden">
-          <ReservationQuickViewPanel
-            row={selectedRow}
-            loading={quickViewQuery.isLoading}
-            error={quickViewQuery.isError}
-            errorDetail={quickViewErrorDetail}
-            quickView={quickViewQuery.data}
-            onRetry={() => void quickViewQuery.refetch()}
-            businessDate={snapshot?.businessDate ?? ""}
-            canManage={canManageActions}
-            capabilities={reservationCapabilities}
-            sourceCodes={set6Query.data?.snapshot.sourceCodes}
-            marketSegments={set6Query.data?.snapshot.marketSegments}
-            onAction={(actionId) => {
-              if (selectedRow) {
-                handleReservationAction(actionId, selectedRow, quickViewQuery.data);
-              }
-            }}
-          />
-        </SheetContent>
-      </Sheet>
 
       {actionDialog ? (
         <ReservationActionDialogHost
@@ -1446,6 +1286,7 @@ export function ReservationsWorkspace({
           overlay?.type === "cancel-reservation" ||
           overlay?.type === "no-show-reservation"
         }
+        size={overlay?.type === "reservation-detail" ? "workspace" : "wide"}
         showCreateIcon={overlay?.type === "new-reservation"}
         onOpenChange={(open) => {
           if (
@@ -1823,130 +1664,6 @@ function OperationalViewsRail({
   );
 }
 
-function QuickViewRail({
-  collapsed,
-  onToggle,
-  row,
-  loading,
-  error,
-  errorDetail = null,
-  quickView,
-  onRetry,
-  businessDate,
-  canManage,
-  capabilities,
-  onAction,
-  sourceCodes,
-  marketSegments,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-  row: ReservationDeskRow | null;
-  loading: boolean;
-  error: boolean;
-  errorDetail?: string | null;
-  quickView: ReservationQuickView | undefined;
-  onRetry: () => void;
-  businessDate: string;
-  canManage: boolean;
-  capabilities?: ReservationActionCapabilities;
-  onAction: (actionId: ReservationContextActionId) => void;
-  sourceCodes?: Array<{ id: string; name: string; code?: string | null }> | null;
-  marketSegments?: Array<{ id: string; name: string; code?: string | null }> | null;
-}) {
-  if (collapsed) {
-    return (
-      <aside className="relative flex min-h-[520px] w-14 flex-col items-center gap-3 overflow-hidden rounded-xl border border-[#DDD4C5] bg-white py-3 shadow-sm">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={row ? `Quick View for ${row.confirmationNumber}` : "Quick View"}
-              onClick={onToggle}
-              className="rounded-lg p-2 text-[#6B4A0A] hover:bg-[#F4E9D0]"
-            >
-              <PanelRight className="size-4" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {row ? `${row.guestName} · ${row.confirmationNumber}` : "Quick View"}
-          </TooltipContent>
-        </Tooltip>
-        {row ? <CollapsedStatusMark status={row.status} /> : null}
-        <button
-          type="button"
-          aria-label="Expand Quick View"
-          onClick={onToggle}
-          className="absolute left-0.5 top-6 z-20 hidden size-5 items-center justify-center rounded-full border border-[#DDD4C5] bg-white text-[#6B6256] shadow-sm xl:inline-flex"
-        >
-          <ChevronLeft className="size-3.5" />
-        </button>
-      </aside>
-    );
-  }
-
-  return (
-    <div className="relative min-w-0">
-      <button
-        type="button"
-        aria-label="Collapse Quick View"
-        onClick={onToggle}
-        className="absolute -left-2.5 top-6 z-20 hidden size-5 items-center justify-center rounded-full border border-[#DDD4C5] bg-white text-[#6B6256] shadow-sm xl:inline-flex"
-      >
-        <ChevronRight className="size-3.5" />
-      </button>
-      <ReservationQuickViewPanel
-        row={row}
-        loading={loading}
-        error={error}
-        errorDetail={errorDetail}
-        quickView={quickView}
-        onRetry={onRetry}
-        businessDate={businessDate}
-        canManage={canManage}
-        capabilities={capabilities}
-        onAction={onAction}
-        sourceCodes={sourceCodes}
-        marketSegments={marketSegments}
-      />
-    </div>
-  );
-}
-
-function CollapsedStatusMark({ status }: { status: ReservationDeskRow["status"] }) {
-  const tone =
-    status === "checked_in"
-      ? "bg-blue-600"
-      : status === "confirmed"
-        ? "bg-emerald-600"
-        : status === "pending"
-          ? "bg-amber-500"
-          : status === "cancelled" || status === "no_show"
-            ? "bg-rose-600"
-            : "bg-[#8A8176]";
-  const label =
-    status === "checked_in"
-      ? "In-House"
-      : status === "checked_out"
-        ? "Checked Out"
-        : status === "no_show"
-          ? "No-Show"
-          : status.replaceAll("_", " ");
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="grid size-7 place-items-center rounded-full bg-[#F7F4EE]"
-          aria-label={label}
-        >
-          <span className={cn("size-2.5 rounded-full", tone)} />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 function ModeButton({
   active,
   disabled,
@@ -1979,20 +1696,16 @@ function ModeButton({
 
 function ReservationTable({
   rows,
-  selectedId,
   businessDate,
   canManage,
   capabilities,
-  onSelect,
   onOpen,
   onAction,
 }: {
   rows: ReservationDeskRow[];
-  selectedId: string | null;
   businessDate: string;
   canManage: boolean;
   capabilities?: ReservationActionCapabilities;
-  onSelect: (row: ReservationDeskRow) => void;
   onOpen: (id: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
 }) {
@@ -2001,9 +1714,6 @@ function ReservationTable({
       <table className="w-full table-fixed text-sm max-lg:min-w-[760px]">
         <thead className="bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
           <tr>
-            <th className="w-9 px-2 py-2.5">
-              <span className="sr-only">Select</span>
-            </th>
             <th className="w-[6.5rem] px-2 py-2.5">Res. No.</th>
             <th className="w-[16%] px-2 py-2.5">Guest Name</th>
             <th className="w-[14%] px-2 py-2.5">Room Type</th>
@@ -2031,25 +1741,14 @@ function ReservationTable({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const selected = selectedId === row.reservationId;
             const source = sourceLabel(row.source);
             const room = row.roomNumber ?? "Unassigned";
             return (
               <tr
                 key={row.reservationId}
-                onClick={() => onSelect(row)}
-                className={cn(
-                  "cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]",
-                  selected && "bg-[#F4E9D0]/70",
-                )}
+                onClick={() => onOpen(row.reservationId)}
+                className="cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]"
               >
-                <td className="px-2 py-2.5" onClick={(event) => event.stopPropagation()}>
-                  <Checkbox
-                    checked={selected}
-                    onCheckedChange={() => onSelect(row)}
-                    aria-label={`Select reservation ${row.confirmationNumber}`}
-                  />
-                </td>
                 <td className="px-2 py-2.5">
                   <button
                     type="button"

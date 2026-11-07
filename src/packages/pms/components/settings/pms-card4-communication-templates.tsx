@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { FieldShell } from "@/packages/pms/components/settings/pms-card6-integration-bits";
 import {
   deletePmsCard4CommunicationTemplate,
@@ -59,7 +60,6 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -93,7 +93,6 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-import { cn } from "@/shared/lib/utils";
 
 const PAGE_SIZE = 8;
 type StatusFilter = "all" | "active" | "inactive";
@@ -139,33 +138,18 @@ export function PmsCard4CommunicationTemplates({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryTab, setCategoryTab] = useState<"all" | CommunicationTemplateCategory>("all");
   const [page, setPage] = useState(1);
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<CommunicationTemplateDraft>(emptyCommunicationTemplateDraft());
   const [dirty, setDirty] = useState(false);
+  const [attemptedSave, setAttemptedSave] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
-  const [pendingSelection, setPendingSelection] = useState<
-    CommunicationTemplateRecord | "new" | null
-  >(null);
+  const [pendingClose, setPendingClose] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CommunicationTemplateRecord | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
-  useEffect(() => {
-    if (dirty) return;
-    if (creating) return;
-    if (templates.length === 0) {
-      setSelectedId(null);
-      setDraft(emptyCommunicationTemplateDraft());
-      return;
-    }
-    const selected = templates.find((row) => row.id === selectedId) ?? templates[0];
-    if (!selected) return;
-    setSelectedId(selected.id);
-    setDraft(communicationTemplateToDraft(selected));
-  }, [templates, selectedId, dirty, creating]);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== draft.message) {
@@ -174,7 +158,8 @@ export function PmsCard4CommunicationTemplates({
   }, [draft.id, draft.message, creating]);
 
   const errors = validateCommunicationTemplateDraft(draft, templates);
-  const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;
+  const errorFor = (field: string) =>
+    attemptedSave ? (errors.find((row) => row.field === field)?.message ?? null) : null;
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return templates.filter((row) => {
@@ -218,7 +203,8 @@ export function PmsCard4CommunicationTemplates({
       await queryClient.invalidateQueries({ queryKey });
       setCreating(false);
       setDirty(false);
-      if (result.id) setSelectedId(result.id);
+      setEditorOpen(false);
+      setAttemptedSave(false);
       toast.success("Communication template saved successfully.");
     },
     onError: (error: Error) =>
@@ -240,7 +226,7 @@ export function PmsCard4CommunicationTemplates({
       setDeleteTarget(null);
       setDirty(false);
       setCreating(false);
-      setSelectedId(null);
+      setEditorOpen(false);
       toast.success("Communication template deleted.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -280,9 +266,12 @@ export function PmsCard4CommunicationTemplates({
   useEffect(() => {
     onSavingChange(
       busy,
-      canEdit && Boolean(query.data) && !busy && (creating || dirty ? errors.length === 0 : true),
+      canEdit &&
+        Boolean(query.data) &&
+        !busy &&
+        (!editorOpen || errors.length === 0),
     );
-  }, [busy, canEdit, query.data, creating, dirty, errors.length, onSavingChange]);
+  }, [busy, canEdit, query.data, editorOpen, errors.length, onSavingChange]);
 
   useEffect(() => {
     if (!saveRequest || saveRequest.token === handledSaveToken.current) return;
@@ -292,17 +281,18 @@ export function PmsCard4CommunicationTemplates({
       toast.error("Unable to save communication templates.");
       return;
     }
-    if (!creating && !dirty) {
+    if (!editorOpen || (!creating && !dirty)) {
       toast.success("Communication templates saved successfully.");
       onSaved(thenNextRef.current);
       return;
     }
     if (errors.length > 0) {
+      setAttemptedSave(true);
       toast.error(errors[0]?.message ?? "Fix the template before saving.");
       return;
     }
     saveMutation.mutate(undefined, { onSuccess: () => onSaved(thenNextRef.current) });
-  }, [saveRequest, canEdit, query.data, creating, dirty, errors, onSaved, saveMutation]);
+  }, [saveRequest, canEdit, query.data, editorOpen, creating, dirty, errors, onSaved, saveMutation]);
 
   function mark<K extends keyof CommunicationTemplateDraft>(
     key: K,
@@ -313,34 +303,23 @@ export function PmsCard4CommunicationTemplates({
   }
 
   function selectTemplate(row: CommunicationTemplateRecord) {
-    if ((dirty || creating) && row.id !== selectedId) {
-      setPendingSelection(row);
-      return;
-    }
     setCreating(false);
-    setSelectedId(row.id);
     setDraft(communicationTemplateToDraft(row));
     setDirty(false);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
   function startAdd() {
-    if (dirty || creating) {
-      setPendingSelection("new");
-      return;
-    }
     setCreating(true);
-    setSelectedId(null);
     setDraft(emptyCommunicationTemplateDraft());
     setDirty(true);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
   function startDuplicate(row: CommunicationTemplateRecord) {
-    if (dirty || creating) {
-      setPendingSelection(row);
-      return;
-    }
     setCreating(true);
-    setSelectedId(null);
     setDraft({
       ...communicationTemplateToDraft(row),
       id: null,
@@ -349,6 +328,25 @@ export function PmsCard4CommunicationTemplates({
       active: false,
     });
     setDirty(true);
+    setAttemptedSave(false);
+    setEditorOpen(true);
+  }
+
+  function requestClose() {
+    if (dirty) setPendingClose(true);
+    else {
+      setEditorOpen(false);
+      setCreating(false);
+    }
+  }
+
+  function submitTemplate() {
+    setAttemptedSave(true);
+    if (!canEdit || errors.length > 0) {
+      toast.error(errors[0]?.message ?? "Fix the template before saving.");
+      return;
+    }
+    saveMutation.mutate();
   }
 
   function insertVariable(token: string) {
@@ -385,25 +383,17 @@ export function PmsCard4CommunicationTemplates({
     return [...base, ...extras];
   }, [draft.category, eventsQuery.data?.events]);
   const variables = variablesForCategory(draft.category);
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
   const previewSubject = renderTemplateText(draft.subject);
   const previewBody = renderTemplateText(stripTemplateHtml(draft.message));
 
   return (
-    <div className="space-y-5" data-testid="card4-communication-templates">
+    <div className="space-y-3" data-testid="card4-communication-templates">
       <section className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Communication Templates</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Create reusable messages for guest and internal communication.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg text-[#251605]">Communication Templates</h2>
           <Button
             type="button"
+            size="sm"
             onClick={startAdd}
             disabled={!canEdit}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
@@ -412,7 +402,7 @@ export function PmsCard4CommunicationTemplates({
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+        <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
           <div className="flex flex-wrap gap-2 border-b border-[#CCCCCC] p-3">
             <div className="relative min-w-[14rem] flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -505,76 +495,42 @@ export function PmsCard4CommunicationTemplates({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10">
-                        <Checkbox
-                          checked={
-                            paged.length > 0 && paged.every((row) => selectedRows.includes(row.id))
-                          }
-                          aria-label="Select all visible templates"
-                          onCheckedChange={(checked) =>
-                            setSelectedRows(
-                              checked
-                                ? Array.from(
-                                    new Set([...selectedRows, ...paged.map((row) => row.id)]),
-                                  )
-                                : selectedRows.filter((id) => !paged.some((row) => row.id === id)),
-                            )
-                          }
-                        />
-                      </TableHead>
-                      <TableHead>Template Name</TableHead>
+                      <TableHead>Template</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Event</TableHead>
                       <TableHead>Channel</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Language</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead className="w-12 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paged.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className={cn(selectedId === row.id && !creating && "bg-[#C89933]/5")}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedRows.includes(row.id)}
-                            aria-label={`Select ${row.name}`}
-                            onCheckedChange={(checked) =>
-                              setSelectedRows((current) =>
-                                checked
-                                  ? Array.from(new Set([...current, row.id]))
-                                  : current.filter((id) => id !== row.id),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium text-[#251605]">
+                      <TableRow key={row.id}>
+                        <TableCell className="py-2 font-medium text-[#251605]">
                           <div>{row.name}</div>
                           <div className="text-xs text-muted-foreground">{row.code}</div>
                         </TableCell>
-                        <TableCell>{communicationTemplateChannelLabel(row.channelType)}</TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                              row.active
-                                ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                                : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                            )}
-                          >
-                            {row.active ? "Active" : "Inactive"}
-                          </span>
+                        <TableCell className="py-2">
+                          {COMMUNICATION_TEMPLATE_CATEGORY_LABELS[row.category]}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => selectTemplate(row)}
-                            >
-                              Edit
-                            </Button>
-                            <DropdownMenu>
+                        <TableCell className="py-2">{row.eventTrigger}</TableCell>
+                        <TableCell className="py-2">
+                          {communicationTemplateChannelLabel(row.channelType)}
+                        </TableCell>
+                        <TableCell className="py-2">{row.language}</TableCell>
+                        <TableCell className="py-2">
+                          <Switch
+                            checked={row.active}
+                            disabled={!canEdit || toggleMutation.isPending}
+                            aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
+                            onCheckedChange={(active) =>
+                              toggleMutation.mutate({ id: row.id, active })
+                            }
+                          />
+                        </TableCell>
+                        <TableCell className="py-2 text-right">
+                          <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   type="button"
@@ -611,7 +567,6 @@ export function PmsCard4CommunicationTemplates({
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -650,43 +605,20 @@ export function PmsCard4CommunicationTemplates({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Template Details</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Configure the selected communication template.
-            </p>
-          </div>
-          <div className="min-w-[14rem] space-y-1">
-            <Label htmlFor="template-details-selector">Template</Label>
-            <Select
-              value={creating ? "new" : (draft.id ?? "")}
-              disabled={templates.length === 0 && !creating}
-              onValueChange={(value) => {
-                if (value === "new") startAdd();
-                else {
-                  const row = templates.find((item) => item.id === value);
-                  if (row) selectTemplate(row);
-                }
-              }}
-            >
-              <SelectTrigger id="template-details-selector">
-                <SelectValue placeholder="Select a template" />
-              </SelectTrigger>
-              <SelectContent>
-                {creating ? <SelectItem value="new">New template</SelectItem> : null}
-                {templates.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <Card3OverlapSheet
+        open={editorOpen}
+        title={draft.id ? "Edit Communication Template" : "Add Communication Template"}
+        onClose={requestClose}
+        onSubmit={submitTemplate}
+        submitLabel={draft.id ? "Save Changes" : "Add Template"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[960px]"
+        className="max-h-[88vh]"
+        footerJustify="between"
+      >
+        <p className="text-sm font-medium text-[#251605]">Template</p>
+        <div className="grid gap-3 md:grid-cols-2">
           <FieldShell
             id="template-name"
             label="Template Name"
@@ -813,6 +745,9 @@ export function PmsCard4CommunicationTemplates({
               </SelectContent>
             </Select>
           </FieldShell>
+        </div>
+        <p className="text-sm font-medium text-[#251605]">Message</p>
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="md:col-span-2">
             <FieldShell
               id="template-subject"
@@ -951,12 +886,12 @@ export function PmsCard4CommunicationTemplates({
             ) : null}
           </div>
         </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
+        <p className="text-sm font-medium text-[#251605]">Testing</p>
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
-            disabled={errors.length > 0 || previewMutation.isPending}
+            disabled={previewMutation.isPending}
             onClick={() => previewMutation.mutate()}
           >
             {previewMutation.isPending ? "Previewing…" : "Preview"}
@@ -964,15 +899,26 @@ export function PmsCard4CommunicationTemplates({
           <Button
             type="button"
             variant="outline"
-            disabled={!canEdit || testMutation.isPending || errors.length > 0}
+            disabled={!canEdit || testMutation.isPending}
             onClick={() => testMutation.mutate()}
           >
             {testMutation.isPending ? "Sending…" : "Send Test"}
           </Button>
         </div>
+        {previewSubject || previewBody ? (
+          <div className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] p-3 text-sm">
+            <p className="font-medium">{previewSubject || "Untitled subject"}</p>
+            <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+              {previewBody || "Message preview appears here."}
+            </p>
+          </div>
+        ) : null}
 
-        <div className="mt-5 space-y-3 rounded-xl border border-[#CCCCCC] p-4">
-          <p className="text-sm font-medium text-[#251605]">Additional Settings</p>
+        <details className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-[#251605]">
+            Advanced Settings
+          </summary>
+          <div className="mt-3 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <Label htmlFor="template-active">Active</Label>
@@ -1015,39 +961,27 @@ export function PmsCard4CommunicationTemplates({
               onCheckedChange={(value) => mark("attachPdf", value)}
             />
           </div>
-        </div>
-      </section>
+          </div>
+        </details>
+      </Card3OverlapSheet>
 
-      <AlertDialog
-        open={Boolean(pendingSelection)}
-        onOpenChange={(open) => !open && setPendingSelection(null)}
-      >
+      <AlertDialog open={pendingClose} onOpenChange={(open) => !open && setPendingClose(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>You have unsaved changes.</AlertDialogTitle>
             <AlertDialogDescription>
-              Discard them before editing another communication template?
+              Discard them to close this template form?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Continue Editing</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                const next = pendingSelection;
-                setPendingSelection(null);
-                setDirty(false);
-                if (next === "new") {
-                  setCreating(true);
-                  setSelectedId(null);
-                  setDraft(emptyCommunicationTemplateDraft());
-                  setDirty(true);
-                  return;
-                }
+                setPendingClose(false);
+                setEditorOpen(false);
                 setCreating(false);
-                if (next) {
-                  setSelectedId(next.id);
-                  setDraft(communicationTemplateToDraft(next));
-                }
+                setDirty(false);
+                setAttemptedSave(false);
               }}
             >
               Discard Changes
@@ -1080,47 +1014,5 @@ export function PmsCard4CommunicationTemplates({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4CommunicationTemplatesGuide({
-  templates,
-  previewSubject,
-  previewBody,
-}: {
-  templates: readonly CommunicationTemplateRecord[];
-  previewSubject: string;
-  previewBody: string;
-}) {
-  const active = templates.filter((row) => row.active).length;
-  return (
-    <>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Add a communication template</li>
-          <li>Choose category, event, and channel</li>
-          <li>Write the subject and message</li>
-          <li>Preview and send a test</li>
-          <li>Activate the template</li>
-        </ol>
-        <p className="mt-3 text-sm text-[#251605]">
-          {active} of {templates.length} templates active
-        </p>
-      </section>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Template Preview</p>
-        {previewSubject || previewBody ? (
-          <div className="mt-2 space-y-2 text-sm">
-            <p className="font-medium">{previewSubject || "Untitled subject"}</p>
-            <p className="whitespace-pre-wrap text-muted-foreground">
-              {previewBody || "Message preview appears here."}
-            </p>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">Select a template to preview it.</p>
-        )}
-      </section>
-    </>
   );
 }

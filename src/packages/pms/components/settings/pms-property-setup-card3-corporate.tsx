@@ -16,10 +16,14 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
-  Card3InheritedStrip,
+  Card3EmptyRow,
   Card3ListSection,
   Card3OverlapSheet,
+  Card3RowActions,
+  Card3SearchAddBar,
+  Card3Section,
   Card3StatusDot,
+  Card3Table,
 } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
@@ -202,34 +206,6 @@ export function PmsPropertySetupCard3Corporate({
         </p>
       ) : (
         <div className="space-y-4" data-testid="pms-card3-corporate">
-          <Card3InheritedStrip>
-            Companies are inherited from Guest Profile. Room types are inherited from Card 2.
-            Currencies come from Card 1 base plus Card 3 supported currencies. Authorized bookers
-            are out of this workspace.
-            <p className="mt-2">
-              Payment terms and credit notes below are inherited read-only from Guest Profile. They
-              are not stored on Corporate Agreements. This configuration makes no reservation or
-              folio operational changes.
-            </p>
-            <ul className="space-y-2 text-sm">
-              {companies.length === 0 ? (
-                <li className="text-muted-foreground">No Guest Profile companies yet.</li>
-              ) : (
-                companies.map((row) => (
-                  <li key={row.id} className="py-1">
-                    <p className="font-medium text-[#251605]">
-                      {row.code} — {row.name}
-                    </p>
-                    <p className="text-muted-foreground">
-                      Inherited payment terms: {row.paymentTerms || "—"} · Inherited credit note:{" "}
-                      {row.creditLimitNote || "—"}
-                    </p>
-                  </li>
-                ))
-              )}
-            </ul>
-          </Card3InheritedStrip>
-
           <Card3ListSection
             title="Corporate agreements"
             icon="facility"
@@ -256,46 +232,59 @@ export function PmsPropertySetupCard3Corporate({
             }))}
           />
 
-          <div className="space-y-2">
-            <Label htmlFor="filter-contract-rates">Filter contract rates by agreement</Label>
-            <Select value={selectedAgreementId} onValueChange={setSelectedAgreementId}>
-              <SelectTrigger id="filter-contract-rates" className={goldFocus}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All agreements</SelectItem>
-                {agreements.map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.code} — {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Card3ListSection
-            title="Contract rates"
-            icon="money"
-            search={rateSearch}
-            onSearch={setRateSearch}
-            placeholder="Search contract rates"
-            canEdit={canEdit}
-            addLabel="Add contract rate"
-            onAdd={() => setRateDraft("new")}
-            columns={["Agreement", "Room type (Card 2)", "Kind", "Amount", "Dates", "Status"]}
-            empty="No matching contract rates."
-            rows={filteredRates.map((row) => ({
-              id: row.id,
-              cells: [
-                row.agreementLabel,
-                row.roomTypeLabel,
-                row.rateKindLabel,
-                String(row.amount),
-                `${row.validFrom} → ${row.validTo}`,
-                <Card3StatusDot active={row.active} />,
-              ],
-              onEdit: () => setRateDraft(row),
-            }))}
-          />
+          <Card3Section title="Contract rates" icon="money">
+            <div className="space-y-1">
+              <Label htmlFor="filter-contract-rates">Filter by agreement</Label>
+              <Select value={selectedAgreementId} onValueChange={setSelectedAgreementId}>
+                <SelectTrigger id="filter-contract-rates" className={goldFocus}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All agreements</SelectItem>
+                  {agreements.map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.code} — {row.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Card3SearchAddBar
+              value={rateSearch}
+              onChange={setRateSearch}
+              placeholder="Search contract rates"
+              addLabel="Add contract rate"
+              onAdd={() => setRateDraft("new")}
+              canEdit={canEdit}
+            />
+            <Card3Table headers={["Agreement", "Room type", "Kind", "Amount", "Dates", "Status", ""]}>
+              {filteredRates.length === 0 ? (
+                <Card3EmptyRow colSpan={7}>No matching contract rates.</Card3EmptyRow>
+              ) : (
+                filteredRates.map((row) => (
+                  <tr key={row.id} className="border-t border-[#E6E1D8]">
+                    <td className="px-3 py-2 text-[#251605]">{row.agreementLabel}</td>
+                    <td className="px-3 py-2 text-[#251605]">{row.roomTypeLabel}</td>
+                    <td className="px-3 py-2 text-[#251605]">{row.rateKindLabel}</td>
+                    <td className="px-3 py-2 text-[#251605]">{String(row.amount)}</td>
+                    <td className="px-3 py-2 text-[#251605]">
+                      {row.validFrom} → {row.validTo}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Card3StatusDot active={row.active} />
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Card3RowActions
+                        label={`Actions for ${row.agreementLabel}`}
+                        onEdit={() => setRateDraft(row)}
+                        editDisabled={!canEdit}
+                      />
+                    </td>
+                  </tr>
+                ))
+              )}
+            </Card3Table>
+          </Card3Section>
 
           <Card3ListSection
             title="Contract types"
@@ -423,7 +412,6 @@ function AgreementSheet({
       open={open}
       onClose={onClose}
       title={value ? "Edit corporate agreement" : "Add corporate agreement"}
-      description="Company identity stays on Guest Profile. Payment terms are not stored here."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save corporate agreement"
@@ -459,8 +447,8 @@ function AgreementSheet({
           </Select>
           {selectedCompany ? (
             <p className="text-xs text-muted-foreground">
-              Inherited payment terms: {selectedCompany.paymentTerms || "—"} · Inherited credit
-              note: {selectedCompany.creditLimitNote || "—"}
+              Payment terms: {selectedCompany.paymentTerms || "—"} · Credit note:{" "}
+              {selectedCompany.creditLimitNote || "—"}
             </p>
           ) : null}
         </div>
@@ -588,7 +576,6 @@ function ContractRateSheet({
       open={open}
       onClose={onClose}
       title={value ? "Edit contract rate" : "Add contract rate"}
-      description="Amount is a setup figure in the agreement currency. Room types stay on Card 2."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save contract rate"
@@ -622,7 +609,7 @@ function ContractRateSheet({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="rate-room">Room type (Card 2)</Label>
+          <Label htmlFor="rate-room">Room type</Label>
           <Select value={roomTypeId} onValueChange={setRoomTypeId} disabled={!canEdit}>
             <SelectTrigger id="rate-room" className={goldFocus}>
               <SelectValue />

@@ -4,12 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { PmsPropertySetupCard8Workspace } from "@/packages/pms/components/settings/pms-property-setup-card8-workspace";
 import {
-  CARD8_VALIDATION_HONESTY,
-  CARD8_GOLIVE_HONESTY,
-} from "@/packages/pms/lib/pms-property-setup-card8";
-import {
   CARD8_SYSTEM_INFO_COPY,
-  CARD8_VALIDATION_LIVE_RECOMPUTE,
   CARD8_VALIDATION_READY_RULE,
   type Card8ValidationIssue,
 } from "@/packages/pms/lib/pms-property-setup-card8-validation";
@@ -166,12 +161,6 @@ export function Card8ValidationTab({ restaurantId }: { restaurantId: string }) {
         }
       >
         <div className="space-y-4">
-          <div className="rounded-2xl border border-dashed border-[#D8CDBB] bg-card p-5">
-            <p className="text-sm text-[#251605]">{CARD8_VALIDATION_HONESTY}</p>
-            <p className="mt-2 text-sm text-muted-foreground">{CARD8_VALIDATION_LIVE_RECOMPUTE}</p>
-            <p className="mt-2 text-sm text-muted-foreground">{CARD8_GOLIVE_HONESTY}</p>
-          </div>
-
           {validation.isError ? (
             <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
               Validation failed:{" "}
@@ -186,7 +175,7 @@ export function Card8ValidationTab({ restaurantId }: { restaurantId: string }) {
               <table className="w-full min-w-[42rem] text-left text-sm">
                 <thead className="border-b border-[#E6DCC8] text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Card / Category</th>
+                    <th className="px-4 py-3 font-medium">Area</th>
                     <th className="px-4 py-3 font-medium">Result</th>
                     <th className="px-4 py-3 font-medium">Critical</th>
                     <th className="px-4 py-3 font-medium">Warnings</th>
@@ -236,7 +225,7 @@ export function Card8ValidationTab({ restaurantId }: { restaurantId: string }) {
           <SheetHeader>
             <SheetTitle>System Validation issues</SheetTitle>
             <SheetDescription>
-              Live Card 1–7 blockers, warnings and informational notices.
+              Current blockers, warnings and notices.
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-3">

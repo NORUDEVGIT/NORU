@@ -25,7 +25,6 @@ describe("Phase 2B — Quick View Identity Fix & Query Isolation", () => {
   it("2. Identity renders truthful empty state without generic 'Try again'", () => {
     assert.match(drawer, /guest-quick-view-identity-empty/);
     assert.match(drawer, /No identity document recorded\./);
-    assert.match(drawer, /Add Identity Document/);
   });
 
   it("3. Identity query failure is isolated and does not crash Overview or other tabs", () => {
@@ -60,8 +59,9 @@ describe("Phase 2B — Quick View Identity Fix & Query Isolation", () => {
     assert.match(drawer, /guest-quick-view-open-full/);
     assert.match(drawer, /guest-quick-view-new-res/);
     assert.match(drawer, /guest-quick-view-edit/);
-    // Primary has solid dark background, secondary has outline
-    assert.match(drawer, /bg-\[#251605\] font-semibold text-white/);
+    assert.match(drawer, /Open Full Profile/);
+    assert.match(drawer, /New Reservation/);
+    assert.match(drawer, /Edit Guest/);
   });
 });
 

@@ -19,11 +19,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   SettingsDashboardChrome,
-  SettingsPropertySetupCards,
   SettingsSetupProgressPanel,
 } from "@/packages/pms/components/settings/pms-settings-dashboard";
+import { settingsDashboardStatusLabel } from "@/packages/pms/lib/pms-settings-dashboard";
 
-import { Menu, RefreshCw } from "lucide-react";
+import { Check, Menu, RefreshCw } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
@@ -85,12 +85,11 @@ import {
 import { getPmsPropertySetupCard1 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   CARD1_HASH,
+  CARD1_STEPS,
   PROPERTY_SETUP_CARDS,
   evaluateCard1Status,
-  card1TaxWarnings,
   evaluateProgrammeCardStatus,
   isCard1WorkspaceHash,
-  propertySetupStatusLabel,
   type PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import { CARD2_HASH, isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
@@ -121,7 +120,9 @@ function currentSection(): Set1SectionId | null {
 }
 
 function currentCard1Open(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined") return true;
+  const raw = window.location.hash.replace(/^#/, "");
+  if (!raw) return true;
   return isCard1WorkspaceHash(window.location.hash);
 }
 
@@ -160,46 +161,6 @@ function currentCard8Open(): boolean {
   return isCard8WorkspaceHash(window.location.hash);
 }
 
-const SETTINGS_BURGER_GROUPS = [
-  { id: "overview", label: "Overview", items: [{ id: "overview", title: "Overview", hash: "" }] },
-  {
-    id: "property",
-    label: "Property",
-    items: PROPERTY_SETUP_CARDS.filter((card) => card.number <= 2).map((card) => ({
-      id: card.id,
-      title: card.title,
-      hash: card.hash,
-    })),
-  },
-  {
-    id: "commercial",
-    label: "Commercial",
-    items: PROPERTY_SETUP_CARDS.filter((card) => card.number === 3 || card.number === 4).map((card) => ({
-      id: card.id,
-      title: card.title,
-      hash: card.hash,
-    })),
-  },
-  {
-    id: "organization",
-    label: "Organization",
-    items: PROPERTY_SETUP_CARDS.filter((card) => card.number === 5 || card.number === 6).map((card) => ({
-      id: card.id,
-      title: card.title,
-      hash: card.hash,
-    })),
-  },
-  {
-    id: "administration",
-    label: "Administration",
-    items: PROPERTY_SETUP_CARDS.filter((card) => card.number >= 7).map((card) => ({
-      id: card.id,
-      title: card.title,
-      hash: card.hash,
-    })),
-  },
-] as const;
-
 function openSettingsWorkspace(hash: string) {
   if (typeof window === "undefined") return;
   const next = hash ? `${SET1_HUB_HREF}#${hash}` : SET1_HUB_HREF;
@@ -222,7 +183,6 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   const [card6Open, setCard6Open] = useState(currentCard6Open);
   const [card7Open, setCard7Open] = useState(currentCard7Open);
   const [card8Open, setCard8Open] = useState(currentCard8Open);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [areaFilter, setAreaFilter] = useState("all");
@@ -258,6 +218,9 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       }
       if (raw === "card-8" || raw === "card8") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD8_HASH}`);
+      }
+      if (!window.location.hash.replace(/^#/, "")) {
+        window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD1_HASH}`);
       }
       const resolved = resolveSet1SectionHash(raw);
       if (resolved && resolved !== raw) {
@@ -362,54 +325,6 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     }
     return status;
   });
-  const dashboardSummaries = PROPERTY_SETUP_CARDS.map((card) => {
-    const rows: string[] = [];
-    if (card.number === 1) {
-      const name = card1Query.data?.snapshot.draft.name.trim() || membership.restaurant.name;
-      if (name) rows.push(name);
-      if (card1Query.data && card1TaxWarnings(card1Query.data.snapshot.draft).length > 0) {
-        rows.push("Tax identity pending");
-      }
-    }
-    if (card.number === 2 && set2) {
-      if (set2.roomTypeCount > 0) rows.push(`${set2.roomTypeCount} room types`);
-      if (set2.roomCount > 0) rows.push(`${set2.roomCount} rooms`);
-    }
-    if (card.number === 3) {
-      if (set3?.activeRatePlanCount > 0) {
-        rows.push(`${set3.activeRatePlanCount} rate plans`);
-      }
-      const activeMethods = polish1?.paymentMethods?.filter((m) => m.active).length ?? 0;
-      if (activeMethods > 0) {
-        rows.push(`${activeMethods} payment ${activeMethods === 1 ? "method" : "methods"}`);
-      }
-    }
-    if (card.number === 4) {
-      const profileCount = card4StatusQuery.data?.profileTypesCount ?? 0;
-      const serviceCount = card4StatusQuery.data?.serviceTypesCount ?? 0;
-      if (profileCount > 0) {
-        rows.push(`${profileCount} profile ${profileCount === 1 ? "type" : "types"}`);
-      }
-      if (serviceCount > 0) {
-        rows.push(`${serviceCount} ${serviceCount === 1 ? "service" : "services"}`);
-      }
-    }
-    if (card.number === 5 && set5?.departments.length) {
-      rows.push(`${set5.departments.length} departments`);
-    }
-    if (card.number === 6) {
-      if (card6FiscalQuery.data?.status && card6FiscalQuery.data.status !== "not_configured") {
-        rows.push("Fiscal connected");
-      }
-      const activeCount =
-        card6IntegrationsQuery.data?.integrations.filter((i) => i.enabled).length ?? 0;
-      if (activeCount > 0) {
-        rows.push(`${activeCount} integration${activeCount === 1 ? "" : "s"}`);
-      }
-    }
-    void `${SET1_HUB_HREF}#${card.hash}`;
-    return rows;
-  });
 
   const openCardNumber = card1Open
     ? 1
@@ -467,7 +382,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
                   ? "sales-distribution"
                   : card8Open
                     ? "payments-administration"
-                    : "overview";
+                    : "property-business";
   const permittedCardIds = PROPERTY_SETUP_CARDS.filter(
     (card) =>
       !access.isLoading && !access.isError && pmsSettingsCardVisible(accessSnapshot, card.number),
@@ -485,6 +400,27 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return `${card.title} ${card.purpose}`.toLowerCase().includes(needle);
   }).map((card) => card.id);
   const filterCount = (statusFilter !== "all" ? 1 : 0) + (areaFilter !== "all" ? 1 : 0);
+  const searchNeedle = searchQuery.trim().toLowerCase();
+  const searchHits = searchNeedle
+    ? [
+        ...PROPERTY_SETUP_CARDS.filter((card) => visibleCardIds.includes(card.id)).map((card) => ({
+          id: card.id,
+          title: card.title,
+          hash: card.hash ?? CARD1_HASH,
+          hint: card.purpose,
+        })),
+        ...CARD1_STEPS.filter(
+          (step) =>
+            permittedCardIds.includes("property-business") &&
+            step.title.toLowerCase().includes(searchNeedle),
+        ).map((step) => ({
+          id: `card1-${step.id}`,
+          title: step.title,
+          hash: CARD1_HASH,
+          hint: "Property & Business",
+        })),
+      ]
+    : [];
 
   const hubBody = (
     <div className="flex min-h-full flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4" data-testid="pms-set1-hub">
@@ -494,14 +430,44 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
             active={activeWorkspace}
             onSelect={openSettingsWorkspace}
             allowedIds={permittedCardIds}
+            statuses={dashboardStatuses}
           />
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search settings…"
-            aria-label="Search settings"
-            className="h-9 min-w-0 flex-1 text-xs"
-          />
+          <div className="relative min-w-0 flex-1">
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search settings…"
+              aria-label="Search settings"
+              className="h-9 min-w-0 w-full text-xs"
+            />
+            {searchNeedle ? (
+              <div
+                className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-30 overflow-hidden rounded-md border border-[#DDD4C5] bg-white shadow-md"
+                data-testid="settings-search-results"
+              >
+                {searchHits.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">No matching settings.</p>
+                ) : (
+                  searchHits.map((hit) => (
+                    <button
+                      key={hit.id}
+                      type="button"
+                      className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-[#F7F4EE]"
+                      onClick={() => {
+                        openSettingsWorkspace(hit.hash);
+                        setSearchQuery("");
+                      }}
+                    >
+                      <span className="text-sm font-medium text-[#251605]">{hit.title}</span>
+                      {hit.hint ? (
+                        <span className="line-clamp-1 text-[11px] text-[#756A5B]">{hit.hint}</span>
+                      ) : null}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
           <PmsFilterMenu
             activeCount={filterCount}
             onClear={() => {
@@ -547,6 +513,11 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               onChange={setAreaFilter}
             />
           </PmsFilterMenu>
+          <SettingsSetupProgressPanel
+            statuses={dashboardStatuses.filter((_, index) =>
+              permittedCardIds.includes(PROPERTY_SETUP_CARDS[index]?.id ?? ""),
+            )}
+          />
           <Button
             type="button"
             variant="outline"
@@ -563,11 +534,6 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           </Button>
         </div>
       </section>
-      <SettingsSetupProgressPanel
-        statuses={dashboardStatuses.filter((_, index) =>
-          permittedCardIds.includes(PROPERTY_SETUP_CARDS[index]?.id ?? ""),
-        )}
-      />
 
       {access.isLoading ? (
         <p className="text-sm text-muted-foreground">Checking access…</p>
@@ -576,7 +542,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           message={
             access.isError
               ? "Settings access could not be checked. Try again."
-              : "Your permissions don't include this settings card."
+              : "Your permissions don't include this settings area."
           }
         />
       ) : card1Open ? (
@@ -584,7 +550,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
           <p className="text-sm text-muted-foreground">Loading Property & Business…</p>
         ) : card1Query.isError || !card1Query.data ? (
           <p className="text-sm text-destructive">
-            {(card1Query.error as Error | undefined)?.message ?? "Card 1 is unavailable."}
+            {(card1Query.error as Error | undefined)?.message ?? "Property & Business is unavailable."}
           </p>
         ) : (
           <PmsPropertySetupCard1Section
@@ -787,21 +753,13 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
             />
           )}
         </div>
-      ) : (
-        <SettingsPropertySetupCards
-          statuses={dashboardStatuses}
-          summaries={dashboardSummaries}
-          visibleIds={visibleCardIds}
-        />
-      )}
+      ) : null}
     </div>
   );
 
   return (
     <SettingsDashboardChrome
       membership={membership}
-      helpOpen={helpOpen}
-      onHelpOpenChange={setHelpOpen}
       contentClassName="p-0"
     >
       {hubBody}
@@ -813,74 +771,88 @@ function SettingsBurger({
   active,
   onSelect,
   allowedIds,
+  statuses,
 }: {
   active: string;
   onSelect: (hash: string) => void;
   allowedIds: readonly string[];
+  statuses: readonly PropertySetupCardStatus[];
 }) {
   const [open, setOpen] = useState(false);
+  const items = PROPERTY_SETUP_CARDS.filter((card) => allowedIds.includes(card.id));
+  const activeLabel =
+    PROPERTY_SETUP_CARDS.find((card) => card.id === active)?.title ?? "Property & Business";
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Settings navigation"
-          title="Settings navigation"
+          aria-label={`Settings area: ${activeLabel}`}
+          title={activeLabel}
           data-testid="settings-nav-trigger"
           className={cn(
-            "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-[#251605]",
-            "opacity-50 transition-opacity hover:bg-[#F3EEE4] hover:opacity-100",
+            "inline-flex h-8 max-w-[14rem] shrink-0 items-center gap-1.5 rounded-md px-2 text-[#251605]",
+            "opacity-80 transition-opacity hover:bg-[#F3EEE4] hover:opacity-100",
             "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
             "data-[state=open]:bg-[#F3EEE4] data-[state=open]:opacity-100",
           )}
         >
-          <Menu className="size-4" aria-hidden="true" />
+          <Menu className="size-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 truncate text-xs font-medium">{activeLabel}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="w-64 p-1.5"
+        className="w-80 p-1.5"
         data-testid="settings-workspace-nav"
         aria-label="Settings"
       >
+        <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Settings
+        </p>
         <div className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
-          {SETTINGS_BURGER_GROUPS.map((group) => {
-            const items = group.items.filter(
-              (item) => item.id === "overview" || allowedIds.includes(item.id),
-            );
-            if (items.length === 0) return null;
+          {items.map((item) => {
+            const isActive = item.id === active;
+            const status =
+              statuses[PROPERTY_SETUP_CARDS.findIndex((card) => card.id === item.id)] ??
+              "not_started";
             return (
-            <div key={group.id}>
-              {group.id === "overview" ? null : (
-                <p className="px-2.5 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {group.label}
-                </p>
-              )}
-              {items.map((item) => {
-                const isActive = item.id === active;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    data-testid={`settings-nav-${item.id}`}
-                    onClick={() => {
-                      setOpen(false);
-                      onSelect(item.hash);
-                    }}
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm transition-colors",
-                      isActive
-                        ? "bg-[#F4E9D0] font-medium text-[#251605]"
-                        : "text-foreground hover:bg-[#F7F4EE]",
-                    )}
-                  >
-                    {item.title}
-                  </button>
-                );
-              })}
-            </div>
+              <button
+                key={item.id}
+                type="button"
+                data-testid={`settings-nav-${item.id}`}
+                onClick={() => {
+                  setOpen(false);
+                  onSelect(item.hash);
+                }}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
+                  isActive
+                    ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                    : "text-foreground hover:bg-[#F7F4EE]",
+                )}
+              >
+                <Check
+                  className={cn(
+                    "size-3.5 shrink-0 text-[#C89933]",
+                    isActive ? "opacity-100" : "opacity-0",
+                  )}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                    status === "complete" && "bg-emerald-50 text-emerald-800",
+                    status === "in_progress" && "bg-amber-50 text-amber-800",
+                    status === "not_started" && "bg-[#ECEAE4] text-[#756A5B]",
+                  )}
+                >
+                  {settingsDashboardStatusLabel(status)}
+                </span>
+              </button>
             );
           })}
         </div>

@@ -5,10 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   CalendarDays,
   CalendarPlus,
+  Check,
   ChevronLeft,
   ChevronRight,
   Download,
   ExternalLink,
+  Menu,
   Printer,
   RefreshCw,
   Search,
@@ -51,6 +53,12 @@ import {
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import {
   Select,
@@ -69,6 +77,13 @@ import {
 import { cn } from "@/shared/lib/utils";
 
 type QuickScope = "all" | "upcoming" | "in_house" | "past";
+
+const STAY_SCOPES = [
+  { id: "all", label: "All Stays" },
+  { id: "upcoming", label: "Upcoming" },
+  { id: "in_house", label: "Current / In-House" },
+  { id: "past", label: "Past" },
+] as const;
 
 export function GuestStaysReservationsView({
   restaurantId,
@@ -210,62 +225,12 @@ export function GuestStaysReservationsView({
         </div>
       </div>
 
-      {/* Scope Switcher + Operational Toolbar */}
-      <div className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm space-y-3">
-        {/* Scope Pill Views */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDD4C5] pb-2.5">
-          <div className="flex items-center gap-1.5" role="tablist">
-            {(
-              [
-                { id: "all", label: "All Stays" },
-                { id: "upcoming", label: "Upcoming" },
-                { id: "in_house", label: "Current / In-House" },
-                { id: "past", label: "Past" },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setScope(tab.id)}
-                className={cn(
-                  "rounded-lg px-2.5 py-1 text-xs font-medium transition-colors",
-                  scope === tab.id
-                    ? "bg-[#C89933]/15 text-[#8A641A] font-semibold"
-                    : "text-[#756A5B] hover:bg-[#F7F4EE] hover:text-[#251605]",
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+      <StayScopeNavigator scope={scope} onSelect={setScope} />
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportCsv}
-              className="h-8 text-xs border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#F7F4EE]"
-            >
-              <Download className="mr-1.5 size-3.5" /> Export CSV
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
-            >
-              <Link
-                to="/restaurant/pms/reservations"
-                search={{ create: "new", guestId }}
-                data-testid="guest-bookings-new"
-              >
-                <CalendarPlus className="mr-1.5 size-3.5" /> + New Reservation
-              </Link>
-            </Button>
-          </div>
-        </div>
-
+      {/* Operational Toolbar */}
+      <div className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
         {/* Dense Filters Bar */}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-5 items-center">
+        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2 md:grid-cols-5">
           <div className="relative md:col-span-2">
             <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#756A5B]" />
             <Input
@@ -315,7 +280,7 @@ export function GuestStaysReservationsView({
             />
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {hasActiveFilters ? (
               <Button
                 variant="ghost"
@@ -326,6 +291,27 @@ export function GuestStaysReservationsView({
                 <X className="mr-1 size-3" /> Clear
               </Button>
             ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportCsv}
+              className="h-8 border-[#DDD4C5] bg-white text-xs text-[#756A5B] hover:bg-[#F7F4EE]"
+            >
+              <Download className="mr-1.5 size-3.5" /> Export CSV
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="h-8 bg-[#8A641A] text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#725215]"
+            >
+              <Link
+                to="/restaurant/pms/reservations"
+                search={{ create: "new", guestId }}
+                data-testid="guest-bookings-new"
+              >
+                <CalendarPlus className="mr-1.5 size-3.5" /> + New Reservation
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -561,6 +547,58 @@ export function GuestStaysReservationsView({
           ) : null}
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+function StayScopeNavigator({
+  scope,
+  onSelect,
+}: {
+  scope: QuickScope;
+  onSelect: (scope: QuickScope) => void;
+}) {
+  const currentLabel = STAY_SCOPES.find((item) => item.id === scope)?.label ?? "All Stays";
+  return (
+    <div className="flex justify-start">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Stay view: ${currentLabel}`}
+            title={currentLabel}
+            data-testid="guest-stays-scope-menu"
+            className={cn(
+              "inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-[#DDD4C5] bg-white px-2.5",
+              "text-xs font-medium text-[#251605]",
+              "hover:border-[#C89933] hover:bg-[#F7F4EE]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+              "data-[state=open]:border-[#C89933] data-[state=open]:bg-[#F4E9D0]",
+            )}
+          >
+            <Menu className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 truncate">{currentLabel}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-48 border-[#DDD4C5]">
+          {STAY_SCOPES.map((item) => {
+            const selected = scope === item.id;
+            return (
+              <DropdownMenuItem
+                key={item.id}
+                className={cn(selected && "bg-[#F4E9D0] text-[#251605] focus:bg-[#F4E9D0]")}
+                onSelect={() => onSelect(item.id)}
+              >
+                <Check
+                  className={cn("size-3.5 text-[#C89933]", selected ? "opacity-100" : "opacity-0")}
+                  aria-hidden
+                />
+                {item.label}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

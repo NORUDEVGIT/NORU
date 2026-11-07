@@ -17,12 +17,11 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
-  Card3InheritedStrip,
   Card3ListSection,
   Card3OverlapSheet,
+  Card3Section,
   Card3StatusDot,
 } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
-import { OVERBOOKING_CAPACITY_NOTE } from "@/packages/pms/lib/inventory-rules-card2.server";
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
   getCommercialCard3,
@@ -217,13 +216,6 @@ export function PmsPropertySetupCard3Commercial({
         </p>
       ) : (
         <div className="space-y-4" data-testid="pms-card3-commercial">
-          <Card3InheritedStrip>
-            Restrictions, promotions, and seasons are setup catalogues. Room types are inherited
-            from Card 2. Empty room-type mapping means all types as a setup hint, not an
-            availability engine. This configuration does not write hotel_rate_restrictions or
-            price_hotel_stay. SET6 channel stop-sell stays out of this workspace.
-          </Card3InheritedStrip>
-
           <Card3ListSection
             title="Restrictions"
             icon="date"
@@ -303,43 +295,34 @@ export function PmsPropertySetupCard3Commercial({
             }))}
           />
 
-          <Card3InheritedStrip>
-            <div className="space-y-3">
-              <p className="text-sm text-[#251605]">
-                Overbooking policy is inherited from Card 2 Inventory Rules. This tab does not save
-                overbooking.
-              </p>
-              <p className="text-sm text-muted-foreground">{OVERBOOKING_CAPACITY_NOTE}</p>
-              {snapshot.overbooking ? (
-                <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-muted-foreground">Allowed</dt>
-                    <dd>{snapshot.overbooking.overbookingAllowed ? "Yes" : "No"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Room-type allowances</dt>
-                    <dd>Configured on each room type</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Manager approval required</dt>
-                    <dd>Yes. Owner or manager only.</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Reason required</dt>
-                    <dd>{snapshot.overbooking.overbookingReasonRequired ? "Yes" : "No"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Alerts enabled</dt>
-                    <dd>{snapshot.overbooking.overbookingAlertEnabled ? "Yes" : "No"}</dd>
-                  </div>
-                </dl>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No Card 2 inventory rules found yet. Configure overbooking on Card 2.
-                </p>
-              )}
-            </div>
-          </Card3InheritedStrip>
+          <Card3Section title="Overbooking" icon="date">
+            {snapshot.overbooking ? (
+              <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Allowed</dt>
+                  <dd>{snapshot.overbooking.overbookingAllowed ? "Yes" : "No"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Room-type allowances</dt>
+                  <dd>Configured on each room type</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Manager approval required</dt>
+                  <dd>Yes. Owner or manager only.</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Reason required</dt>
+                  <dd>{snapshot.overbooking.overbookingReasonRequired ? "Yes" : "No"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Alerts enabled</dt>
+                  <dd>{snapshot.overbooking.overbookingAlertEnabled ? "Yes" : "No"}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-sm text-muted-foreground">No overbooking policy configured.</p>
+            )}
+          </Card3Section>
 
           <RestrictionSheet
             key={
@@ -425,10 +408,10 @@ function ApplicabilityList({
 }) {
   return (
     <fieldset className="space-y-2 rounded-xl border px-3 py-2">
-      <legend className="px-1 text-sm font-medium text-[#251605]">Room types (Card 2)</legend>
-      <p className="text-xs text-muted-foreground">Leave empty for all types (setup hint).</p>
+      <legend className="px-1 text-sm font-medium text-[#251605]">Room types</legend>
+      <p className="text-xs text-muted-foreground">Leave empty to apply to all room types.</p>
       {roomTypes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No Card 2 room types available.</p>
+        <p className="text-sm text-muted-foreground">No room types available.</p>
       ) : (
         roomTypes.map((row) => {
           const id = `commercial-room-${row.id}`;
@@ -490,7 +473,6 @@ function RestrictionSheet({
       open={open}
       onClose={onClose}
       title={value ? "Edit restriction" : "Add restriction"}
-      description="Setup catalogue only. Does not write hotel_rate_restrictions."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save restriction"
@@ -651,7 +633,6 @@ function PromotionSheet({
       open={open}
       onClose={onClose}
       title={value ? "Edit promotion" : "Add promotion"}
-      description="Setup classification only. Not a discount engine."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save promotion"
@@ -817,7 +798,6 @@ function SeasonSheet({
       open={open}
       onClose={onClose}
       title={value ? "Edit season" : "Add season"}
-      description="Named season catalogue. Does not write hotel_rate_calendar."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save season"

@@ -65,6 +65,7 @@ export function FoCheckInV2Key({
   const [identifier, setIdentifier] = useState("");
   const [reason, setReason] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [waiverOpen, setWaiverOpen] = useState(false);
 
   const canWaive =
     !permissions.isLoading &&
@@ -121,23 +122,33 @@ export function FoCheckInV2Key({
     onSuccess: async () => {
       setReason("");
       setFormError(null);
+      setWaiverOpen(false);
       await refreshReadiness();
     },
     onError: (error) => setFormError(keyActionFailureCopy(error, "waive")),
   });
 
+  const keyStatus = waived ? "Waived" : recorded ? "Recorded" : "Required";
   return (
     <section
-      className="rounded-xl border border-[#E8DFD0] bg-white p-4"
+      className="rounded-lg border border-[#DDD4C5] bg-white p-3"
       data-testid="fo-ci-v2-key"
     >
-      <div className="flex items-center gap-2">
-        <KeyRound className="size-4 text-[#8B6914]" aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-[#251605]">Key</h3>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <KeyRound className="size-3.5 text-[#8B6914]" aria-hidden="true" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">Key</h3>
+        </div>
+        <p
+          className={cn(
+            "text-xs font-semibold",
+            keyStatus === "Required" ? "text-red-800" : "text-[#436436]",
+          )}
+          data-testid="fo-ci-v2-key-state"
+        >
+          {keyStatus}
+        </p>
       </div>
-      <p className="mt-1 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-key-state">
-        {waived ? "Waived" : recorded ? "Recorded" : "Required"}
-      </p>
 
       {recorded ? (
         <dl className="mt-3 space-y-1 text-sm text-[#251605]" data-testid="fo-ci-v2-key-recorded">
@@ -169,16 +180,16 @@ export function FoCheckInV2Key({
       ) : null}
 
       {!settled && !recorded && !waived ? (
-        <div className="mt-4 space-y-3">
+        <div className="mt-2 space-y-2">
           <div>
             <p className="text-xs font-medium text-[#6B5E4E]">Key / Access Type</p>
-            <div className="mt-1 flex flex-wrap gap-2" data-testid="fo-ci-v2-key-access-type">
+            <div className="mt-1 flex flex-wrap gap-1.5" data-testid="fo-ci-v2-key-access-type">
               {KEY_ACCESS_TYPES.map((type) => (
                 <button
                   key={type}
                   type="button"
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs",
+                    "rounded-full border px-2.5 py-0.5 text-[11px]",
                     accessType === type
                       ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]"
                       : "border-[#DDD4C5] text-[#6B5E4E]",
@@ -194,7 +205,7 @@ export function FoCheckInV2Key({
             Key Identifier
             <Input
               id="fo-ci-v2-key-identifier"
-              className="mt-1 h-9"
+              className="mt-1 h-8"
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
               data-testid="fo-ci-v2-key-identifier"
@@ -202,7 +213,8 @@ export function FoCheckInV2Key({
           </label>
           <Button
             type="button"
-            className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+            size="sm"
+            className="h-8 bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
             disabled={!identifier.trim() || recordMut.isPending}
             onClick={() => recordMut.mutate()}
             data-testid="fo-ci-v2-record-key"
@@ -210,43 +222,50 @@ export function FoCheckInV2Key({
             {recordMut.isPending ? "Recording…" : "Record Key"}
           </Button>
 
-          <div className="border-t border-[#E8DFD0] pt-3">
-            <p className="text-sm font-semibold text-[#251605]">Key waiver</p>
-            <p className="mt-1 text-xs text-[#6B5E4E]">
-              A waiver clears only this room&apos;s key requirement.
-            </p>
-            {permissions.isLoading ? (
-              <p className="mt-2 text-sm text-[#6B5E4E]">Checking who can authorize this waiver…</p>
-            ) : canWaive ? (
-              <div className="mt-3 space-y-2">
-                <label
-                  className="block text-xs font-medium text-[#6B5E4E]"
-                  htmlFor="fo-ci-v2-key-waiver-reason"
-                >
-                  Reason
-                </label>
-                <Textarea
-                  id="fo-ci-v2-key-waiver-reason"
-                  rows={2}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  data-testid="fo-ci-v2-key-waiver-reason"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!reason.trim() || waiveMut.isPending}
-                  onClick={() => waiveMut.mutate()}
-                  data-testid="fo-ci-v2-waive-key"
-                >
-                  {waiveMut.isPending ? "Saving…" : "Authorize Key Waiver"}
-                </Button>
-              </div>
-            ) : (
-              <p className="mt-2 text-sm text-[#6B5E4E]" data-testid="fo-ci-v2-key-waiver-denied">
-                You don't have permission to waive the key for this room.
-              </p>
-            )}
+          <div className="border-t border-[#E8DFD0] pt-2">
+            <button
+              type="button"
+              className="text-xs font-medium text-[#8B6914]"
+              onClick={() => setWaiverOpen((open) => !open)}
+            >
+              {waiverOpen ? "Authorize key waiver ▾" : "Authorize key waiver ›"}
+            </button>
+            {waiverOpen ? (
+              permissions.isLoading ? (
+                <p className="mt-2 text-xs text-[#6B5E4E]">Checking who can authorize this waiver…</p>
+              ) : canWaive ? (
+                <div className="mt-2 space-y-2">
+                  <label
+                    className="block text-xs font-medium text-[#6B5E4E]"
+                    htmlFor="fo-ci-v2-key-waiver-reason"
+                  >
+                    Reason
+                  </label>
+                  <Textarea
+                    id="fo-ci-v2-key-waiver-reason"
+                    rows={2}
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    data-testid="fo-ci-v2-key-waiver-reason"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={!reason.trim() || waiveMut.isPending}
+                    onClick={() => waiveMut.mutate()}
+                    data-testid="fo-ci-v2-waive-key"
+                  >
+                    {waiveMut.isPending ? "Saving…" : "Authorize Key Waiver"}
+                  </Button>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-key-waiver-denied">
+                  You don't have permission to waive the key for this room.
+                </p>
+              )
+            ) : null}
           </div>
         </div>
       ) : null}

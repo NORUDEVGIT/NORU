@@ -28,9 +28,9 @@ export const CHECKIN_V2_STEPS = [
 
 export type CheckInV2StepId = (typeof CHECKIN_V2_STEPS)[number]["id"];
 
-/** Desktop sheet: about 92vw, capped near 1500px. Mobile stays full screen. */
+/** Centered overlay workspace: ~90vw, capped near 1420px, ~92vh. */
 export const FO_CHECKIN_V2_SHEET_CLASS =
-  "w-full max-w-none sm:w-[min(92vw,1500px)] sm:max-w-[1500px]";
+  "z-[70] flex h-[92vh] max-h-[92vh] w-[90vw] max-w-[1420px] flex-col gap-0 overflow-hidden rounded-2xl border-0 bg-[#FBF7F1] p-0 shadow-2xl sm:max-w-[1420px] sm:rounded-2xl [&>button.absolute]:hidden";
 
 export type CheckInUnitFailure =
   | "permission_denied"

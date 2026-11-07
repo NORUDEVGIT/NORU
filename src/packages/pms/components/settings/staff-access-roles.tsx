@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +20,32 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
+import {
+  CARD5_ACTIONS_TD_CLASS,
+  CARD5_ACTIONS_TH_CLASS,
+  CARD5_FILTER_CLASS,
+  CARD5_SEARCH_CLASS,
+  CARD5_SELECT_CONTENT_CLASS,
+  CARD5_SELECT_ITEM_CLASS,
+  CARD5_STATUS_TD_CLASS,
+  CARD5_STATUS_TH_CLASS,
+  CARD5_TH_CLASS,
+  CARD5_THEAD_CLASS,
+  CARD5_TOOLBAR_CLASS,
+  Card5CreateButton,
+  Card5RowMenuButton,
+  Card5Status,
+  Card5TableShell,
+} from "@/packages/pms/components/settings/pms-property-setup-card5-workspace";
 import { StaffAccessMatrix } from "@/packages/pms/components/settings/staff-access-matrix";
 import { invalidatePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { isPmsPermissionCode, type PmsPermissionCode } from "@/packages/pms/lib/pms-permissions";
@@ -141,33 +173,37 @@ export function StaffAccessRoles({
   });
 
   return (
-    <div className="space-y-3" data-testid="roles-permissions-tab">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-display text-lg text-[#251605]">Roles & Permissions</h3>
-        {canCreate ? (
-          <Button type="button" onClick={() => setEditing("create")} data-testid="create-role">
-            Create Role
-          </Button>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
+    <div className="min-w-0 space-y-3" data-testid="roles-permissions-tab">
+      <h3 className="font-display text-lg text-[#251605]">Roles & Permissions</h3>
+      <div className={CARD5_TOOLBAR_CLASS}>
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search roles..."
+          placeholder="Search roles"
           aria-label="Search roles"
-          className="h-9 max-w-xs border-[#DDD4C5] bg-white"
+          className={CARD5_SEARCH_CLASS}
         />
-        <select
-          aria-label="Role status"
-          value={status}
-          onChange={(event) => setStatus(event.target.value as typeof status)}
-          className="h-9 rounded-md border border-[#DDD4C5] bg-white px-2 text-sm"
-        >
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+        <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
+          <SelectTrigger className={`${CARD5_FILTER_CLASS} w-[7.5rem]`} aria-label="Role status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className={CARD5_SELECT_CONTENT_CLASS}>
+            <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="all">
+              All
+            </SelectItem>
+            <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="active">
+              Active
+            </SelectItem>
+            <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="inactive">
+              Inactive
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        {canCreate ? (
+          <Card5CreateButton onClick={() => setEditing("create")} data-testid="create-role">
+            <Plus className="size-4" /> Create Role
+          </Card5CreateButton>
+        ) : null}
       </div>
       {query.isLoading ? <p className="text-sm text-[#756A5B]">Checking access…</p> : null}
       {query.isError ? <p className="text-sm text-destructive">{friendlyAccessError((query.error as Error).message)}</p> : null}
@@ -175,37 +211,86 @@ export function StaffAccessRoles({
         <div className="rounded-xl border border-[#DDD4C5] bg-white p-4 text-sm">
           No roles have been created yet.
           {canCreate ? (
-            <Button type="button" className="ml-3" onClick={() => setEditing("create")}>
-              Create Role
-            </Button>
+            <Card5CreateButton className="ml-3" onClick={() => setEditing("create")}>
+              <Plus className="size-4" /> Create Role
+            </Card5CreateButton>
           ) : null}
         </div>
       ) : null}
       {!query.isLoading && allRoles.length > 0 && roles.length === 0 ? (
         <p className="text-sm text-[#756A5B]">No roles match this search.</p>
       ) : null}
-      <div className="grid gap-2">
-        {roles.map((role) => {
-          const codes = codesForRole(snapshot, role.id);
-          const counts = accessCounts(codes);
-          const count = usage.get(role.id);
-          return (
-            <button
-              key={role.id}
-              type="button"
-              className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 text-left"
-              onClick={() => setEditing(role)}
-              data-testid={`role-row-${role.id}`}
-            >
-              <span className="block font-medium text-[#251605]">{role.name}</span>
-              <span className="block text-xs text-[#756A5B]">
-                {count?.activeStaff ?? 0} active staff
-                {usageQuery.data?.includesDisabled ? ` (${count?.totalStaff ?? 0} including disabled)` : ""} · {counts.modules} modules · {counts.actions} actions · {role.active ? "Active" : "Inactive"}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {roles.length > 0 ? (
+        <Card5TableShell>
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col />
+              <col className="w-[18%]" />
+              <col className="w-[14%]" />
+              <col className="w-[14%]" />
+              <col className="w-[7.5rem]" />
+              <col className="w-[4.5rem]" />
+            </colgroup>
+            <thead className={CARD5_THEAD_CLASS}>
+              <tr>
+                <th className={CARD5_TH_CLASS}>Role</th>
+                <th className={CARD5_TH_CLASS}>Active Staff</th>
+                <th className={CARD5_TH_CLASS}>Modules</th>
+                <th className={CARD5_TH_CLASS}>Action Count</th>
+                <th className={CARD5_STATUS_TH_CLASS}>Status</th>
+                <th className={CARD5_ACTIONS_TH_CLASS}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roles.map((role) => {
+                const codes = codesForRole(snapshot, role.id);
+                const counts = accessCounts(codes);
+                const count = usage.get(role.id);
+                return (
+                  <tr
+                    key={role.id}
+                    className="border-t border-[#EFE6D6]"
+                    data-testid={`role-row-${role.id}`}
+                  >
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="text-left font-medium text-[#251605]"
+                        onClick={() => setEditing(role)}
+                      >
+                        {role.name}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 text-[#5A4833]">
+                      {count?.activeStaff ?? 0}
+                      {usageQuery.data?.includesDisabled
+                        ? ` (${count?.totalStaff ?? 0} including disabled)`
+                        : ""}
+                    </td>
+                    <td className="px-3 py-2 text-[#5A4833]">{counts.modules}</td>
+                    <td className="px-3 py-2 text-[#5A4833]">{counts.actions}</td>
+                    <td className={CARD5_STATUS_TD_CLASS}>
+                      <Card5Status active={role.active} />
+                    </td>
+                    <td className={CARD5_ACTIONS_TD_CLASS}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Card5RowMenuButton label={`Actions for ${role.name}`} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
+                          <DropdownMenuItem onSelect={() => setEditing(role)}>
+                            View / Edit
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card5TableShell>
+      ) : null}
 
       {editing && snapshot ? (
         <RoleEditor
@@ -311,12 +396,19 @@ function RoleEditor({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{creating ? "Create Role" : name || "Role"}</DialogTitle>
-          <DialogDescription>Role names do not grant access. Only the permissions you select do.</DialogDescription>
-        </DialogHeader>
+    <Card3OverlapSheet
+      open
+      title={creating ? "Create Role" : name || "Role"}
+      description="Role names do not grant access. Only the permissions you select do."
+      onClose={onClose}
+      onSubmit={() => onSave(draftRole, [...selected], creating)}
+      submitLabel={creating ? "Create" : "Save"}
+      pending={pending}
+      canEdit={Boolean(name.trim() && (canEdit || canAssignPermissions))}
+      maxWidth="max-w-3xl"
+      className="max-h-[85vh]"
+      footerJustify="between"
+    >
         <div className="space-y-4">
           <section className="grid gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#756A5B]">Role Details</p>
@@ -378,28 +470,21 @@ function RoleEditor({
               ))}
             </section>
           ) : null}
-          <div className="flex flex-wrap justify-end gap-2">
-            {!creating && role?.active && canActivate ? (
+          {!creating && canActivate ? (
+            <div className="flex flex-wrap gap-2">
+            {role?.active ? (
               <Button type="button" variant="outline" onClick={() => onDeactivate(draftRole)}>
                 Deactivate
               </Button>
-            ) : null}
-            {!creating && role && !role.active && canActivate ? (
+            ) : role ? (
               <Button type="button" variant="outline" onClick={() => onSave({ ...draftRole, active: true }, [...selected], false)}>
                 Activate
               </Button>
             ) : null}
-            <Button
-              type="button"
-              disabled={pending || !name.trim() || (!canEdit && !canAssignPermissions)}
-              onClick={() => onSave(draftRole, [...selected], creating)}
-            >
-              Save
-            </Button>
-          </div>
+            </div>
+          ) : null}
         </div>
-      </DialogContent>
-    </Dialog>
+    </Card3OverlapSheet>
   );
 }
 

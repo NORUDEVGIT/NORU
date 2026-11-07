@@ -395,6 +395,7 @@ export function ReservationDetailRatesTab({
                 currency={currency}
                 editable={editable}
                 canChangePlan={canChangePlan}
+                marketSegments={marketSegments}
                 onChangePlan={() => setPlanOpen(true)}
                 onApplyDiscount={() => setDiscountOpen(true)}
               />
@@ -641,6 +642,7 @@ function RateInformationCard({
   currency,
   editable,
   canChangePlan,
+  marketSegments,
   onChangePlan,
   onApplyDiscount,
 }: {
@@ -655,6 +657,7 @@ function RateInformationCard({
   currency: string;
   editable: boolean;
   canChangePlan: boolean;
+  marketSegments: Array<{ id: string; name: string; code?: string | null }>;
   onChangePlan: () => void;
   onApplyDiscount: () => void;
 }) {

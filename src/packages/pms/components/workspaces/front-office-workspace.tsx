@@ -45,6 +45,7 @@ import {
   type InHouseQuickViewAction,
 } from "@/packages/pms/components/frontoffice/in-house-quick-view";
 import { LateCheckoutDialog } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
+import { FoMaintenanceActionModal } from "@/packages/pms/components/frontoffice/fo-maintenance-action-modal";
 import {
   getFrontOfficeInHouseQuickView,
   type FoInHouseQuickView,
@@ -55,12 +56,11 @@ import {
   type FoRackBarActionId,
 } from "@/packages/pms/lib/fo-rack-bar-menu";
 import type { DepartureRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
+import { RoomOperationsHistorySheet } from "@/packages/pms/components/frontoffice/room-quick-view";
 import {
-  RoomQuickViewSheet,
-  RoomOperationsHistorySheet,
-  type RoomQuickViewAction,
-} from "@/packages/pms/components/frontoffice/room-quick-view";
-import type { FoRoomQuickView } from "@/packages/pms/lib/front-office-room-operations";
+  FoHousekeepingTaskModal,
+  type FoHkTaskRoomTarget,
+} from "@/packages/pms/components/frontoffice/fo-housekeeping-task-modal";
 import {
   foRackSearchSlice,
   invokeFoAction,
@@ -73,6 +73,8 @@ import {
   listInHouse,
   type FrontOfficeStay,
 } from "@/packages/pms/lib/frontoffice.functions";
+import { listFoStayAmendmentHistory } from "@/packages/pms/lib/fo-amendments.functions";
+import { stayAmendmentsForReservation } from "@/packages/pms/lib/fo-amendments";
 import type { FoRackFocus } from "@/packages/pms/lib/fo-exceptions";
 import type { FoControlAction, FrontOfficeExceptionItem } from "@/packages/pms/lib/fo-control";
 import {
@@ -84,7 +86,6 @@ import {
   GUEST_PROFILE_DETAIL_PATH,
   guestProfileSearch,
 } from "@/packages/pms/lib/guest-profile-wave1";
-import { SET2_RI_ROOMS_HREF } from "@/packages/pms/lib/pms-set2-structure";
 import { CreateReservationPage } from "@/packages/pms/components/bookings/create-reservation-page";
 import {
   ReservationWorkspaceOverlay,
@@ -222,11 +223,10 @@ export function FrontOfficeWorkspace({
   const [amendKind, setAmendKind] = useState<FoAmendKind | null>(null);
   const [amendStay, setAmendStay] = useState<FrontOfficeStay | null>(null);
   const [notesStay, setNotesStay] = useState<FrontOfficeStay | null>(null);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [rackFocus, setRackFocus] = useState<FoRackFocus | null>(null);
   const [searchCancelStay, setSearchCancelStay] = useState<FrontOfficeStay | null>(null);
-  const [roomQvId, setRoomQvId] = useState<string | null>(null);
+  const [hkTaskRoom, setHkTaskRoom] = useState<FoHkTaskRoomTarget | null>(null);
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
   const [inHouseQv, setInHouseQv] = useState<FoRackInHouseTarget | null>(null);
   const [inHouseMove, setInHouseMove] = useState<FrontOfficeStay | null>(null);
@@ -237,6 +237,7 @@ export function FrontOfficeWorkspace({
     stay: FrontOfficeStay;
     kind: FoAmendKind;
   } | null>(null);
+  const [inHouseMaintenance, setInHouseMaintenance] = useState<FrontOfficeStay | null>(null);
 
   const onRackSearchChange = useCallback(
     (next: {
@@ -247,7 +248,7 @@ export function FrontOfficeWorkspace({
       void navigate({
         to: "/restaurant/pms/front-office",
         search: {
-          tab: "rack",
+          tab: resolveFoNav(search.tab),
           ...foRackSearchSlice({
             horizon: next.horizon,
             date: next.date,
@@ -257,7 +258,7 @@ export function FrontOfficeWorkspace({
         replace: true,
       });
     },
-    [navigate],
+    [navigate, search.tab],
   );
   const fetchInHouseQuickView = useServerFn(getFrontOfficeInHouseQuickView);
 
@@ -273,17 +274,17 @@ export function FrontOfficeWorkspace({
 
   function openStayQuickView(stay: FrontOfficeStay, tab: FoGuestWorkspaceTabId = "overview") {
     setGuestTab(tab);
-    setRoomQvId(null);
+    setHkTaskRoom(null);
     setHistoryRoomId(null);
     setInHouseQv(null);
     setSheetStay(stay);
   }
 
-  function openRoomQuickView(roomId: string) {
+  function openHkTask(target: FoHkTaskRoomTarget) {
     setSheetStay(null);
     setHistoryRoomId(null);
     setInHouseQv(null);
-    setRoomQvId(roomId);
+    setHkTaskRoom(target);
   }
 
   function openInHouseFromRack(
@@ -292,7 +293,7 @@ export function FrontOfficeWorkspace({
   ) {
     setGuestTab(tab);
     setSheetStay(null);
-    setRoomQvId(null);
+    setHkTaskRoom(null);
     setHistoryRoomId(null);
     setInHouseQv(target);
   }
@@ -327,7 +328,7 @@ export function FrontOfficeWorkspace({
     }
     if (action === "open_maintenance") {
       setInHouseQv(null);
-      void navigate({ to: MAINTENANCE_HREF });
+      setInHouseMaintenance(qv.stay);
       return;
     }
     setInHouseQv(null);
@@ -427,135 +428,7 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (action === "open_maintenance") {
-      void navigate({ to: MAINTENANCE_HREF });
-    }
-  }
-
-  function runAfterRoomQuickView(fn: () => void) {
-    setRoomQvId(null);
-    if (phone) {
-      window.setTimeout(fn, 220);
-      return;
-    }
-    fn();
-  }
-
-  function onRoomQuickViewAction(
-    action: RoomQuickViewAction,
-    stay: FrontOfficeStay | null,
-    view: FoRoomQuickView,
-  ) {
-    if (
-      action === "open_housekeeping" ||
-      action === "open_maintenance" ||
-      action === "view_block"
-    ) {
-      setRoomQvId(null);
-      return;
-    }
-    if (action === "edit_room") {
-      setRoomQvId(null);
-      void navigate({ to: SET2_RI_ROOMS_HREF });
-      return;
-    }
-    if (action === "view_profile" && view.inHouseGuest) {
-      setRoomQvId(null);
-      void navigate({
-        to: GUEST_PROFILE_DETAIL_PATH,
-        params: { guestId: view.inHouseGuest.guestId },
-      });
-      return;
-    }
-    if (action === "view_folio" || action === "open_folio") {
-      if (stay && canOpenCashiering) {
-        setRoomQvId(null);
-        openFolioWorkspace(stay);
-        return;
-      }
-      if (canOpenCashiering) {
-        setRoomQvId(null);
-        void navigate({ to: "/restaurant/pms/cashiering", search: { tab: "folios" } });
-        return;
-      }
-      if (stay) runAfterRoomQuickView(() => setSheetStay(stay));
-      return;
-    }
-    if (action === "view_reservation" && stay) {
-      setRoomQvId(null);
-      void navigate({
-        to: "/restaurant/pms/reservations/$reservationId",
-        params: { reservationId: stay.id },
-      });
-      return;
-    }
-    if (action === "view_all_requests" && stay) {
-      setRoomQvId(null);
-      void navigate({
-        to: "/restaurant/pms/reservations/$reservationId",
-        params: { reservationId: stay.id },
-      });
-      return;
-    }
-    if (action === "guest_services" && view.inHouseGuest) {
-      setRoomQvId(null);
-      void navigate({
-        to: GUEST_PROFILE_DETAIL_PATH,
-        params: { guestId: view.inHouseGuest.guestId },
-        search: guestProfileSearch({ card: "services" }),
-      });
-      return;
-    }
-    if (action === "view_history") {
-      runAfterRoomQuickView(() => setHistoryRoomId(view.roomId));
-      return;
-    }
-    if (action === "open_stay" && stay) {
-      runAfterRoomQuickView(() => setSheetStay(stay));
-      return;
-    }
-    if (action === "edit_stay" && stay) {
-      runAfterRoomQuickView(() => openDialog("stay", stay));
-      return;
-    }
-    if (action === "extend_stay" && stay) {
-      runAfterRoomQuickView(() => openDialog("stay", stay));
-      return;
-    }
-    if (action === "add_guest" && stay) {
-      runAfterRoomQuickView(() => {
-        setAmendStay(stay);
-        setAmendKind("guests");
-      });
-      return;
-    }
-    if (action === "add_note" && stay) {
-      runAfterRoomQuickView(() => {
-        setAmendStay(stay);
-        setAmendKind("special");
-      });
-      return;
-    }
-    if ((action === "assign" || action === "reassign") && stay) {
-      runAfterRoomQuickView(() => openDialog("assign", stay));
-      return;
-    }
-    if ((action === "move" || action === "change_room") && stay) {
-      if (action === "change_room" && view.actionHints.canReassign) {
-        runAfterRoomQuickView(() => openDialog("assign", stay));
-        return;
-      }
-      runAfterRoomQuickView(() => openDialog("move", stay));
-      return;
-    }
-    if (action === "check_in" && stay) {
-      runAfterRoomQuickView(() => {
-        setCheckInStep("stay");
-        openDialog("checkin", stay);
-      });
-      return;
-    }
-    if (action === "check_out" && stay) {
-      runAfterRoomQuickView(() => openDialog("checkout", stay));
+      setInHouseMaintenance(stay);
     }
   }
 
@@ -584,6 +457,18 @@ export function FrontOfficeWorkspace({
   const exceptionRoomIds = useMemo(
     () => new Set(exceptionDesk.items.map((item) => item.roomId).filter((id): id is string => Boolean(id))),
     [exceptionDesk.items],
+  );
+  const fetchAmendmentHistory = useServerFn(listFoStayAmendmentHistory);
+  const amendmentHistoryQuery = useQuery({
+    queryKey: ["front-office", "amended-stay-history", restaurantId],
+    queryFn: () => fetchAmendmentHistory({ data: { restaurantId } }),
+    enabled: deskReady,
+    retry: false,
+  });
+  const amendmentHistory = amendmentHistoryQuery.data ?? [];
+  const amendmentStayIds = useMemo(
+    () => new Set(amendmentHistory.map((row) => row.reservationId)),
+    [amendmentHistory],
   );
 
   const fetchArrivals = useServerFn(listArrivals);
@@ -696,7 +581,15 @@ export function FrontOfficeWorkspace({
       return;
     }
     if (!stay) {
-      if (row.roomId) openRoomQuickView(row.roomId);
+      if (row.roomId) {
+        openHkTask({
+          roomId: row.roomId,
+          roomNumber: row.roomNumber ?? "",
+          occupancy: null,
+          housekeepingStatus: null,
+          guestName: row.guestName ?? null,
+        });
+      }
       return;
     }
     if (action === "assign_room") {
@@ -818,20 +711,11 @@ export function FrontOfficeWorkspace({
       returnTo={search.returnTo}
       returnToLabel={search.returnToLabel}
       onNavigate={goToFoTab}
-      onQuickAction={onQuickAction}
       onGuestSearch={(term) => {
         setSearchTerm(term ?? "");
         setSearchOpen(true);
       }}
       exceptionBadge={exceptionDesk.failed ? 0 : exceptionDesk.badgeCount}
-      onNotifications={() => {
-        setView("exceptions");
-        goToFoTab("exceptions");
-      }}
-      onFoActivity={() => setAuditOpen(true)}
-      helpOpen={helpOpen}
-      onHelpOpenChange={setHelpOpen}
-      canOpenCashiering={canOpenCashiering}
     >
       {comingSoon ? (
         <ComingSoonPanel
@@ -860,9 +744,11 @@ export function FrontOfficeWorkspace({
           category={view}
           exceptionStayIds={exceptionStayIds}
           exceptionRoomIds={exceptionRoomIds}
+          amendmentStayIds={amendmentStayIds}
+          amendmentHistory={amendmentHistory}
           onSelectStay={openStayQuickView}
           onSelectInHouse={openInHouseFromRack}
-          onSelectRoom={openRoomQuickView}
+          onSelectRoom={openHkTask}
           onRackAction={onRackBarAction}
           canOpenCashiering={canOpenCashiering}
           staffRole={membership.role}
@@ -872,10 +758,6 @@ export function FrontOfficeWorkspace({
               ? () => openWalkInCreate()
               : undefined
           }
-          onOpenGuestSearch={() => {
-            setSearchTerm("");
-            setSearchOpen(true);
-          }}
         />
       </div>
 
@@ -905,22 +787,24 @@ export function FrontOfficeWorkspace({
           onAction={onSheetAction}
         />
       ) : null}
-      {roomQvId ? (
-        <RoomQuickViewSheet
-          restaurantId={restaurantId}
-          roomId={roomQvId}
-          businessDate={today}
-          hasDiscrepancy={exceptionDesk.openDiscrepancyRoomIds.has(roomQvId)}
-          open
-          phone={phone}
-          onOpenChange={(open) => !open && setRoomQvId(null)}
-          onAction={onRoomQuickViewAction}
-        />
-      ) : null}
+      <FoHousekeepingTaskModal
+        restaurantId={restaurantId}
+        today={today}
+        target={hkTaskRoom}
+        open={Boolean(hkTaskRoom)}
+        onOpenChange={(open) => {
+          if (!open) setHkTaskRoom(null);
+        }}
+      />
       <InHouseQuickViewSheet
         restaurantId={restaurantId}
         reservationId={inHouseQv?.reservationId ?? null}
         reservationRoomId={inHouseQv?.reservationRoomId ?? null}
+        amendmentHistory={
+          inHouseQv
+            ? stayAmendmentsForReservation(amendmentHistory, inHouseQv.reservationId)
+            : []
+        }
         initialTab={guestTab}
         open={
           Boolean(inHouseQv) &&
@@ -928,7 +812,8 @@ export function FrontOfficeWorkspace({
           !inHouseDates &&
           !inHouseCheckOut &&
           !inHouseLate &&
-          !inHouseAmend
+          !inHouseAmend &&
+          !inHouseMaintenance
         }
         onOpenChange={(open) => {
           if (!open) setInHouseQv(null);
@@ -953,6 +838,7 @@ export function FrontOfficeWorkspace({
             : "Review the reservation created from Front Office."
         }
         hideVisualHeader={reservationOverlay?.type === "reservation-detail"}
+        size={reservationOverlay?.type === "reservation-detail" ? "workspace" : "wide"}
         showCreateIcon={reservationOverlay?.type === "new-reservation"}
         onOpenChange={(open) => {
           if (!open) closeReservationOverlay();
@@ -1205,6 +1091,19 @@ export function FrontOfficeWorkspace({
           onOpenChange={(open) => {
             if (!open) {
               setInHouseAmend(null);
+              refreshInHouseRack();
+            }
+          }}
+        />
+      ) : null}
+      {inHouseMaintenance ? (
+        <FoMaintenanceActionModal
+          restaurantId={restaurantId}
+          stay={inHouseMaintenance}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setInHouseMaintenance(null);
               refreshInHouseRack();
             }
           }}

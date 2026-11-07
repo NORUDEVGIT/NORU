@@ -25,9 +25,12 @@ import {
   Card3OverlapSheet,
   Card3Section,
   Card3StatusDot,
+  Card3Table,
+  Card3EmptyRow,
+  Card3RowActions,
+  Card3SearchAddBar,
   card3CurrencyCatalogMeta,
   card3CurrencyFlag,
-  useCard3DraftSave,
 } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import {
   PropertySetupField,
@@ -45,7 +48,6 @@ import {
   CARD3_CURRENCY_TABS,
   CURRENCY_FX_SOURCES,
   CURRENCY_ROUNDING,
-  FX_DIRECTION_COPY,
   emptyFinancialSettings,
   formatFxDirection,
   type CurrencyCard3Snapshot,
@@ -107,6 +109,7 @@ export function PmsPropertySetupCard3Currency({
   const [currencyDraft, setCurrencyDraft] = useState<PropertyCurrency | "new" | null>(null);
   const [rateDraft, setRateDraft] = useState<ExchangeRateRow | "new" | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [rateView, setRateView] = useState<"current" | "history">("current");
 
   const query = useQuery({
     queryKey: ["pms-card3-currency", restaurantId],
@@ -120,8 +123,9 @@ export function PmsPropertySetupCard3Currency({
   const settings = snapshot?.settings ?? emptyFinancialSettings();
   const fxStatus = snapshot?.fxStatus ?? {
     providerName: "ExchangeRate-API",
-    lastRefreshedAt: null,
-    status: "never" as const,
+    lastRefreshAt: null,
+    status: "not_configured" as const,
+    lastError: null,
   };
 
   const filteredCurrencies = useMemo(() => {
@@ -148,6 +152,24 @@ export function PmsPropertySetupCard3Currency({
         FX_LABELS[row.source].toLowerCase().includes(q),
     );
   }, [rates, rateSearch]);
+
+  const latestRates = useMemo(() => {
+    const seen = new Set<string>();
+    const latest: ExchangeRateRow[] = [];
+    for (const row of filteredRates) {
+      if (seen.has(row.quoteCurrencyCode)) continue;
+      seen.add(row.quoteCurrencyCode);
+      latest.push(row);
+    }
+    return latest;
+  }, [filteredRates]);
+
+  const historicalRates = useMemo(() => {
+    const latestIds = new Set(latestRates.map((row) => row.id));
+    return filteredRates.filter((row) => !latestIds.has(row.id));
+  }, [filteredRates, latestRates]);
+
+  const visibleRates = rateView === "current" ? latestRates : historicalRates;
 
   const quoteOptions = currencies.filter((row) => !row.isBase && row.active);
   const baseRow =
@@ -197,23 +219,15 @@ export function PmsPropertySetupCard3Currency({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  useCard3DraftSave(
-    canEdit
-      ? {
-          dirty: settingsDirty,
-          pending: settingsMut.isPending,
-          save: async () => {
-            await settingsMut.mutateAsync({
-              restaurantId,
-              fiscalYearStartMonth: settings.fiscalYearStartMonth,
-              fiscalYearStartDay: settings.fiscalYearStartDay,
-              defaultFxSource: settings.defaultFxSource,
-              allowMultiCurrency: settings.allowMultiCurrency,
-            });
-          },
-        }
-      : null,
-  );
+  function saveFinancialSettings() {
+    settingsMut.mutate({
+      restaurantId,
+      fiscalYearStartMonth: settings.fiscalYearStartMonth,
+      fiscalYearStartDay: settings.fiscalYearStartDay,
+      defaultFxSource: settings.defaultFxSource,
+      allowMultiCurrency: settings.allowMultiCurrency,
+    });
+  }
 
   function patchSettings(patch: Partial<typeof settings>) {
     setSettingsDirty(true);
@@ -241,65 +255,41 @@ export function PmsPropertySetupCard3Currency({
           {(query.error as Error | undefined)?.message ?? "Currency settings are unavailable."}
         </p>
       ) : (
-        <div className="space-y-5" data-testid="pms-card3-currency">
-          <Card3Section icon="money" title="Primary Currency" testId="card3-base-currency-strip">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-              <p>
-                ETB is the property/base currency for all exchange-rate conversions (1 ETB = 1 ETB).
-                Primary currency configuration is managed in{" "}
-                <a
-                  href={CARD1_HREF}
-                  className="font-medium text-[#C89933] underline hover:text-[#A67C1E]"
-                >
-                  Card 1: Property & Business
-                </a>
-                .
-              </p>
+        <div className="space-y-4" data-testid="pms-card3-currency">
+          <section
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6E1D8] bg-white px-4 py-3"
+            data-testid="card3-base-currency-strip"
+          >
+            <div className="min-w-0">
+              <h3 className="font-display text-sm font-semibold text-[#251605]">Primary Currency</h3>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[#251605]">
+                <span className="text-lg leading-none">
+                  {card3CurrencyFlag(inherited.baseCurrency)}
+                </span>
+                <span className="font-semibold">{inherited.baseCurrency}</span>
+                <span>
+                  {baseRow?.name ||
+                    baseMeta?.name ||
+                    (inherited.baseCurrency === "ETB" ? "Ethiopian Birr" : inherited.baseCurrency)}
+                </span>
+                <span className="text-muted-foreground">
+                  {baseRow?.symbol ||
+                    baseMeta?.symbol ||
+                    (inherited.baseCurrency === "ETB" ? "Br" : inherited.baseCurrency)}
+                </span>
+                <span className="text-muted-foreground">
+                  {String(baseRow?.decimalPlaces ?? baseMeta?.decimalPlaces ?? 2)} decimals
+                </span>
+                <Card3StatusDot active />
+              </div>
             </div>
-            <div className="overflow-x-auto rounded-[8px] border border-[#E6E1D8]">
-              <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
-                <thead className="bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wide text-[#6B6458]">
-                  <tr>
-                    <th className="px-3 py-2.5">Flag</th>
-                    <th className="px-3 py-2.5">Code</th>
-                    <th className="px-3 py-2.5">Name</th>
-                    <th className="px-3 py-2.5">Symbol</th>
-                    <th className="px-3 py-2.5">Decimals</th>
-                    <th className="px-3 py-2.5">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-[#E6E1D8] bg-white">
-                    <td className="px-3 py-3 text-xl">
-                      {card3CurrencyFlag(inherited.baseCurrency)}
-                    </td>
-                    <td className="px-3 py-3 font-medium text-[#251605]">
-                      {inherited.baseCurrency}
-                      <span className="ml-2 rounded-full border border-[#CCCCCC] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Base
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-[#251605]">
-                      {baseRow?.name ||
-                        baseMeta?.name ||
-                        (inherited.baseCurrency === "ETB" ? "Ethiopian Birr" : inherited.baseCurrency)}
-                    </td>
-                    <td className="px-3 py-3 text-[#251605]">
-                      {baseRow?.symbol ||
-                        baseMeta?.symbol ||
-                        (inherited.baseCurrency === "ETB" ? "Br" : inherited.baseCurrency)}
-                    </td>
-                    <td className="px-3 py-3 text-[#251605]">
-                      {String(baseRow?.decimalPlaces ?? baseMeta?.decimalPlaces ?? 2)}
-                    </td>
-                    <td className="px-3 py-3">
-                      <Card3StatusDot active />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </Card3Section>
+            <a
+              href={CARD1_HREF}
+              className="text-xs font-medium text-[#C89933] hover:text-[#A67C1E]"
+            >
+              Manage
+            </a>
+          </section>
 
           <Card3ListSection
             icon="money"
@@ -311,7 +301,7 @@ export function PmsPropertySetupCard3Currency({
             onAdd={() => setCurrencyDraft("new")}
             canEdit={canEdit}
             columns={["Flag", "Code", "Name", "Symbol", "Decimals", "Status"]}
-            empty={`No currencies saved yet. The Card 1 base (${inherited.baseCurrency}) still applies.`}
+            empty="No currencies configured"
             rows={filteredCurrencies.map((row) => {
               const inheritedBase = row.isBase || row.code === inherited.baseCurrency;
               return {
@@ -337,53 +327,36 @@ export function PmsPropertySetupCard3Currency({
             })}
           />
 
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#E6E1D8] bg-[#FAF8F5] p-3 text-xs">
-              <div className="flex flex-wrap items-center gap-4 text-[#251605]">
-                <div>
-                  <span className="text-muted-foreground">Base Currency: </span>
-                  <span className="font-semibold">
-                    {inherited.baseCurrency} (1 {inherited.baseCurrency} = 1 {inherited.baseCurrency})
+          <Card3Section icon="money" title="Exchange Rates">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#5C5346]">
+                <span>
+                  {fxStatus.providerName} ·{" "}
+                  {settings.defaultFxSource === "manual" ? "Manual" : "Automatic"}
+                </span>
+                <span>
+                  Last updated{" "}
+                  {fxStatus.lastRefreshAt
+                    ? new Date(fxStatus.lastRefreshAt).toLocaleString()
+                    : "Not refreshed"}
+                </span>
+                {fxStatus.lastRefreshAt && fxStatus.status === "current" ? (
+                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    Current
                   </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Source: </span>
-                  <span className="font-medium">{fxStatus.providerName} · Automatic</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Last Updated: </span>
-                  <span className="font-medium">
-                    {fxStatus.lastRefreshedAt
-                      ? new Date(fxStatus.lastRefreshedAt).toLocaleString()
-                      : "Never"}
+                ) : null}
+                {fxStatus.status === "stale" ? (
+                  <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                    Stale
                   </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground">Freshness: </span>
-                  {fxStatus.status === "current" && (
-                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                      Current
-                    </span>
-                  )}
-                  {fxStatus.status === "stale" && (
-                    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                      Stale
-                    </span>
-                  )}
-                  {fxStatus.status === "failed" && (
-                    <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">
-                      Refresh Failed
-                    </span>
-                  )}
-                  {fxStatus.status === "never" && (
-                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
-                      Not Refreshed
-                    </span>
-                  )}
-                </div>
+                ) : null}
+                {fxStatus.status === "failed" ? (
+                  <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700">
+                    Refresh Failed
+                  </span>
+                ) : null}
               </div>
-
-              {canEdit && (
+              {canEdit ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -395,62 +368,100 @@ export function PmsPropertySetupCard3Currency({
                   <RefreshCw className={cn("size-3.5", refreshMut.isPending && "animate-spin")} />
                   {refreshMut.isPending ? "Refreshing Rates…" : "Refresh Rates"}
                 </Button>
-              )}
+              ) : null}
             </div>
 
-            <Card3ListSection
-              icon="money"
-              title="Exchange Rates"
-              helper={FX_DIRECTION_COPY}
-              search={rateSearch}
-              onSearch={setRateSearch}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex rounded-lg border border-[#E6DFD3] bg-[#F7F4EE] p-0.5">
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium",
+                    rateView === "current"
+                      ? "bg-white text-[#251605] shadow-xs"
+                      : "text-muted-foreground hover:text-[#251605]",
+                  )}
+                  onClick={() => setRateView("current")}
+                >
+                  Current Rates
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium",
+                    rateView === "history"
+                      ? "bg-white text-[#251605] shadow-xs"
+                      : "text-muted-foreground hover:text-[#251605]",
+                  )}
+                  onClick={() => setRateView("history")}
+                >
+                  Rate History
+                </button>
+              </div>
+            </div>
+
+            <Card3SearchAddBar
+              value={rateSearch}
+              onChange={setRateSearch}
               placeholder="Search exchange rates"
-              addLabel="Add exchange rate"
+              addLabel={
+                settings.defaultFxSource === "manual" ? "Add Exchange Rate" : "Add Manual Override"
+              }
               onAdd={() => setRateDraft("new")}
               canEdit={canEdit}
-              columns={["Currency", "Rate", "Effective Date", "Source", "Status"]}
-              empty="No exchange rates yet."
-              rows={filteredRates.map((row) => ({
-                id: row.id,
-                onEdit: () => setRateDraft(row),
-                cells: [
-                  row.quoteCurrencyCode,
-                  row.directionLabel,
-                  row.effectiveDate,
-                  row.displaySource,
-                  row.status === "current" ? (
-                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                      Current
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                      Stale
-                    </span>
-                  ),
-                ],
-              }))}
             />
-          </div>
+            <Card3Table headers={["Currency", "Rate", "Effective Date", "Source", "Status", ""]}>
+              {visibleRates.length === 0 ? (
+                <Card3EmptyRow colSpan={6}>
+                  {rateView === "history" ? "No historical rates." : "No exchange rates yet."}
+                </Card3EmptyRow>
+              ) : (
+                visibleRates.map((row) => (
+                  <tr key={row.id} className="border-t border-[#E6E1D8]">
+                    <td className="px-3 py-2 text-[#251605]">{row.quoteCurrencyCode}</td>
+                    <td className="px-3 py-2 text-[#251605]">{row.rate}</td>
+                    <td className="px-3 py-2 text-[#251605]">{row.effectiveDate}</td>
+                    <td className="px-3 py-2 text-[#251605]">{row.displaySource}</td>
+                    <td className="px-3 py-2">
+                      {row.status === "current" ? (
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          Current
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                          Stale
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {rateView === "history" ? null : (
+                        <Card3RowActions
+                          label={`Actions for ${row.quoteCurrencyCode}`}
+                          onEdit={() => setRateDraft(row)}
+                          editDisabled={!canEdit}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </Card3Table>
+          </Card3Section>
 
-          <div className="grid gap-5 lg:grid-cols-2">
-
+          <div className="grid gap-4 lg:grid-cols-2">
             <Card3Section icon="date" title="Financial Calendar">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Card3InheritedStrip>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Business date (Card 1)
-                  </p>
+                  <p className="text-xs text-muted-foreground">Business Date</p>
                   <p className="mt-1 font-medium">{inherited.businessDate || "—"}</p>
                 </Card3InheritedStrip>
                 <Card3InheritedStrip>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Timezone (Card 1)
-                  </p>
+                  <p className="text-xs text-muted-foreground">Time Zone</p>
                   <p className="mt-1 font-medium">{inherited.timezone || "—"}</p>
                 </Card3InheritedStrip>
               </div>
               <PropertySetupFormGrid>
-                <PropertySetupField id="fy-month" label="Fiscal year start month" icon="date">
+                <PropertySetupField id="fy-month" label="Fiscal Year Start Month" icon="date">
                   <Select
                     value={String(settings.fiscalYearStartMonth)}
                     onValueChange={(value) =>
@@ -470,7 +481,7 @@ export function PmsPropertySetupCard3Currency({
                     </SelectContent>
                   </Select>
                 </PropertySetupField>
-                <PropertySetupField id="fy-day" label="Fiscal year start day" icon="date">
+                <PropertySetupField id="fy-day" label="Fiscal Year Start Day" icon="date">
                   <Input
                     id="fy-day"
                     type="number"
@@ -489,11 +500,7 @@ export function PmsPropertySetupCard3Currency({
 
             <Card3Section icon="service" title="Financial Settings">
               <PropertySetupFormGrid>
-                <PropertySetupField
-                  label="Default FX source"
-                  icon="money"
-                  helper="Bank and System are labels only. Rates are entered manually."
-                >
+                <PropertySetupField label="Default FX source" icon="money">
                   <Select
                     value={settings.defaultFxSource}
                     disabled={!canEdit}
@@ -515,7 +522,12 @@ export function PmsPropertySetupCard3Currency({
                 </PropertySetupField>
               </PropertySetupFormGrid>
               <div className="flex items-center justify-between rounded-[8px] border border-[#E6D7B8] px-3 py-2">
-                <Label htmlFor="multi-currency">Allow multi-currency</Label>
+                <div>
+                  <Label htmlFor="multi-currency">Allow multi-currency</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Lets reservations quote in configured currencies besides the primary.
+                  </p>
+                </div>
                 <Switch
                   id="multi-currency"
                   checked={settings.allowMultiCurrency}
@@ -523,6 +535,18 @@ export function PmsPropertySetupCard3Currency({
                   onCheckedChange={(allowMultiCurrency) => patchSettings({ allowMultiCurrency })}
                 />
               </div>
+              {canEdit && settingsDirty ? (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    className="bg-[#C89933] font-medium text-[#251605] hover:bg-[#C89933]/90"
+                    disabled={settingsMut.isPending}
+                    onClick={saveFinancialSettings}
+                  >
+                    {settingsMut.isPending ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              ) : null}
             </Card3Section>
           </div>
 
@@ -542,6 +566,13 @@ export function PmsPropertySetupCard3Currency({
             key={rateDraft === "new" ? "rate-new" : (rateDraft?.id ?? "rate-closed")}
             open={rateDraft !== null}
             canEdit={canEdit}
+            heading={
+              rateDraft === "new"
+                ? settings.defaultFxSource === "manual"
+                  ? "Add Exchange Rate"
+                  : "Add Manual Override"
+                : "Edit exchange rate"
+            }
             baseCurrency={inherited.baseCurrency}
             quotes={quoteOptions}
             value={rateDraft === "new" || rateDraft === null ? null : rateDraft}
@@ -604,8 +635,8 @@ function CurrencyDrawer({
       title={value ? "Edit currency" : "Add currency"}
       description={
         isBase
-          ? "This is the Card 1 base currency. It cannot be changed here."
-          : "Flag, name, symbol, and decimals come from the shared catalogue. Flags are presentation only."
+          ? "This is the property primary currency and cannot be changed here."
+          : undefined
       }
       onClose={onClose}
       canEdit={canEdit && !isBase}
@@ -721,6 +752,7 @@ function CurrencyDrawer({
 function RateDrawer({
   open,
   canEdit,
+  heading,
   baseCurrency,
   quotes,
   value,
@@ -730,6 +762,7 @@ function RateDrawer({
 }: {
   open: boolean;
   canEdit: boolean;
+  heading: string;
   baseCurrency: string;
   quotes: PropertyCurrency[];
   value: ExchangeRateRow | null;
@@ -753,8 +786,7 @@ function RateDrawer({
   return (
     <Card3OverlapSheet
       open={open}
-      title={value ? "Edit exchange rate" : "Add exchange rate"}
-      description={formatFxDirection(baseCurrency || "BASE", quote || "QUOTE", rate)}
+      title={heading}
       onClose={onClose}
       canEdit={canEdit}
       pending={pending}
@@ -794,6 +826,9 @@ function RateDrawer({
           disabled={!canEdit}
           onChange={(event) => setRate(Number(event.target.value))}
         />
+        <p className="text-[11px] text-muted-foreground">
+          {formatFxDirection(baseCurrency || "BASE", quote || "QUOTE", rate)}
+        </p>
       </div>
       <div className="space-y-1">
         <Label htmlFor="fx-date">Effective Date</Label>

@@ -35,11 +35,11 @@ const route = readFileSync(
 );
 
 describe("Phase 1 workspace overlay routing", () => {
-  it("keeps row selection local and does not open Detail from a row click", () => {
-    expect(workspace).toContain("function selectRow(row: ReservationDeskRow)");
-    expect(workspace).toContain("setSelectedId(row.reservationId)");
-    expect(workspace).toContain("onClick={() => onSelect(row)}");
-    expect(workspace).not.toContain("onSelect={(row) => openReservation(row.reservationId)}");
+  it("opens Reservation Detail overlay from a desk row click", () => {
+    expect(workspace).toContain("onClick={() => onOpen(row.reservationId)}");
+    expect(workspace).toContain("function openReservation(id: string)");
+    expect(workspace).toContain('setOverlay({ type: "reservation-detail", reservationId: id })');
+    expect(workspace).not.toContain("function selectRow(row: ReservationDeskRow)");
     expect(workspace).not.toContain('to: "/restaurant/pms/reservations/$reservationId"');
   });
 

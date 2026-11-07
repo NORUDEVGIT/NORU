@@ -8,6 +8,7 @@ function source(path: string) {
 }
 
 const workspace = source("src/packages/pms/components/workspaces/arrivals-departures-workspace.tsx");
+const guestWorkspace = source("src/packages/pms/components/workspaces/arrival-guest-workspace.tsx");
 const dialogs = source("src/packages/pms/components/workspaces/arrivals-departures-dialogs.tsx");
 const parent = source("src/packages/pms/components/workspaces/reservations-workspace.tsx");
 
@@ -48,16 +49,17 @@ describe("Phase 8B Arrivals & Departures workspace", () => {
   });
 
   it("opens Quick View and launches canonical FO writers", () => {
-    expect(workspace).toContain('data-testid="arrival-quick-view"');
+    expect(workspace).toContain("ArrivalGuestWorkspace");
     expect(workspace).toContain('data-testid="departure-quick-view"');
     expect(workspace).toContain("AssignRoomDialog");
     expect(workspace).toContain("CheckInDialog");
     expect(workspace).toContain("CheckOutDialog");
     expect(workspace).toContain("StayDatesDialog");
-    expect(workspace).toContain("Open Reservation");
     expect(workspace).toContain("Extend Stay");
     expect(workspace).toContain("Grant Late Checkout");
-    expect(workspace).toContain("History");
+    expect(guestWorkspace).toContain('data-testid="arrival-quick-view"');
+    expect(guestWorkspace).toContain("Open Reservation");
+    expect(guestWorkspace).toContain("History");
   });
 
   it("wires ETA, bulk ETA and late checkout to Phase 8A writers", () => {
@@ -71,7 +73,9 @@ describe("Phase 8B Arrivals & Departures workspace", () => {
   });
 
   it("keeps the mobile Quick View Sheet inactive on desktop", () => {
-    expect(workspace).toContain('open={!desktop && mobileOpen && selectedId !== null}');
+    expect(workspace).toContain(
+      "open={!desktop && mobileOpen && selectedId !== null && mode === \"departures\"}",
+    );
     expect(workspace).toContain("xl:hidden");
     expect(workspace).toContain("matchMedia(\"(min-width: 1280px)\")");
   });

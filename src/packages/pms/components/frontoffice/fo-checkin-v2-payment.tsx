@@ -265,7 +265,7 @@ export function FoCheckInV2Payment({
   const currencyMissing = !readiness.currency?.trim();
 
   return (
-    <div className="space-y-4" data-testid="fo-ci-v2-payment">
+    <div className="space-y-3" data-testid="fo-ci-v2-payment">
       <ReadinessBanner
         readiness={readiness}
         status={status}
@@ -273,7 +273,7 @@ export function FoCheckInV2Payment({
         currencyMissing={currencyMissing}
       />
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-3 xl:grid-cols-2">
         <Section title="Deposit" testId="fo-ci-v2-deposit-requirement">
           <AmountRow
             label="Required amount"
@@ -320,7 +320,7 @@ export function FoCheckInV2Payment({
               </span>
             </div>
           </div>
-          <p className="mt-3 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-deposit-not-payment">
+          <p className="sr-only" data-testid="fo-ci-v2-deposit-not-payment">
             Ordinary payments do not satisfy this deposit.
           </p>
           {status === "Waived" ? (
@@ -411,7 +411,7 @@ export function FoCheckInV2Payment({
           <p className="mt-3 text-sm font-medium text-[#251605]" data-testid="fo-ci-v2-folio-scope">
             Folio scope: {summary.folioScope}
           </p>
-          <p className="mt-1 text-xs text-[#6B5E4E]">
+          <p className="sr-only">
             Payments apply to the whole reservation. Any deposit waiver applies only to this room.
           </p>
           {sharedFolio ? (
@@ -421,9 +421,7 @@ export function FoCheckInV2Payment({
             </p>
           ) : null}
           {!readiness.folioId ? (
-            <p className="mt-2 text-xs text-[#8B6914]">
-              No reservation folio is open yet. Collecting a deposit opens that folio.
-            </p>
+            <p className="mt-2 text-xs text-[#6B5E4E]">No folio</p>
           ) : null}
         </Section>
       </div>
@@ -442,7 +440,7 @@ export function FoCheckInV2Payment({
           >
             Status: {GUARANTEE_NOT_EVALUATED}
           </p>
-          <p className="mt-1 text-xs text-[#6B5E4E]">
+          <p className="sr-only">
             This is informational only and does not change the deposit requirement.
           </p>
         </Section>
@@ -724,7 +722,7 @@ function BillingContext({
           />
         </>
       )}
-      <p className="mt-3 text-xs text-[#6B5E4E]">
+      <p className="sr-only">
         Informational only. This does not change the deposit requirement.
       </p>
     </Section>
@@ -753,7 +751,7 @@ function Section({
 }) {
   return (
     <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      className="rounded-lg border border-[#DDD4C5] bg-white p-3"
       data-testid={testId}
     >
       <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">{title}</h3>
