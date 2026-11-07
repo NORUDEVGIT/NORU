@@ -19,6 +19,7 @@ export interface StayProperty {
   contactEmail: string | null;
   contactPhone: string | null;
   bookingMessage: string | null;
+  openingDate: string | null;
 }
 
 type AdminClient = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
@@ -65,7 +66,7 @@ async function loadStayProperty(slug: string): Promise<StayProperty | null> {
   const { data: row } = await db
     .from("restaurants")
     .select(
-      "id, name, slug, city, logo_url, timezone, currency_code, approved, active, direct_booking_enabled, booking_contact_email, booking_contact_phone, booking_message",
+      "id, name, slug, city, logo_url, timezone, currency_code, approved, active, direct_booking_enabled, booking_contact_email, booking_contact_phone, booking_message, opening_date",
     )
     .eq("slug", slug.toLowerCase())
     .maybeSingle();
@@ -83,6 +84,7 @@ async function loadStayProperty(slug: string): Promise<StayProperty | null> {
     contactEmail: row.booking_contact_email ?? null,
     contactPhone: row.booking_contact_phone ?? null,
     bookingMessage: row.booking_message ?? null,
+    openingDate: row.opening_date ?? null,
   };
 }
 

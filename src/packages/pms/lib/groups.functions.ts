@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { addDays } from "./reservation-dates";
 import { requirePmsActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { assertStayDates } from "./reservations.server";
+import { assertStayDates, assertArrivalAfterOpeningDate } from "./reservations.server";
 import { createReservation } from "./reservations.functions";
 import {
   GROUP_STATUSES,
@@ -1492,6 +1492,12 @@ export const createGroup = createServerFn({ method: "POST" })
     const me = await requireGroupWriter(context as never, data.restaurantId);
     assertStayDates(data.arrivalDate, data.departureDate);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const prop = await db(supabaseAdmin)
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(data.arrivalDate, (prop.data as { opening_date?: string | null } | null)?.opening_date);
     const counted = await db(supabaseAdmin)
       .from("pms_groups")
       .select("id", { count: "exact", head: true })
@@ -1542,6 +1548,12 @@ export const amendGroup = createServerFn({ method: "POST" })
     const me = await requireGroupWriter(context as never, data.restaurantId);
     assertStayDates(data.arrivalDate, data.departureDate);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const prop = await db(supabaseAdmin)
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(data.arrivalDate, (prop.data as { opening_date?: string | null } | null)?.opening_date);
     const current = await db(supabaseAdmin)
       .from("pms_groups")
       .select(GROUP_SELECT)
@@ -1612,6 +1624,12 @@ export const addGroupBlock = createServerFn({ method: "POST" })
     const me = await requireGroupWriter(context as never, data.restaurantId);
     assertStayDates(data.startDate, data.endDate);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const prop = await db(supabaseAdmin)
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(data.startDate, (prop.data as { opening_date?: string | null } | null)?.opening_date);
     const inserted = await db(supabaseAdmin)
       .from("pms_group_blocks")
       .insert({
@@ -1700,6 +1718,12 @@ export const addRoomingRow = createServerFn({ method: "POST" })
     const me = await requireGroupWriter(context as never, data.restaurantId);
     assertStayDates(data.arrivalDate, data.departureDate);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const prop = await db(supabaseAdmin)
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(data.arrivalDate, (prop.data as { opening_date?: string | null } | null)?.opening_date);
     const inserted = await db(supabaseAdmin)
       .from("pms_group_rooming_rows")
       .insert({

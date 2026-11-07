@@ -16,7 +16,7 @@ import {
   type CommunicationTemplateCategory,
 } from "./communication-templates-card4.server.ts";
 import { CARD1_LANGUAGES, card1LanguageOptions } from "./pms-property-setup-card1.ts";
-import { COMMON_CURRENCIES, isValidTimeZone } from "../../../shared/lib/property-time.ts";
+import { COMMON_CURRENCIES, DEFAULT_TIMEZONE, isValidTimeZone } from "../../../shared/lib/property-time.ts";
 
 export type { CommunicationTemplateCategory };
 export {
@@ -147,7 +147,7 @@ export function buildSystemDefaultsDraft(
     defaultInternalChannelId: internalId,
     defaultMarketingChannelId: marketingId,
     defaultLanguage: language,
-    timezone: inherited.timezone.trim() || "Africa/Addis_Ababa",
+    timezone: inherited.timezone.trim() || DEFAULT_TIMEZONE,
     dateFormat: SYSTEM_COMMUNICATION_DEFAULTS.dateFormat,
     timeFormat: SYSTEM_COMMUNICATION_DEFAULTS.timeFormat,
     defaultSenderId: senderId,

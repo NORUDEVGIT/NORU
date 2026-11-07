@@ -104,6 +104,12 @@ export const searchStay = createServerFn({ method: "POST" })
       const property = await resolveStayProperty(data.slug);
       if (!property) return { ok: false, message: "This property isn't taking direct bookings right now." };
       if (data.departure <= data.arrival) return { ok: false, message: "Check-out must be after check-in." };
+      if (property.openingDate && data.arrival < property.openingDate) {
+        return {
+          ok: false,
+          message: `Arrival date cannot be before the property opening date (${property.openingDate}).`,
+        };
+      }
       if (data.arrival < propertyToday(property.timezone)) {
         return { ok: false, message: "Check-in can't be in the past." };
       }
@@ -268,6 +274,12 @@ export const submitDirectBooking = createServerFn({ method: "POST" })
       const property = await resolveStayProperty(data.slug);
       if (!property) return { ok: false, message: "This property isn't taking direct bookings right now." };
       if (data.departure <= data.arrival) return { ok: false, message: "Check-out must be after check-in." };
+      if (property.openingDate && data.arrival < property.openingDate) {
+        return {
+          ok: false,
+          message: `Arrival date cannot be before the property opening date (${property.openingDate}).`,
+        };
+      }
       if (data.arrival < propertyToday(property.timezone)) {
         return { ok: false, message: "Check-in can't be in the past." };
       }

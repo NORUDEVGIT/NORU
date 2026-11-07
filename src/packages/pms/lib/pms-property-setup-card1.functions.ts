@@ -13,6 +13,11 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import type { Database, Json } from "@/integrations/supabase/types";
+import {
+  countryCodeFromInput,
+  isValidLatitude,
+  isValidLongitude,
+} from "./pms-geography";
 import { nightAuditWindowConfigProblem } from "./night-audit-window";
 import {
 isMissingColumnError,
@@ -66,6 +71,7 @@ import {
   type Card1PropertyArea,
   type Card1Snapshot,
   type Card1StepId,
+  type Card1TimeFormat,
   type PropertySetupStatus } from "./pms-property-setup-card1";
 import { IMAGE_EXT_BY_TYPE, ROOM_BUCKET, signRoomImages } from "./rooms.server";
 
@@ -133,11 +139,14 @@ const draftSchema = z.object({
   secondaryBrandColour: z.string().trim().max(16).optional().nullable(),
   websiteUrl: z.string().trim().max(200).optional().nullable(),
   brandAffiliation: z.string().trim().max(40).optional().nullable(),
+  timeFormat: z.enum(["12h", "24h"]).optional(),
   identityToggles: z.object({
     showTradingNameOnDocuments: z.boolean(),
     chainProperty: z.boolean(),
-    independentProperty: z.boolean(),
-    displayPublicly: z.boolean() }),
+    independentProperty: z.boolean().optional(),
+    displayPublicly: z.boolean().optional(),
+    timeFormat: z.enum(["12h", "24h"]).optional(),
+  }),
   brandName: z.string().trim().max(160).optional().nullable(),
   brandCode: z.string().trim().max(40).optional().nullable(),
   chainName: z.string().trim().max(160).optional().nullable(),
@@ -151,8 +160,24 @@ const draftSchema = z.object({
   city: z.string().trim().max(120).optional().nullable(),
   postcode: z.string().trim().max(20).optional().nullable(),
   country: z.string().trim().max(80).optional().nullable(),
-  latitude: z.string().trim().max(20).optional().nullable(),
-  longitude: z.string().trim().max(20).optional().nullable(),
+  latitude: z
+    .string()
+    .trim()
+    .max(32)
+    .optional()
+    .nullable()
+    .refine((val) => isValidLatitude(val), {
+      message: "Latitude must be between -90 and 90.",
+    }),
+  longitude: z
+    .string()
+    .trim()
+    .max(32)
+    .optional()
+    .nullable()
+    .refine((val) => isValidLongitude(val), {
+      message: "Longitude must be between -180 and 180.",
+    }),
   locationExtras: z.object({
     googleMapsLink: z.string().trim().max(300),
     nearbyLandmark: z.string().trim().max(200),
@@ -249,6 +274,8 @@ const draftSchema = z.object({
     duplicateCodePrevention: z.boolean() }),
   propertyAreas: z.array(z.string().trim().max(40)).max(24) });
 
+export const card1DraftSchema = draftSchema;
+
 const saveSchema = z.object({
   restaurantId: idSchema,
   step: z.string().transform((val, ctx) => {
@@ -281,12 +308,14 @@ function calendarDate(timezone: string): string {
   }
 }
 
-function localTime(timezone: string): string {
+function localTime(timezone: string, timeFormat: Card1TimeFormat = "24h"): string {
   try {
-    return new Intl.DateTimeFormat("en-GB", {
+    return new Intl.DateTimeFormat(timeFormat === "12h" ? "en-US" : "en-GB", {
       timeZone: timezone,
-      hour: "2-digit",
-      minute: "2-digit" }).format(new Date());
+      hour: timeFormat === "12h" ? "numeric" : "2-digit",
+      minute: "2-digit",
+      hour12: timeFormat === "12h",
+    }).format(new Date());
   } catch {
     return new Date().toISOString().slice(11, 16);
   }
@@ -327,6 +356,7 @@ function snapshotFromRow(
   const social = parseSocialContacts(card1ColumnsAvailable ? row?.social_contacts : null);
   const coverImageUrl = fidelityColumnsAvailable ? text(row, "cover_image_url") : "";
   const locationExtras = parseLocationExtras(fidelityColumnsAvailable ? row?.location_extras : null);
+  const identityToggles = parseIdentityToggles(card1ColumnsAvailable ? row?.identity_toggles : null);
   if (coverImageUrl && (!locationExtras.propertyImages || locationExtras.propertyImages.length === 0)) {
     locationExtras.propertyImages = [coverImageUrl];
   }
@@ -348,7 +378,8 @@ function snapshotFromRow(
     secondaryBrandColour: fidelityColumnsAvailable ? text(row, "secondary_brand_colour") : "",
     websiteUrl: fidelityColumnsAvailable ? text(row, "website_url") : social.website,
     brandAffiliation: fidelityColumnsAvailable ? text(row, "brand_affiliation") : "",
-    identityToggles: parseIdentityToggles(card1ColumnsAvailable ? row?.identity_toggles : null),
+    identityToggles,
+    timeFormat: identityToggles.timeFormat ?? "24h",
     brandName: card1ColumnsAvailable ? text(row, "brand_name") : "",
     brandCode: card1ColumnsAvailable ? text(row, "brand_code") : "",
     chainName: card1ColumnsAvailable ? text(row, "chain_name") : "",
@@ -358,10 +389,15 @@ function snapshotFromRow(
     addressWoreda: card1ColumnsAvailable ? text(row, "address_woreda") : "",
     addressZone: card1ColumnsAvailable ? text(row, "address_zone") : "",
     addressSubcity: card1ColumnsAvailable ? text(row, "address_subcity") : "",
-    addressRegion: card1ColumnsAvailable ? text(row, "address_region") : "",
+    addressRegion: (() => {
+      const countryVal = (row?.country ? String(row.country).trim() : "") || "Ethiopia";
+      const rawRegion = card1ColumnsAvailable ? text(row, "address_region") : "";
+      if (rawRegion.trim()) return rawRegion;
+      return countryCodeFromInput(countryVal) === "ET" ? "Addis Ababa" : "";
+    })(),
     city: String(row?.city ?? ""),
     postcode: String(row?.postcode ?? ""),
-    country: String(row?.country ?? "Ethiopia"),
+    country: (row?.country ? String(row.country).trim() : "") || "Ethiopia",
     latitude: card1ColumnsAvailable && row?.latitude != null ? String(row.latitude) : "",
     longitude: card1ColumnsAvailable && row?.longitude != null ? String(row.longitude) : "",
     locationExtras,
@@ -425,7 +461,7 @@ function snapshotFromRow(
     currentState: emptyCurrentState({
       businessDate: row?.business_date ?? null,
       systemDate: calendarDate(timezone),
-      propertyLocalTime: localTime(timezone),
+      propertyLocalTime: localTime(timezone, identityToggles.timeFormat ?? "24h"),
       status: hotelOpen ? "OPEN" : "CLOSED",
       lastSuccessfulNightAudit }),
     logoPreviewUrl: isHttpOrDataAsset(draft.logoUrl) ? draft.logoUrl : "",
@@ -472,16 +508,18 @@ async function withFunctionalHardening(
 ): Promise<Card1Snapshot> {
   const departments = await supabaseAdmin
     .from("pms_departments")
-    .select("id, name, active")
+    .select("id, name, active, code")
     .eq("restaurant_id", restaurantId)
     .order("name");
   if (departments.error && !isMissingColumnError(departments.error)) {
     throw new Error(departments.error.message);
   }
-  const departmentOptions = ((departments.data ?? []) as Card1DepartmentOption[]).map((row) => ({
+  const departmentOptions = ((departments.data ?? []) as (Card1DepartmentOption & { code?: string | null })[]).map((row) => ({
     id: row.id,
     name: row.name,
-    active: row.active !== false }));
+    active: row.active !== false,
+    code: row.code ?? null,
+  }));
 
   const contactTable = "pms_property_department_contacts" as keyof Database["public"]["Tables"];
   const areaTable = "pms_property_areas" as keyof Database["public"]["Tables"];
@@ -732,8 +770,14 @@ async function syncDepartmentContacts(
 }
 
 function draftFromSave(data: z.infer<typeof draftSchema>, propertyCode: string): Card1Draft {
+  const timeFormat = data.timeFormat ?? data.identityToggles?.timeFormat ?? "24h";
   const draft = emptyCard1Draft({
     ...data,
+    timeFormat,
+    identityToggles: {
+      ...data.identityToggles,
+      timeFormat,
+    },
     propertyCode,
     tradingName: data.tradingName ?? "",
     propertyType: data.propertyType ?? "",
@@ -802,7 +846,10 @@ function card1Patch(
     star_rating: draft.starRating === "" ? null : draft.starRating,
     default_language: draft.defaultLanguage.trim() || null,
     short_description: draft.shortDescription.trim() || null,
-    identity_toggles: draft.identityToggles as unknown as Json,
+    identity_toggles: {
+      ...draft.identityToggles,
+      timeFormat: draft.timeFormat,
+    } as unknown as Json,
     brand_name: draft.brandName.trim() || null,
     brand_code: draft.brandCode.trim() || null,
     chain_name: draft.chainName.trim() || null,
@@ -1225,6 +1272,182 @@ export const deleteCard1PropertyArea = createServerFn({ method: "POST" })
       before: before.data,
       after: null });
     return { ok: true as const };
+  });
+
+export const STANDARD_HOTEL_DEPARTMENTS = [
+  { code: "FD", name: "Front Desk", department_type: "operations" },
+  { code: "HK", name: "Housekeeping", department_type: "operations" },
+  { code: "RES", name: "Reservations", department_type: "commercial" },
+  { code: "MNT", name: "Maintenance & Engineering", department_type: "operations" },
+  { code: "FNB", name: "Food & Beverage", department_type: "fnb" },
+  { code: "ACC", name: "Accounts & Finance", department_type: "administration" },
+  { code: "MGT", name: "Management & Administration", department_type: "administration" },
+] as const;
+
+export function generateDepartmentCode(name: string, existingCodes: string[] = []): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "DEPT";
+
+  const words = trimmed.split(/[\s&/_-]+/).filter(Boolean);
+  let baseCode = "";
+  if (words.length >= 2) {
+    baseCode = words.map((w) => w[0].toUpperCase()).join("").slice(0, 4);
+  } else {
+    baseCode = words[0].slice(0, 3).toUpperCase();
+  }
+
+  if (!baseCode) baseCode = "DEPT";
+
+  const existingSet = new Set(existingCodes.map((c) => c.toUpperCase()));
+  if (!existingSet.has(baseCode)) {
+    return baseCode;
+  }
+
+  let counter = 2;
+  while (existingSet.has(`${baseCode}${counter}`)) {
+    counter++;
+  }
+  return `${baseCode}${counter}`;
+}
+
+export const createCard1Department = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        name: z.string().trim().min(1).max(80),
+        code: z.string().trim().max(20).optional().nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+      .from("pms_departments")
+      .select("code")
+      .eq("restaurant_id", data.restaurantId);
+    if (fetchErr && !isMissingColumnError(fetchErr)) throw new Error(fetchErr.message);
+
+    const existingCodes = (existing ?? []).map((r) => String(r.code ?? ""));
+    const finalCode = (data.code?.trim() || generateDepartmentCode(data.name, existingCodes)).toUpperCase();
+
+    if (existingCodes.map((c) => c.toUpperCase()).includes(finalCode)) {
+      throw new Error(`A department with code "${finalCode}" already exists.`);
+    }
+
+    const insertResult = await supabaseAdmin
+      .from("pms_departments")
+      .insert({
+        restaurant_id: data.restaurantId,
+        name: data.name.trim(),
+        code: finalCode,
+        active: true,
+        department_type: "operations",
+      })
+      .select("id, name, code, active")
+      .single();
+
+    if (insertResult.error) {
+      if (insertResult.error.code === "23505") {
+        throw new Error(`A department with code "${finalCode}" already exists.`);
+      }
+      throw new Error(insertResult.error.message);
+    }
+
+    const { data: allDepts } = await supabaseAdmin
+      .from("pms_departments")
+      .select("id, name, active, code")
+      .eq("restaurant_id", data.restaurantId)
+      .order("name");
+
+    const departmentOptions: Card1DepartmentOption[] = (allDepts ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      active: row.active !== false,
+      code: (row as { code?: string | null }).code ?? null,
+    }));
+
+    await writeAudit(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      actorUserId: context.userId,
+      action: CARD1_AUDIT_DRAFT,
+      section: "create-department",
+      before: null,
+      after: insertResult.data,
+    });
+
+    return {
+      ok: true as const,
+      created: insertResult.data as { id: string; name: string; code: string; active: boolean },
+      departmentOptions,
+    };
+  });
+
+export const seedCard1StandardDepartments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }) => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: existing, error: fetchErr } = await supabaseAdmin
+      .from("pms_departments")
+      .select("code, name")
+      .eq("restaurant_id", data.restaurantId);
+    if (fetchErr && !isMissingColumnError(fetchErr)) throw new Error(fetchErr.message);
+
+    const existingCodes = new Set((existing ?? []).map((r) => String(r.code ?? "").toUpperCase()));
+    const existingNames = new Set((existing ?? []).map((r) => String(r.name ?? "").toLowerCase().trim()));
+
+    const missing = STANDARD_HOTEL_DEPARTMENTS.filter(
+      (dept) => !existingCodes.has(dept.code) && !existingNames.has(dept.name.toLowerCase().trim()),
+    );
+
+    if (missing.length > 0) {
+      const rowsToInsert = missing.map((dept) => ({
+        restaurant_id: data.restaurantId,
+        code: dept.code,
+        name: dept.name,
+        active: true,
+        department_type: dept.department_type,
+      }));
+
+      const { error: insertErr } = await supabaseAdmin
+        .from("pms_departments")
+        .insert(rowsToInsert);
+      if (insertErr && insertErr.code !== "23505") throw new Error(insertErr.message);
+    }
+
+    const { data: allDepts } = await supabaseAdmin
+      .from("pms_departments")
+      .select("id, name, active, code")
+      .eq("restaurant_id", data.restaurantId)
+      .order("name");
+
+    const departmentOptions: Card1DepartmentOption[] = (allDepts ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      active: row.active !== false,
+      code: (row as { code?: string | null }).code ?? null,
+    }));
+
+    await writeAudit(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      actorUserId: context.userId,
+      action: CARD1_AUDIT_DRAFT,
+      section: "seed-departments",
+      before: null,
+      after: { seededCount: missing.length },
+    });
+
+    return {
+      ok: true as const,
+      seededCount: missing.length,
+      departmentOptions,
+    };
   });
 
 export type { Card1Snapshot };

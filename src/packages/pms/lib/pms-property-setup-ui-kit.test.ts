@@ -307,8 +307,9 @@ describe("Property Setup Phase A UI kit", () => {
     assert.doesNotMatch(card1Steps, /card1-short-description-counter/);
     assert.match(card1Steps, /SocialPlatformSelect/);
     assert.match(card1Steps, /CARD1_SOCIAL_PLATFORMS/);
-    assert.match(card1Steps, /card1-independent/);
-    assert.match(card1Steps, /card1-public/);
+    assert.doesNotMatch(card1Steps, /id="card1-independent"/);
+    assert.doesNotMatch(card1Steps, /id="card1-public"/);
+    assert.match(card1Steps, /card1-time-format/);
     assert.match(card1Steps, /PropertySetupFormItem span=\{3\}/);
     assert.doesNotMatch(card1Steps, /span=\{2\}/);
     assert.doesNotMatch(card1Steps, /Current Settings Summary/);

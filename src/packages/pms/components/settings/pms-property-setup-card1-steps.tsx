@@ -18,6 +18,14 @@ import { Label } from "@/shared/components/ui/label";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -77,14 +85,12 @@ import {
   CARD1_DEFAULT_BLOCKERS,
   CARD1_FULL_ADDRESS_COPY,
   CARD1_IDENTITY_HELPER,
-  CARD1_INDEPENDENT_HELPER,
   CARD1_MANUAL_ROLLOVER_ROLES,
   CARD1_OPENING_DATE_IN,
   CARD1_PROPERTY_AREA_OPTIONS,
   CARD1_PROPERTY_CODE_TOOLTIP,
   CARD1_PROPERTY_TYPE_LABELS,
   CARD1_PROPERTY_TYPES,
-  CARD1_PUBLIC_HELPER,
   CARD1_ROOMS_HREF,
   CARD1_SOCIAL_PLATFORM_LABELS,
   CARD1_SOCIAL_PLATFORMS,
@@ -95,6 +101,8 @@ import {
   STAR_RATINGS,
   card1LanguageOptions,
   emptyCurrentState,
+  formatTimeDisplay,
+  generateHourlyTimeOptions,
   isHttpOrDataAsset,
   validateBrandImageFile,
   liveBlockPreview,
@@ -107,9 +115,15 @@ import {
   type Card1PropertyArea,
   type Card1Snapshot,
   type Card1StayPolicy,
+  type Card1TimeFormat,
   type Card1CurrentState,
   type Card1UploadRef,
 } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  createCard1Department,
+  seedCard1StandardDepartments,
+  generateDepartmentCode,
+} from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   ISO_COUNTRIES,
   addressLayoutForCountry,
@@ -117,6 +131,7 @@ import {
   countryCodeFromInput,
   countryNameFromInput,
   regionsForCountry,
+  resolveRegionForCountryChange,
   type AddressFieldKey,
 } from "@/packages/pms/lib/pms-geography";
 
@@ -429,65 +444,59 @@ export function IdentityStep({
               </SelectContent>
             </Select>
           </SelectField>
+          <SelectField id="card1-time-format" label="Time Display Format">
+            <Select
+              value={draft.timeFormat || "24h"}
+              onValueChange={(val) => {
+                const timeFormat = val === "12h" ? "12h" : "24h";
+                setDraft((p) => ({
+                  ...p,
+                  timeFormat,
+                  identityToggles: { ...p.identityToggles, timeFormat },
+                }));
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-time-format" className={SELECT_TRIGGER_CLASS} data-testid="card1-time-format">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24h">24-hour (14:00)</SelectItem>
+                <SelectItem value="12h">12-hour (2:00 PM)</SelectItem>
+              </SelectContent>
+            </Select>
+          </SelectField>
 
           <PropertySetupFormItem span={3}>
-            <PropertySetupFormGrid>
-              <PropertySetupField
+            <PropertySetupField
+              id="card1-short-description"
+              label="Short Description"
+              icon="document"
+              error={
+                isShortDescriptionOverLimit(draft.shortDescription)
+                  ? "Reduce to 2,000 characters before saving."
+                  : undefined
+              }
+            >
+              <Textarea
                 id="card1-short-description"
-                label="Short Description"
-                icon="document"
-                error={
-                  isShortDescriptionOverLimit(draft.shortDescription)
-                    ? "Reduce to 2,000 characters before saving."
-                    : undefined
-                }
-              >
-                <Textarea
-                  id="card1-short-description"
-                  rows={3}
-                  value={draft.shortDescription}
-                  disabled={!canEdit}
-                  aria-invalid={isShortDescriptionOverLimit(draft.shortDescription)}
-                  className={cn(PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS, "min-h-[4.5rem]")}
-                  placeholder="Enter property description or overview..."
-                  onChange={(event) =>
-                    setDraft((p) => ({
-                      ...p,
-                      shortDescription: acceptShortDescriptionInput(
-                        p.shortDescription,
-                        event.target.value,
-                      ),
-                    }))
-                  }
-                />
-              </PropertySetupField>
-              <ToggleRow
-                id="card1-independent"
-                label="Independent Property"
-                helper={CARD1_INDEPENDENT_HELPER}
-                checked={draft.identityToggles.independentProperty}
+                rows={3}
+                value={draft.shortDescription}
                 disabled={!canEdit}
-                onChange={(independentProperty) =>
+                aria-invalid={isShortDescriptionOverLimit(draft.shortDescription)}
+                className={cn(PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS, "min-h-[4.5rem]")}
+                placeholder="Enter property description or overview..."
+                onChange={(event) =>
                   setDraft((p) => ({
                     ...p,
-                    identityToggles: { ...p.identityToggles, independentProperty },
+                    shortDescription: acceptShortDescriptionInput(
+                      p.shortDescription,
+                      event.target.value,
+                    ),
                   }))
                 }
               />
-              <ToggleRow
-                id="card1-public"
-                label="Display Property Publicly"
-                helper={CARD1_PUBLIC_HELPER}
-                checked={draft.identityToggles.displayPublicly}
-                disabled={!canEdit}
-                onChange={(displayPublicly) =>
-                  setDraft((p) => ({
-                    ...p,
-                    identityToggles: { ...p.identityToggles, displayPublicly },
-                  }))
-                }
-              />
-            </PropertySetupFormGrid>
+            </PropertySetupField>
           </PropertySetupFormItem>
         </PropertySetupFormGrid>
       </Panel>
@@ -569,6 +578,7 @@ export function IdentityStep({
 }
 
 export function AddressStep({
+  restaurantId,
   draft,
   setDraft,
   canEdit,
@@ -576,8 +586,10 @@ export function AddressStep({
   errors,
   onClearError,
   departmentOptions,
+  onDepartmentsChange,
   websiteError,
 }: {
+  restaurantId?: string;
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
@@ -585,8 +597,81 @@ export function AddressStep({
   errors: Card1AddressFieldErrors;
   onClearError: (key: keyof Card1AddressFieldErrors) => void;
   departmentOptions: Card1DepartmentOption[];
+  onDepartmentsChange?: (options: Card1DepartmentOption[]) => void;
   websiteError?: string | undefined;
 }) {
+  const createDept = useServerFn(createCard1Department);
+  const seedDepts = useServerFn(seedCard1StandardDepartments);
+  const [createDeptOpen, setCreateDeptOpen] = useState(false);
+  const [targetContactIdx, setTargetContactIdx] = useState<number | null>(null);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [newDeptCode, setNewDeptCode] = useState("");
+  const [isCreatingDept, setIsCreatingDept] = useState(false);
+  const [isSeedingDepts, setIsSeedingDepts] = useState(false);
+
+  async function handleCreateDepartment() {
+    if (!restaurantId || !newDeptName.trim()) return;
+    setIsCreatingDept(true);
+    try {
+      const res = await createDept({
+        data: {
+          restaurantId,
+          name: newDeptName.trim(),
+          code: newDeptCode.trim() || undefined,
+        },
+      });
+      if (res?.ok) {
+        toast.success(`Department "${res.created.name}" created.`);
+        onDepartmentsChange?.(res.departmentOptions);
+        if (targetContactIdx !== null && targetContactIdx !== undefined) {
+          setDraft((p) => {
+            const next = [...p.departmentContacts];
+            if (next[targetContactIdx]) {
+              next[targetContactIdx] = {
+                ...next[targetContactIdx],
+                departmentId: res.created.id,
+                department: res.created.name,
+              };
+            }
+            return { ...p, departmentContacts: next };
+          });
+        }
+        setCreateDeptOpen(false);
+        setNewDeptName("");
+        setNewDeptCode("");
+        setTargetContactIdx(null);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create department.";
+      toast.error(msg);
+    } finally {
+      setIsCreatingDept(false);
+    }
+  }
+
+  async function handleSeedStandardDepartments() {
+    if (!restaurantId) return;
+    setIsSeedingDepts(true);
+    try {
+      const res = await seedDepts({
+        data: { restaurantId },
+      });
+      if (res?.ok) {
+        toast.success(
+          res.seededCount > 0
+            ? `Added ${res.seededCount} standard hotel departments.`
+            : "Standard departments are already present.",
+        );
+        onDepartmentsChange?.(res.departmentOptions);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to seed departments.";
+      toast.error(msg);
+    } finally {
+      setIsSeedingDepts(false);
+    }
+  }
+
   const layout = addressLayoutForCountry(draft.country);
   const countryCode = countryCodeFromInput(draft.country);
   const regionOptions = regionsForCountry(draft.country).map((region) => ({
@@ -640,7 +725,14 @@ export function AddressStep({
                 onClearError("country");
                 onClearError("addressRegion");
                 const name = countryNameFromInput(code);
-                setDraft((p) => clearDependentGeography({ ...p, country: name }));
+                setDraft((p) => {
+                  const cleared = clearDependentGeography({ ...p, country: name });
+                  const resolvedRegion = resolveRegionForCountryChange(name, p.addressRegion, p.country);
+                  return {
+                    ...cleared,
+                    addressRegion: resolvedRegion,
+                  };
+                });
               }}
             />
             {errors.country ? (
@@ -773,15 +865,6 @@ export function AddressStep({
             }
           />
         </div>
-        <ToggleRow
-          id="card1-pin"
-          label="Show property location on NORU and guest platforms"
-          checked={draft.locationExtras.pinVisible}
-          disabled={!canEdit}
-          onChange={(pinVisible) =>
-            setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, pinVisible } }))
-          }
-        />
       </Panel>
 
       <Panel
@@ -897,6 +980,36 @@ export function AddressStep({
 
       <Panel title="Department contacts" icon="department">
         <div className="space-y-3">
+          {canEdit && restaurantId && departmentOptions.length === 0 ? (
+            <div
+              className="rounded-lg border border-dashed border-amber-300 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/20"
+              data-testid="pms-card1-dept-zero-state"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    No departments configured
+                  </h4>
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Department contacts require a registered department. Load standard hotel departments (Front Desk, Housekeeping, etc.) to get started.
+                  </p>
+                </div>
+                <div className="flex shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isSeedingDepts}
+                    onClick={handleSeedStandardDepartments}
+                    data-testid="pms-card1-seed-standard-depts"
+                  >
+                    {isSeedingDepts ? "Loading..." : "Load Standard Departments"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {draft.departmentContacts.map((row, index) => (
             <div
               key={row.id ?? `${row.departmentId ?? row.department}-${index}`}
@@ -905,26 +1018,38 @@ export function AddressStep({
               <Select
                 value={row.departmentId || (row.department ? `legacy:${index}` : "unset")}
                 disabled={!canEdit}
-                onValueChange={(departmentId) =>
+                onValueChange={(val) => {
+                  if (val === "__create_new__") {
+                    setTargetContactIdx(index);
+                    setNewDeptName("");
+                    setNewDeptCode("");
+                    setCreateDeptOpen(true);
+                    return;
+                  }
                   setDraft((p) => {
                     const next = [...p.departmentContacts];
                     const department = departmentOptions.find(
-                      (option) => option.id === departmentId,
+                      (option) => option.id === val,
                     );
                     next[index] = {
                       ...row,
-                      departmentId: departmentId === "unset" ? undefined : departmentId,
+                      departmentId: val === "unset" ? undefined : val,
                       department: department?.name ?? "",
                     };
                     return { ...p, departmentContacts: next };
-                  })
-                }
+                  });
+                }}
               >
                 <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Department">
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unset">Select department</SelectItem>
+                  {canEdit && restaurantId ? (
+                    <SelectItem value="__create_new__" className="font-medium text-primary">
+                      + Create New Department…
+                    </SelectItem>
+                  ) : null}
                   {!row.departmentId && row.department ? (
                     <SelectItem value={`legacy:${index}`} disabled>
                       Legacy: {row.department}
@@ -994,32 +1119,101 @@ export function AddressStep({
             </div>
           ))}
           {canEdit ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setDraft((p) => ({
-                  ...p,
-                  departmentContacts: [
-                    ...p.departmentContacts,
-                    {
-                      departmentId: undefined,
-                      department: "",
-                      name: "",
-                      phone: "",
-                      email: "",
-                      active: true,
-                      sortOrder: p.departmentContacts.length,
-                    },
-                  ],
-                }))
-              }
-            >
-              + Add department
-            </Button>
+            <div className="pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setDraft((p) => ({
+                    ...p,
+                    departmentContacts: [
+                      ...p.departmentContacts,
+                      {
+                        departmentId: undefined,
+                        department: "",
+                        name: "",
+                        phone: "",
+                        email: "",
+                        active: true,
+                        sortOrder: p.departmentContacts.length,
+                      },
+                    ],
+                  }))
+                }
+              >
+                + Add department contact
+              </Button>
+            </div>
           ) : null}
         </div>
       </Panel>
+
+      <Dialog open={createDeptOpen} onOpenChange={setCreateDeptOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="pms-card1-create-dept-modal">
+          <DialogHeader>
+            <DialogTitle>Create Department</DialogTitle>
+            <DialogDescription>
+              Add a department to your property directory. It will immediately be available for department contacts.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleCreateDepartment();
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="card1-new-dept-name">
+                Department Name <span className="text-red-600">*</span>
+              </Label>
+              <Input
+                id="card1-new-dept-name"
+                placeholder="e.g. Front Desk, Housekeeping, Security"
+                value={newDeptName}
+                onChange={(e) => {
+                  const nextName = e.target.value;
+                  setNewDeptName(nextName);
+                  const existingCodes = departmentOptions.map((d) => d.code ?? d.name);
+                  setNewDeptCode(generateDepartmentCode(nextName, existingCodes));
+                }}
+                disabled={isCreatingDept}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="card1-new-dept-code">Department Code</Label>
+              <Input
+                id="card1-new-dept-code"
+                placeholder="e.g. FD, HK, SEC"
+                value={newDeptCode}
+                onChange={(e) => setNewDeptCode(e.target.value.toUpperCase())}
+                disabled={isCreatingDept}
+                maxLength={20}
+              />
+              <p className="text-xs text-muted-foreground">
+                Unique short code (2-20 characters). Auto-suggested from the department name.
+              </p>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateDeptOpen(false)}
+                disabled={isCreatingDept}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingDept || !newDeptName.trim()}
+              >
+                {isCreatingDept ? "Creating..." : "Create Department"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Panel title="Emergency / alternate contact" testId="card1-emergency" icon="contact">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1103,6 +1297,19 @@ export function CheckinStep({
   businessDateAction?: ReactNode;
 }) {
   const effectiveCurrentState = currentState ?? emptyCurrentState();
+  const localClock = useMemo(() => {
+    if (!draft.timezone) return effectiveCurrentState.propertyLocalTime || "—";
+    try {
+      return new Intl.DateTimeFormat(draft.timeFormat === "12h" ? "en-US" : "en-GB", {
+        timeZone: draft.timezone,
+        hour: draft.timeFormat === "12h" ? "numeric" : "2-digit",
+        minute: "2-digit",
+        hour12: draft.timeFormat === "12h",
+      }).format(new Date());
+    } catch {
+      return effectiveCurrentState.propertyLocalTime || "—";
+    }
+  }, [draft.timezone, draft.timeFormat, effectiveCurrentState.propertyLocalTime]);
   const preview = liveBlockPreview(draft.businessDateBlockers);
   const nightAuditWindowProblem = nightAuditWindowConfigProblem(
     draft.businessDateConfig.nightAuditWindowStart,
@@ -1121,6 +1328,7 @@ export function CheckinStep({
             label="Standard Check-in Time"
             required
             value={draft.checkInTime}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(checkInTime) => setDraft((p) => ({ ...p, checkInTime }))}
           />
@@ -1129,6 +1337,7 @@ export function CheckinStep({
             label="Standard Check-out Time"
             required
             value={draft.checkOutTime}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(checkOutTime) => setDraft((p) => ({ ...p, checkOutTime }))}
           />
@@ -1156,6 +1365,7 @@ export function CheckinStep({
             id="card1-cutoff"
             label="Same-day Booking Cut-off Time"
             value={draft.checkinOps.sameDayCutoff}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(sameDayCutoff) =>
               setDraft((p) => ({ ...p, checkinOps: { ...p.checkinOps, sameDayCutoff } }))
@@ -1350,7 +1560,7 @@ export function CheckinStep({
           <Field
             id="card1-local-time"
             label="Property Local Time"
-            value={effectiveCurrentState.propertyLocalTime || "—"}
+            value={localClock}
             readOnly
           />
           <Field
@@ -1387,6 +1597,7 @@ export function CheckinStep({
             label="Business day boundary"
             required
             value={draft.businessDateConfig.dayBoundary}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(dayBoundary) =>
               setDraft((p) => ({
@@ -1400,6 +1611,7 @@ export function CheckinStep({
             label="Expected Night Audit window start"
             required
             value={draft.businessDateConfig.nightAuditWindowStart}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(nightAuditWindowStart) =>
               setDraft((p) => ({
@@ -1413,6 +1625,7 @@ export function CheckinStep({
             label="Expected Night Audit window end"
             required
             value={draft.businessDateConfig.nightAuditWindowEnd}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(nightAuditWindowEnd) =>
               setDraft((p) => ({
@@ -1588,10 +1801,6 @@ export function CheckinStep({
   );
 }
 
-const HOURLY_TIME_OPTIONS = Array.from({ length: 24 }, (_, hour) => ({
-  value: `${String(hour).padStart(2, "0")}:00`,
-  label: `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:00 ${hour < 12 ? "AM" : "PM"}`,
-}));
 
 function ControlledSelectField({
   id,
@@ -1639,6 +1848,7 @@ function TimeSelect({
   value,
   disabled,
   required,
+  timeFormat = "24h",
   onChange,
 }: {
   id: string;
@@ -1646,16 +1856,18 @@ function TimeSelect({
   value: string;
   disabled?: boolean;
   required?: boolean;
+  timeFormat?: Card1TimeFormat;
   onChange: (value: string) => void;
 }) {
+  const hourly = generateHourlyTimeOptions(timeFormat);
   const options =
-    value && !HOURLY_TIME_OPTIONS.some((option) => option.value === value)
-      ? [{ value, label: `${value} (legacy)` }, ...HOURLY_TIME_OPTIONS]
-      : HOURLY_TIME_OPTIONS;
+    value && !hourly.some((option) => option.value === value)
+      ? [{ value, label: `${formatTimeDisplay(value, timeFormat)} (custom)` }, ...hourly]
+      : hourly;
   return (
     <PropertySetupField id={id} label={label} required={required}>
       <Select value={value || "__unset"} disabled={disabled} onValueChange={onChange}>
-        <SelectTrigger id={id} className={SELECT_TRIGGER_CLASS}>
+        <SelectTrigger id={id} className={SELECT_TRIGGER_CLASS} data-testid={id}>
           <SelectValue placeholder="Select time" />
         </SelectTrigger>
         <SelectContent>

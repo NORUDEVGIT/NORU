@@ -21,14 +21,16 @@ import { CARD6_HASH, CARD6_PURPOSE, CARD6_TITLE } from "./pms-property-setup-car
 import { CARD7_HASH, CARD7_PURPOSE, CARD7_TITLE } from "./pms-property-setup-card7.ts";
 import { CARD8_HASH, CARD8_PURPOSE, CARD8_TITLE } from "./pms-property-setup-card8.ts";
 import {
+  countryCodeFromInput,
   countryNameFromInput,
   isRegionValidForCountry,
   isValidHttpUrl,
   isValidLatitude,
   isValidLongitude,
+  resolveRegionForCountryChange,
 } from "./pms-geography.ts";
 
-export { ETHIOPIA_REGIONS } from "./pms-geography.ts";
+export { ETHIOPIA_REGIONS, resolveRegionForCountryChange } from "./pms-geography.ts";
 
 export const CARD1_TITLE = "Property & Business";
 export const CARD1_WORKSPACE_TITLE = "Property & Business Setup";
@@ -455,6 +457,7 @@ export type Card1DepartmentOption = {
   id: string;
   name: string;
   active: boolean;
+  code?: string | null;
 };
 
 export type Card1PropertyArea = {
@@ -484,11 +487,14 @@ export type Card1EmergencyContact = {
   notes: string;
 };
 
+export type Card1TimeFormat = "12h" | "24h";
+
 export type Card1IdentityToggles = {
   showTradingNameOnDocuments: boolean;
   chainProperty: boolean;
-  independentProperty: boolean;
-  displayPublicly: boolean;
+  independentProperty?: boolean;
+  displayPublicly?: boolean;
+  timeFormat?: Card1TimeFormat;
 };
 
 export type Card1LocationExtras = {
@@ -664,6 +670,7 @@ export type Card1Draft = {
   taxUploadRefs: Card1UploadRef[];
   structureRules: Card1StructureRules;
   propertyAreas: string[];
+  timeFormat: Card1TimeFormat;
 };
 
 export type Card1Snapshot = {
@@ -693,6 +700,7 @@ export function emptyIdentityToggles(
     chainProperty: false,
     independentProperty: false,
     displayPublicly: false,
+    timeFormat: "24h",
     ...partial,
   };
 }
@@ -815,6 +823,18 @@ export function emptyCurrentState(partial?: Partial<Card1CurrentState>): Card1Cu
 }
 
 export function emptyCard1Draft(partial?: Partial<Card1Draft>): Card1Draft {
+  const country =
+    partial?.country !== undefined && partial.country.trim()
+      ? partial.country.trim()
+      : "Ethiopia";
+  const isEthiopia = countryCodeFromInput(country) === "ET";
+  const addressRegion =
+    partial?.addressRegion !== undefined
+      ? partial.addressRegion
+      : isEthiopia
+        ? "Addis Ababa"
+        : "";
+
   return {
     name: "",
     tradingName: "",
@@ -843,10 +863,10 @@ export function emptyCard1Draft(partial?: Partial<Card1Draft>): Card1Draft {
     addressWoreda: "",
     addressZone: "",
     addressSubcity: "",
-    addressRegion: "",
+    addressRegion,
     city: "",
     postcode: "",
-    country: "Ethiopia",
+    country,
     latitude: "",
     longitude: "",
     fullAddress: "",
@@ -879,7 +899,10 @@ export function emptyCard1Draft(partial?: Partial<Card1Draft>): Card1Draft {
     taxUploadRefs: [],
     structureRules: emptyStructureRules(),
     propertyAreas: [],
+    timeFormat: "24h",
     ...partial,
+    country,
+    addressRegion,
   };
 }
 
@@ -1101,12 +1124,104 @@ export function parseEmergencyContact(value: unknown): Card1EmergencyContact {
 export function parseIdentityToggles(value: unknown): Card1IdentityToggles {
   if (!value || typeof value !== "object") return emptyIdentityToggles();
   const rec = value as Record<string, unknown>;
+  const rawTf = rec["timeFormat"];
+  const timeFormat: Card1TimeFormat = rawTf === "12h" || rawTf === "24h" ? rawTf : "24h";
   return emptyIdentityToggles({
     showTradingNameOnDocuments: rec["showTradingNameOnDocuments"] === true,
     chainProperty: rec["chainProperty"] === true,
     independentProperty: rec["independentProperty"] === true,
     displayPublicly: rec["displayPublicly"] === true,
+    timeFormat,
   });
+}
+
+export function formatTimeDisplay(time24: string, format: Card1TimeFormat = "24h"): string {
+  const match = String(time24 ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return time24;
+  const hour = parseInt(match[1], 10);
+  const minute = match[2];
+  if (format === "24h") {
+    return `${String(hour).padStart(2, "0")}:${minute}`;
+  }
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${hour12}:${minute} ${period}`;
+}
+
+export function generateHourlyTimeOptions(
+  format: Card1TimeFormat = "24h",
+): Array<{ value: string; label: string }> {
+  return Array.from({ length: 24 }, (_, hour) => {
+    const value = `${String(hour).padStart(2, "0")}:00`;
+    return {
+      value,
+      label: formatTimeDisplay(value, format),
+    };
+  });
+}
+
+export const CARD1_STORAGE_KEY_PREFIX = "noru:pms:card1_draft:";
+
+export type Card1SessionBackup = {
+  restaurantId: string;
+  userId?: string;
+  savedAt: string;
+  activeStep: Card1StepId;
+  draft: Card1Draft;
+};
+
+export function getCard1StorageKey(restaurantId: string, userId?: string): string {
+  return `${CARD1_STORAGE_KEY_PREFIX}${restaurantId}:${userId || "anon"}`;
+}
+
+export function loadCard1SessionDraft(
+  restaurantId: string,
+  userId?: string,
+): Card1SessionBackup | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(getCard1StorageKey(restaurantId, userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (parsed.restaurantId !== restaurantId) return null;
+    return parsed as Card1SessionBackup;
+  } catch {
+    return null;
+  }
+}
+
+export function saveCard1SessionDraft(
+  restaurantId: string,
+  draft: Card1Draft,
+  step: Card1StepId,
+  userId?: string,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: Card1SessionBackup = {
+      restaurantId,
+      userId,
+      savedAt: new Date().toISOString(),
+      activeStep: step,
+      draft,
+    };
+    window.sessionStorage.setItem(
+      getCard1StorageKey(restaurantId, userId),
+      JSON.stringify(payload),
+    );
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+export function clearCard1SessionDraft(restaurantId: string, userId?: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(getCard1StorageKey(restaurantId, userId));
+  } catch {
+    // Ignore
+  }
 }
 
 export function parseLocationExtras(value: unknown): Card1LocationExtras {

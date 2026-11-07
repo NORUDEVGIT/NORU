@@ -23,6 +23,7 @@ export const CHECK_IN_BLOCKER_CODES = [
   "SIGNATURE_REQUIRED",
   "KEY_REQUIRED",
   "REGISTRATION_INCOMPLETE",
+  "OPENING_DATE_RESTRICTION",
 ] as const;
 
 export type CheckInBlockerCode = (typeof CHECK_IN_BLOCKER_CODES)[number];
@@ -115,6 +116,9 @@ export type CheckInReadinessFacts = {
   earlyArrival: boolean;
   earlyCheckInAllowed: boolean | null;
   earlyCheckInNeedsApproval: boolean | null;
+  openingDate?: string | null;
+  arrivalDate?: string | null;
+  today?: string | null;
 };
 
 const BLOCKER_MESSAGE: Record<CheckInBlockerCode, string> = {
@@ -131,6 +135,7 @@ const BLOCKER_MESSAGE: Record<CheckInBlockerCode, string> = {
   SIGNATURE_REQUIRED: "A signature is required for this registration agreement.",
   KEY_REQUIRED: "Record a key or waive keys for later.",
   REGISTRATION_INCOMPLETE: REGISTRATION_INCOMPLETE_BANNER,
+  OPENING_DATE_RESTRICTION: "Check-in is not allowed before the property opening date.",
 };
 
 function blocker(code: CheckInBlockerCode, message?: string): CheckInBlocker {
@@ -293,6 +298,22 @@ export function evaluateCheckInReadiness(facts: CheckInReadinessFacts): CheckInR
 
   if (facts.target.status !== "confirmed") {
     blockers.push(blocker("INVALID_TRANSITION"));
+  }
+
+  if (facts.openingDate) {
+    const trimmedOpening = facts.openingDate.trim();
+    if (
+      trimmedOpening &&
+      ((facts.today && facts.today < trimmedOpening) ||
+        (facts.arrivalDate && facts.arrivalDate < trimmedOpening))
+    ) {
+      blockers.push(
+        blocker(
+          "OPENING_DATE_RESTRICTION",
+          `Check-in is not allowed before the property opening date (${trimmedOpening}).`,
+        ),
+      );
+    }
   }
 
   // FO-GR01B: on a true multi-room reservation, a unit with no primary
