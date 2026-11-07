@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { MoreHorizontal, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -41,14 +41,13 @@ import {
 } from "@/packages/pms/lib/travel-agency-types-card4.functions";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
-  DEFAULT_TRAVEL_AGENCY_TYPES,
   emptyTravelAgencyTypeDraft,
   normalizeTravelAgencyTypeCode,
   validateTravelAgencyTypeDraft,
   type TravelAgencyTypeDraft,
   type TravelAgencyTypeRecord,
 } from "@/packages/pms/lib/travel-agency-types-card4.server";
-import { cn } from "@/shared/lib/utils";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 
 function recordToDraft(row: TravelAgencyTypeRecord): TravelAgencyTypeDraft {
   return {
@@ -87,48 +86,32 @@ export function PmsCard4TravelAgencyTypes({
   });
 
   const types = query.data?.types ?? [];
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<TravelAgencyTypeDraft>(emptyTravelAgencyTypeDraft());
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<TravelAgencyTypeRecord | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
+  const [pendingClose, setPendingClose] = useState(false);
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
-  useEffect(() => {
-    if (!query.data) return;
-    if (selectedId && query.data.types.some((row) => row.id === selectedId)) return;
-    const first = query.data.types[0] ?? null;
-    setSelectedId(first?.id ?? null);
-    setDraft(first ? recordToDraft(first) : emptyTravelAgencyTypeDraft());
-    setDirty(false);
-  }, [query.data, selectedId]);
+  const visibleTypes = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return types;
+    return types.filter((row) => {
+      return (
+        row.name.toLowerCase().includes(q) ||
+        row.code.toLowerCase().includes(q) ||
+        (row.description ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [types, search]);
 
   function applyRecord(row: TravelAgencyTypeRecord | null) {
     setSelectedId(row?.id ?? null);
     setDraft(row ? recordToDraft(row) : emptyTravelAgencyTypeDraft());
-    setDirty(false);
-  }
-
-  function requestSelect(id: string | null) {
-    if (dirty) {
-      setPendingSwitch(id);
-      return;
-    }
-    const row = types.find((item) => item.id === id) ?? null;
-    applyRecord(row);
-  }
-
-  function startCreate() {
-    if (dirty) {
-      setPendingSwitch("__NEW__");
-      return;
-    }
-    setSelectedId(null);
-    setDraft({
-      ...emptyTravelAgencyTypeDraft(),
-      sortOrder: (types.length + 1) * 10,
-    });
     setDirty(false);
   }
 
@@ -149,7 +132,9 @@ export function PmsCard4TravelAgencyTypes({
           name: draft.name,
           code: normalizeTravelAgencyTypeCode(draft.code),
           description: draft.description,
-          active: draft.active,
+          active: draft.id
+            ? (types.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
           sortOrder: draft.sortOrder,
         },
       }),
@@ -159,6 +144,7 @@ export function PmsCard4TravelAgencyTypes({
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setDirty(false);
       setSelectedId(result.id);
+      setEditorOpen(false);
       toast.success(draft.id ? "Travel agency type saved." : "Travel agency type created.");
       const thenNext = thenNextRef.current;
       thenNextRef.current = false;
@@ -174,7 +160,7 @@ export function PmsCard4TravelAgencyTypes({
       await queryClient.invalidateQueries({ queryKey });
       await queryClient.invalidateQueries({ queryKey: ["travel-agent-create-context", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
-      if (draft.id === input.id) mark("active", input.active);
+      setDraft((prev) => (prev.id === input.id ? { ...prev, active: input.active } : prev));
       toast.success(input.active ? "Travel agency type activated." : "Travel agency type deactivated.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -190,6 +176,7 @@ export function PmsCard4TravelAgencyTypes({
       setSelectedId(null);
       setDraft(emptyTravelAgencyTypeDraft());
       setDirty(false);
+      setEditorOpen(false);
       toast.success("Travel agency type deleted.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -211,140 +198,176 @@ export function PmsCard4TravelAgencyTypes({
     saveMutation.mutate();
   }, [saveRequest, canEdit, errors, saveMutation]);
 
-  const configuredCount = types.length;
-  const activeCount = types.filter((row) => row.active).length;
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Default catalogue active";
+  function startCreate() {
+    if (dirty && editorOpen) {
+      setPendingSwitch("__NEW__");
+      return;
+    }
+    setSelectedId(null);
+    setDraft({
+      ...emptyTravelAgencyTypeDraft(),
+      sortOrder: (types.length + 1) * 10,
+    });
+    setDirty(false);
+    setEditorOpen(true);
+  }
+
+  function openEdit(row: TravelAgencyTypeRecord) {
+    if (dirty && editorOpen && selectedId !== row.id) {
+      setPendingSwitch(row.id);
+      return;
+    }
+    applyRecord(row);
+    setEditorOpen(true);
+  }
+
+  function closeEditor() {
+    if (dirty) {
+      setPendingClose(true);
+      return;
+    }
+    setEditorOpen(false);
+  }
+
+  function submitEditor() {
+    if (errors.length > 0 || !canEdit || saveMutation.isPending) {
+      toast.error(errors[0]?.message ?? "Fix the travel agency type before saving.");
+      return;
+    }
+    thenNextRef.current = false;
+    saveMutation.mutate();
+  }
 
   return (
-    <div className="space-y-5" data-testid="card4-travel-agency-types">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-[#251605]">Travel Agency Types</h2>
-          <p className="text-xs text-muted-foreground">
-            Configure the travel agency categories staff can pick when creating a travel agency.
-            Settings is the single source of truth for all operational agency profiles.
-          </p>
-        </div>
+    <div className="space-y-3" data-testid="card4-travel-agency-types">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Travel Agency Types</h2>
         {canEdit ? (
           <Button
             type="button"
             size="sm"
             onClick={startCreate}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] text-xs h-8"
+            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
           >
-            <Plus className="mr-1 size-3.5" /> New Agency Type
+            <Plus className="mr-1 size-4" /> New Agency Type
           </Button>
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-[#CCCCCC] bg-white overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
+        <div className="border-b border-[#CCCCCC] p-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              placeholder="Search agency types..."
+              className="h-8 bg-white pl-8 text-xs"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+        </div>
         {query.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading travel agency types…</p>
+        ) : query.isError ? (
+          <div className="p-6">
+            <p className="text-sm text-destructive">Unable to load travel agency types.</p>
+            <Button type="button" variant="outline" className="mt-3" onClick={() => query.refetch()}>
+              Retry
+            </Button>
+          </div>
         ) : types.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground space-y-2">
             <p>No travel agency types configured yet.</p>
           </div>
+        ) : visibleTypes.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">
+            No agency types match your search.
+          </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-b border-[#CCCCCC]">
-                <TableHead className="text-xs font-semibold text-[#251605]">Code</TableHead>
-                <TableHead className="text-xs font-semibold text-[#251605]">Name</TableHead>
-                <TableHead className="text-xs font-semibold text-[#251605]">Description</TableHead>
-                <TableHead className="text-xs font-semibold text-[#251605] text-center w-20">Order</TableHead>
-                <TableHead className="text-xs font-semibold text-[#251605] text-center w-24">Active</TableHead>
-                <TableHead className="w-12 text-right" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {types.map((row) => {
-                const isSelected = row.id === selectedId;
-                return (
-                  <TableRow
-                    key={row.id}
-                    onClick={() => requestSelect(row.id)}
-                    className={cn(
-                      "cursor-pointer border-b border-[#CCCCCC]/60 transition-colors",
-                      isSelected ? "bg-[#FAF8F5]" : "hover:bg-[#FAF8F5]/50",
-                    )}
-                  >
-                    <TableCell className="font-mono text-xs font-semibold text-[#251605]">
-                      {row.code}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Travel Agency Type</TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead className="w-12 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleTypes.map((row) => (
+                  <TableRow key={row.id} className="hover:bg-[#FAF8F5]/80">
+                    <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
+                    <TableCell className="py-2 font-mono text-xs">{row.code}</TableCell>
+                    <TableCell className="max-w-[16rem] truncate py-2 text-muted-foreground">
+                      <span title={row.description || undefined}>{row.description || "—"}</span>
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-[#251605]">{row.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[20rem] truncate">
-                      {row.description || "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-center text-muted-foreground">{row.sortOrder}</TableCell>
-                    <TableCell
-                      className="text-center"
-                      onClick={(event) => event.stopPropagation()}
-                    >
+                    <TableCell className="py-2">
                       <Switch
                         checked={row.active}
                         disabled={!canEdit || toggleMutation.isPending}
                         onCheckedChange={(active) => toggleMutation.mutate({ id: row.id, active })}
-                        aria-label={`Toggle active for ${row.name}`}
+                        aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
                       />
                     </TableCell>
-                    <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
-                      {canEdit ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="size-7">
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => requestSelect(row.id)}>Edit</DropdownMenuItem>
+                    <TableCell className="py-2 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            aria-label={`Actions for ${row.name}`}
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 border-[#DDD4C5]">
+                          <DropdownMenuItem onSelect={() => openEdit(row)}>
+                            Edit Travel Agency Type
+                          </DropdownMenuItem>
+                          {canEdit ? (
                             <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setPendingDelete(row)}
+                              onSelect={() =>
+                                toggleMutation.mutate({ id: row.id, active: !row.active })
+                              }
+                            >
+                              {row.active ? "Deactivate" : "Activate"}
+                            </DropdownMenuItem>
+                          ) : null}
+                          {canEdit ? (
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onSelect={() => setPendingDelete(row)}
                             >
                               Delete
                             </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : null}
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 space-y-4">
-        <div>
-          <h3 className="text-sm font-medium text-[#251605]">
-            {draft.id ? "Edit Travel Agency Type" : "New Travel Agency Type"}
-          </h3>
-          <p className="text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="tat-code">
-              Code <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="tat-code"
-              value={draft.code}
-              disabled={!canEdit}
-              maxLength={12}
-              className="rounded-[6px] border-[#CCCCCC]"
-              onChange={(event) => mark("code", normalizeTravelAgencyTypeCode(event.target.value))}
-            />
-            {errorFor("code") ? (
-              <p className="text-xs text-destructive">{errorFor("code")}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">Unique short code (e.g. OTA, TMC, CORP).</p>
-            )}
-          </div>
-
+      <Card3OverlapSheet
+        open={editorOpen}
+        title={draft.id ? "Edit Travel Agency Type" : "New Agency Type"}
+        onClose={closeEditor}
+        onSubmit={submitEditor}
+        submitLabel={draft.id ? "Save Changes" : "Add Agency Type"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="tat-name">
               Name <span className="text-destructive">*</span>
@@ -354,17 +377,28 @@ export function PmsCard4TravelAgencyTypes({
               value={draft.name}
               disabled={!canEdit}
               maxLength={120}
-              className="rounded-[6px] border-[#CCCCCC]"
               onChange={(event) => mark("name", event.target.value)}
             />
             {errorFor("name") ? (
               <p className="text-xs text-destructive">{errorFor("name")}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">Display label in creation dropdown.</p>
-            )}
+            ) : null}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tat-code">
+              Code <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="tat-code"
+              value={draft.code}
+              disabled={!canEdit}
+              maxLength={12}
+              onChange={(event) => mark("code", normalizeTravelAgencyTypeCode(event.target.value))}
+            />
+            {errorFor("code") ? (
+              <p className="text-xs text-destructive">{errorFor("code")}</p>
+            ) : null}
           </div>
         </div>
-
         <div className="space-y-1.5">
           <Label htmlFor="tat-description">Description</Label>
           <Textarea
@@ -372,29 +406,26 @@ export function PmsCard4TravelAgencyTypes({
             value={draft.description}
             disabled={!canEdit}
             maxLength={400}
-            className="rounded-[6px] border-[#CCCCCC]"
             onChange={(event) => mark("description", event.target.value)}
           />
-          <p className="text-xs text-muted-foreground">{draft.description.length}/400 characters</p>
         </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
-          <div className="flex items-center gap-2">
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="tat-active">Active</Label>
             <Switch
               id="tat-active"
               checked={draft.active}
               disabled={!canEdit}
               onCheckedChange={(active) => mark("active", active)}
             />
-            <Label htmlFor="tat-active" className="cursor-pointer text-xs">
-              Active (available in agency creation dropdown)
-            </Label>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Label htmlFor="tat-sort" className="text-xs text-muted-foreground">
-              Sort order
-            </Label>
+        ) : null}
+        <details className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-[#251605]">
+            Advanced Settings
+          </summary>
+          <div className="mt-3 space-y-1.5">
+            <Label htmlFor="tat-sort">Sort Order</Label>
             <Input
               id="tat-sort"
               type="number"
@@ -402,12 +433,11 @@ export function PmsCard4TravelAgencyTypes({
               max={999}
               value={draft.sortOrder}
               disabled={!canEdit}
-              className="w-20 text-xs rounded-[6px] border-[#CCCCCC]"
               onChange={(event) => mark("sortOrder", Number(event.target.value) || 0)}
             />
           </div>
-        </div>
-      </section>
+        </details>
+      </Card3OverlapSheet>
 
       <AlertDialog open={Boolean(pendingSwitch)} onOpenChange={(open) => !open && setPendingSwitch(null)}>
         <AlertDialogContent>
@@ -426,11 +456,38 @@ export function PmsCard4TravelAgencyTypes({
                 setDirty(false);
                 if (target === "__NEW__") {
                   setSelectedId(null);
-                  setDraft({ ...emptyTravelAgencyTypeDraft(), sortOrder: (types.length + 1) * 10 });
+                  setDraft({
+                    ...emptyTravelAgencyTypeDraft(),
+                    sortOrder: (types.length + 1) * 10,
+                  });
                 } else {
                   const row = types.find((item) => item.id === target) ?? null;
                   applyRecord(row);
                 }
+                setEditorOpen(true);
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingClose} onOpenChange={(open) => !open && setPendingClose(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved travel agency type changes. Closing will discard them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingClose(false);
+                setDirty(false);
+                setEditorOpen(false);
               }}
             >
               Discard
@@ -462,19 +519,3 @@ export function PmsCard4TravelAgencyTypes({
     </div>
   );
 }
-
-export function Card4TravelAgencyTypesGuide({ count }: { count: number }) {
-  const target = Math.max(count, DEFAULT_TRAVEL_AGENCY_TYPES.length);
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <p className="mt-2 text-sm text-[#251605]">
-        Travel Agency Types
-        <span className="mt-1 block text-muted-foreground">
-          {count} of {target} configured
-        </span>
-      </p>
-    </section>
-  );
-}
-

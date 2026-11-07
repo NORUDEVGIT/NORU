@@ -69,6 +69,11 @@ import {
 import type { HousekeepingScope } from "@/core/lib/module-access";
 import { occupancyCaption, hkAreaPath, hkRoomQuickViewPath, HK_FIELD_ACTION_CLASS } from "@/packages/pms/lib/housekeeping-shell";
 import { HkDesktopOnly, HkFieldActions, HkFieldCard, HkFieldStack } from "./housekeeping-field";
+import {
+  PmsFilterPopover,
+  PmsFilterSection,
+  PmsFilterSelect,
+} from "@/packages/pms/components/pms-filter-popover";
 import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
 import {
   HkBusinessDate,
@@ -1302,6 +1307,7 @@ export function ExceptionsTab({ restaurantId, today }: Props) {
   });
 
   const [open, setOpen] = useState(false);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [kindFilter, setKindFilter] = useState<HkExceptionKind | "all">("all");
   const [query, setQuery] = useState("");
   const [roomId, setRoomId] = useState("");
@@ -1366,25 +1372,30 @@ export function ExceptionsTab({ restaurantId, today }: Props) {
         />
       </HkShellSlot>
       <HkShellSlot name="filter">
-        <PmsFilterMenu
+        <PmsFilterPopover
+          title="Filter Exceptions"
           activeCount={kindFilter !== "all" ? 1 : 0}
+          open={filterMenuOpen}
+          onOpenChange={setFilterMenuOpen}
           onClear={() => setKindFilter("all")}
+          onApply={() => setFilterMenuOpen(false)}
           buttonTestId="hk-exceptions-filters-button"
           menuTestId="hk-exceptions-filters-menu"
         >
-          <PmsFilterChoiceRow
-            label="Exception"
-            value={kindFilter}
-            current={kindFilter === "all" ? "" : EXCEPTION_KIND_LABEL[kindFilter]}
-            options={[
-              ["all", "All"],
-              ...(Object.keys(EXCEPTION_KIND_LABEL) as HkExceptionKind[]).map(
-                (kind) => [kind, EXCEPTION_KIND_LABEL[kind]] as const,
-              ),
-            ]}
-            onChange={(value) => setKindFilter(value as HkExceptionKind | "all")}
-          />
-        </PmsFilterMenu>
+          <PmsFilterSection title="Exception type">
+            <PmsFilterSelect
+              value={kindFilter}
+              onValueChange={(value) => setKindFilter(value as HkExceptionKind | "all")}
+              options={[
+                ["all", "All"],
+                ...(Object.keys(EXCEPTION_KIND_LABEL) as HkExceptionKind[]).map(
+                  (kind) => [kind, EXCEPTION_KIND_LABEL[kind]] as const,
+                ),
+              ]}
+              ariaLabel="Exception"
+            />
+          </PmsFilterSection>
+        </PmsFilterPopover>
       </HkShellSlot>
       <HkShellSlot name="cta">
         <Button className={HK_SHELL_PRIMARY_BUTTON} onClick={() => setOpen(true)}>

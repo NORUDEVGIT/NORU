@@ -1336,6 +1336,7 @@ function FolioWorkspaceBody({
         title={folio.confirmationNumber ?? "Reservation"}
         description={`${folio.guestName} · Room ${folio.roomNumber ?? "—"}`}
         hideVisualHeader
+        size="workspace"
         onOpenChange={(open) => {
           if (!open) setViewReservationId(null);
         }}

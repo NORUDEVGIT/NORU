@@ -14,6 +14,7 @@ import {
 } from "@/shared/components/ui/sheet";
 import { PermissionDeniedPanel } from "@/packages/pms/components/frontoffice/coming-soon-panel";
 import { StayBadgeStrip } from "@/packages/pms/components/frontoffice/fo-stay-badges";
+import { FoStayAmendmentHistorySection } from "@/packages/pms/components/frontoffice/fo-stay-amendment-presentation";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
 import {
   ReservationStatusBadge,
@@ -403,7 +404,11 @@ export function FoCheckInWorkspaceSheet({
       ? tab
       : "overview";
   const compactChrome =
-    stay.status === "pending" || stay.status === "confirmed" || stay.status === "checked_out";
+    stay.status === "pending" ||
+    stay.status === "confirmed" ||
+    stay.status === "checked_out" ||
+    stay.status === "cancelled" ||
+    stay.status === "no_show";
   const cardClass = compactChrome ? "rounded-lg border-[#DDD4C5] p-2.5" : undefined;
   const canCheckIn = menuItems.some((item) => item.id === "check_in");
   const canAssign = !roomAssigned && menuItems.some((item) => item.id === "assign");
@@ -423,7 +428,8 @@ export function FoCheckInWorkspaceSheet({
     null;
 
   const rateLabel = reservation?.roomSubtotal != null ? money(reservation.roomSubtotal) : "—";
-  const departed = stay.status === "checked_out";
+  const departed =
+    stay.status === "checked_out" || stay.status === "cancelled" || stay.status === "no_show";
 
   const idType = arrival?.guest.idDocumentType;
   const idLabel = idType ? ID_DOCUMENT_LABELS[idType] : "—";
@@ -1009,11 +1015,24 @@ export function FoCheckInWorkspaceSheet({
                         className="text-sm text-muted-foreground"
                         data-testid="fo-ci-workspace-room-number"
                       >
-                        Room not assigned
+                        {stay.status === "no_show" || stay.status === "cancelled"
+                          ? "Unassigned"
+                          : "Room not assigned"}
                       </p>
                     )}
                   </OpCard>
                 </div>
+
+                <FoStayAmendmentHistorySection
+                  events={(detailQuery.data?.history ?? []).map((event) => ({
+                    eventType: event.eventType,
+                    createdAt: event.createdAt,
+                    actorName: event.actorName,
+                    previousValues: event.previousValues,
+                    newValues: event.newValues,
+                  }))}
+                  money={money}
+                />
 
                 <OpCard
                   title="Requests, Notes & Guest Services"

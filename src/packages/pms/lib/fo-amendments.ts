@@ -4,6 +4,7 @@
  * Shared Confirm / reason / Before→After honesty. Never invent package or
  * rate math. Never treat permission denied as Coming soon.
  */
+import { formatStayDate, nightsBetween } from "@/shared/lib/property-dates";
 
 export const REASON_MIN_CHARS = 3;
 export const RATE_IMPACT_UNAVAILABLE = "Rate impact unavailable";
@@ -370,6 +371,17 @@ export function amendmentEventLabel(eventType: string): string {
   return AMENDMENT_EVENT_LABELS[eventType] ?? eventType.replace(/_/g, " ");
 }
 
+/** Canonical stay-date amendment history written by amend/change-stay RPCs. */
+export const FO_STAY_AMENDMENT_EVENT_TYPES = [
+  "stay_extended",
+  "stay_shortened",
+  "stay_dates_changed",
+] as const;
+
+export function isStayAmendmentHistoryEvent(eventType: string): boolean {
+  return (FO_STAY_AMENDMENT_EVENT_TYPES as readonly string[]).includes(eventType);
+}
+
 export function formatSnapshotValue(value: unknown): string {
   if (value == null || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -402,3 +414,175 @@ export const FO_AMEND_SHEET_IDS = [
 ] as const;
 
 export type FoAmendSheetId = (typeof FO_AMEND_SHEET_IDS)[number];
+
+/** Batched Front Office stay-date amendment history (read-model only). */
+export type FoStayAmendmentHistoryRow = {
+  reservationId: string;
+  eventType: string;
+  createdAt: string;
+  actorName: string | null;
+  previousValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+};
+
+const STAY_AMENDMENT_FIELD_ORDER = [
+  "arrival_date",
+  "departure_date",
+  "nights",
+  "adults",
+  "children",
+  "infants",
+  "room_subtotal",
+  "special_requests",
+  "notes",
+] as const;
+
+const STAY_AMENDMENT_FIELD_LABELS: Record<(typeof STAY_AMENDMENT_FIELD_ORDER)[number], string> = {
+  arrival_date: "Arrival",
+  departure_date: "Departure",
+  nights: "Nights",
+  adults: "Adults",
+  children: "Children",
+  infants: "Infants",
+  room_subtotal: "Room Charge",
+  special_requests: "Special Requests",
+  notes: "Internal Notes",
+};
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}/;
+
+export function formatStayDateShort(value: string): string {
+  const iso = value.slice(0, 10);
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return value;
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+export function formatAmendmentOccurredAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const day = date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const time = date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${day} · ${time}`;
+}
+
+function snapshotNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function snapshotNights(values: Record<string, unknown> | null | undefined): number | null {
+  const fromKey = snapshotNumber(values?.nights);
+  if (fromKey != null) return fromKey;
+  const arrival = values?.arrival_date;
+  const departure = values?.departure_date;
+  if (typeof arrival === "string" && typeof departure === "string") {
+    return nightsBetween(arrival.slice(0, 10), departure.slice(0, 10));
+  }
+  return null;
+}
+
+function formatStayAmendmentField(
+  key: (typeof STAY_AMENDMENT_FIELD_ORDER)[number],
+  value: unknown,
+  opts: { dateStyle: "short" | "full"; money?: (n: number) => string },
+): string | null {
+  if (key === "room_subtotal") {
+    const amount = snapshotNumber(value);
+    if (amount == null || !opts.money) return null;
+    return opts.money(amount);
+  }
+  if (value == null || value === "") return "—";
+  if (key === "arrival_date" || key === "departure_date" || (typeof value === "string" && DATE_ONLY_RE.test(value))) {
+    const iso = String(value).slice(0, 10);
+    return opts.dateStyle === "short" ? formatStayDateShort(iso) : formatStayDate(iso);
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string") return value;
+  return null;
+}
+
+export function stayAmendmentChangeLines(
+  previousValues: Record<string, unknown> | null | undefined,
+  newValues: Record<string, unknown> | null | undefined,
+  opts?: { dateStyle?: "short" | "full"; money?: (n: number) => string },
+): SnapshotPair[] {
+  const previous = previousValues ?? {};
+  const next = newValues ?? {};
+  const dateStyle = opts?.dateStyle ?? "full";
+  const lines: SnapshotPair[] = [];
+  for (const key of STAY_AMENDMENT_FIELD_ORDER) {
+    if (key === "nights") {
+      const fromNights = snapshotNights(previous);
+      const toNights = snapshotNights(next);
+      if (fromNights != null && toNights != null && fromNights !== toNights) {
+        lines.push({ label: STAY_AMENDMENT_FIELD_LABELS.nights, previous: String(fromNights), next: String(toNights) });
+      }
+      continue;
+    }
+    if (!(key in previous) && !(key in next)) continue;
+    const from = formatStayAmendmentField(key, previous[key], { dateStyle, money: opts?.money });
+    const to = formatStayAmendmentField(key, next[key], { dateStyle, money: opts?.money });
+    if (from == null || to == null || from === to) continue;
+    lines.push({ label: STAY_AMENDMENT_FIELD_LABELS[key], previous: from, next: to });
+  }
+  return lines;
+}
+
+export function stayAmendmentTooltipLines(changes: SnapshotPair[], max = 3): string[] {
+  const preferred = ["Departure", "Nights", "Arrival"];
+  const ordered = [
+    ...preferred.flatMap((label) => changes.filter((change) => change.label === label)),
+    ...changes.filter((change) => !preferred.includes(change.label)),
+  ];
+  const seen = new Set<string>();
+  const unique: SnapshotPair[] = [];
+  for (const change of ordered) {
+    if (seen.has(change.label)) continue;
+    seen.add(change.label);
+    unique.push(change);
+  }
+  return unique.slice(0, max).map((change) => `${change.label}: ${change.previous} → ${change.next}`);
+}
+
+export function stayAmendmentTableLine(changes: SnapshotPair[]): string | null {
+  const line = stayAmendmentTooltipLines(changes, 1)[0];
+  return line ? line.replace(": ", " ") : null;
+}
+
+export function latestStayAmendmentByReservation(
+  rows: readonly FoStayAmendmentHistoryRow[],
+): Map<string, FoStayAmendmentHistoryRow> {
+  const latest = new Map<string, FoStayAmendmentHistoryRow>();
+  for (const row of rows) {
+    const current = latest.get(row.reservationId);
+    if (!current || row.createdAt > current.createdAt) latest.set(row.reservationId, row);
+  }
+  return latest;
+}
+
+export function stayAmendmentsForReservation(
+  rows: readonly FoStayAmendmentHistoryRow[],
+  reservationId: string,
+): FoStayAmendmentHistoryRow[] {
+  return rows
+    .filter((row) => row.reservationId === reservationId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}

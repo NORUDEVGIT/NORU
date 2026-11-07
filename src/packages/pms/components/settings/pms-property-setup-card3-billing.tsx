@@ -17,7 +17,6 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
-  Card3InheritedStrip,
   Card3ListSection,
   Card3OverlapSheet,
   Card3Section,
@@ -99,7 +98,6 @@ export function PmsPropertySetupCard3Billing({
     queryFn: () => load({ data: { restaurantId } }),
   });
   const snapshot: BillingCard3Snapshot | undefined = query.data?.snapshot;
-  const inherited = snapshot?.inherited;
   const billingRules = useMemo(() => snapshot?.billingRules ?? [], [snapshot?.billingRules]);
   const filteredRules = useMemo(
     () =>
@@ -149,48 +147,6 @@ export function PmsPropertySetupCard3Billing({
         </p>
       ) : (
         <div className="space-y-4" data-testid="pms-card3-billing">
-          <Card3InheritedStrip>
-            Legal identity, branding, VAT, and base currency are inherited from Card 1. Taxes and
-            payment methods stay on earlier Card 3 domains. City ledger is out of this workspace.
-            This configuration makes no reservation or folio operational changes.
-            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Inherited from Card 1 · legal entity
-                </dt>
-                <dd className="text-[#251605]">{inherited?.legalEntityName || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Inherited from Card 1 · legal name
-                </dt>
-                <dd className="text-[#251605]">{inherited?.legalName || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Inherited from Card 1 · trading name
-                </dt>
-                <dd className="text-[#251605]">{inherited?.tradingName || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Inherited from Card 1 · VAT
-                </dt>
-                <dd className="text-[#251605]">
-                  {inherited?.vatRegistered
-                    ? inherited.vatNumber || "Registered"
-                    : inherited?.vatNumber || "Not registered"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Inherited from Card 1 · currency
-                </dt>
-                <dd className="text-[#251605]">{inherited?.currencyCode || "—"}</dd>
-              </div>
-            </dl>
-          </Card3InheritedStrip>
-
           <Card3Section title="Invoice settings" icon="document">
             <InvoiceSettingsForm
               key={
@@ -199,7 +155,6 @@ export function PmsPropertySetupCard3Billing({
                   : "invoice-settings-empty"
               }
               canEdit={canEdit}
-              currencyCode={inherited?.currencyCode ?? ""}
               value={snapshot.invoiceSettings}
               pending={settingsMutation.isPending}
               onSave={(payload) => settingsMutation.mutate({ restaurantId, ...payload })}
@@ -249,13 +204,11 @@ export function PmsPropertySetupCard3Billing({
 
 function InvoiceSettingsForm({
   canEdit,
-  currencyCode,
   value,
   pending,
   onSave,
 }: {
   canEdit: boolean;
-  currencyCode: string;
   value: BillingCard3Snapshot["invoiceSettings"];
   pending: boolean;
   onSave: (payload: {
@@ -305,90 +258,88 @@ function InvoiceSettingsForm({
 
   return (
     <form
-      className="max-w-lg space-y-3 rounded-2xl border border-border bg-white p-5"
+      className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         if (!canEdit) return;
         onSave(payload);
       }}
     >
-      <p className="text-sm text-muted-foreground">
-        Setup numbering only. Amounts display in Card 1 currency {currencyCode || "—"}. Branding is
-        not stored here.
-      </p>
-      <div className="space-y-1">
-        <Label htmlFor="invoice-prefix">Prefix</Label>
-        <Input
-          id="invoice-prefix"
-          value={prefix}
-          maxLength={12}
-          disabled={!canEdit}
-          className={goldFocus}
-          onChange={(event) => setPrefix(event.target.value.toUpperCase())}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="invoice-start">Starting number</Label>
-        <Input
-          id="invoice-start"
-          type="number"
-          min={1}
-          value={startingNumber}
-          disabled={!canEdit}
-          className={goldFocus}
-          onChange={(event) => setStartingNumber(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="invoice-padding">Number padding</Label>
-        <Input
-          id="invoice-padding"
-          type="number"
-          min={1}
-          max={12}
-          value={numberPadding}
-          disabled={!canEdit}
-          className={goldFocus}
-          onChange={(event) => setNumberPadding(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="invoice-tax-display">Tax display</Label>
-        <Select
-          value={taxDisplay}
-          onValueChange={(next) => setTaxDisplay(next as InvoiceTaxDisplay)}
-          disabled={!canEdit}
-        >
-          <SelectTrigger id="invoice-tax-display" className={goldFocus}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {INVOICE_TAX_DISPLAYS.map((item) => (
-              <SelectItem key={item} value={item}>
-                {INVOICE_TAX_DISPLAY_LABELS[item]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="invoice-format">Invoice format</Label>
-        <Select
-          value={invoiceFormat}
-          onValueChange={(next) => setInvoiceFormat(next as InvoiceFormat)}
-          disabled={!canEdit}
-        >
-          <SelectTrigger id="invoice-format" className={goldFocus}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {INVOICE_FORMATS.map((item) => (
-              <SelectItem key={item} value={item}>
-                {INVOICE_FORMAT_LABELS[item]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="invoice-prefix">Prefix</Label>
+          <Input
+            id="invoice-prefix"
+            value={prefix}
+            maxLength={12}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setPrefix(event.target.value.toUpperCase())}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="invoice-start">Starting number</Label>
+          <Input
+            id="invoice-start"
+            type="number"
+            min={1}
+            value={startingNumber}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setStartingNumber(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="invoice-padding">Number padding</Label>
+          <Input
+            id="invoice-padding"
+            type="number"
+            min={1}
+            max={12}
+            value={numberPadding}
+            disabled={!canEdit}
+            className={goldFocus}
+            onChange={(event) => setNumberPadding(event.target.value)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="invoice-tax-display">Tax display</Label>
+          <Select
+            value={taxDisplay}
+            onValueChange={(next) => setTaxDisplay(next as InvoiceTaxDisplay)}
+            disabled={!canEdit}
+          >
+            <SelectTrigger id="invoice-tax-display" className={goldFocus}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {INVOICE_TAX_DISPLAYS.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {INVOICE_TAX_DISPLAY_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 sm:col-span-2">
+          <Label htmlFor="invoice-format">Invoice format</Label>
+          <Select
+            value={invoiceFormat}
+            onValueChange={(next) => setInvoiceFormat(next as InvoiceFormat)}
+            disabled={!canEdit}
+          >
+            <SelectTrigger id="invoice-format" className={goldFocus}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {INVOICE_FORMATS.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {INVOICE_FORMAT_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       {canEdit ? (
         <Button
@@ -517,7 +468,6 @@ function BillingRuleSheet({
       open={open}
       onClose={onClose}
       title={value ? "Edit billing rule" : "Configure billing rule"}
-      description="NORU system rules govern folio routing and billing relationships. Properties configure display labels, applicability, defaults, and status."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save billing rule"

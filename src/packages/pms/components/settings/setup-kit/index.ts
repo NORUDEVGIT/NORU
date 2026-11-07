@@ -6,6 +6,8 @@ export type { PropertySetupRailSection } from "./status-rail";
 export { PropertySetupActionFooter } from "./action-footer";
 export { PropertySetupStepNav } from "./step-nav";
 export type { PropertySetupStepNavItem } from "./step-nav";
+export { LocalSectionNavigator } from "./local-section-navigator";
+export type { LocalSectionNavigatorItem } from "./local-section-navigator";
 export {
   PropertySetupField,
   PropertySetupFormGrid,

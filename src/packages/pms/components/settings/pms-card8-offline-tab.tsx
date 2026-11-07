@@ -32,7 +32,6 @@ import {
   CARD8_OFFLINE_NEVER_GATEWAY,
   CARD8_OFFLINE_POLICY_ONLY_COPY,
   CARD8_OFFLINE_RUNTIME_ABSENT,
-  CARD8_OFFLINE_SET6_LEGACY,
   CARD8_POLICY_STATE_LABELS,
   CARD8_POLICY_STATES,
   CARD8_SYNC_MODE_LABELS,
@@ -216,7 +215,6 @@ export function Card8OfflineTab({
             <TabsContent value="overview" className="space-y-4">
               <section className="rounded-2xl border bg-card p-5">
                 <h3 className="font-display text-lg text-[#251605]">Offline policy</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{CARD8_OFFLINE_SET6_LEGACY}</p>
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <Label htmlFor="card8-offline-mode">Offline mode enabled</Label>
                   <Switch

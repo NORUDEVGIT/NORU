@@ -290,24 +290,6 @@ export function Card3RowActions({
   editDisabled?: boolean;
   deleteDisabled?: boolean;
 }) {
-  // When Edit is the only available action, the three-dot button opens
-  // the editor directly instead of showing a one-item dropdown menu.
-  if (onEdit && !onDelete) {
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="size-8 rounded-[6px] text-[#251605] hover:bg-[#F4EDE0]"
-        aria-label={label}
-        disabled={editDisabled}
-        onClick={onEdit}
-      >
-        <Ellipsis className="size-4" />
-      </Button>
-    );
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -352,6 +334,7 @@ export function Card3OverlapSheet({
   canEdit,
   maxWidth = "max-w-lg",
   className,
+  footerJustify = "end",
   children,
 }: {
   open: boolean;
@@ -364,6 +347,7 @@ export function Card3OverlapSheet({
   canEdit?: boolean;
   maxWidth?: string;
   className?: string;
+  footerJustify?: "end" | "between";
   children: ReactNode;
 }) {
   return (
@@ -374,31 +358,42 @@ export function Card3OverlapSheet({
       }}
     >
       <DialogContent
+        overlayClassName="bg-[#1F140A]/70"
         className={cn(
-          "max-h-[85dvh] w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-5 shadow-xl sm:w-full",
+          "max-h-[85dvh] w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[#DDD4C5] bg-white p-0 shadow-xl sm:w-full",
+          "[&>button.absolute]:hidden",
           maxWidth,
           className,
         )}
       >
-        <DialogHeader className="space-y-1 text-left">
-          <DialogTitle className="font-sans text-lg font-semibold text-[#251605]">
-            {title}
-          </DialogTitle>
+        <DialogHeader className="relative space-y-0.5 bg-[#1F140A] px-5 py-2.5 pr-12 text-left">
+          <DialogTitle className="font-display text-sm font-semibold text-white">{title}</DialogTitle>
           {description ? (
-            <DialogDescription className="text-sm text-muted-foreground">
-              {description}
-            </DialogDescription>
+            <DialogDescription className="text-[11px] text-[#C4B6A0]">{description}</DialogDescription>
           ) : (
             <DialogDescription className="sr-only">{title}</DialogDescription>
           )}
+          <button
+            type="button"
+            className="absolute right-3 top-2 rounded-md p-1 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </button>
+          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[#C89933]" aria-hidden />
         </DialogHeader>
 
-        <div className="mt-2 space-y-4">
+        <div className="max-h-[calc(85dvh-3.5rem)] space-y-4 overflow-y-auto p-5">
           {children}
 
-          <div className="sticky bottom-0 -mx-1 flex flex-wrap justify-end gap-2 border-t border-[#E6E1D8] bg-white px-1 pt-4">
+          <div
+            className={cn(
+              "sticky bottom-0 -mx-1 flex flex-wrap gap-2 border-t border-[#E6E1D8] bg-white px-1 pt-4",
+              footerJustify === "between" ? "justify-between" : "justify-end",
+            )}
+          >
             <Button type="button" variant="outline" onClick={onClose}>
-              <X className="size-4" />
               Cancel
             </Button>
 

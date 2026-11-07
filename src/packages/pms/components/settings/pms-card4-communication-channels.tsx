@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Filter, MoreHorizontal, Plus, Search } from "lucide-react";
+import { Filter, MoreHorizontal, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -31,6 +31,7 @@ import {
   type IntegrationAuthMethod,
   type IntegrationField,
 } from "@/packages/pms/lib/integrations-catalog";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import {
   FieldShell,
   SecretInput,
@@ -46,7 +47,6 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -74,7 +74,6 @@ import {
 } from "@/shared/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { cn } from "@/shared/lib/utils";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -114,25 +113,18 @@ export function PmsCard4CommunicationChannels({
   const channels = useMemo(() => query.data?.channels ?? [], [query.data?.channels]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<CommunicationChannelDraft>(emptyCommunicationChannelDraft());
   const [dirty, setDirty] = useState(false);
+  const [attemptedSave, setAttemptedSave] = useState(false);
   const [detailsTab, setDetailsTab] = useState("general");
-  const [pendingSelection, setPendingSelection] = useState<CommunicationChannelRecord | null>(null);
+  const [pendingClose, setPendingClose] = useState(false);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
-  useEffect(() => {
-    if (channels.length === 0 || dirty) return;
-    const selected = channels.find((row) => row.id === selectedId) ?? channels[0];
-    if (!selected) return;
-    setSelectedId(selected.id);
-    setDraft(communicationChannelToDraft(selected));
-  }, [channels, selectedId, dirty]);
-
   const errors = validateCommunicationChannelDraft(draft, channels);
-  const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;
+  const errorFor = (field: string) =>
+    attemptedSave ? (errors.find((row) => row.field === field)?.message ?? null) : null;
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return channels.filter((row) => {
@@ -172,6 +164,8 @@ export function PmsCard4CommunicationChannels({
       await queryClient.invalidateQueries({ queryKey });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       setDirty(false);
+      setEditorOpen(false);
+      setAttemptedSave(false);
       toast.success("Communication channel saved successfully.");
     },
     onError: (error: Error) =>
@@ -215,7 +209,8 @@ export function PmsCard4CommunicationChannels({
   });
 
   const busy = saveMutation.isPending || toggleMutation.isPending || testMutation.isPending;
-  const canSave = canEdit && Boolean(query.data) && !busy && errors.length === 0;
+  const canSave =
+    canEdit && Boolean(query.data) && !busy && (!editorOpen || errors.length === 0);
   useEffect(() => {
     onSavingChange(busy, canSave);
   }, [busy, canSave, onSavingChange]);
@@ -228,7 +223,8 @@ export function PmsCard4CommunicationChannels({
       toast.error("Unable to save communication channels.");
       return;
     }
-    if (errors.length > 0) {
+    if (editorOpen && errors.length > 0) {
+      setAttemptedSave(true);
       setDetailsTab(
         errors.some((row) => providerFields(draft).some((field) => field.id === row.field))
           ? "provider"
@@ -237,7 +233,7 @@ export function PmsCard4CommunicationChannels({
       toast.error(errors[0]?.message ?? "Fix the communication channel before saving.");
       return;
     }
-    if (dirty) {
+    if (editorOpen && dirty) {
       saveMutation.mutate(undefined, {
         onSuccess: () => onSaved(thenNextRef.current),
       });
@@ -245,7 +241,7 @@ export function PmsCard4CommunicationChannels({
     }
     toast.success("Communication channels saved successfully.");
     onSaved(thenNextRef.current);
-  }, [saveRequest, canEdit, query.data, errors, dirty, draft, onSaved, saveMutation]);
+  }, [saveRequest, canEdit, query.data, editorOpen, errors, dirty, draft, onSaved, saveMutation]);
 
   function mark<K extends keyof CommunicationChannelDraft>(
     key: K,
@@ -260,14 +256,11 @@ export function PmsCard4CommunicationChannels({
   }
 
   function selectChannel(row: CommunicationChannelRecord) {
-    if (dirty && row.id !== selectedId) {
-      setPendingSelection(row);
-      return;
-    }
-    setSelectedId(row.id);
     setDraft(communicationChannelToDraft(row));
     setDetailsTab("general");
     setDirty(false);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
   function chooseProvider(provider: string) {
@@ -281,14 +274,36 @@ export function PmsCard4CommunicationChannels({
     }));
   }
 
-  function chooseChannelType(channelType: CommunicationChannelType) {
-    const row = channels.find((channel) => channel.channelType === channelType);
-    if (row) selectChannel(row);
+  function startAdd() {
+    const candidate = channels.find((row) => !row.active);
+    setDraft(
+      candidate
+        ? communicationChannelToDraft(candidate)
+        : emptyCommunicationChannelDraft(),
+    );
+    setDetailsTab("general");
+    setDirty(true);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
-  function startAdd() {
-    const candidate = channels.find((row) => !row.active) ?? channels[0];
-    if (candidate) selectChannel(candidate);
+  function requestClose() {
+    if (dirty) setPendingClose(true);
+    else setEditorOpen(false);
+  }
+
+  function submitChannel() {
+    setAttemptedSave(true);
+    if (!canEdit || errors.length > 0) {
+      if (errors.some((row) => providerFields(draft).some((field) => field.id === row.field))) {
+        setDetailsTab("provider");
+      } else {
+        setDetailsTab("general");
+      }
+      toast.error(errors[0]?.message ?? "Fix the communication channel before saving.");
+      return;
+    }
+    saveMutation.mutate();
   }
 
   function renderProviderField(field: IntegrationField) {
@@ -394,32 +409,24 @@ export function PmsCard4CommunicationChannels({
   }
 
   const fields = providerFields(draft);
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
 
   return (
-    <div className="space-y-5" data-testid="card4-communication-channels">
+    <div className="space-y-3" data-testid="card4-communication-channels">
       <section className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Communication Channels</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Configure how this property communicates with guests and staff.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg text-[#251605]">Communication Channels</h2>
           <Button
             type="button"
+            size="sm"
             onClick={startAdd}
-            disabled={!canEdit || channels.length === 0}
+            disabled={!canEdit}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
           >
             <Plus className="mr-1 size-4" /> Add Channel
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+        <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
           <div className="flex flex-wrap gap-2 border-b border-[#CCCCCC] p-3">
             <div className="relative min-w-[14rem] flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -484,106 +491,60 @@ export function PmsCard4CommunicationChannels({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10">
-                      <Checkbox
-                        checked={
-                          visible.length > 0 &&
-                          visible.every((row) => selectedRows.includes(row.id))
-                        }
-                        aria-label="Select all visible channels"
-                        onCheckedChange={(checked) =>
-                          setSelectedRows(
-                            checked
-                              ? Array.from(
-                                  new Set([...selectedRows, ...visible.map((row) => row.id)]),
-                                )
-                              : selectedRows.filter((id) => !visible.some((row) => row.id === id)),
-                          )
-                        }
-                      />
-                    </TableHead>
                     <TableHead>Channel</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Provider</TableHead>
                     <TableHead>Configuration</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {visible.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      className={cn(selectedId === row.id && "bg-[#C89933]/5")}
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedRows.includes(row.id)}
-                          aria-label={`Select ${COMMUNICATION_CHANNEL_LABELS[row.channelType]}`}
-                          onCheckedChange={(checked) =>
-                            setSelectedRows((current) =>
-                              checked
-                                ? Array.from(new Set([...current, row.id]))
-                                : current.filter((id) => id !== row.id),
-                            )
+                    <TableRow key={row.id}>
+                      <TableCell className="py-2 font-medium text-[#251605]">
+                        {COMMUNICATION_CHANNEL_LABELS[row.channelType]}
+                      </TableCell>
+                      <TableCell className="py-2">{communicationProviderLabel(row)}</TableCell>
+                      <TableCell className="py-2">{configurationSummary(row)}</TableCell>
+                      <TableCell className="py-2">
+                        <Switch
+                          checked={row.active}
+                          disabled={!canEdit || toggleMutation.isPending}
+                          aria-label={`${row.active ? "Deactivate" : "Activate"} ${COMMUNICATION_CHANNEL_LABELS[row.channelType]}`}
+                          onCheckedChange={(active) =>
+                            toggleMutation.mutate({ id: row.id, active })
                           }
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-[#251605]">
-                        {COMMUNICATION_CHANNEL_LABELS[row.channelType]}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                            row.active
-                              ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                              : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                          )}
-                        >
-                          {row.active ? "Active" : "Inactive"}
-                        </span>
-                      </TableCell>
-                      <TableCell>{communicationProviderLabel(row)}</TableCell>
-                      <TableCell>{configurationSummary(row)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => selectChannel(row)}
-                          >
-                            Edit
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label={`Actions for ${COMMUNICATION_CHANNEL_LABELS[row.channelType]}`}
-                              >
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => selectChannel(row)}>
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                disabled={!canEdit}
-                                onSelect={() =>
-                                  toggleMutation.mutate({
-                                    id: row.id,
-                                    active: !row.active,
-                                  })
-                                }
-                              >
-                                {row.active ? "Deactivate" : "Activate"}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                      <TableCell className="py-2 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Actions for ${COMMUNICATION_CHANNEL_LABELS[row.channelType]}`}
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => selectChannel(row)}>
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={!canEdit}
+                              onSelect={() =>
+                                toggleMutation.mutate({
+                                  id: row.id,
+                                  active: !row.active,
+                                })
+                              }
+                            >
+                              {row.active ? "Deactivate" : "Activate"}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -594,36 +555,19 @@ export function PmsCard4CommunicationChannels({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Channel Details</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Configure the selected property communication channel.
-            </p>
-          </div>
-          <div className="min-w-[14rem] space-y-1">
-            <Label htmlFor="channel-details-selector">Channel</Label>
-            <Select
-              value={draft.channelType}
-              disabled={channels.length === 0}
-              onValueChange={(value) => chooseChannelType(value as CommunicationChannelType)}
-            >
-              <SelectTrigger id="channel-details-selector">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {channels.map((row) => (
-                  <SelectItem key={row.id} value={row.channelType}>
-                    {COMMUNICATION_CHANNEL_LABELS[row.channelType]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <Tabs value={detailsTab} onValueChange={setDetailsTab} className="mt-4">
+      <Card3OverlapSheet
+        open={editorOpen}
+        title={draft.id ? "Edit Communication Channel" : "Add Communication Channel"}
+        onClose={requestClose}
+        onSubmit={submitChannel}
+        submitLabel="Save"
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[900px]"
+        className="max-h-[88vh]"
+        footerJustify="between"
+      >
+        <Tabs value={detailsTab} onValueChange={setDetailsTab}>
           <TabsList className="h-auto w-full justify-start overflow-x-auto">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="provider">Provider Settings</TabsTrigger>
@@ -634,6 +578,41 @@ export function PmsCard4CommunicationChannels({
 
           <TabsContent value="general" className="space-y-4 pt-3">
             <div className="grid gap-4 md:grid-cols-2">
+              <FieldShell
+                id="channel-type"
+                label="Channel"
+                required
+                error={errorFor("channelType") ?? undefined}
+              >
+                <Select
+                  value={draft.channelType}
+                  disabled={!canEdit || Boolean(draft.id)}
+                  onValueChange={(value) => {
+                    const channelType = value as CommunicationChannelType;
+                    const nextProvider = communicationProviders(channelType)[0]?.id ?? "";
+                    const definition = communicationProvider(channelType, nextProvider);
+                    setDraft((current) => ({
+                      ...current,
+                      channelType,
+                      provider: nextProvider,
+                      authMethod: definition?.authMethods[0] ?? "none",
+                      providerValues: {},
+                    }));
+                    setDirty(true);
+                  }}
+                >
+                  <SelectTrigger id="channel-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMMUNICATION_CHANNEL_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {COMMUNICATION_CHANNEL_LABELS[type]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FieldShell>
               <FieldShell
                 id="channel-sender-name"
                 label="Sender Name"
@@ -795,31 +774,24 @@ export function PmsCard4CommunicationChannels({
             </p>
           </TabsContent>
         </Tabs>
-      </section>
+      </Card3OverlapSheet>
 
-      <AlertDialog
-        open={Boolean(pendingSelection)}
-        onOpenChange={(open) => !open && setPendingSelection(null)}
-      >
+      <AlertDialog open={pendingClose} onOpenChange={(open) => !open && setPendingClose(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>You have unsaved changes.</AlertDialogTitle>
             <AlertDialogDescription>
-              Discard them before editing another communication channel?
+              Discard them to close this communication channel form?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Continue Editing</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                const next = pendingSelection;
-                setPendingSelection(null);
+                setPendingClose(false);
+                setEditorOpen(false);
                 setDirty(false);
-                if (next) {
-                  setSelectedId(next.id);
-                  setDraft(communicationChannelToDraft(next));
-                  setDetailsTab("general");
-                }
+                setAttemptedSave(false);
               }}
             >
               Discard Changes
@@ -828,44 +800,5 @@ export function PmsCard4CommunicationChannels({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4CommunicationChannelsGuide({
-  channels,
-}: {
-  channels: readonly CommunicationChannelRecord[];
-}) {
-  const active = channels.filter((row) => row.active).length;
-  const example = channels.find((row) => row.active) ?? channels[0];
-  return (
-    <>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Choose a communication channel</li>
-          <li>Confirm its provider</li>
-          <li>Complete the channel details</li>
-          <li>Test the configuration</li>
-          <li>Activate the channel</li>
-        </ol>
-        <p className="mt-3 text-sm text-[#251605]">
-          {active} of {channels.length} channels active
-        </p>
-      </section>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Channel Example</p>
-        {example ? (
-          <div className="mt-2 space-y-1 text-sm">
-            <p>{COMMUNICATION_CHANNEL_LABELS[example.channelType]}</p>
-            <p className="text-muted-foreground">
-              {example.senderName} · {communicationProviderLabel(example)}
-            </p>
-          </div>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">Select a channel to see an example.</p>
-        )}
-      </section>
-    </>
   );
 }

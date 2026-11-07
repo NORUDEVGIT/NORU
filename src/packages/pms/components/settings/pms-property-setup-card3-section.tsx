@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
 
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
@@ -45,10 +44,8 @@ export function PmsPropertySetupCard3Section({
   const [activeDomain, setActiveDomain] = useState<Card3DomainId>(
     () => card3DomainFromSearch(typeof window === "undefined" ? "" : window.location.search) ?? "currency-financial-settings",
   );
-  const [draftSave, setDraftSave] = useState<Card3DraftSave | null>(null);
-  const [continuing, setContinuing] = useState(false);
-  const registerDraftSave = useCallback((value: Card3DraftSave | null) => {
-    setDraftSave(value);
+  const registerDraftSave = useCallback((_value: Card3DraftSave | null) => {
+    /* Section-level saves replaced the wizard footer. */
   }, []);
   const domain = CARD3_DOMAINS.find((row) => row.id === activeDomain) ?? CARD3_DOMAINS[0];
   const loadCurrency = useServerFn(getCurrencyCard3);
@@ -125,7 +122,6 @@ export function PmsPropertySetupCard3Section({
         : "not_started";
   const currentIndex = CARD3_DOMAINS.findIndex((row) => row.id === activeDomain);
   const previousDomain = currentIndex > 0 ? CARD3_DOMAINS[currentIndex - 1] : undefined;
-  const nextDomain = currentIndex >= 0 ? CARD3_DOMAINS[currentIndex + 1] : undefined;
 
   function goBackToHub() {
     const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -137,25 +133,6 @@ export function PmsPropertySetupCard3Section({
     window.location.hash = "";
     window.history.replaceState(null, "", SET1_HUB_HREF);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
-  }
-
-  async function saveAndAdvance() {
-    if (draftSave?.dirty) {
-      setContinuing(true);
-      try {
-        await draftSave.save();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not save.");
-        setContinuing(false);
-        return;
-      }
-      setContinuing(false);
-    }
-    if (nextDomain) {
-      setActiveDomain(nextDomain.id);
-      return;
-    }
-    goBackToHub();
   }
 
   const domainProps = {
@@ -177,22 +154,14 @@ export function PmsPropertySetupCard3Section({
             cardNumber={3}
             status={cardStatus}
             description={CARD3_SUBTITLE}
+            hideTitle
             sections={railSections}
             complete={counts.complete}
             inProgress={counts.inProgress}
             notStarted={counts.notStarted}
             onBack={previousDomain ? () => setActiveDomain(previousDomain.id) : goBackToHub}
-            onSaveDraft={canEdit ? () => void draftSave?.save() : undefined}
-            onContinue={() => void saveAndAdvance()}
-            saveDraftDisabled={
-              !canEdit || !draftSave?.dirty || Boolean(draftSave?.pending) || continuing
-            }
-            continueDisabled={!canEdit || continuing || Boolean(draftSave?.pending)}
-            continuePending={continuing}
-            saveDraftPending={Boolean(draftSave?.pending)}
-            dirty={Boolean(draftSave?.dirty)}
+            footer={null}
             footerTestId="pms-card3-chrome"
-            footer={canEdit ? undefined : null}
             stepNav={
               <div data-testid="pms-card3-steps">
                 <PropertySetupStepNav

@@ -625,7 +625,7 @@ export const FoCheckInV2Registration = forwardRef<
       data-guest-id={registration.guestId}
     >
       <section
-        className="rounded-xl border border-[#E8DFD0] bg-white px-4 py-3 shadow-sm"
+        className="rounded-lg border border-[#E8DFD0] bg-white px-3 py-2"
         data-testid="fo-ci-v2-registration-header"
       >
         <div className="flex items-start justify-between gap-4">
@@ -1216,7 +1216,7 @@ function FormSection({
 }) {
   return (
     <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      className="rounded-lg border border-[#DDD4C5] bg-white p-3"
       data-testid={testId}
     >
       <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">{title}</h3>

@@ -2337,7 +2337,13 @@ async function applyUnitScopedReservationEdit(input: {
       opening_date?: string | null;
     } | null;
     assertArrivalAfterOpeningDate(arrival, property?.opening_date);
-    const businessDate = property?.business_date ?? propertyToday(property?.timezone || "UTC");
+    const persistedBusinessDate = property?.business_date
+      ? String(property.business_date).slice(0, 10)
+      : null;
+    const businessDate = resolvePropertyBusinessDate(
+      persistedBusinessDate,
+      property?.timezone || "",
+    );
     if ((scope.departure_date ?? "") < businessDate) {
       throw reservationError("INVALID_TRANSITION");
     }
@@ -2921,6 +2927,213 @@ export const amendReservation = createServerFn({ method: "POST" })
       return { id: amendedId, amendment };
     },
   );
+
+/**
+ * Pre-arrival room-count change. Date/occupancy stay on `amendReservation`.
+ * No add/remove-unit writer existed; this inserts unassigned sibling units
+ * or cancels selected pending/confirmed units, then syncs the priced total.
+ */
+export const amendPreArrivalRoomCount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        rooms: z.number().int().min(1).max(20),
+        removeReservationRoomIds: z.array(idSchema).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ id: string }> => {
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.RESERVATION_EDIT,
+    );
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
+
+    const { data: existing, error: readError } = await supabaseAdmin
+      .from("hotel_reservations")
+      .select("id, status, arrival_date, departure_date, adults, children, infants, room_type_id, rate_plan_id, currency, reservation_mode")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!existing) throw reservationError("RESERVATION_NOT_FOUND");
+    const stay = existing as {
+      status: string;
+      arrival_date: string;
+      departure_date: string;
+      adults: number;
+      children: number;
+      infants: number | null;
+      room_type_id: string;
+      rate_plan_id: string | null;
+      currency: string | null;
+      reservation_mode: string | null;
+    };
+    if (stay.status !== "pending" && stay.status !== "confirmed") {
+      throw reservationError("INVALID_TRANSITION");
+    }
+
+    const { data: unitRows, error: unitError } = await supabaseAdmin
+      .from("hotel_reservation_rooms")
+      .select("id, unit_sequence, status, room_id, room_type_id, arrival_date, departure_date, adults, children, infants, rate_plan_id, currency")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId)
+      .order("unit_sequence", { ascending: true });
+    if (unitError) throw new Error(unitError.message);
+    const units = (unitRows ?? []) as Array<{
+      id: string;
+      unit_sequence: number;
+      status: string | null;
+      room_id: string | null;
+      room_type_id: string;
+      arrival_date: string;
+      departure_date: string;
+      adults: number;
+      children: number;
+      infants: number | null;
+      rate_plan_id: string | null;
+      currency: string | null;
+    }>;
+    if (units.some((unit) => unit.status === "checked_in")) {
+      throw new Error("In-house rooms cannot be changed from Reservations.");
+    }
+    const active = units.filter((unit) => unit.status !== "cancelled" && unit.status !== "no_show");
+    if (units.length === 0) {
+      if (data.rooms === 1) return { id: data.reservationId };
+      throw new Error("Room units are missing on this reservation.");
+    }
+    const currentCount = active.length;
+    if (currentCount < 1) throw new Error("This reservation has no active rooms to amend.");
+    if (currentCount === data.rooms) return { id: data.reservationId };
+
+    if (data.rooms > currentCount) {
+      const template = active[0];
+      const roomTypeId = template?.room_type_id ?? stay.room_type_id;
+      const availability = await getRoomTypeAvailabilityCompat(supabaseAdmin as never, {
+        restaurantId: data.restaurantId,
+        roomTypeId,
+        arrival: template?.arrival_date ?? stay.arrival_date,
+        departure: template?.departure_date ?? stay.departure_date,
+        excludeReservationId: data.reservationId,
+      });
+      if (availability.available < data.rooms) {
+        throw reservationError("NO_AVAILABILITY");
+      }
+      const addCount = data.rooms - currentCount;
+      const maxSequence = units.reduce((max, unit) => Math.max(max, unit.unit_sequence), 0);
+      for (let index = 0; index < addCount; index += 1) {
+        let pricing: { subtotal: number; currency: string | null; nightly: unknown } | null = null;
+        const ratePlanId = template?.rate_plan_id ?? stay.rate_plan_id;
+        if (ratePlanId) {
+          const { data: pricingRaw, error: priceError } = await supabaseAdmin.rpc("price_hotel_stay", {
+            _restaurant_id: data.restaurantId,
+            _rate_plan_id: ratePlanId,
+            _room_type_id: roomTypeId,
+            _arrival: template?.arrival_date ?? stay.arrival_date,
+            _departure: template?.departure_date ?? stay.departure_date,
+            _rooms: 1,
+            _adults: template?.adults ?? stay.adults,
+            _children: template?.children ?? stay.children,
+            _infants: template?.infants ?? stay.infants ?? 0,
+            ...(stay.currency ? { _quote_currency: stay.currency } : {}),
+          });
+          if (priceError) throw reservationError(priceError.message);
+          const row = pricingRaw && typeof pricingRaw === "object" ? (pricingRaw as Record<string, unknown>) : {};
+          pricing = {
+            subtotal: Number(row.subtotal ?? 0),
+            currency: typeof row.currency === "string" ? row.currency : stay.currency,
+            nightly: row.nightly ?? null,
+          };
+        }
+        const { error: insertError } = await supabaseAdmin.from("hotel_reservation_rooms").insert({
+          restaurant_id: data.restaurantId,
+          reservation_id: data.reservationId,
+          unit_sequence: maxSequence + index + 1,
+          room_type_id: roomTypeId,
+          room_id: null,
+          arrival_date: template?.arrival_date ?? stay.arrival_date,
+          departure_date: template?.departure_date ?? stay.departure_date,
+          adults: template?.adults ?? stay.adults,
+          children: template?.children ?? stay.children,
+          infants: template?.infants ?? stay.infants ?? 0,
+          rate_plan_id: ratePlanId,
+          currency: pricing?.currency ?? stay.currency,
+          nightly_rate_snapshot: (pricing?.nightly ?? null) as never,
+          room_subtotal: pricing?.subtotal ?? null,
+          priced_at: pricing ? new Date().toISOString() : null,
+          status: stay.status,
+        });
+        if (insertError) throw new Error(insertError.message);
+      }
+    } else {
+      const removeIds = [...new Set(data.removeReservationRoomIds ?? [])];
+      const needed = currentCount - data.rooms;
+      if (removeIds.length !== needed) {
+        throw new Error("Choose which room unit to remove.");
+      }
+      const occupantRows = await supabaseAdmin
+        .from("hotel_reservation_room_guests")
+        .select("reservation_room_id")
+        .eq("restaurant_id", data.restaurantId)
+        .in("reservation_room_id", removeIds);
+      if (occupantRows.error && !isMissingSchemaError(occupantRows.error)) {
+        throw new Error(occupantRows.error.message);
+      }
+      const occupied = new Set(
+        ((occupantRows.data ?? []) as Array<{ reservation_room_id: string }>).map(
+          (row) => row.reservation_room_id,
+        ),
+      );
+      for (const id of removeIds) {
+        const unit = active.find((row) => row.id === id);
+        if (!unit) throw new Error("That room is not on this reservation.");
+        if (unit.status !== "pending" && unit.status !== "confirmed") {
+          throw reservationError("INVALID_TRANSITION");
+        }
+        if (occupied.has(id)) {
+          throw new Error("Remove the occupants from that room before decreasing the room count.");
+        }
+        const { error: cancelError } = await supabaseAdmin
+          .from("hotel_reservation_rooms")
+          .update({ status: "cancelled", room_id: null })
+          .eq("restaurant_id", data.restaurantId)
+          .eq("reservation_id", data.reservationId)
+          .eq("id", id);
+        if (cancelError) throw new Error(cancelError.message);
+      }
+    }
+
+    const nextMode = data.rooms > 1 ? "group" : "single";
+    if (stay.reservation_mode !== nextMode) {
+      const { error: modeError } = await supabaseAdmin
+        .from("hotel_reservations")
+        .update({ reservation_mode: nextMode })
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.reservationId);
+      if (modeError) throw new Error(modeError.message);
+    }
+
+    const { error: syncError } = await supabaseAdmin.rpc("sync_reservation_room_total", {
+      _restaurant_id: data.restaurantId,
+      _reservation_id: data.reservationId,
+    });
+    if (syncError) throw reservationError(syncError.message);
+
+    await recordReservationEvent({
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      eventType: "amended",
+      previousValues: { rooms: currentCount },
+      newValues: { rooms: data.rooms },
+      actorMembershipId: me.id,
+    });
+    return { id: data.reservationId };
+  });
 
 export const ROOM_ASSIGNMENT_UNAVAILABLE =
   "This room is no longer available. Select another eligible room.";

@@ -7,12 +7,11 @@ import {
   ChevronDown,
   LogOut,
   Menu as MenuIcon,
-  Moon,
   Search,
   Settings,
-  Sun,
   type LucideIcon,
 } from "lucide-react";
+import { ensureLightAppearance } from "@/core/lib/appearance";
 import { NoruLogo } from "@/core/components/noru-logo";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -109,39 +108,10 @@ type Props = {
 /* Theme                                                               */
 /* ------------------------------------------------------------------ */
 
-const THEME_KEY = "noru-theme";
-
-function useTheme() {
-  const [dark, setDark] = useState(false);
-
+function useForcedLightAppearance() {
   useEffect(() => {
-    let stored: string | null = null;
-    try {
-      stored = localStorage.getItem(THEME_KEY);
-    } catch {
-      /* storage can be unavailable */
-    }
-    const initial =
-      stored === "dark" ||
-      (stored === null && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
-    setDark(initial);
-    document.documentElement.classList.toggle("dark", initial);
+    ensureLightAppearance();
   }, []);
-
-  function toggle() {
-    setDark((prev) => {
-      const next = !prev;
-      document.documentElement.classList.toggle("dark", next);
-      try {
-        localStorage.setItem(THEME_KEY, next ? "dark" : "light");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }
-
-  return { dark, toggle };
 }
 
 /* ------------------------------------------------------------------ */
@@ -567,7 +537,7 @@ export function AppTopHeader({
   leading,
   trailing,
 }: Props) {
-  const { dark, toggle } = useTheme();
+  useForcedLightAppearance();
 
   return (
     <header className="sticky top-0 z-40">
@@ -621,14 +591,6 @@ export function AppTopHeader({
             >
               <BookOpen className="size-4" style={{ color: GOLD }} />
               Guide
-            </button>
-            <button
-              type="button"
-              aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
-              onClick={toggle}
-              className="flex size-9 items-center justify-center rounded-full text-[#e8cf8f] transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a24a]"
-            >
-              {dark ? <Sun className="size-5" /> : <Moon className="size-5" />}
             </button>
             <ProfileMenu
               email={userEmail}

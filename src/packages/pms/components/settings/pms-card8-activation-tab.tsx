@@ -5,13 +5,7 @@ import { toast } from "sonner";
 
 import { PmsPropertySetupCard8Workspace } from "@/packages/pms/components/settings/pms-property-setup-card8-workspace";
 import { activatePmsSet1 } from "@/packages/pms/lib/pms-set1-foundation.functions";
-import { CARD8_ACTIVATION_HONESTY } from "@/packages/pms/lib/pms-property-setup-card8";
 import { getCard8ActivationEligibility } from "@/packages/pms/lib/pms-property-setup-card8-activation.functions";
-import {
-  CARD8_ACTIVATION_EXPLICIT_CONFIRM,
-  CARD8_ACTIVATION_NO_LIFECYCLE_SQL,
-  CARD8_ACTIVATION_WRAP_ONLY,
-} from "@/packages/pms/lib/pms-property-setup-card8-activation";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Label } from "@/shared/components/ui/label";
@@ -73,12 +67,11 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
           </p>
           <p className="mt-2 text-sm font-medium text-[#251605]">
             {live
-              ? "Live — derived from pms_set1_live"
+              ? "Live"
               : eligible
                 ? "Ready to activate"
                 : "Pre-live"}
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">{CARD8_ACTIVATION_NO_LIFECYCLE_SQL}</p>
         </>
       }
       checklist={
@@ -101,7 +94,7 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
               Caller is the property owner
             </Requirement>
             <Requirement pass={eligibility?.set1ChecklistReady === true}>
-              Existing SET1 mandatory checklist is complete
+              Required property checklist is complete
             </Requirement>
           </ul>
         </section>
@@ -135,12 +128,11 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
           >
             {live ? "ACTIVE" : loading ? "CHECKING" : eligible ? "READY" : "BLOCKED"}
           </p>
-          <p className="mt-2 text-xs text-muted-foreground">{CARD8_ACTIVATION_WRAP_ONLY}</p>
         </>
       }
       status={
         <p className="text-sm text-muted-foreground">
-          Canonical state: {live ? "pms_set1_live = true" : "pms_set1_live = false"}
+          Property is {live ? "live" : "not live"}
         </p>
       }
       actions={
@@ -165,7 +157,6 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
           >
             {live ? "Property is active" : mutation.isPending ? "Activating…" : "Activate Property"}
           </Button>
-          <p className="text-xs text-muted-foreground">{CARD8_ACTIVATION_EXPLICIT_CONFIRM}</p>
         </div>
       }
     >
@@ -181,7 +172,6 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
               : ""}
             Business date: {eligibility?.businessDate ?? "Missing"}
           </p>
-          <p className="mt-3 text-sm text-muted-foreground">{CARD8_ACTIVATION_HONESTY}</p>
         </section>
         {query.isError ? (
           <section className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5">

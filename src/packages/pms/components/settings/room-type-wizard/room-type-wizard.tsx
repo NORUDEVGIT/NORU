@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+import { cn } from "@/shared/lib/utils";
 import type { HotelRoom, RoomType } from "@/packages/pms/lib/rooms.functions";
 import { RoomTypeWizardStep1 } from "./room-type-wizard-step1";
 import { RoomTypeWizardStep2Pricing } from "./room-type-wizard-step3-pricing";
@@ -16,7 +24,11 @@ import {
   type WizardStepId,
   type WizardTypeForm,
 } from "./room-type-wizard-types";
-import { RoomTypeWizardContext } from "./room-type-wizard-context";
+import {
+  RoomTypeWizardContext,
+  type RoomTypeWizardContextValue,
+  type RoomTypeWizardFooterConfig,
+} from "./room-type-wizard-context";
 
 function roomsToStaged(rooms: HotelRoom[]): StagedRoom[] {
   return rooms.map((room) => ({
@@ -45,6 +57,7 @@ export function RoomTypeWizard({
   canEdit,
   initialType,
   initialRoomsForType = [],
+  initialStep = 1,
   onClose,
   onCompleted,
 }: {
@@ -52,10 +65,11 @@ export function RoomTypeWizard({
   canEdit: boolean;
   initialType?: RoomType | null;
   initialRoomsForType?: HotelRoom[];
+  initialStep?: WizardStepId;
   onClose: () => void;
   onCompleted: () => void;
 }) {
-  const [step, setStep] = useState<WizardStepId>(1);
+  const [step, setStep] = useState<WizardStepId>(initialStep);
   const [attemptedStep1Submit, setAttemptedStep1Submit] = useState(false);
   const [attemptedStep2Submit, setAttemptedStep2Submit] = useState(false);
   const [typeForm, setTypeForm] = useState<WizardTypeForm>(() =>
@@ -67,6 +81,7 @@ export function RoomTypeWizard({
     roomsToStaged(initialRoomsForType),
   );
   const [excludedBulkNumbers, setExcludedBulkNumbers] = useState<string[]>([]);
+  const [footer, setFooter] = useState<RoomTypeWizardFooterConfig | null>(null);
 
   const isStep1Valid =
     Boolean(typeForm.name.trim()) &&
@@ -127,6 +142,7 @@ export function RoomTypeWizard({
       setExcludedBulkNumbers,
       onClose,
       onCompleted,
+      setFooter,
     }),
     [
       restaurantId,
@@ -144,109 +160,128 @@ export function RoomTypeWizard({
     ],
   );
 
+  const isReview = step === 5;
+  const title = initialType?.id ? "Edit Room Type" : "Create Room Type";
+
   return (
-    <RoomTypeWizardContext.Provider value={value}>
-      <div className="space-y-4" data-testid="pms-card2-room-type-wizard">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#D9D2C4] bg-white px-4 py-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="text-[#251605] hover:bg-[#F4EDE0]"
-            >
-              <ArrowLeft className="mr-1.5 h-4 w-4" />
-              Back to Room Types
-            </Button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-display text-lg text-[#251605]">
-                  {roomTypeId ? "Edit Room Type" : "Create Room Type"}
-                </h2>
-                {typeForm.code ? (
-                  <span className="inline-flex items-center gap-1 rounded border border-[#E6E1D8] bg-[#F4EDE0] px-2 py-0.5 font-mono text-xs font-medium text-[#251605]">
-                    {typeForm.code}
-                    {!codeManuallyEdited ? (
-                      <span className="text-[10px] font-sans font-semibold uppercase tracking-wider text-[#8A7963]">
-                        Auto
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {typeForm.name.trim()
-                  ? `${typeForm.name.trim()} · Room Type Setup`
-                  : "Guided Room Type Setup · Room specifications, pricing, amenities & photos"}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full border border-[#E6DFD3] bg-[#F7F4EE] px-3 py-1 text-xs font-medium text-[#5C4528]">
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent
+        overlayClassName="bg-[#1F140A]/70"
+        data-testid="pms-card2-room-type-wizard"
+        className={cn(
+          "z-50 flex max-h-[88vh] min-h-0 w-[min(900px,calc(100vw-48px))] max-w-none sm:max-w-none",
+          "flex-col gap-0 overflow-hidden rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] p-0 shadow-xl",
+          "[&>button.absolute]:hidden",
+        )}
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        <RoomTypeWizardContext.Provider value={value}>
+          <header className="relative shrink-0 bg-[#1F140A] px-5 py-2.5 pr-12 text-[#F3E9D8]">
+            <DialogTitle className="font-display text-sm font-semibold text-white">{title}</DialogTitle>
+            <DialogDescription className="text-[11px] text-[#C4B6A0]">
               Step {step} of 5
-            </span>
+            </DialogDescription>
+            <button
+              type="button"
+              className="absolute right-3 top-2 rounded-md p-1 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <X className="size-4" />
+            </button>
+            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[#C89933]" aria-hidden />
+          </header>
+
+          <nav
+            className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#E6DFD3] bg-[#FBF9F5] px-3 py-1.5"
+            aria-label="Room type wizard steps"
+          >
+            {ROOM_TYPE_WIZARD_STEPS.map((row) => {
+              const active = step === row.id;
+              const done = step > row.id;
+              const canNavigate = row.id === 1 || Boolean(roomTypeId);
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  className={`flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-colors ${
+                    active
+                      ? "bg-[#C89933] text-[#251605] shadow-xs"
+                      : done
+                        ? "text-[#251605] hover:bg-[#F4EDE0]"
+                        : "text-muted-foreground hover:text-[#251605] disabled:opacity-50"
+                  }`}
+                  onClick={() => {
+                    if (canNavigate) handleStepClick(row.id);
+                  }}
+                  disabled={!canNavigate}
+                  aria-current={active ? "step" : undefined}
+                >
+                  <span
+                    className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold ${
+                      active
+                        ? "bg-[#251605] text-white"
+                        : done
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-[#E6DFD3] text-[#5C4528]"
+                    }`}
+                  >
+                    {done ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : row.id}
+                  </span>
+                  <span className="whitespace-nowrap">{row.title}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {step === 1 ? <RoomTypeWizardStep1 /> : null}
+            {step === 2 ? <RoomTypeWizardStep2Pricing /> : null}
+            {step === 3 ? <RoomTypeWizardStep3Amenities /> : null}
+            {step === 4 ? <RoomTypeWizardStep4Photos /> : null}
+            {step === 5 ? <RoomTypeWizardStep5Review /> : null}
+          </div>
+
+          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#D9D2C4] bg-white px-5 py-3">
+            {step === 1 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-[#D9D2C4] text-[#251605] hover:bg-[#F4EDE0]"
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-[#D9D2C4] text-[#251605] hover:bg-[#F4EDE0]"
+                onClick={() => setStep((step - 1) as WizardStepId)}
+              >
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                Back
+              </Button>
+            )}
             <Button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:bg-[#F4EDE0] hover:text-[#251605]"
-              onClick={onClose}
-              aria-label="Close wizard"
+              disabled={!footer || footer.continueDisabled}
+              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 font-medium"
+              onClick={() => footer?.onContinue()}
             >
-              <X className="h-4 w-4" />
+              {isReview ? <CheckCircle2 className="mr-1.5 h-4 w-4" /> : null}
+              {footer?.continueBusy ? "Saving…" : (footer?.continueLabel ?? "Continue")}
+              {!isReview ? <ArrowRight className="ml-1.5 h-4 w-4" /> : null}
             </Button>
-          </div>
-        </header>
-
-        <nav
-          className="flex items-center gap-1.5 overflow-x-auto rounded-xl border border-[#E6DFD3] bg-[#F7F4EE] p-2"
-          aria-label="Room type wizard steps"
-        >
-          {ROOM_TYPE_WIZARD_STEPS.map((row) => {
-            const active = step === row.id;
-            const done = step > row.id;
-            const canNavigate = row.id === 1 || Boolean(roomTypeId);
-            return (
-              <button
-                key={row.id}
-                type="button"
-                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                  active
-                    ? "bg-[#251605] text-white shadow-xs ring-1 ring-[#C89933]"
-                    : done
-                      ? "border border-[#D9D2C4] bg-white text-[#251605] hover:bg-[#F4EDE0]"
-                      : "text-muted-foreground hover:text-[#251605] disabled:opacity-50"
-                }`}
-                onClick={() => {
-                  if (canNavigate) handleStepClick(row.id);
-                }}
-                disabled={!canNavigate}
-                aria-current={active ? "step" : undefined}
-              >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${
-                    active
-                      ? "bg-[#C89933] text-[#251605]"
-                      : done
-                        ? "border border-emerald-300 bg-emerald-50 text-emerald-700"
-                        : "bg-[#E6DFD3] text-[#5C4528]"
-                  }`}
-                >
-                  {done ? <Check className="h-3 w-3" strokeWidth={3} /> : row.id}
-                </span>
-                <span>{row.title}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {step === 1 ? <RoomTypeWizardStep1 /> : null}
-        {step === 2 ? <RoomTypeWizardStep2Pricing /> : null}
-        {step === 3 ? <RoomTypeWizardStep3Amenities /> : null}
-        {step === 4 ? <RoomTypeWizardStep4Photos /> : null}
-        {step === 5 ? <RoomTypeWizardStep5Review /> : null}
-      </div>
-    </RoomTypeWizardContext.Provider>
+          </footer>
+        </RoomTypeWizardContext.Provider>
+      </DialogContent>
+    </Dialog>
   );
 }

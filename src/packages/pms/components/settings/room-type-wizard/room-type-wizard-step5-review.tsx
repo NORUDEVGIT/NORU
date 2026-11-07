@@ -1,6 +1,7 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Check, Edit2, CheckCircle2 } from "lucide-react";
+import { Check, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -17,6 +18,7 @@ export function RoomTypeWizardStep5Review() {
     excludedBulkNumbers,
     setStep,
     onCompleted,
+    setFooter,
   } = useRoomTypeWizard();
 
   const fetchImages = useServerFn(listRoomTypeImages);
@@ -71,8 +73,16 @@ export function RoomTypeWizardStep5Review() {
     onCompleted();
   }
 
+  useEffect(() => {
+    setFooter({
+      continueLabel: "Complete Room Type Setup",
+      onContinue: handleComplete,
+    });
+    return () => setFooter(null);
+  }, [onCompleted, setFooter]);
+
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-4">
       <header className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
         <h3 className="font-display text-base font-semibold text-[#251605]">Review & Complete</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -407,28 +417,6 @@ export function RoomTypeWizardStep5Review() {
         </div>
       </section>
 
-      {/* Sticky Bottom Actions Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9D2C4] bg-white/95 px-6 py-3.5 backdrop-blur-xs shadow-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="border-[#D9D2C4] text-[#251605] hover:bg-[#F4EDE0]"
-            onClick={() => setStep(4)}
-          >
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Back to Photos
-          </Button>
-          <Button
-            type="button"
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 font-medium px-5"
-            onClick={handleComplete}
-          >
-            <CheckCircle2 className="mr-1.5 h-4 w-4" />
-            Complete Room Type Setup
-          </Button>
-        </div>
-      </footer>
     </div>
   );
 }

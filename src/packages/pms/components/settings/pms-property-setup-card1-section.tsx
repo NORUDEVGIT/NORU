@@ -20,10 +20,6 @@ import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
 import type { Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { savePmsPropertySetupCard1 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
-  CARD1_AGREEMENT_OUT,
-  CARD1_COLUMNS_UNAVAILABLE,
-  CARD1_FINISH_COPY,
-  CARD1_SIDEBAR_OUT,
   CARD1_STEPS,
   clearCard1SessionDraft,
   composeFullAddress,
@@ -51,7 +47,6 @@ import {
   propertySetupStatusesPercent,
 } from "@/packages/pms/lib/pms-property-setup-ui";
 import {
-  PropertySetupStatusRail,
   PropertySetupStepNav,
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
@@ -190,9 +185,7 @@ export function PmsPropertySetupCard1Section({
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-audit", restaurantId] });
       clearCard1SessionDraft(restaurantId);
       setRestoredFromSession(false);
-      toast.success(
-        mode === "finish" ? "Card 1 saved. Property is not Activated." : "Draft saved.",
-      );
+      toast.success(mode === "finish" ? "Property & Business saved." : "Draft saved.");
       if (pendingExitOnSave) {
         setPendingExitOnSave(false);
         const exit = pendingExitAction;
@@ -326,7 +319,6 @@ export function PmsPropertySetupCard1Section({
       data-testid="pms-card1-workspace"
       data-card1-fullscreen="true"
     >
-      <div className="sr-only">{CARD1_SIDEBAR_OUT}</div>
       <div className="min-w-0 flex-1" data-testid="pms-card1-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={1}
@@ -346,7 +338,7 @@ export function PmsPropertySetupCard1Section({
           continuePending={mutation.isPending}
           saveDraftPending={mutation.isPending}
           dirty={dirty}
-          continueLabel={continueLabel(step)}
+          continueLabel={step === "structure" ? "Complete" : continueLabel(step)}
           footerTestId="pms-card1-chrome"
           footer={canEdit ? undefined : null}
           extraFooter={
@@ -360,19 +352,6 @@ export function PmsPropertySetupCard1Section({
                 {finishLabel(step)}
               </Button>
             ) : null
-          }
-          rail={
-            <div data-testid="pms-card1-status-rail">
-              <PropertySetupStatusRail
-                percent={percent}
-                sections={railSections}
-                complete={complete}
-                inProgress={inProgress}
-                notStarted={notStarted}
-                blockers={blockers}
-                warnings={warnings}
-              />
-            </div>
           }
           stepNav={
             <div data-testid="pms-card1-steps">
@@ -424,7 +403,9 @@ export function PmsPropertySetupCard1Section({
           ) : null}
 
           {!snapshot.card1ColumnsAvailable ? (
-            <p className="mb-4 text-sm text-muted-foreground">{CARD1_COLUMNS_UNAVAILABLE}</p>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Property & Business fields are unavailable.
+            </p>
           ) : null}
 
           {step === "identity" ? (
@@ -492,9 +473,7 @@ export function PmsPropertySetupCard1Section({
             />
           ) : null}
 
-          <p className="mt-3 text-xs text-muted-foreground">{CARD1_FINISH_COPY}</p>
-          <p className="sr-only">{CARD1_AGREEMENT_OUT}</p>
-          {dirty ? <p className="sr-only">Unsaved Card 1 changes</p> : null}
+          {dirty ? <p className="sr-only">Unsaved changes</p> : null}
         </PropertySetupWorkspaceShell>
       </div>
 

@@ -44,13 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { Switch } from "@/shared/components/ui/switch";
 import {
   Table,
@@ -60,8 +54,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
-import { cn } from "@/shared/lib/utils";
-
 function recordToDraft(row: ServiceSlaRuleRecord): ServiceSlaRuleDraft {
   return {
     id: row.id,
@@ -144,7 +136,9 @@ export function PmsCard4ServiceSlaRules({
           serviceTypeId: draft.serviceTypeId,
           responseMinutes: draft.responseMinutes,
           resolutionMinutes: draft.resolutionMinutes,
-          active: draft.active,
+          active: draft.id
+            ? (rules.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
         },
       }),
     onSuccess: async () => {
@@ -224,25 +218,14 @@ export function PmsCard4ServiceSlaRules({
     else setEditorOpen(false);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-service-sla-rules">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">SLA Rules</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Set response and resolution targets for each guest service type.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Durations are stored in minutes · Last updated {lastUpdated}
-          </p>
-        </div>
+    <div className="space-y-3" data-testid="card4-service-sla-rules">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">SLA Rules</h2>
         {canEdit ? (
           <Button
             type="button"
+            size="sm"
             onClick={openCreate}
             disabled={!availableType}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
@@ -252,7 +235,7 @@ export function PmsCard4ServiceSlaRules({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <div className="space-y-2 p-6">
             {["a", "b", "c"].map((row) => (
@@ -272,21 +255,11 @@ export function PmsCard4ServiceSlaRules({
             </Button>
           </div>
         ) : rules.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="p-6 text-center">
             <p className="font-medium text-[#251605]">No SLA rules configured</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Add response and resolution targets to an active service type.
+              Add response/resolution targets to a service type.
             </p>
-            {canEdit ? (
-              <Button
-                type="button"
-                className="mt-4 bg-[#C89933] text-[#251605]"
-                onClick={openCreate}
-                disabled={!availableType}
-              >
-                <Plus className="mr-1 size-4" /> Add SLA Rule
-              </Button>
-            ) : null}
           </div>
         ) : (
           <>
@@ -305,9 +278,8 @@ export function PmsCard4ServiceSlaRules({
                     <TableHead>Category</TableHead>
                     <TableHead>Response Time</TableHead>
                     <TableHead>Resolution Time</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Active</TableHead>
-                    <TableHead className="w-12">Actions</TableHead>
+                    <TableHead className="w-12 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -321,32 +293,20 @@ export function PmsCard4ServiceSlaRules({
                             {serviceType?.code}
                           </span>
                         </TableCell>
-                        <TableCell>{categoryName(serviceType?.categoryId ?? "")}</TableCell>
-                        <TableCell>{formatDurationMinutes(row.responseMinutes)}</TableCell>
-                        <TableCell>{formatDurationMinutes(row.resolutionMinutes)}</TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                              row.active
-                                ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                                : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                            )}
-                          >
-                            {row.active ? "Active" : "Inactive"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">{categoryName(serviceType?.categoryId ?? "")}</TableCell>
+                        <TableCell className="py-2">{formatDurationMinutes(row.responseMinutes)}</TableCell>
+                        <TableCell className="py-2">{formatDurationMinutes(row.resolutionMinutes)}</TableCell>
+                        <TableCell className="py-2">
                           <Switch
                             checked={row.active}
                             disabled={!canEdit || toggleMutation.isPending}
-                            aria-label={`${row.active ? "Disable" : "Enable"} SLA for ${serviceType?.name ?? "service"}`}
+                            aria-label={`${row.active ? "Deactivate" : "Activate"} SLA for ${serviceType?.name ?? "service"}`}
                             onCheckedChange={(active) =>
                               toggleMutation.mutate({ id: row.id, active })
                             }
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -367,7 +327,7 @@ export function PmsCard4ServiceSlaRules({
                                     toggleMutation.mutate({ id: row.id, active: !row.active })
                                   }
                                 >
-                                  {row.active ? "Disable" : "Enable"}
+                                  {row.active ? "Deactivate" : "Activate"}
                                 </DropdownMenuItem>
                               ) : null}
                               {canEdit ? (
@@ -388,102 +348,88 @@ export function PmsCard4ServiceSlaRules({
         )}
       </div>
 
-      <Sheet
+      <Card3OverlapSheet
         open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) requestClose();
-          else setEditorOpen(true);
+        title={draft.id ? "Edit SLA Rule" : "Add SLA Rule"}
+        onClose={requestClose}
+        onSubmit={() => {
+          if (!canEdit || errors.length > 0) {
+            toast.error(errors[0]?.message ?? "Fix the SLA rule before saving.");
+            return;
+          }
+          saveMutation.mutate();
         }}
+        submitLabel={draft.id ? "Save Changes" : "Add SLA Rule"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
       >
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>{draft.id ? "Edit SLA Rule" : "Add SLA Rule"}</SheetTitle>
-            <SheetDescription>
-              Set service-level timing only. Availability and escalation are configured separately.
-            </SheetDescription>
-          </SheetHeader>
-          <form
-            className="mt-4 space-y-3 px-1"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!canEdit || errors.length > 0) {
-                toast.error(errors[0]?.message ?? "Fix the SLA rule before saving.");
-                return;
-              }
-              saveMutation.mutate();
-            }}
+        <div className="space-y-1">
+          <Label htmlFor="sla-service-type">Service Type *</Label>
+          <Select
+            value={draft.serviceTypeId || undefined}
+            disabled={!canEdit}
+            onValueChange={(value) => mark("serviceTypeId", value)}
           >
-            <div className="space-y-1">
-              <Label htmlFor="sla-service-type">Service Type *</Label>
-              <Select
-                value={draft.serviceTypeId || undefined}
-                disabled={!canEdit}
-                onValueChange={(value) => mark("serviceTypeId", value)}
-              >
-                <SelectTrigger id="sla-service-type">
-                  <SelectValue placeholder="Select a service type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {editorServiceTypes.map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name} ({row.code}){row.active ? "" : " — Inactive"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errorFor("serviceTypeId") ? (
-                <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sla-response">Response Time (minutes) *</Label>
-              <Input
-                id="sla-response"
-                type="number"
-                min={1}
-                step={1}
-                value={draft.responseMinutes}
-                disabled={!canEdit}
-                onChange={(event) => mark("responseMinutes", event.target.value)}
-              />
-              {errorFor("responseMinutes") ? (
-                <p className="text-xs text-destructive">{errorFor("responseMinutes")}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="sla-resolution">Resolution Time (minutes) *</Label>
-              <Input
-                id="sla-resolution"
-                type="number"
-                min={1}
-                step={1}
-                value={draft.resolutionMinutes}
-                disabled={!canEdit}
-                onChange={(event) => mark("resolutionMinutes", event.target.value)}
-              />
-              {errorFor("resolutionMinutes") ? (
-                <p className="text-xs text-destructive">{errorFor("resolutionMinutes")}</p>
-              ) : null}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="sla-active">Active</Label>
-              <Switch
-                id="sla-active"
-                checked={draft.active}
-                disabled={!canEdit}
-                onCheckedChange={(active) => mark("active", active)}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={!canEdit || saveMutation.isPending || errors.length > 0}
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-            >
-              {saveMutation.isPending ? "Saving…" : "Save"}
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+            <SelectTrigger id="sla-service-type">
+              <SelectValue placeholder="Select a service type" />
+            </SelectTrigger>
+            <SelectContent>
+              {editorServiceTypes.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {row.name} ({row.code}){row.active ? "" : " — Inactive"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errorFor("serviceTypeId") ? (
+            <p className="text-xs text-destructive">{errorFor("serviceTypeId")}</p>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sla-response">Response Time (minutes) *</Label>
+          <Input
+            id="sla-response"
+            type="number"
+            min={1}
+            step={1}
+            value={draft.responseMinutes}
+            disabled={!canEdit}
+            onChange={(event) => mark("responseMinutes", event.target.value)}
+          />
+          {errorFor("responseMinutes") ? (
+            <p className="text-xs text-destructive">{errorFor("responseMinutes")}</p>
+          ) : null}
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="sla-resolution">Resolution Time (minutes) *</Label>
+          <Input
+            id="sla-resolution"
+            type="number"
+            min={1}
+            step={1}
+            value={draft.resolutionMinutes}
+            disabled={!canEdit}
+            onChange={(event) => mark("resolutionMinutes", event.target.value)}
+          />
+          {errorFor("resolutionMinutes") ? (
+            <p className="text-xs text-destructive">{errorFor("resolutionMinutes")}</p>
+          ) : null}
+        </div>
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="sla-active">Active</Label>
+            <Switch
+              id="sla-active"
+              checked={draft.active}
+              disabled={!canEdit}
+              onCheckedChange={(active) => mark("active", active)}
+            />
+          </div>
+        ) : null}
+      </Card3OverlapSheet>
 
       <AlertDialog
         open={Boolean(pendingDelete)}
@@ -528,29 +474,5 @@ export function PmsCard4ServiceSlaRules({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4ServiceSlaRulesGuide({
-  ruleCount,
-  activeServiceTypeCount,
-}: {
-  ruleCount: number;
-  activeServiceTypeCount: number;
-}) {
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-        <li className="text-[#436436]">Configure Service Categories</li>
-        <li className="text-[#436436]">Add Service Types</li>
-        <li className="text-[#436436]">Set Service Pricing</li>
-        <li className="text-[#436436]">Assign Departments</li>
-        <li className={ruleCount > 0 ? "text-[#436436]" : undefined}>Set SLA Rules</li>
-      </ol>
-      <p className="mt-3 text-sm text-[#251605]">
-        {ruleCount} of {activeServiceTypeCount} active services have SLA targets
-      </p>
-    </section>
   );
 }

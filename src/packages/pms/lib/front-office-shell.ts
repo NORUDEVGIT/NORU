@@ -4,6 +4,8 @@
  * Presentation contract only. Every Live action maps to an existing dialog or
  * server function. Coming soon actions never invoke a write.
  */
+import { isNoShowPastDue } from "@/packages/pms/lib/fo-no-show-readiness";
+
 type ReservationStatus =
   "pending" | "confirmed" | "cancelled" | "checked_in" | "checked_out" | "no_show";
 
@@ -581,6 +583,19 @@ export function sourceIsCorporate(source: string | null | undefined): boolean {
   return sourceToken(source) === "corporate";
 }
 
+/** Canonical walk-in source tokens already used by create/workspace labels. */
+export function sourceIsWalkIn(source: string | null | undefined): boolean {
+  const token = sourceToken(source).replace(/[_-]+/g, " ");
+  return token === "walk in" || token === "walkin";
+}
+
+export function stayIsWalkIn(stay: {
+  source?: string | null;
+  commercialBookingSource?: string | null;
+}): boolean {
+  return sourceIsWalkIn(stay.source) || sourceIsWalkIn(stay.commercialBookingSource);
+}
+
 export function hasSpecialRequestText(text: string | null | undefined): boolean {
   return (text ?? "").trim().length > 0;
 }
@@ -848,15 +863,17 @@ export function stayMatchesFilters(
  * Office nav target onto the exact eligibility rule its page used to query by, so selecting
  * it from the burger narrows the current Rack/Table rows instead of navigating away.
  * - arrivals/inhouse/departures reuse the same staySlice rule as the KPI cards.
- * - walkins reuses the walk-in source tag (`source === "walk_in"`), same tag the walk-in
- *   desk and check-in flow write/read.
- * - amendments reuses the in-house eligibility `AmendmentsFrame` queried by (`checked_in`).
- * - cancellations reuses the confirmed-stay eligibility `CancellationsFrame` queried by.
- * - noshows reuses the same "today's confirmed arrivals" eligibility `NoShowsFrame` queried
- *   by (confirmed + arriving on the focus date).
- * "exceptions" and "rack" (All) are not expressible as a status/date predicate — callers
- * handle those separately (exceptions via the existing exception feed's room/reservation
- * ids; "rack" applies no extra narrowing).
+ * - walkins reuses the canonical walk-in source already shown in Stay Information
+ *   (`source` or `commercialBookingSource`: walk_in / Walk-in).
+ * - amendments keeps stays that already have a stay-date amendment history
+ *   row (`stay_extended` / `stay_shortened` / `stay_dates_changed`). The
+ *   reservation id set is applied by the rack caller, same as exceptions.
+ * - cancellations keeps reservation/unit rows already in `cancelled`.
+ * - noshows keeps canonical past-due confirmed arrivals (Mark No-Show eligibility)
+ *   and reservation/unit rows already in `no_show`.
+ * "exceptions" is handled via the existing exception feed's room/reservation ids.
+ * "rack" (All Reservations) applies no extra status narrowing; cancelled and
+ * no_show stay visible when they overlap the selected Front Office range.
  */
 export function stayMatchesRackCategory(
   stay: {
@@ -864,6 +881,7 @@ export function stayMatchesRackCategory(
     arrivalDate: string;
     departureDate: string;
     source?: string | null;
+    commercialBookingSource?: string | null;
   },
   category: FoNavId,
   focusDate: string,
@@ -877,18 +895,22 @@ export function stayMatchesRackCategory(
     case "departures":
       return stay.departureDate === focusDate;
     case "inhouse":
-    case "amendments":
       return (
         stay.status === "checked_in" &&
         stay.arrivalDate <= focusDate &&
         stay.departureDate > focusDate
       );
+    case "amendments":
+      return true;
     case "walkins":
-      return (stay.source ?? "") === "walk_in";
+      return stayIsWalkIn(stay);
     case "cancellations":
-      return stay.status === "confirmed";
+      return stay.status === "cancelled";
     case "noshows":
-      return stay.status === "confirmed" && stay.arrivalDate === focusDate;
+      return (
+        stay.status === "no_show" ||
+        isNoShowPastDue(stay.status, stay.arrivalDate, focusDate)
+      );
     default:
       return true;
   }

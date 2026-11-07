@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronDown, Printer } from "lucide-react";
+import { Check, Menu, MoreHorizontal, Printer, X } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -47,7 +47,6 @@ import {
   formatStayDate,
 } from "@/packages/pms/components/bookings/reservation-bits";
 import {
-  ReservationDetailKpiStrip,
   ReservationDetailOverviewDashboard,
 } from "@/packages/pms/components/workspaces/reservation-detail-overview";
 import { ReservationDetailStayTab } from "@/packages/pms/components/workspaces/reservation-detail-stay";
@@ -65,19 +64,18 @@ import { reservationDetailEditable } from "@/packages/pms/lib/reservation-lifecy
 import { ReservationDetailRequestsTab } from "@/packages/pms/components/workspaces/reservation-detail-requests";
 import { ReservationDetailNotesTab } from "@/packages/pms/components/workspaces/reservation-detail-notes";
 import {
-  arriveInLabel,
   bookedByLabel,
   overviewCatalogueLabel,
   overviewChannelLabel,
   COMMUNICATION_DEFERRED_COPY,
   DETAIL_DASH,
-  DETAIL_SIDEBAR_ITEMS,
+  DETAIL_PRIMARY_TABS,
+  detailPrimaryTab,
   LINKED_DEFERRED_COPY,
   parseDepositRequirementSnapshot,
   snapshotDisplayName,
   snapshotField,
   sourceLabel,
-  stayStatusLabel,
   storedRatePerNight,
   type DetailWorkspaceTab,
 } from "@/packages/pms/lib/reservation-detail-overview";
@@ -97,16 +95,14 @@ import {
 } from "@/packages/pms/lib/reservations.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import { reservationAmendImpact } from "@/packages/pms/lib/reservation-amend-impact";
-import { reservationHistoryChanges } from "@/packages/pms/lib/reservation-history-display";
+import { presentReservationHistory } from "@/packages/pms/lib/reservation-detail-history";
 import {
   groupActionGate,
   groupCombinedSubtotal,
   groupRoomUnits,
-  historyContextLine,
   isGroupReservation,
   reservationHeaderGuestLabel,
   reservationHeaderRoomKpi,
-  resolveHistoryField,
 } from "@/packages/pms/lib/reservation-detail-group";
 import { quoteReservationRoomGuestTotal } from "@/packages/pms/lib/room-charge-guest-total.functions";
 import {
@@ -137,8 +133,6 @@ import { FALLBACK_CASHIERING_TENDERS } from "@/packages/pms/lib/pms-polish1-paym
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { listRatePlans, repriceReservation } from "@/packages/pms/lib/rates.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
-import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
-import { ReservationGuestMastersCard } from "@/packages/pms/components/guests/reservation-guest-masters";
 import { getGuest } from "@/packages/pms/lib/guests.functions";
 import { ReservationPrintDocument } from "@/packages/pms/components/bookings/reservation-print-document";
 import { earlyDepartureReservationLabel } from "@/packages/pms/lib/early-departure-policy";
@@ -166,8 +160,6 @@ import {
   reservationDetailActionLabel,
   reservationDetailSecondaryActions,
 } from "@/packages/pms/lib/reservation-detail-actions";
-import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
-import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
 
 import { cn } from "@/shared/lib/utils";
 
@@ -175,10 +167,20 @@ const UNASSIGNED = "unassigned";
 
 type FrontOfficeAction = "assign_room" | "check_in" | "check_out" | "no_show" | "change_room";
 
-const DETAIL_TABS: Array<{ id: DetailWorkspaceTab; label: string; deferred?: boolean }> = [
-  { id: "overview", label: "Overview" },
-  ...DETAIL_SIDEBAR_ITEMS.filter((item) => item.id !== "overview"),
-];
+const SECTION_MENU_LABEL: Record<DetailWorkspaceTab, string> = {
+  overview: "Overview",
+  stay: "Stay",
+  guest: "Guest",
+  rooms: "Room",
+  rates: "Rates",
+  packages: "Packages",
+  folio: "Folio & Payments",
+  requests: "Requests & Preferences",
+  notes: "Notes & Traces",
+  communication: "Communication",
+  linked: "Linked Reservations",
+  history: "History",
+};
 
 export function ReservationDetailWorkspace({
   membership,
@@ -197,7 +199,6 @@ export function ReservationDetailWorkspace({
 }) {
   const navigate = useNavigate();
   const restaurantId = membership.restaurant.id;
-  const set1 = usePmsSet1Foundation(restaurantId);
   const queryClient = useQueryClient();
   const { dateTime, timezone } = useRestaurantTime();
   const money = useMoney();
@@ -648,7 +649,7 @@ export function ReservationDetailWorkspace({
     </>
   );
 
-  if (embedded) {
+  {
     const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
     const ledgerPending =
       !previewFolioQuery.isFetched || (previewFolioQuery.data?.id != null && !folioQuery.isFetched);
@@ -848,6 +849,7 @@ export function ReservationDetailWorkspace({
         reservation={reservation}
         editable={(detailActions?.editable ?? false) && stayMutable}
         canManage={stayMutable}
+        businessDate={businessDate}
         timezone={timezone}
         money={money}
         coverUrl={roomType?.coverUrl ?? null}
@@ -1005,140 +1007,84 @@ export function ReservationDetailWorkspace({
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="reservation-detail-workspace">
         <ReservationPrintDocument data={printData} />
-        <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-3 pr-12">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Reservation Detail
-          </p>
-          <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="flex flex-wrap items-center gap-3 font-display text-2xl text-[#251605]">
-                {reservation.confirmationNumber}
-                <span className="text-lg font-normal">
-                  {reservationHeaderGuestLabel(reservation) ? (
-                    <span className="mr-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                      {reservationHeaderGuestLabel(reservation)}
-                    </span>
-                  ) : null}
+        <header className="relative shrink-0 bg-[#1F140A] px-4 py-2.5 pr-12 text-[#F3E9D8]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-display text-sm font-semibold">
+                <span className="truncate">
+                  {reservation.confirmationNumber}
+                  <span className="text-[#8A7A61]"> · </span>
                   {reservation.guestName}
                 </span>
                 <ReservationStatusBadge status={reservation.status} />
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">
+                  {reservationHeaderRoomKpi(reservation).value}
+                </span>
+                {reservationHeaderGuestLabel(reservation) ? (
+                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">
+                    {reservationHeaderGuestLabel(reservation)}
+                  </span>
+                ) : null}
               </h1>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Created {dateTime(reservation.createdAt)}
-                {createdBy ? ` · ${createdBy}` : ""}
-              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
+            <div className="flex shrink-0 items-center gap-1">
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
                 data-testid="reservation-detail-print"
+                aria-label="Print"
+                className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
                 onClick={() => window.print()}
               >
-                <Printer className="size-3.5" />
-                Print
-              </Button>
+                <Printer className="size-4" />
+              </button>
               {detailActionBar}
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
+                aria-label="Close"
+                className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
                 onClick={() => {
                   if (onBackToList) {
                     onBackToList();
-                  } else if (typeof window !== "undefined" && window.history.length > 1) {
-                    window.history.back();
-                  } else {
-                    void navigate({ to: "/restaurant/pms/reservations" });
+                    return;
                   }
+                  void navigate({ to: "/restaurant/pms/reservations" });
                 }}
               >
-                <ArrowLeft className="size-3.5" />
-                Back to Previous Page
-              </Button>
+                <X className="size-4" />
+              </button>
             </div>
           </div>
         </header>
-        <ReservationDetailKpiStrip
-          items={[
-            {
-              label: "Arrive in",
-              value: arriveInLabel(reservation.arrivalDate, businessDate),
-              hint: formatStayDate(reservation.arrivalDate),
-            },
-            {
-              label: "Stay Status",
-              value: stayStatusLabel({
-                status: reservation.status,
-                arrivalDate: reservation.arrivalDate,
-                departureDate: reservation.departureDate,
-                businessDate,
-              }),
-              hint: reservation.status === "confirmed" ? "Confirmed" : reservation.status,
-            },
-            {
-              label: "Nights",
-              value: String(reservation.nights),
-              hint: `${formatStayDate(reservation.arrivalDate)} – ${formatStayDate(reservation.departureDate)}`,
-            },
-            reservationHeaderRoomKpi(reservation),
-            {
-              label: "Total Amount",
-              value: headerGuestTotal == null ? DETAIL_DASH : money(headerGuestTotal),
-            },
-            {
-              label: "Payment Received",
-              value: paymentFigure,
-              hint:
-                paymentReceived === undefined
-                  ? null
-                  : paymentReceived === null
-                    ? NO_FOLIO_LABEL
-                    : paymentReceived === 0
-                      ? "No payment received"
-                      : paymentRefunded != null && paymentRefunded > 0
-                        ? `Refunded ${money(paymentRefunded)}`
-                        : null,
-            },
-            {
-              label: "Guest Deposit",
-              value: depositFigure,
-              hint:
-                guestDepositReceived === undefined
-                  ? null
-                  : guestDepositReceived === null
-                    ? NO_FOLIO_LABEL
-                    : guestDepositReceived === 0
-                      ? "No deposit received"
-                      : null,
-            },
-          ]}
-        />
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="h-0.5 shrink-0 bg-[#C89933]" aria-hidden />
+        <div className="flex min-h-0 flex-1 flex-col bg-[#F7F4EE]">
           <nav
-            className="shrink-0 overflow-x-auto border-b border-[#DDD4C5] bg-white"
+            className="shrink-0 overflow-x-auto border-b border-[#E8DFD0] bg-[#FBF7F1]"
             aria-label="Reservation detail sections"
             data-testid="reservation-detail-sidebar"
           >
-            <ul role="tablist" className="flex min-w-max items-center gap-1 px-4 sm:px-5">
-              {DETAIL_TABS.map((tab) => {
-                const active = tab.id === detailTab;
+            <ul role="tablist" className="flex min-w-max items-center gap-0.5 px-3 sm:px-4">
+              {DETAIL_PRIMARY_TABS.map((tab) => {
+                const active = detailPrimaryTab(detailTab).id === tab.id;
                 return (
                   <li key={tab.id} role="presentation">
                     <button
                       type="button"
                       role="tab"
                       aria-selected={active}
-                      data-testid={`reservation-detail-tab-${tab.id}`}
-                      onClick={() => setDetailTab(tab.id)}
+                      data-testid={
+                        tab.tabs.length === 1
+                          ? `reservation-detail-tab-${tab.id}`
+                          : `reservation-detail-primary-${tab.id}`
+                      }
+                      onClick={() => {
+                        if (!tab.tabs.includes(detailTab)) setDetailTab(tab.tabs[0]!);
+                      }}
                       className={cn(
-                        "relative whitespace-nowrap px-3 py-3 text-sm font-medium transition-colors",
-                        "outline-none focus-visible:ring-2 focus-visible:ring-[#B8954F]",
+                        "relative whitespace-nowrap px-2.5 py-2 text-xs font-medium transition-colors",
+                        "outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
                         active
-                          ? "text-[#251605] after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#B8954F]"
-                          : "text-muted-foreground hover:bg-[#F7F4EE] hover:text-[#251605]",
-                        tab.deferred && !active ? "text-muted-foreground/70" : null,
+                          ? "text-[#251605] after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#C89933]"
+                          : "text-[#5C5346] hover:text-[#251605]",
                       )}
                     >
                       {tab.label}
@@ -1148,8 +1094,31 @@ export function ReservationDetailWorkspace({
               })}
             </ul>
           </nav>
+          <div className="shrink-0 border-b border-[#E8DFD0] bg-[#F7F4EE] px-4 py-1.5 text-xs text-[#5C5346]">
+            {formatStayDate(reservation.arrivalDate)} → {formatStayDate(reservation.departureDate)}
+            {" · "}
+            {reservation.nights} night{reservation.nights === 1 ? "" : "s"}
+            {" | "}
+            {reservationHeaderRoomKpi(reservation).value}
+            {" | "}
+            {headerGuestTotal == null ? DETAIL_DASH : money(headerGuestTotal)} total
+            {" | "}
+            {paymentFigure} paid
+            {" | "}
+            {depositFigure} deposit
+          </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="p-4 sm:p-5">
+            <div className="p-3 sm:p-4">
+              {detailPrimaryTab(detailTab).tabs.length > 1 ? (
+                <div className="mb-2 flex justify-start">
+                  <DetailSectionMenu
+                    primaryLabel={detailPrimaryTab(detailTab).label}
+                    sections={detailPrimaryTab(detailTab).tabs}
+                    active={detailTab}
+                    onSelect={setDetailTab}
+                  />
+                </div>
+              ) : null}
               {detailTab === "overview" ? (
                 <ReservationDetailOverviewDashboard
                   reservation={reservation}
@@ -1178,6 +1147,11 @@ export function ReservationDetailWorkspace({
                     distributionChannels: sourceChannelQuery.data?.channels ?? [],
                   }}
                   onEditTab={setDetailTab}
+                  paymentReceived={paymentReceived ?? null}
+                  depositReceived={guestDepositReceived ?? null}
+                  folioBalance={cashieringSummary.folioBalance}
+                  roomFloor={rooms.find((row) => row.id === reservation.roomId)?.floor ?? null}
+                  roomBuilding={rooms.find((row) => row.id === reservation.roomId)?.building ?? null}
                 />
               ) : null}
               {detailTab === "stay" ? stayPanel : null}
@@ -1195,7 +1169,13 @@ export function ReservationDetailWorkspace({
                 ? deferredPanel("Linked Reservations", LINKED_DEFERRED_COPY)
                 : null}
               {detailTab === "history" ? (
-                <HistoryList history={history} dateTime={dateTime} reservation={reservation} />
+                <HistoryList
+                  history={history}
+                  dateTime={dateTime}
+                  reservation={reservation}
+                  createdBy={createdBy}
+                  money={(value) => money(value)}
+                />
               ) : null}
             </div>
           </div>
@@ -1204,179 +1184,61 @@ export function ReservationDetailWorkspace({
       </div>
     );
   }
+}
 
+
+function DetailSectionMenu({
+  primaryLabel,
+  sections,
+  active,
+  onSelect,
+}: {
+  primaryLabel: string;
+  sections: DetailWorkspaceTab[];
+  active: DetailWorkspaceTab;
+  onSelect: (tab: DetailWorkspaceTab) => void;
+}) {
+  const currentLabel = SECTION_MENU_LABEL[active];
   return (
-    <div className="space-y-6">
-      {!embedded && set1.data ? <PmsDocumentHeader identity={set1.data.snapshot.identity} /> : null}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {embedded ? null : (
-            <Link
-              to="/restaurant/pms/reservations"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${primaryLabel}: ${currentLabel}`}
+          title={currentLabel}
+          data-testid="reservation-detail-section-menu"
+          className={cn(
+            "inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-[#DDD4C5] bg-white px-2.5",
+            "text-xs font-medium text-[#251605]",
+            "hover:border-[#C89933] hover:bg-[#F7F4EE]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+            "data-[state=open]:border-[#C89933] data-[state=open]:bg-[#F4E9D0]",
+          )}
+        >
+          <Menu className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 truncate">{currentLabel}</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="z-[80] min-w-48">
+        {sections.map((id) => {
+          const selected = active === id;
+          return (
+            <DropdownMenuItem
+              key={id}
+              data-testid={`reservation-detail-tab-${id}`}
+              className={cn(selected && "bg-[#F4E9D0] text-[#251605] focus:bg-[#F4E9D0]")}
+              onSelect={() => onSelect(id)}
             >
-              <ArrowLeft className="size-3" /> All reservations
-            </Link>
-          )}
-          <h1 className="mt-1 flex flex-wrap items-center gap-3 font-display text-2xl">
-            {reservation.confirmationNumber}
-            <ReservationStatusBadge status={reservation.status} />
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {reservation.guestName}
-            {reservation.guestVip ? " · VIP" : ""} · {formatStayDate(reservation.arrivalDate)} →{" "}
-            {formatStayDate(reservation.departureDate)} · {reservation.nights} night
-            {reservation.nights === 1 ? "" : "s"}
-            {(reservation.rooms ?? []).length > 1
-              ? ` · ${(reservation.rooms ?? [])
-                  .map((unit) => `Room ${unit.unitSequence}`)
-                  .join(", ")}`
-              : reservation.roomNumber
-                ? ` · Room ${reservation.roomNumber}`
-                : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-testid="reservation-detail-print"
-            onClick={() => window.print()}
-          >
-            <Printer className="size-3.5" />
-            Print
-          </Button>
-          {detailActionBar}
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded-2xl border border-border bg-card p-4 lg:col-span-2">
-          <h2 className="font-display text-lg">Stay</h2>
-          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-            {(reservation.rooms ?? []).length > 1 ? (
-              <Field
-                label="Rooms"
-                value={(reservation.rooms ?? [])
-                  .map((unit) => `Room ${unit.unitSequence}`)
-                  .join(", ")}
+              <Check
+                className={cn("size-3.5 text-[#C89933]", selected ? "opacity-100" : "opacity-0")}
+                aria-hidden
               />
-            ) : (
-              <>
-                <Field label="Room type" value={reservation.roomTypeName} />
-                <Field label="Room" value={reservation.roomNumber ?? "Unassigned"} />
-              </>
-            )}
-            <Field label="Arrival" value={formatStayDate(reservation.arrivalDate)} />
-            <Field label="Departure" value={formatStayDate(reservation.departureDate)} />
-            <Field
-              label="Occupancy"
-              value={`${
-                (reservation.rooms ?? []).length > 1
-                  ? (reservation.rooms ?? [])
-                      .filter((unit) => unit.status !== "cancelled" && unit.status !== "no_show")
-                      .reduce((sum, unit) => sum + unit.adults, 0)
-                  : reservation.adults
-              } adult${reservation.adults === 1 ? "" : "s"}${
-                reservation.children > 0 ? `, ${reservation.children} children` : ""
-              }`}
-            />
-            <Field
-              label="Source"
-              value={reservation.source === "staff" ? "Staff" : reservation.source}
-            />
-            <Field
-              label="Booking source"
-              value={displayValue(reservation.commercialBookingSource)}
-            />
-            <Field label="Market segment" value={displayValue(reservation.marketSegment)} />
-            <Field label="Guarantee" value={displayValue(reservation.guaranteeMethod)} />
-            <Field label="Company" value={displayValue(reservation.companyName)} />
-            <Field label="Travel Agent" value={displayValue(reservation.travelAgentName)} />
-            <Field label="Group" value={displayValue(reservation.groupName)} />
-            <Field label="Special requests" value={reservation.specialRequests ?? "—"} />
-            <Field label="Internal notes" value={reservation.notes ?? "—"} />
-            {reservation.cancellationReason ? (
-              <Field label="Cancellation reason" value={reservation.cancellationReason} />
-            ) : null}
-          </dl>
-
-          {!cancelled ? (
-            <div className="mt-4 max-w-sm space-y-1">
-              <Label>Room assignment</Label>
-              <Select
-                value={reservation.roomId ?? UNASSIGNED}
-                onValueChange={(v) => assignMutation.mutate(v === UNASSIGNED ? null : v)}
-                disabled={assignMutation.isPending}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Assign later" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>Assign later</SelectItem>
-                  {reservation.roomId && reservation.roomNumber ? (
-                    <SelectItem value={reservation.roomId}>
-                      Room {reservation.roomNumber}
-                    </SelectItem>
-                  ) : null}
-                  {rooms
-                    .filter((r) => r.id !== reservation.roomId)
-                    .map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        Room {r.roomNumber}
-                        {r.floor ? ` · Floor ${r.floor}` : ""}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <h2 className="font-display text-lg">Guest</h2>
-          {guestQuery.data ? (
-            <div className="mt-3">
-              <GuestRestrictionWarn guest={guestQuery.data.guest} />
-            </div>
-          ) : null}
-          <dl className="mt-3 space-y-3">
-            <Field label="Name" value={reservation.guestName} />
-            <Field label="Phone" value={reservation.guestPhone ?? "—"} />
-            <Field label="Email" value={reservation.guestEmail ?? "—"} />
-          </dl>
-          {embedded ? null : (
-            <Button asChild variant="outline" size="sm" className="mt-4">
-              <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: reservation.guestId }}>
-                Open guest profile
-              </Link>
-            </Button>
-          )}
-        </section>
-      </div>
-
-      <ReservationGuestMastersCard restaurantId={restaurantId} reservationId={reservationId} />
-
-      <NotesEditor
-        reservation={reservation}
-        restaurantId={restaurantId}
-        canManage={stayMutable}
-        amend={submitAmend}
-        onSaved={invalidate}
-      />
-
-      <PricingSection
-        restaurantId={restaurantId}
-        reservation={reservation}
-        canManage={stayMutable}
-        onRepriced={invalidate}
-      />
-
-      <HistoryList history={history} dateTime={dateTime} reservation={reservation} />
-
-      {childDialogs}
-    </div>
+              {SECTION_MENU_LABEL[id]}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1394,62 +1256,178 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
+const HISTORY_KIND_DOT: Record<string, string> = {
+  check_in: "bg-[#3E7A4A]",
+  check_out: "bg-[#8A8175]",
+  payment: "bg-[#3E7A4A]",
+  amendment: "bg-[#C89933]",
+  cancel: "bg-[#A45B4A]",
+  no_show: "bg-[#B15A5A]",
+  assign: "bg-[#8A8175]",
+  other: "bg-[#C4B8A6]",
+};
+
 function HistoryList({
   history,
   dateTime,
   reservation,
+  createdBy,
+  money,
 }: {
   history: ReservationHistoryEntry[];
   dateTime: (iso: string | null | undefined) => string;
   reservation: ReservationDetail;
+  createdBy?: string | null;
+  money: (amount: number) => string;
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [showRelated, setShowRelated] = useState(false);
+  const [showTechnical, setShowTechnical] = useState(false);
+  const rows = presentReservationHistory(history, reservation, money);
+
+  const toggleRow = (id: string, open: boolean) => {
+    if (open) {
+      setOpenId(null);
+      return;
+    }
+    setOpenId(id);
+    setShowRelated(false);
+    setShowTechnical(false);
+  };
+
   return (
-    <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-      <h2 className="font-display text-lg">History</h2>
+    <section className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+      <div className="border-b border-[#EEE6D8] px-4 py-3">
+        <h2 className="font-display text-base text-[#251605]">History</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Created {dateTime(reservation.createdAt)}
+          {createdBy ? ` · ${createdBy}` : ""}
+        </p>
+      </div>
       {history.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">No history yet.</p>
+        <p className="px-4 py-6 text-sm text-muted-foreground">No history yet.</p>
       ) : (
-        <ol className="mt-3 space-y-3">
-          {history.map((entry) => {
-            const changes = reservationHistoryChanges(
-              entry.previousValues,
-              entry.newValues,
-              (key, value) => resolveHistoryField(key, value, reservation),
-            );
-            const context = historyContextLine(entry.previousValues, entry.newValues, reservation);
-            return (
-              <li key={entry.id} className="rounded-xl border border-border p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium capitalize">
-                    {entry.eventType.replace(/_/g, " ")}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{dateTime(entry.createdAt)}</span>
-                  {entry.actorName ? (
-                    <span className="text-xs text-muted-foreground">· {entry.actorName}</span>
-                  ) : null}
-                </div>
-                {context ? <p className="mt-1 text-sm text-[#251605]">{context}</p> : null}
-                {entry.notes ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{entry.notes}</p>
-                ) : null}
-                {changes.length > 0 ? (
-                  <dl className="mt-2 space-y-1">
-                    {changes.map((change) => (
-                      <div key={change.key} className="text-xs">
-                        <dt className="font-medium capitalize text-muted-foreground">
-                          {change.key.replace(/_/g, " ")}
-                        </dt>
-                        <dd>
-                          {change.from} → {change.to}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
+        <div className="min-w-0 overflow-x-auto">
+          <table className="w-full table-fixed text-sm max-lg:min-w-[720px]">
+            <thead className="bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
+              <tr>
+                <th className="w-[10.5rem] px-3 py-2.5">Date / Time</th>
+                <th className="w-[9.5rem] px-3 py-2.5">Event</th>
+                <th className="px-3 py-2.5">Summary</th>
+                <th className="w-[9.5rem] px-3 py-2.5">Changed By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const open = openId === row.id;
+                return (
+                  <Fragment key={row.id}>
+                    <tr
+                      tabIndex={0}
+                      role="button"
+                      aria-expanded={open}
+                      aria-label={`${row.eventLabel}. ${open ? "Hide details" : "View details"}`}
+                      className={cn(
+                        "cursor-pointer border-t border-[#EEE6D8] text-[#251605] outline-none",
+                        "hover:bg-[#F7F4EE]",
+                        "focus-visible:bg-[#F7F4EE] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C89933]",
+                        open && "bg-[#FAF8F4]",
+                      )}
+                      onClick={() => toggleRow(row.id, open)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        toggleRow(row.id, open);
+                      }}
+                    >
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-[#5C5346]">
+                        {dateTime(row.createdAt)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+                          <span
+                            className={cn(
+                              "size-1.5 shrink-0 rounded-full",
+                              HISTORY_KIND_DOT[row.eventKind] ?? HISTORY_KIND_DOT.other,
+                            )}
+                            aria-hidden
+                          />
+                          {row.eventLabel}
+                        </span>
+                      </td>
+                      <td className="truncate px-3 py-2 text-sm">{row.summary}</td>
+                      <td className="px-3 py-2 text-sm text-[#5C5346]">{row.actor}</td>
+                    </tr>
+                    {open ? (
+                      <tr className="bg-[#F7F4EE]">
+                        <td colSpan={4} className="border-y border-[#EEE6D8] px-3 py-1.5">
+                          {row.expand.facts.length > 0 ? (
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-[#251605]">
+                              {row.expand.facts.map((fact, index) => (
+                                <span key={`${fact.label}-${fact.value}`} className="inline-flex items-baseline gap-1">
+                                  {index > 0 ? (
+                                    <span className="mr-1 text-[#C4B8A6]" aria-hidden>
+                                      |
+                                    </span>
+                                  ) : null}
+                                  <span className="text-[#8A8175]">{fact.label}:</span>
+                                  <span>{fact.value}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {row.expand.relatedEvents.length > 0 ? (
+                            <div className="mt-1">
+                              <button
+                                type="button"
+                                className="text-[11px] text-[#8A641A] hover:underline"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setShowRelated((value) => !value);
+                                }}
+                              >
+                                {showRelated ? "Hide related events" : "View related events"}
+                              </button>
+                              {showRelated ? (
+                                <p className="mt-0.5 text-[11px] text-[#5C5346]">
+                                  {row.expand.relatedEvents.join(" · ")}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          {row.expand.technical.length > 0 || row.expand.nightlyRates.length > 0 ? (
+                            <div className="mt-1">
+                              <button
+                                type="button"
+                                className="text-[11px] text-[#8A8175] hover:underline"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setShowTechnical((value) => !value);
+                                }}
+                              >
+                                Technical details
+                              </button>
+                              {showTechnical ? (
+                                <div className="mt-1 font-mono text-[10px] leading-4 text-[#6B6256]">
+                                  {row.expand.technical.map((line) => (
+                                    <div key={line}>{line}</div>
+                                  ))}
+                                  {row.expand.nightlyRates.map((line) => (
+                                    <div key={line}>{line}</div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -1548,67 +1526,57 @@ function ReservationDetailActionBar({
 }) {
   const secondary = reservationDetailSecondaryActions(result);
   const primary = result.primaryAction;
+  const menuActions = [
+    ...(primary ? [primary] : []),
+    ...secondary.filter((action) => action.id !== primary?.id),
+  ];
+  if (menuActions.length === 0) return null;
   return (
-    <>
-      {primary ? (
-        <Button
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
           type="button"
-          size="sm"
-          data-testid="reservation-detail-primary"
-          disabled={busy || Boolean(gatedActions?.[primary.id])}
-          title={gatedActions?.[primary.id]}
-          onClick={() => onAction(primary.id)}
+          aria-label="Reservation actions"
+          data-testid="reservation-detail-more-actions"
+          className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
         >
-          {reservationDetailActionLabel(primary)}
-        </Button>
-      ) : null}
-      {secondary.length > 0 ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="reservation-detail-more-actions"
-            >
-              More Actions
-              <ChevronDown className="size-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[80]">
-            {secondary.map((action, index) => {
-              const destructive = reservationDetailActionIsDestructive(action.id);
-              const previous = secondary[index - 1];
-              const divider =
-                destructive &&
-                previous != null &&
-                !reservationDetailActionIsDestructive(previous.id);
-              return (
-                <Fragment key={action.id}>
-                  {divider ? <DropdownMenuSeparator /> : null}
-                  <DropdownMenuItem
-                    className={destructive ? "text-destructive" : undefined}
-                    disabled={busy || Boolean(gatedActions?.[action.id])}
-                    title={gatedActions?.[action.id]}
-                    data-testid={`reservation-detail-action-${action.id}`}
-                    onClick={() => onAction(action.id)}
-                  >
-                    <span className="flex flex-col items-start">
-                      <span>{reservationDetailActionLabel(action)}</span>
-                      {gatedActions?.[action.id] ? (
-                        <span className="max-w-64 text-[11px] font-normal text-muted-foreground">
-                          {gatedActions[action.id]}
-                        </span>
-                      ) : null}
+          <MoreHorizontal className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="z-[80]">
+        {menuActions.map((action, index) => {
+          const destructive = reservationDetailActionIsDestructive(action.id);
+          const previous = menuActions[index - 1];
+          const divider =
+            destructive && previous != null && !reservationDetailActionIsDestructive(previous.id);
+          return (
+            <Fragment key={action.id}>
+              {divider ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                className={destructive ? "text-destructive" : undefined}
+                disabled={busy || Boolean(gatedActions?.[action.id])}
+                title={gatedActions?.[action.id]}
+                data-testid={
+                  primary?.id === action.id
+                    ? "reservation-detail-primary"
+                    : `reservation-detail-action-${action.id}`
+                }
+                onClick={() => onAction(action.id)}
+              >
+                <span className="flex flex-col items-start">
+                  <span>{reservationDetailActionLabel(action)}</span>
+                  {gatedActions?.[action.id] ? (
+                    <span className="max-w-64 text-[11px] font-normal text-muted-foreground">
+                      {gatedActions[action.id]}
                     </span>
-                  </DropdownMenuItem>
-                </Fragment>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-    </>
+                  ) : null}
+                </span>
+              </DropdownMenuItem>
+            </Fragment>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

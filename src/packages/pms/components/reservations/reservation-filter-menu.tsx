@@ -10,8 +10,12 @@ import {
   PmsFilterMenu,
   PMS_FILTER_ITEM,
   PMS_FILTER_ROW,
-  PMS_FILTER_SUB,
 } from "@/packages/pms/components/pms-filter-menu";
+import {
+  PMS_FILTER_CASCADE_DATE,
+  PMS_FILTER_CASCADE_SUB,
+  PMS_FILTER_DATE,
+} from "@/packages/pms/components/pms-filter-popover";
 import {
   resolveBookingSourceOptions,
   resolveMarketSegmentOptions,
@@ -20,6 +24,7 @@ import {
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { accountListItems } from "@/packages/pms/lib/guest-profile-wave4";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
+import { PMS_OP_INPUT } from "@/packages/pms/lib/pms-operational-surface";
 import { listRatePlans } from "@/packages/pms/lib/rates.functions";
 import {
   CALENDAR_DENSITIES,
@@ -80,10 +85,6 @@ const VIP_OPTIONS: Array<[DeskVipFilter, string]> = [
   ["yes", "VIP"],
   ["no", "Not VIP"],
 ];
-
-const ROW = PMS_FILTER_ROW;
-const SUB = PMS_FILTER_SUB;
-const ITEM = PMS_FILTER_ITEM;
 
 export function ReservationFilterMenu({
   restaurantId,
@@ -197,273 +198,272 @@ export function ReservationFilterMenu({
       countTestId="reservation-filters-count"
       menuTestId="reservation-filters-menu"
     >
-        <ChoiceRow
-          label="Status"
-          value={status}
-          current={labelOf(STATUS_OPTIONS, status)}
-          options={STATUS_OPTIONS}
-          onChange={(value) => onStatus(value as DeskStatusFilter)}
+      <PmsFilterChoiceRow
+        label="Status"
+        value={status}
+        current={labelOf(STATUS_OPTIONS, status)}
+        options={STATUS_OPTIONS}
+        onChange={(value) => onStatus(value as DeskStatusFilter)}
+      />
+      <PmsFilterChoiceRow
+        label="Room Type"
+        value={roomTypeId || DESK_FILTER_ALL}
+        current={labelOf(roomTypes, roomTypeId)}
+        options={roomTypes}
+        onChange={(value) =>
+          onRoomType(value, roomTypeOptions.find(([id]) => id === value)?.[1] ?? "")
+        }
+      />
+      <PmsFilterChoiceRow
+        label="Source"
+        value={source}
+        current={labelOf(SOURCE_OPTIONS, source)}
+        options={SOURCE_OPTIONS}
+        onChange={(value) => onSource(value as DeskSourceFilter)}
+      />
+      <PmsFilterChoiceRow
+        label="Assignment"
+        value={advanced.assignment}
+        current={labelOf(ASSIGNMENT_OPTIONS, advanced.assignment)}
+        options={ASSIGNMENT_OPTIONS}
+        onChange={(value) =>
+          applyAdvanced({ ...advanced, assignment: value as DeskAssignmentFilter })
+        }
+      />
+      <PmsFilterChoiceRow
+        label="Guest / VIP"
+        value={advanced.vip}
+        current={labelOf(VIP_OPTIONS, advanced.vip)}
+        options={VIP_OPTIONS}
+        onChange={(value) => applyAdvanced({ ...advanced, vip: value as DeskVipFilter })}
+      />
+      <DateRow
+        label="Arrival"
+        from={arrivalFrom}
+        to={arrivalTo}
+        active={Boolean(arrivalFrom || arrivalTo)}
+        onChange={applyArrival}
+      />
+      <DateRow
+        label="Departure"
+        from={advanced.departureFrom}
+        to={advanced.departureTo}
+        active={Boolean(advanced.departureFrom || advanced.departureTo)}
+        onChange={(from, to) => applyAdvanced({ ...advanced, departureFrom: from, departureTo: to })}
+      />
+      <PmsFilterChoiceRow
+        label="Room"
+        value={advanced.roomId || DESK_FILTER_ALL}
+        current={advanced.roomNumber ? `Room ${advanced.roomNumber}` : ""}
+        options={rooms}
+        onChange={(value) => {
+          const room = (roomsQuery.data ?? []).find((row) => row.id === value);
+          applyAdvanced({
+            ...advanced,
+            roomId: value,
+            roomNumber: room?.roomNumber ?? "",
+          });
+        }}
+      />
+      {ratePlansQuery.isError ? null : (
+        <PmsFilterChoiceRow
+          label="Rate Plan"
+          value={advanced.ratePlanId || DESK_FILTER_ALL}
+          current={advanced.ratePlanName}
+          options={ratePlans}
+          onChange={(value) => {
+            const plan = (ratePlansQuery.data ?? []).find((row) => row.id === value);
+            applyAdvanced({
+              ...advanced,
+              ratePlanId: value,
+              ratePlanName: plan ? plan.code : "",
+            });
+          }}
         />
-        <ChoiceRow
-          label="Room Type"
-          value={roomTypeId || DESK_FILTER_ALL}
-          current={labelOf(roomTypes, roomTypeId)}
-          options={roomTypes}
-          onChange={(value) =>
-            onRoomType(value, roomTypeOptions.find(([id]) => id === value)?.[1] ?? "")
+      )}
+      <PmsFilterChoiceRow
+        label="Booking Source"
+        value={advanced.commercialBookingSource || DESK_FILTER_ALL}
+        current={advanced.commercialBookingSourceLabel}
+        options={[
+          [DESK_FILTER_ALL, "All booking sources"],
+          ...sourceOptions.map((row) => [row.value, row.label] as [string, string]),
+        ]}
+        onChange={(value) => {
+          const option = sourceOptions.find((row) => row.value === value);
+          applyAdvanced({
+            ...advanced,
+            commercialBookingSource: value,
+            commercialBookingSourceLabel: option?.label ?? "",
+          });
+        }}
+      />
+      <PmsFilterChoiceRow
+        label="Market Segment"
+        value={advanced.marketSegment || DESK_FILTER_ALL}
+        current={advanced.marketSegmentLabel}
+        options={[
+          [DESK_FILTER_ALL, "All segments"],
+          ...segmentOptions.map((row) => [row.value, row.label] as [string, string]),
+        ]}
+        onChange={(value) => {
+          const option = segmentOptions.find((row) => row.value === value);
+          applyAdvanced({
+            ...advanced,
+            marketSegment: value,
+            marketSegmentLabel: option?.label ?? "",
+          });
+        }}
+      />
+      <PickerRow label="Company" active={Boolean(advanced.companyMasterId)} detail={advanced.companyName}>
+        <CreateReservationMasterPicker
+          restaurantId={restaurantId}
+          kind="company"
+          canCreate={false}
+          master={
+            advanced.companyMasterId
+              ? { id: advanced.companyMasterId, name: advanced.companyName || "Company", code: null, paymentTerms: null }
+              : null
+          }
+          onMasterChange={(master: PickedReservationMaster | null) =>
+            applyAdvanced({
+              ...advanced,
+              companyMasterId: master?.id ?? "",
+              companyName: master?.name ?? "",
+            })
           }
         />
-        <ChoiceRow
-          label="Source"
-          value={source}
-          current={labelOf(SOURCE_OPTIONS, source)}
-          options={SOURCE_OPTIONS}
-          onChange={(value) => onSource(value as DeskSourceFilter)}
-        />
-        <ChoiceRow
-          label="Assignment"
-          value={advanced.assignment}
-          current={labelOf(ASSIGNMENT_OPTIONS, advanced.assignment)}
-          options={ASSIGNMENT_OPTIONS}
-          onChange={(value) =>
-            applyAdvanced({ ...advanced, assignment: value as DeskAssignmentFilter })
-          }
-        />
-        <ChoiceRow
-          label="Guest / VIP"
-          value={advanced.vip}
-          current={labelOf(VIP_OPTIONS, advanced.vip)}
-          options={VIP_OPTIONS}
-          onChange={(value) => applyAdvanced({ ...advanced, vip: value as DeskVipFilter })}
-        />
-        <DateRow
-          label="Arrival"
-          from={arrivalFrom}
-          to={arrivalTo}
-          active={Boolean(arrivalFrom || arrivalTo)}
-          onChange={applyArrival}
-        />
-        <DateRow
-          label="Departure"
-          from={advanced.departureFrom}
-          to={advanced.departureTo}
-          active={Boolean(advanced.departureFrom || advanced.departureTo)}
-          onChange={(from, to) => applyAdvanced({ ...advanced, departureFrom: from, departureTo: to })}
-        />
-        <ChoiceRow
-          label="Room"
-          value={advanced.roomId || DESK_FILTER_ALL}
-          current={advanced.roomNumber ? `Room ${advanced.roomNumber}` : ""}
-          options={rooms}
-          onChange={(value) => {
-            const room = (roomsQuery.data ?? []).find((row) => row.id === value);
-            applyAdvanced({
-              ...advanced,
-              roomId: value,
-              roomNumber: room?.roomNumber ?? "",
-            });
-          }}
-        />
-        {ratePlansQuery.isError ? null : (
-          <ChoiceRow
-            label="Rate Plan"
-            value={advanced.ratePlanId || DESK_FILTER_ALL}
-            current={advanced.ratePlanName}
-            options={ratePlans}
-            onChange={(value) => {
-              const plan = (ratePlansQuery.data ?? []).find((row) => row.id === value);
-              applyAdvanced({
-                ...advanced,
-                ratePlanId: value,
-                ratePlanName: plan ? plan.code : "",
-              });
-            }}
-          />
-        )}
-        <ChoiceRow
-          label="Booking Source"
-          value={advanced.commercialBookingSource || DESK_FILTER_ALL}
-          current={advanced.commercialBookingSourceLabel}
-          options={[
-            [DESK_FILTER_ALL, "All booking sources"],
-            ...sourceOptions.map((row) => [row.value, row.label] as [string, string]),
-          ]}
-          onChange={(value) => {
-            const option = sourceOptions.find((row) => row.value === value);
-            applyAdvanced({
-              ...advanced,
-              commercialBookingSource: value,
-              commercialBookingSourceLabel: option?.label ?? "",
-            });
-          }}
-        />
-        <ChoiceRow
-          label="Market Segment"
-          value={advanced.marketSegment || DESK_FILTER_ALL}
-          current={advanced.marketSegmentLabel}
-          options={[
-            [DESK_FILTER_ALL, "All segments"],
-            ...segmentOptions.map((row) => [row.value, row.label] as [string, string]),
-          ]}
-          onChange={(value) => {
-            const option = segmentOptions.find((row) => row.value === value);
-            applyAdvanced({
-              ...advanced,
-              marketSegment: value,
-              marketSegmentLabel: option?.label ?? "",
-            });
-          }}
-        />
-        <PickerRow label="Company" active={Boolean(advanced.companyMasterId)} detail={advanced.companyName}>
-          <CreateReservationMasterPicker
-            restaurantId={restaurantId}
-            kind="company"
-            canCreate={false}
-            master={
-              advanced.companyMasterId
-                ? { id: advanced.companyMasterId, name: advanced.companyName || "Company", code: null, paymentTerms: null }
-                : null
-            }
-            onMasterChange={(master: PickedReservationMaster | null) =>
-              applyAdvanced({
-                ...advanced,
-                companyMasterId: master?.id ?? "",
-                companyName: master?.name ?? "",
-              })
-            }
-          />
-        </PickerRow>
-        <PickerRow
-          label="Travel Agent"
-          active={Boolean(advanced.travelAgentMasterId)}
-          detail={advanced.travelAgentName}
-        >
-          <CreateReservationMasterPicker
-            restaurantId={restaurantId}
-            kind="travel_agent"
-            canCreate={false}
-            master={
-              advanced.travelAgentMasterId
-                ? {
-                    id: advanced.travelAgentMasterId,
-                    name: advanced.travelAgentName || "Travel Agent",
-                    code: null,
-                    paymentTerms: null,
-                  }
-                : null
-            }
-            onMasterChange={(master: PickedReservationMaster | null) =>
-              applyAdvanced({
-                ...advanced,
-                travelAgentMasterId: master?.id ?? "",
-                travelAgentName: master?.name ?? "",
-              })
-            }
-          />
-        </PickerRow>
-        <PickerRow label="Group" active={Boolean(advanced.groupAccountMasterId)} detail={advanced.groupName}>
-          <GroupChoices
-            restaurantId={restaurantId}
-            enabled={open}
-            groupId={advanced.groupAccountMasterId}
-            groupName={advanced.groupName}
-            onChange={(groupAccountMasterId, groupName) =>
-              applyAdvanced({ ...advanced, groupAccountMasterId, groupName })
-            }
-          />
-        </PickerRow>
-
-        {calendar ? (
-          <>
-            <DropdownMenuSeparator className="bg-[#DDD4C5]" />
-            <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#7A6B58]">
-              Calendar display
-            </DropdownMenuLabel>
-            <ChoiceRow
-              label="Layout"
-              value={calendar.view.mode}
-              current={calendar.view.mode === "room" ? "Room view" : "Room type view"}
-              options={[
-                ["room", "Room view"],
-                ["room_type", "Room type view"],
-              ]}
-              neutralValue="room"
-              onChange={(value) => calendar.onChange({ ...calendar.view, mode: value as CalendarMode })}
-            />
-            <ChoiceRow
-              label="Density"
-              value={calendar.view.density}
-              current={calendar.view.density}
-              options={CALENDAR_DENSITIES.map((value) => [value, value] as [string, string])}
-              neutralValue="standard"
-              onChange={(value) =>
-                calendar.onChange({ ...calendar.view, density: value as CalendarDensity })
-              }
-            />
-            <PickerRow label="Building" active={Boolean(calendar.view.building.trim())} detail={calendar.view.building}>
-              <Input
-                className="h-9"
-                value={calendar.view.building}
-                placeholder="Optional"
-                aria-label="Building filter"
-                onChange={(event) =>
-                  calendar.onChange({ ...calendar.view, building: event.target.value })
+      </PickerRow>
+      <PickerRow
+        label="Travel Agent"
+        active={Boolean(advanced.travelAgentMasterId)}
+        detail={advanced.travelAgentName}
+      >
+        <CreateReservationMasterPicker
+          restaurantId={restaurantId}
+          kind="travel_agent"
+          canCreate={false}
+          master={
+            advanced.travelAgentMasterId
+              ? {
+                  id: advanced.travelAgentMasterId,
+                  name: advanced.travelAgentName || "Travel Agent",
+                  code: null,
+                  paymentTerms: null,
                 }
-                onKeyDown={(event) => event.stopPropagation()}
-              />
-            </PickerRow>
-            <PickerRow label="Show on calendar" active={calendarDisplayChanged(calendar.view)}>
-              <div className="grid gap-1">
-                <DisplayToggle
-                  label="Guest name"
-                  checked={calendar.view.display.guestName}
-                  onChange={(guestName) =>
-                    calendar.onChange({
-                      ...calendar.view,
-                      display: { ...calendar.view.display, guestName },
-                    })
-                  }
-                />
-                <DisplayToggle
-                  label="Confirmation number"
-                  checked={calendar.view.display.confirmationNumber}
-                  onChange={(confirmationNumber) =>
-                    calendar.onChange({
-                      ...calendar.view,
-                      display: { ...calendar.view.display, confirmationNumber },
-                    })
-                  }
-                />
-                <DisplayToggle
-                  label="Housekeeping status"
-                  checked={calendar.view.display.housekeepingStatus}
-                  onChange={(housekeepingStatus) =>
-                    calendar.onChange({
-                      ...calendar.view,
-                      display: { ...calendar.view.display, housekeepingStatus },
-                    })
-                  }
-                />
-                <DisplayToggle
-                  label="Room status"
-                  checked={calendar.view.display.roomStatus}
-                  onChange={(roomStatus) =>
-                    calendar.onChange({
-                      ...calendar.view,
-                      display: { ...calendar.view.display, roomStatus },
-                    })
-                  }
-                />
-                <DisplayToggle
-                  label="Unassigned lane"
-                  checked={calendar.view.showUnassigned}
-                  onChange={(showUnassigned) => calendar.onChange({ ...calendar.view, showUnassigned })}
-                />
-              </div>
-            </PickerRow>
-          </>
-        ) : null}
+              : null
+          }
+          onMasterChange={(master: PickedReservationMaster | null) =>
+            applyAdvanced({
+              ...advanced,
+              travelAgentMasterId: master?.id ?? "",
+              travelAgentName: master?.name ?? "",
+            })
+          }
+        />
+      </PickerRow>
+      <PickerRow label="Group" active={Boolean(advanced.groupAccountMasterId)} detail={advanced.groupName}>
+        <GroupChoices
+          restaurantId={restaurantId}
+          enabled={open}
+          groupId={advanced.groupAccountMasterId}
+          groupName={advanced.groupName}
+          onChange={(groupAccountMasterId, groupName) =>
+            applyAdvanced({ ...advanced, groupAccountMasterId, groupName })
+          }
+        />
+      </PickerRow>
 
+      {calendar ? (
+        <>
+          <DropdownMenuSeparator className="bg-[#DDD4C5]" />
+          <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#7A6B58]">
+            Calendar display
+          </DropdownMenuLabel>
+          <PmsFilterChoiceRow
+            label="Layout"
+            value={calendar.view.mode}
+            current={calendar.view.mode === "room" ? "Room view" : "Room type view"}
+            options={[
+              ["room", "Room view"],
+              ["room_type", "Room type view"],
+            ]}
+            neutralValue="room"
+            onChange={(value) => calendar.onChange({ ...calendar.view, mode: value as CalendarMode })}
+          />
+          <PmsFilterChoiceRow
+            label="Density"
+            value={calendar.view.density}
+            current={calendar.view.density}
+            options={CALENDAR_DENSITIES.map((value) => [value, value] as [string, string])}
+            neutralValue="standard"
+            onChange={(value) =>
+              calendar.onChange({ ...calendar.view, density: value as CalendarDensity })
+            }
+          />
+          <PickerRow label="Building" active={Boolean(calendar.view.building.trim())} detail={calendar.view.building}>
+            <Input
+              className={cn(PMS_OP_INPUT, "!h-9")}
+              value={calendar.view.building}
+              placeholder="Optional"
+              aria-label="Building filter"
+              onChange={(event) =>
+                calendar.onChange({ ...calendar.view, building: event.target.value })
+              }
+              onKeyDown={(event) => event.stopPropagation()}
+            />
+          </PickerRow>
+          <PickerRow label="Show on calendar" active={calendarDisplayChanged(calendar.view)}>
+            <div className="grid gap-1">
+              <DisplayToggle
+                label="Guest name"
+                checked={calendar.view.display.guestName}
+                onChange={(guestName) =>
+                  calendar.onChange({
+                    ...calendar.view,
+                    display: { ...calendar.view.display, guestName },
+                  })
+                }
+              />
+              <DisplayToggle
+                label="Confirmation number"
+                checked={calendar.view.display.confirmationNumber}
+                onChange={(confirmationNumber) =>
+                  calendar.onChange({
+                    ...calendar.view,
+                    display: { ...calendar.view.display, confirmationNumber },
+                  })
+                }
+              />
+              <DisplayToggle
+                label="Housekeeping status"
+                checked={calendar.view.display.housekeepingStatus}
+                onChange={(housekeepingStatus) =>
+                  calendar.onChange({
+                    ...calendar.view,
+                    display: { ...calendar.view.display, housekeepingStatus },
+                  })
+                }
+              />
+              <DisplayToggle
+                label="Room status"
+                checked={calendar.view.display.roomStatus}
+                onChange={(roomStatus) =>
+                  calendar.onChange({
+                    ...calendar.view,
+                    display: { ...calendar.view.display, roomStatus },
+                  })
+                }
+              />
+              <DisplayToggle
+                label="Unassigned lane"
+                checked={calendar.view.showUnassigned}
+                onChange={(showUnassigned) => calendar.onChange({ ...calendar.view, showUnassigned })}
+              />
+            </div>
+          </PickerRow>
+        </>
+      ) : null}
     </PmsFilterMenu>
   );
 }
@@ -471,8 +471,6 @@ export function ReservationFilterMenu({
 function labelOf(options: ReadonlyArray<readonly [string, string]>, value: string): string {
   return options.find(([id]) => id === value)?.[1] ?? "";
 }
-
-const ChoiceRow = PmsFilterChoiceRow;
 
 function DateRow({
   label,
@@ -489,17 +487,17 @@ function DateRow({
 }) {
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger className={ROW}>
+      <DropdownMenuSubTrigger className={PMS_FILTER_ROW}>
         <span className="flex-1 text-left">{label}</span>
         {active ? <span className="text-xs font-normal text-[#8C6D23]">Set</span> : null}
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className={cn(SUB, "w-56 overflow-visible p-3")}>
+      <DropdownMenuSubContent collisionPadding={12} className={PMS_FILTER_CASCADE_DATE}>
         <div className="grid gap-2" onKeyDown={(event) => event.stopPropagation()}>
           <label className="grid gap-1 text-[11px] font-medium text-[#7A6B58]">
             From
             <Input
               type="date"
-              className="h-9"
+              className={PMS_FILTER_DATE}
               value={from}
               aria-label={`${label} from`}
               onChange={(event) => onChange(event.target.value, to)}
@@ -510,7 +508,7 @@ function DateRow({
             To
             <Input
               type="date"
-              className="h-9"
+              className={PMS_FILTER_DATE}
               value={to}
               aria-label={`${label} to`}
               onChange={(event) => onChange(from, event.target.value)}
@@ -536,7 +534,7 @@ function PickerRow({
 }) {
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger className={ROW}>
+      <DropdownMenuSubTrigger className={PMS_FILTER_ROW}>
         <span className="flex-1 text-left">{label}</span>
         {active && detail ? (
           <span className="max-w-28 truncate text-xs font-normal text-[#8C6D23]">{detail}</span>
@@ -544,7 +542,10 @@ function PickerRow({
           <span className="text-xs font-normal text-[#8C6D23]">Set</span>
         ) : null}
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className={cn(SUB, "w-72 overflow-visible p-3")}>
+      <DropdownMenuSubContent
+        collisionPadding={12}
+        className={cn(PMS_FILTER_CASCADE_SUB, "w-[280px] overflow-visible p-3")}
+      >
         <div onKeyDown={(event) => event.stopPropagation()}>{children}</div>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
@@ -563,7 +564,7 @@ function DisplayToggle({
   return (
     <DropdownMenuCheckboxItem
       checked={checked}
-      className={ITEM}
+      className={PMS_FILTER_ITEM}
       onCheckedChange={(value) => onChange(value === true)}
       onSelect={(event) => event.preventDefault()}
     >
@@ -634,7 +635,7 @@ function GroupChoices({
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
-          className="h-9 pl-8"
+          className={cn(PMS_OP_INPUT, "!h-9 pl-8")}
           placeholder="Search groups"
           value={search}
           aria-label="Search groups"

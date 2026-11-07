@@ -1,10 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
-  ArrowRight,
   ChevronLeft,
   ChevronRight,
   ImagePlus,
@@ -31,7 +29,7 @@ const ACCEPTED = ["image/jpeg", "image/png", "image/webp"] as const;
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
 
 export function RoomTypeWizardStep4Photos() {
-  const { restaurantId, canEdit, roomTypeId, typeForm, setStep } = useRoomTypeWizard();
+  const { restaurantId, canEdit, roomTypeId, typeForm, setStep, setFooter } = useRoomTypeWizard();
   const disabled = !canEdit || !roomTypeId;
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -158,8 +156,16 @@ export function RoomTypeWizardStep4Photos() {
     }
   }
 
+  useEffect(() => {
+    setFooter({
+      continueLabel: "Continue",
+      onContinue: () => setStep(5),
+    });
+    return () => setFooter(null);
+  }, [setFooter, setStep]);
+
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-4">
       {/* Top Header Card */}
       <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EDE6D8] pb-3">
@@ -398,28 +404,6 @@ export function RoomTypeWizardStep4Photos() {
         </div>
       </section>
 
-      {/* Sticky Bottom Actions Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9D2C4] bg-white/95 px-6 py-3.5 backdrop-blur-xs shadow-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="border-[#D9D2C4] text-[#251605] hover:bg-[#F4EDE0]"
-            onClick={() => setStep(3)}
-          >
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Back to Amenities
-          </Button>
-          <Button
-            type="button"
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 font-medium"
-            onClick={() => setStep(5)}
-          >
-            Continue to Review
-            <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
-      </footer>
     </div>
   );
 }

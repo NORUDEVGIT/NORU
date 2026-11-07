@@ -67,13 +67,17 @@ export function foOpensPreArrivalCheckInWorkspace(stay: { status: ReservationSta
   return stay.status === "pending" || stay.status === "confirmed";
 }
 
-/** Full guest workspace: pre-arrival, checked-out, or Folio & Charges. */
+/** Full guest workspace: pre-arrival, terminal, or Folio & Charges. */
 export function foOpensFullGuestWorkspace(
   stay: { status: ReservationStatus },
   tab?: string,
 ): boolean {
   return (
-    foOpensPreArrivalCheckInWorkspace(stay) || stay.status === "checked_out" || tab === "folio"
+    foOpensPreArrivalCheckInWorkspace(stay) ||
+    stay.status === "checked_out" ||
+    stay.status === "cancelled" ||
+    stay.status === "no_show" ||
+    tab === "folio"
   );
 }
 

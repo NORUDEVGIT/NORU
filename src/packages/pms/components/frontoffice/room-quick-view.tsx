@@ -155,7 +155,7 @@ export function RoomQuickViewSheet({
       <SheetContent
         side="right"
         className={cn(
-          "flex w-full flex-col gap-0 overflow-hidden p-0",
+          "flex h-dvh w-full flex-col gap-0 overflow-hidden p-0",
           FO_ROOM_QUICK_VIEW_SHEET_MAX_CLASS,
         )}
         data-testid="fo-room-quick-view"
@@ -166,18 +166,18 @@ export function RoomQuickViewSheet({
             Operational room context from the rack. Stay bars open the stay sheet.
           </SheetDescription>
         </SheetHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {query.isLoading ? (
-            <div className="space-y-3 p-4">
-              <Skeleton className="h-10 w-48" />
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-64 w-full" />
-            </div>
-          ) : query.error ? (
-            <p className="p-4 text-sm text-destructive">
-              {query.error instanceof Error ? query.error.message : "Could not load this room."}
-            </p>
-          ) : query.data ? (
+        {query.isLoading ? (
+          <div className="space-y-3 p-4">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        ) : query.error ? (
+          <p className="p-4 text-sm text-destructive">
+            {query.error instanceof Error ? query.error.message : "Could not load this room."}
+          </p>
+        ) : query.data ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <RoomQuickViewBody
               view={query.data}
               phone={phone}
@@ -197,8 +197,8 @@ export function RoomQuickViewSheet({
                 );
               }}
             />
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </SheetContent>
     </Sheet>
   );
@@ -311,8 +311,7 @@ function RoomQuickViewBody({
         </div>
       </header>
 
-      {layoutMode === "occupied" ? (
-        <div
+      <div
           className={cn("grid grid-cols-1 gap-3 p-4 sm:p-5", FO_ROOM_QUICK_VIEW_MAIN_GRID_CLASS)}
           data-testid="fo-room-qv-main-grid"
         >
@@ -408,25 +407,6 @@ function RoomQuickViewBody({
             </InfoCard>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-col gap-3 p-4 sm:p-5" data-testid="fo-room-qv-vacant-layout">
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <RoomImageBlock imageUrl={view.roomInfo.imageUrl} roomNumber={view.roomNumber} />
-            {roomInfoCard}
-          </div>
-          {roomStatusCard}
-          {layoutMode === "vacant_assigned" && view.assignedArrival ? (
-            <InfoCard
-              title="Stay Details"
-              actionLabel="Edit"
-              onAction={() => onAction("edit_stay")}
-              testId="fo-room-qv-stay"
-            >
-              <StayDetailsGrid stay={view.assignedArrival} />
-            </InfoCard>
-          ) : null}
-        </div>
-      )}
 
       <section
         className="space-y-3 border-t border-[#EEE8DC] px-4 pt-4 sm:px-5"

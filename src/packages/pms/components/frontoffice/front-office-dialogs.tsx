@@ -52,6 +52,15 @@ import { FoCheckInStepper } from "@/packages/pms/components/frontoffice/fo-check
 import { FoCheckOutWorkspace } from "@/packages/pms/components/frontoffice/fo-check-out-workspace";
 import { FoNoShowStepper } from "@/packages/pms/components/frontoffice/fo-no-show-stepper";
 import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
+import {
+  FO_ACTION_CONTROL,
+  FO_ACTION_SELECT,
+  FoActionModal,
+  foActionRoomChip,
+} from "@/packages/pms/components/frontoffice/fo-action-modal";
+import { getFrontOfficeInHouseQuickView } from "@/packages/pms/lib/fo-inhouse.functions";
+import { HK_STATUS_LABELS, type HkStatusCode } from "@/packages/pms/lib/pms-set4-hk-inventory";
+import { ROOM_LEGEND } from "@/packages/pms/lib/front-office-shell";
 import type { RackDatesDraft } from "@/packages/pms/lib/fo-rack-power";
 import { stayDateTargetsOneRoom } from "@/packages/pms/lib/fo-unit-desk";
 import { startWalkInCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
@@ -75,6 +84,21 @@ function useRefresh() {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+function hkLabel(status: string | null | undefined): string | null {
+  if (!status) return null;
+  if (status in HK_STATUS_LABELS) return HK_STATUS_LABELS[status as HkStatusCode];
+  return status.replaceAll("_", " ");
+}
+
+function roomStatusLabel(status: string | null | undefined): string | null {
+  if (!status) return null;
+  return ROOM_LEGEND.find((row) => row.key === status)?.label ?? status.replaceAll("_", " ");
+}
+
+function compactRoomLine(parts: Array<string | null | undefined>): string {
+  return parts.map((part) => part?.trim()).filter((part): part is string => Boolean(part)).join(" · ");
 }
 
 /* ------------------------------------------------------------- room picker */
@@ -131,7 +155,7 @@ function RoomSelect({
         onValueChange={onChange}
         disabled={listState.status === "loading" || listState.status === "error"}
       >
-        <SelectTrigger>
+        <SelectTrigger className={FO_ACTION_SELECT}>
           <SelectValue
             placeholder={listState.status === "loading" ? "Loading rooms…" : "Select a room"}
           />
@@ -359,9 +383,49 @@ export function RoomMoveDialog({
   );
   const refresh = useRefresh();
   const move = useServerFn(moveReservationRoom);
+  const fetchQuickView = useServerFn(getFrontOfficeInHouseQuickView);
+  const fetchRooms = useServerFn(listAssignableRooms);
   const multiRoom = (stay.roomUnits?.length ?? 0) > 1;
   const targetStay = stayForRoomTarget(stay, reservationRoomId);
   const selectedUnit = stay.roomUnits?.find((unit) => unit.id === reservationRoomId);
+  const currentQuery = useQuery({
+    queryKey: ["front-office", "inhouse-qv", restaurantId, stay.id, reservationRoomId],
+    queryFn: () =>
+      fetchQuickView({
+        data: {
+          restaurantId,
+          reservationId: stay.id,
+          ...(reservationRoomId ? { reservationRoomId } : {}),
+        },
+      }),
+    enabled: open && Boolean(stay.reservationRoomId || reservationRoomId),
+    retry: false,
+  });
+  const roomsQuery = useQuery({
+    queryKey: [
+      "front-office",
+      "assignable",
+      restaurantId,
+      targetStay.id,
+      targetStay.roomTypeId,
+      targetStay.arrivalDate,
+      targetStay.departureDate,
+    ],
+    queryFn: () =>
+      fetchRooms({
+        data: {
+          restaurantId,
+          roomTypeId: targetStay.roomTypeId,
+          arrival: targetStay.arrivalDate,
+          departure: targetStay.departureDate,
+          excludeReservationId: targetStay.id,
+        },
+      }),
+    enabled: open,
+    retry: false,
+  });
+  const selectedRoom = (roomsQuery.data ?? []).find((room) => room.id === roomId) ?? null;
+  const currentRoom = currentQuery.data?.room;
 
   useEffect(() => {
     if (open) {
@@ -398,17 +462,38 @@ export function RoomMoveDialog({
     onError: (error) => toast.error(errorText(error)),
   });
 
+  const currentLine = compactRoomLine([
+    currentRoom?.roomNumber ?? stay.roomNumber,
+    stay.roomTypeName,
+    hkLabel(currentRoom?.housekeepingStatus ?? null),
+    currentRoom?.maintenanceStatus
+      ? currentRoom.maintenanceStatus.replaceAll("_", " ")
+      : roomStatusLabel(currentRoom?.status ?? null),
+  ]);
+  const nextLine = selectedRoom
+    ? compactRoomLine([
+        `Room ${selectedRoom.roomNumber}`,
+        stay.roomTypeName,
+        hkLabel(selectedRoom.housekeepingStatus),
+        "Available",
+      ])
+    : null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Room move</DialogTitle>
-          <DialogDescription>
-            {stay.guestName} is in room {stay.roomNumber ?? "—"}. Same-type moves use the canonical
-            room-move writer. A different room type is a commercial amendment — use Amend Stay →
-            Room type change.
-          </DialogDescription>
-        </DialogHeader>
+    <FoActionModal
+      open={open}
+      onOpenChange={onOpenChange}
+      action="Move Room"
+      guestName={stay.guestName}
+      confirmation={stay.confirmationNumber}
+      roomLabel={foActionRoomChip(stay.roomNumber)}
+      size="small"
+      confirmLabel="Move Room"
+      confirmDisabled={!roomId || !reason.trim() || (multiRoom && !reservationRoomId)}
+      pending={mutation.isPending}
+      onConfirm={() => mutation.mutate()}
+    >
+      <div className="space-y-3">
         <RoomUnitTargetSelect
           units={stay.roomUnits}
           value={reservationRoomId}
@@ -420,37 +505,34 @@ export function RoomMoveDialog({
           units={stay.roomUnits}
           selectedId={reservationRoomId}
         />
-        <RoomSelect
-          restaurantId={restaurantId}
-          stay={targetStay}
-          value={roomId}
-          onChange={setRoomId}
-          label="New room"
-        />
+        <section className="rounded-lg border border-[#E8DFD0] bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">Current Room</p>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{currentLine || "Unassigned"}</p>
+        </section>
         <div className="space-y-2">
+          <RoomSelect
+            restaurantId={restaurantId}
+            stay={targetStay}
+            value={roomId}
+            onChange={setRoomId}
+            label="New Room"
+          />
+          {nextLine ? (
+            <p className="text-sm text-[#251605]">{nextLine}</p>
+          ) : null}
+        </div>
+        <div className="space-y-1.5">
           <Label htmlFor="move-reason">Reason</Label>
           <Textarea
             id="move-reason"
+            className={`${FO_ACTION_CONTROL} min-h-[72px]`}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Why is the guest moving?"
           />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              !roomId || !reason.trim() || mutation.isPending || (multiRoom && !reservationRoomId)
-            }
-            onClick={() => mutation.mutate()}
-          >
-            {mutation.isPending ? "Moving…" : "Move guest"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </FoActionModal>
   );
 }
 
@@ -468,26 +550,22 @@ export function StayDatesDialog({
 }) {
   if (!stayDateTargetsOneRoom(stay)) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Stay dates</DialogTitle>
-            <DialogDescription>
-              {stay.guestName} · {stay.confirmationNumber}
-              {stay.roomNumber ? ` · Room ${stay.roomNumber}` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <p className="text-sm text-[#251605]">
-            This room is one of several on the reservation. This desk will not change every room
-            from this row.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FoActionModal
+        open={open}
+        onOpenChange={onOpenChange}
+        action="Change Stay Dates"
+        guestName={stay.guestName}
+        confirmation={stay.confirmationNumber}
+        roomLabel={foActionRoomChip(stay.roomNumber)}
+        size="large"
+        confirmLabel="Close"
+        hideConfirm
+      >
+        <p className="text-sm text-[#251605]">
+          This room is one of several on the reservation. This desk will not change every room
+          from this row.
+        </p>
+      </FoActionModal>
     );
   }
 

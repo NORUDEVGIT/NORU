@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- nested-layer helper is consumed by overlay tests */
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, X } from "lucide-react";
 
 import {
   Dialog,
@@ -87,6 +87,8 @@ export function ReservationWorkspaceOverlay({
   children,
   hideVisualHeader = false,
   showCreateIcon = false,
+  size = "wide",
+  headerTone = "default",
 }: {
   open: boolean;
   title: string;
@@ -95,8 +97,14 @@ export function ReservationWorkspaceOverlay({
   children: ReactNode;
   hideVisualHeader?: boolean;
   showCreateIcon?: boolean;
+  size?: "wide" | "workspace" | "compact";
+  headerTone?: "default" | "noru";
 }) {
   const desktop = useDesktopOverlay();
+  const handleOpenChange = (next: boolean) => {
+    if (!next && hasNestedReservationLayer()) return;
+    onOpenChange(next);
+  };
   const titleNode = (
     <div className="flex items-start gap-3">
       {showCreateIcon ? (
@@ -144,6 +152,29 @@ export function ReservationWorkspaceOverlay({
 
   const header = hideVisualHeader ? (
     <div className="sr-only">{titleNode}</div>
+  ) : headerTone === "noru" ? (
+    <header className="relative shrink-0 bg-[#1F140A] px-5 py-2.5 pr-12 text-[#F3E9D8]">
+      {desktop ? (
+        <>
+          <DialogTitle className="font-display text-sm font-semibold text-white">{title}</DialogTitle>
+          <DialogDescription className="text-[11px] text-[#C4B6A0]">{description}</DialogDescription>
+        </>
+      ) : (
+        <>
+          <SheetTitle className="font-display text-sm font-semibold text-white">{title}</SheetTitle>
+          <SheetDescription className="text-[11px] text-[#C4B6A0]">{description}</SheetDescription>
+        </>
+      )}
+      <button
+        type="button"
+        className="absolute right-3 top-2 rounded-md p-1 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+        onClick={() => handleOpenChange(false)}
+        aria-label="Close"
+      >
+        <X className="size-4" />
+      </button>
+      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[#C89933]" aria-hidden />
+    </header>
   ) : (
     <div className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-4 pr-12">{titleNode}</div>
   );
@@ -158,19 +189,20 @@ export function ReservationWorkspaceOverlay({
     onInteractOutside: blockPointerDismiss,
   };
 
-  const handleOpenChange = (next: boolean) => {
-    if (!next && hasNestedReservationLayer()) return;
-    onOpenChange(next);
-  };
-
   if (desktop) {
     return (
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
           data-testid={WORKSPACE_OVERLAY_TEST_ID}
           className={cn(
-            "z-50 flex h-[min(94vh,1080px)] w-[min(98vw,1680px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
+            "z-50 flex max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
             "rounded-2xl border border-[#DDD4C5] bg-white shadow-xl",
+            size === "workspace"
+              ? "h-[92vh] max-h-[92vh] w-[min(90vw,1440px)]"
+              : size === "compact"
+                ? "h-fit max-h-[88vh] w-[min(96vw,1120px)]"
+                : "h-[min(94vh,1080px)] w-[min(98vw,1680px)]",
+            (hideVisualHeader || headerTone === "noru") && "[&>button.absolute]:hidden",
           )}
           {...dismissGuards}
         >
@@ -186,7 +218,10 @@ export function ReservationWorkspaceOverlay({
       <SheetContent
         side="bottom"
         data-testid={WORKSPACE_OVERLAY_TEST_ID}
-        className="z-[50] flex h-dvh w-full max-w-none flex-col gap-0 overflow-hidden p-0"
+        className={cn(
+          "z-[50] flex h-dvh w-full max-w-none flex-col gap-0 overflow-hidden p-0",
+          (hideVisualHeader || headerTone === "noru") && "[&>button.absolute]:hidden",
+        )}
         {...dismissGuards}
       >
         {header}

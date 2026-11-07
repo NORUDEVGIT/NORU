@@ -20,15 +20,14 @@ import { useAuth } from "@/core/state/auth-store";
 import { FO_CHECK_IN_POLL_MS } from "@/packages/pms/lib/fo-freshness";
 import { getMyRestaurants } from "@/core/lib/restaurant.functions";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  ReservationStatusBadge,
-  formatStayDate,
-} from "@/packages/pms/components/bookings/reservation-bits";
+import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   DepositFacts,
   IdentityTone,
-  ReadinessCard,
   ReviewBanner,
+  ReviewReadinessStrip,
+  ReviewWarnings,
+  completeCheckInHint,
 } from "@/packages/pms/components/frontoffice/fo-checkin-v2-review-panels";
 import { RegistrationPrintLayer } from "@/packages/pms/components/frontoffice/fo-checkin-v2-review-print";
 import { completeFoCheckIn } from "@/packages/pms/lib/fo-check-in.functions";
@@ -91,6 +90,7 @@ export type CheckInReviewActions = {
   busy: boolean;
   checkedIn: boolean;
   roomReadiness: string | null;
+  blockerHint: string | null;
 };
 
 export const FoCheckInV2Review = forwardRef<
@@ -106,6 +106,7 @@ export const FoCheckInV2Review = forwardRef<
     onActions: (actions: CheckInReviewActions) => void;
     onClose: () => void;
     onRefresh: () => void;
+    children?: ReactNode;
   }
 >(function FoCheckInV2Review(
   {
@@ -119,6 +120,7 @@ export const FoCheckInV2Review = forwardRef<
     onActions,
     onClose,
     onRefresh,
+    children,
   },
   ref,
 ) {
@@ -353,6 +355,7 @@ export const FoCheckInV2Review = forwardRef<
       busy,
       checkedIn,
       roomReadiness: readiness ? roomReadinessLabel(readiness.room) : null,
+      blockerHint: completeCheckInHint(readiness),
     });
   }, [busy, checkedIn, enabled, onActions, readiness]);
 
@@ -521,71 +524,41 @@ export const FoCheckInV2Review = forwardRef<
           </Button>
         </div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
-          <div className="min-w-0 space-y-4">
-            {checkedIn ? null : <ReviewBanner readiness={readiness} />}
+        <div className="space-y-3">
+          {checkedIn ? null : <ReviewBanner readiness={readiness} />}
+          <ReviewReadinessStrip readiness={readiness} />
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="min-w-0 space-y-3">
             <ReviewCard
-              title="1. Guest & Reservation"
-              summary="Guest details and reservation information have been collected."
+              title="Guest & Stay"
+              summary=""
               testId="fo-ci-v2-review-step-1"
               editLabel="Edit Guest & Reservation"
               onEdit={() => onEdit("guest_reservation")}
             >
               <dl className="grid gap-2 sm:grid-cols-2">
-                <Fact label="Guest Name" value={unit.primaryGuestName} />
+                <Fact label="Guest" value={unit.primaryGuestName} />
                 <Fact label="Confirmation" value={confirmation ?? "—"} />
                 <Fact
-                  label="Stay"
-                  value={`${formatStayDate(unit.arrivalDate)} → ${formatStayDate(unit.departureDate)}`}
-                />
-                <Fact label="Nights" value={String(view.nights)} />
-                <Fact label="Adults" value={String(unit.adults)} />
-                <Fact label="Children" value={String(unit.children)} />
-                <Fact
                   label="Room"
-                  value={unit.roomNumber ? `Room ${unit.roomNumber}` : "No room assigned"}
+                  value={unit.roomNumber ? `Room ${unit.roomNumber}` : "Unassigned"}
                 />
                 <Fact label="Room Type" value={unit.roomTypeName ?? "—"} />
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-                    Reservation Status
-                  </p>
-                  {unit.status ? (
-                    <ReservationStatusBadge status={unit.status as never} />
-                  ) : (
-                    <p className="text-sm text-[#251605]">—</p>
-                  )}
-                </div>
+                <Fact label="Arrival" value={formatStayDate(unit.arrivalDate)} />
+                <Fact label="Departure" value={formatStayDate(unit.departureDate)} />
+                <Fact label="Nights" value={String(view.nights)} />
+                <Fact
+                  label="Adults / Children"
+                  value={`${unit.adults} / ${unit.children}`}
+                />
                 {unit.guestSource === "booker" ? (
                   <Fact label="Guest relationship" value={registrationRelationship("booker")} />
                 ) : null}
               </dl>
             </ReviewCard>
             <ReviewCard
-              title="2. Registration"
-              summary="Registration details recorded for this guest."
-              testId="fo-ci-v2-review-step-2"
-              editLabel="Edit Registration"
-              onEdit={() => onEdit("registration")}
-            >
-              <IdentityTone readiness={readiness} />
-              <RegistrationCompletionCopy readiness={readiness} unit={unit} />
-              <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-                <Fact label="Full Name" value={fullName} />
-                <Fact label="Date of Birth" value={draft?.dateOfBirth || "—"} />
-                <Fact label="Nationality" value={draft?.nationality || "—"} />
-                <Fact label="ID Type" value={idTypeName ?? "—"} />
-                <Fact label="ID Number" value={idNumber} />
-                <Fact label="Issue Date" value={documentDetail?.issueDate || "—"} />
-                <Fact
-                  label="Expiry Date"
-                  value={documentDetail?.expiryDate ?? identityDocument?.expiryDate ?? "—"}
-                />
-              </dl>
-            </ReviewCard>
-            <ReviewCard
-              title="3. Payment & Guarantee"
-              summary="Deposit and guarantee state for this reservation."
+              title="Payment & Guarantee"
+              summary=""
               testId="fo-ci-v2-review-step-3"
               editLabel="Edit Payment & Guarantee"
               onEdit={() => onEdit("payment_guarantee")}
@@ -596,69 +569,80 @@ export const FoCheckInV2Review = forwardRef<
                 <p className="text-sm text-[#6B5E4E]">Deposit readiness is not available.</p>
               )}
             </ReviewCard>
+            </div>
+            <div className="min-w-0 space-y-3">
+            {children}
             <ReviewCard
-              title="4. Agreement & Signature"
-              summary="Agreement recorded for this check-in."
+              title="Registration / Identity"
+              summary=""
+              testId="fo-ci-v2-review-step-2"
+              editLabel="Edit Registration"
+              onEdit={() => onEdit("registration")}
+            >
+              <RegistrationCompletionCopy readiness={readiness} unit={unit} />
+              <IdentityTone readiness={readiness} />
+            </ReviewCard>
+            <ReviewCard
+              title="Agreement & Signature"
+              summary=""
               testId="fo-ci-v2-review-step-4"
               editLabel="Edit Agreement & Signature"
               onEdit={() => onEdit("agreement_signature")}
             >
               <dl className="grid gap-2 sm:grid-cols-2">
                 <Fact
-                  label="Agreement Status"
+                  label="Agreement"
                   value={
                     readiness.agreement.signed
-                      ? "Signed"
+                      ? "Accepted"
                       : readiness.agreement.versionId
-                        ? "Not signed"
+                        ? "Not accepted"
                         : "No published agreement"
                   }
+                />
+                <Fact
+                  label="Signature"
+                  value={signedRecord?.hasSignature ? "Recorded" : "Not recorded"}
                 />
                 <Fact
                   label="Version"
                   value={agreement?.version ? agreementVersionLabel(agreement.version) : "—"}
                 />
-                <Fact
-                  label="Signed At"
-                  value={signedRecord ? formatAgreementTimestamp(signedRecord.signedAt) : "—"}
-                />
-                <Fact label="Signed By" value={signedRecord ? fullName : "—"} />
-                <Fact
-                  label="Signature"
-                  value={signedRecord?.hasSignature ? "Signature recorded" : "Not recorded"}
-                />
               </dl>
-              {agreementAcknowledgementItems(agreement).length > 0 ? (
-                <ul className="mt-3 space-y-2" data-testid="fo-ci-v2-review-acknowledgements">
-                  {agreementAcknowledgementItems(agreement).map((item) => {
-                    const accepted = signedRecord?.acknowledgements[item.id] === true;
-                    return (
-                      <li key={item.id} className="text-sm text-[#251605]">
-                        <span className="block text-xs font-semibold text-[#6B5E4E]">
-                          {item.title}
-                          {item.required ? " · Required" : " · Optional"}
-                        </span>
-                        <span className="whitespace-pre-wrap">{item.statement}</span>
-                        <span className="mt-0.5 block text-xs text-[#6B5E4E]">
-                          {signedRecord ? (accepted ? "Accepted" : "Not accepted") : "Not signed"}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
               {signatureUrl ? (
                 <img
                   src={signatureUrl}
                   alt={`Signature of ${fullName}`}
-                  className="mt-3 max-h-16 rounded-md border border-[#E8DFD0] bg-white"
+                  className="mt-2 max-h-10 rounded border border-[#E8DFD0] bg-white"
                 />
-              ) : signedRecord?.hasSignature ? (
-                <p className="mt-3 text-xs text-[#436436]">Signature recorded</p>
+              ) : null}
+              {agreementAcknowledgementItems(agreement).length > 0 ? (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs font-medium text-[#8B6914]">
+                    View agreement details ›
+                  </summary>
+                  <ul className="mt-2 space-y-1.5" data-testid="fo-ci-v2-review-acknowledgements">
+                    {agreementAcknowledgementItems(agreement).map((item) => {
+                      const accepted = signedRecord?.acknowledgements[item.id] === true;
+                      return (
+                        <li key={item.id} className="text-xs text-[#251605]">
+                          <span className="font-semibold text-[#6B5E4E]">
+                            {item.title}
+                            {item.required ? " · Required" : " · Optional"}
+                          </span>
+                          <span className="ml-1">
+                            {signedRecord ? (accepted ? "Accepted" : "Not accepted") : "Not signed"}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
               ) : null}
             </ReviewCard>
+            <ReviewWarnings readiness={readiness} />
+            </div>
           </div>
-          <ReadinessCard readiness={readiness} settled={checkedIn} />
         </div>
       )}
 
@@ -732,9 +716,13 @@ function RegistrationCompletionCopy({
       .filter((item) => item.code === "GUEST_FIELDS")
       .map((item) => item.message),
   });
+  const warningComplete =
+    registration.state === "complete" && identityReviewTone(readiness) === "warning";
   return (
     <div className="mt-1" data-testid="fo-ci-v2-review-registration-state">
-      <p className="text-sm font-medium text-[#251605]">{registration.label}</p>
+      <p className="text-sm font-medium text-[#251605]">
+        {warningComplete ? "Complete with warning" : registration.label}
+      </p>
       {registration.detail ? (
         <p className="mt-1 text-xs text-[#6B5E4E]">{registration.detail}</p>
       ) : null}
@@ -759,23 +747,23 @@ function ReviewCard({
 }) {
   return (
     <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+      className="rounded-lg border border-[#DDD4C5] bg-white p-3"
       data-testid={testId}
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="mb-1.5 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-[#251605]">{title}</h3>
-          <p className="mt-0.5 text-xs text-[#6B5E4E]">{summary}</p>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">{title}</h3>
+          {summary ? <p className="mt-0.5 text-xs text-[#6B5E4E]">{summary}</p> : null}
         </div>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="h-8 shrink-0"
+          className="h-7 shrink-0 px-2 text-xs text-[#8B6914]"
           aria-label={editLabel}
           onClick={onEdit}
         >
-          <Pencil className="mr-1.5 size-3.5" aria-hidden="true" />
+          <Pencil className="mr-1 size-3" aria-hidden="true" />
           Edit
         </Button>
       </div>

@@ -4,13 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { persistPmsCard4Status } from "@/packages/pms/lib/card4-readiness.functions";
 
 import {
+  LocalSectionNavigator,
   PropertySetupStatusRail,
-  PropertySetupStepNav,
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
 import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
 import {
-  Card4ProfileTypesGuide,
   PmsCard4ProfileTypes,
   type ProfileTypeTabId,
 } from "@/packages/pms/components/settings/pms-card4-profile-types";
@@ -34,66 +33,21 @@ import {
   Card4PreferencesGuide,
   PmsCard4Preferences,
 } from "@/packages/pms/components/settings/pms-card4-preferences";
-import {
-  Card4CompanyBusinessGuide,
-  PmsCard4CompanyBusiness,
-} from "@/packages/pms/components/settings/pms-card4-company-business";
-import {
-  Card4GroupTypesGuide,
-  PmsCard4GroupTypes,
-} from "@/packages/pms/components/settings/pms-card4-group-types";
-import {
-  Card4TravelAgencyTypesGuide,
-  PmsCard4TravelAgencyTypes,
-} from "@/packages/pms/components/settings/pms-card4-travel-agency-types";
-import {
-  Card4ServiceCategoriesGuide,
-  PmsCard4ServiceCategories,
-} from "@/packages/pms/components/settings/pms-card4-service-categories";
-import {
-  Card4ServiceTypesGuide,
-  PmsCard4ServiceTypes,
-} from "@/packages/pms/components/settings/pms-card4-service-types";
-import {
-  Card4ServicePricingGuide,
-  PmsCard4ServicePricing,
-} from "@/packages/pms/components/settings/pms-card4-service-pricing";
-import {
-  Card4ServiceDepartmentAssignmentGuide,
-  PmsCard4ServiceDepartmentAssignment,
-} from "@/packages/pms/components/settings/pms-card4-service-department-assignment";
-import {
-  Card4ServiceSlaRulesGuide,
-  PmsCard4ServiceSlaRules,
-} from "@/packages/pms/components/settings/pms-card4-service-sla-rules";
-import {
-  Card4ServiceAvailabilityGuide,
-  PmsCard4ServiceAvailability,
-} from "@/packages/pms/components/settings/pms-card4-service-availability";
-import {
-  Card4CommunicationChannelsGuide,
-  PmsCard4CommunicationChannels,
-} from "@/packages/pms/components/settings/pms-card4-communication-channels";
-import {
-  Card4CommunicationTemplatesGuide,
-  PmsCard4CommunicationTemplates,
-} from "@/packages/pms/components/settings/pms-card4-communication-templates";
-import {
-  Card4NotificationEventsGuide,
-  PmsCard4NotificationEvents,
-} from "@/packages/pms/components/settings/pms-card4-notification-events";
-import {
-  Card4AutomationRulesGuide,
-  PmsCard4AutomationRules,
-} from "@/packages/pms/components/settings/pms-card4-automation-rules";
-import {
-  Card4SenderSettingsGuide,
-  PmsCard4SenderSettings,
-} from "@/packages/pms/components/settings/pms-card4-sender-settings";
-import {
-  Card4CommunicationDefaultsGuide,
-  PmsCard4CommunicationDefaults,
-} from "@/packages/pms/components/settings/pms-card4-communication-defaults";
+import { PmsCard4CompanyBusiness } from "@/packages/pms/components/settings/pms-card4-company-business";
+import { PmsCard4GroupTypes } from "@/packages/pms/components/settings/pms-card4-group-types";
+import { PmsCard4TravelAgencyTypes } from "@/packages/pms/components/settings/pms-card4-travel-agency-types";
+import { PmsCard4ServiceCategories } from "@/packages/pms/components/settings/pms-card4-service-categories";
+import { PmsCard4ServiceTypes } from "@/packages/pms/components/settings/pms-card4-service-types";
+import { PmsCard4ServicePricing } from "@/packages/pms/components/settings/pms-card4-service-pricing";
+import { PmsCard4ServiceDepartmentAssignment } from "@/packages/pms/components/settings/pms-card4-service-department-assignment";
+import { PmsCard4ServiceSlaRules } from "@/packages/pms/components/settings/pms-card4-service-sla-rules";
+import { PmsCard4ServiceAvailability } from "@/packages/pms/components/settings/pms-card4-service-availability";
+import { PmsCard4CommunicationChannels } from "@/packages/pms/components/settings/pms-card4-communication-channels";
+import { PmsCard4CommunicationTemplates } from "@/packages/pms/components/settings/pms-card4-communication-templates";
+import { PmsCard4NotificationEvents } from "@/packages/pms/components/settings/pms-card4-notification-events";
+import { PmsCard4AutomationRules } from "@/packages/pms/components/settings/pms-card4-automation-rules";
+import { PmsCard4SenderSettings } from "@/packages/pms/components/settings/pms-card4-sender-settings";
+import { PmsCard4CommunicationDefaults } from "@/packages/pms/components/settings/pms-card4-communication-defaults";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4GroupTypes } from "@/packages/pms/lib/group-types-card4.functions";
@@ -115,11 +69,7 @@ import { serviceAvailabilityConfigured } from "@/packages/pms/lib/service-availa
 import { getPmsCard4CommunicationChannels } from "@/packages/pms/lib/communication-channels-card4.functions";
 import { communicationChannelsConfigured } from "@/packages/pms/lib/communication-channels-card4.server";
 import { getPmsCard4CommunicationTemplates } from "@/packages/pms/lib/communication-templates-card4.functions";
-import {
-  communicationTemplatesConfigured,
-  renderTemplateText,
-  stripTemplateHtml,
-} from "@/packages/pms/lib/communication-templates-card4.server";
+import { communicationTemplatesConfigured } from "@/packages/pms/lib/communication-templates-card4.server";
 import { getPmsCard4NotificationEvents } from "@/packages/pms/lib/notification-events-card4.functions";
 import { notificationEventsConfigured } from "@/packages/pms/lib/notification-events-card4.server";
 import { getPmsCard4AutomationRules } from "@/packages/pms/lib/automation-rules-card4.functions";
@@ -136,10 +86,8 @@ import {
   CARD4_MAIN_SECTIONS,
   CARD4_NOTIFICATION_STEPS,
   CARD4_NOTIFY_SUBTITLE,
-  CARD4_SIDEBAR_OUT,
   CARD4_STEPS,
   card4GstStepById,
-  card4NotificationStepById,
   card4StepById,
   evaluateCard4OverallStatus,
   evaluateCard4StepStatus,
@@ -397,7 +345,6 @@ export function PmsPropertySetupCard4Section({
   const next = nextCard4Step(step);
   const gstCurrent = card4GstStepById(gstStep);
   const gstNext = nextCard4GstStep(gstStep);
-  const notificationCurrent = card4NotificationStepById(notificationStep);
   const notificationNext = nextCard4NotificationStep(notificationStep);
   const stepStatuses: Partial<Record<Card4StepId, PropertySetupCardStatus>> = {
     "profile-types": evaluateCard4StepStatus(
@@ -691,12 +638,22 @@ export function PmsPropertySetupCard4Section({
       data-testid="pms-card4-workspace"
       data-card-fullscreen="true"
     >
-      <div className="sr-only">{CARD4_SIDEBAR_OUT}</div>
       <div className="min-w-0 flex-1" data-testid="pms-card4-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={4}
           status={cardStatus}
           description={subtitle}
+          hideTitle
+          footer={
+            (mainSection === "profile-rules" &&
+              (step === "profile-types" ||
+                step === "group-types" ||
+                step === "travel-agency-types")) ||
+            mainSection === "guest-service-types" ||
+            mainSection === "notifications"
+              ? null
+              : undefined
+          }
           sections={workspaceSteps}
           complete={railCounts.complete}
           inProgress={railCounts.inProgress}
@@ -720,7 +677,7 @@ export function PmsPropertySetupCard4Section({
             </div>
           }
           stepNav={
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex flex-wrap gap-2" data-testid="pms-card4-main-sections">
                 {CARD4_MAIN_SECTIONS.map((row) => (
                   <button
@@ -742,96 +699,50 @@ export function PmsPropertySetupCard4Section({
                   </button>
                 ))}
               </div>
-              <div data-testid="pms-card4-steps">
-                <PropertySetupStepNav
-                  activeId={activeStepId}
-                  onSelect={(id) => {
-                    setSaveRequest(null);
-                    if (mainSection === "guest-service-types") setGstStep(id as Card4GstStepId);
-                    else if (mainSection === "notifications")
+              {mainSection === "profile-rules" ? (
+                <div data-testid="pms-card4-steps">
+                  <LocalSectionNavigator
+                    testId="pms-card4-local-section-nav"
+                    activeId={activeStepId}
+                    onSelect={(id) => {
+                      setSaveRequest(null);
+                      navigateToStep(id);
+                    }}
+                    items={CARD4_STEPS.map((row) => ({ id: row.id, label: row.title }))}
+                  />
+                </div>
+              ) : mainSection === "guest-service-types" ? (
+                <div data-testid="pms-card4-steps">
+                  <LocalSectionNavigator
+                    testId="pms-card4-gst-local-section-nav"
+                    activeId={activeStepId}
+                    onSelect={(id) => {
+                      setSaveRequest(null);
+                      setGstStep(id as Card4GstStepId);
+                    }}
+                    items={CARD4_GST_STEPS.map((row) => ({ id: row.id, label: row.title }))}
+                  />
+                </div>
+              ) : (
+                <div data-testid="pms-card4-steps">
+                  <LocalSectionNavigator
+                    testId="pms-card4-notify-local-section-nav"
+                    activeId={activeStepId}
+                    onSelect={(id) => {
+                      setSaveRequest(null);
                       setNotificationStep(id as Card4NotificationStepId);
-                    else if (mainSection === "profile-rules") navigateToStep(id);
-                  }}
-                  steps={workspaceSteps}
-                />
-              </div>
+                    }}
+                    items={CARD4_NOTIFICATION_STEPS.map((row) => ({
+                      id: row.id,
+                      label: row.title,
+                    }))}
+                  />
+                </div>
+              )}
             </div>
           }
         >
           <div className="space-y-4">
-            {mainSection === "notifications" && notificationStep === "channels" ? (
-              <Card4CommunicationChannelsGuide
-                channels={communicationChannelsQuery.data?.channels ?? []}
-              />
-            ) : mainSection === "notifications" &&
-              notificationStep === "communication-templates" ? (
-              <Card4CommunicationTemplatesGuide
-                templates={communicationTemplatesQuery.data?.templates ?? []}
-                previewSubject={renderTemplateText(
-                  communicationTemplatesQuery.data?.templates[0]?.subject ?? "",
-                )}
-                previewBody={renderTemplateText(
-                  stripTemplateHtml(communicationTemplatesQuery.data?.templates[0]?.message ?? ""),
-                )}
-              />
-            ) : mainSection === "notifications" && notificationStep === "notification-events" ? (
-              <Card4NotificationEventsGuide events={notificationEventsQuery.data?.events ?? []} />
-            ) : mainSection === "notifications" && notificationStep === "automation-rules" ? (
-              <Card4AutomationRulesGuide rules={automationRulesQuery.data?.rules ?? []} />
-            ) : mainSection === "notifications" && notificationStep === "sender-settings" ? (
-              <Card4SenderSettingsGuide settings={senderSettingsQuery.data?.settings ?? []} />
-            ) : mainSection === "guest-service-types" && gstStep === "service-categories" ? (
-              <Card4ServiceCategoriesGuide
-                count={serviceCategoriesQuery.data?.categories.length ?? 0}
-              />
-            ) : mainSection === "guest-service-types" && gstStep === "service-types" ? (
-              <Card4ServiceTypesGuide count={serviceTypesQuery.data?.types.length ?? 0} />
-            ) : mainSection === "guest-service-types" && gstStep === "service-pricing" ? (
-              <Card4ServicePricingGuide
-                pricedCount={servicePricingQuery.data?.pricing.length ?? 0}
-                activeServiceTypeCount={
-                  servicePricingQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
-                }
-              />
-            ) : mainSection === "guest-service-types" && gstStep === "department-assignment" ? (
-              <Card4ServiceDepartmentAssignmentGuide
-                assignmentCount={assignmentsQuery.data?.assignments.length ?? 0}
-                activeDepartmentCount={
-                  assignmentsQuery.data?.departments.filter((row) => row.active).length ?? 0
-                }
-              />
-            ) : mainSection === "guest-service-types" && gstStep === "sla-rules" ? (
-              <Card4ServiceSlaRulesGuide
-                ruleCount={slaRulesQuery.data?.rules.length ?? 0}
-                activeServiceTypeCount={
-                  slaRulesQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
-                }
-              />
-            ) : mainSection === "guest-service-types" && gstStep === "service-availability" ? (
-              <Card4ServiceAvailabilityGuide
-                configuredCount={availabilityQuery.data?.availability.length ?? 0}
-                activeServiceTypeCount={
-                  availabilityQuery.data?.serviceTypes.filter((row) => row.active).length ?? 0
-                }
-              />
-            ) : mainSection !== "profile-rules" ? null : step === "profile-types" ? (
-              <Card4ProfileTypesGuide count={typesQuery.data?.types.length ?? 0} />
-            ) : step === "company-business" ? (
-              <Card4CompanyBusinessGuide
-                typeCount={companyQuery.data?.types.length ?? 0}
-                typesWithFields={
-                  companyQuery.data?.types.filter((row) => row.requiredFieldIds.length > 0)
-                    .length ?? 0
-                }
-                settingsReady={companyReady}
-                saved={Boolean(companyQuery.data?.lastUpdatedAt)}
-              />
-            ) : step === "group-types" ? (
-              <Card4GroupTypesGuide count={groupTypesQuery.data?.types.length ?? 0} />
-            ) : step === "travel-agency-types" ? (
-              <Card4TravelAgencyTypesGuide count={travelAgencyTypesQuery.data?.types.length ?? 0} />
-            ) : null}
-
             {mainSection === "notifications" ? (
               notificationStep === "channels" ? (
                 <PmsCard4CommunicationChannels
@@ -874,17 +785,13 @@ export function PmsPropertySetupCard4Section({
                   onSaved={onSaved}
                 />
               ) : (
-                <div
-                  className="rounded-2xl border border-dashed border-[#CCCCCC] bg-white p-8"
-                  data-testid={`card4-placeholder-${notificationStep}`}
-                >
-                  <h2 className="font-display text-2xl text-[#251605]">
-                    {notificationCurrent.title}
-                  </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {notificationCurrent.placeholder}
-                  </p>
-                </div>
+                <PmsCard4CommunicationDefaults
+                  restaurantId={restaurantId}
+                  canEdit={canEdit}
+                  onSavingChange={onSavingChange}
+                  saveRequest={saveRequest}
+                  onSaved={onSaved}
+                />
               )
             ) : mainSection === "guest-service-types" ? (
               gstStep === "service-categories" ? (

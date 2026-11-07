@@ -41,14 +41,13 @@ import {
 } from "@/packages/pms/lib/group-types-card4.functions";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
 import {
-  DEFAULT_GROUP_TYPES,
   emptyGroupTypeDraft,
   normalizeGroupTypeCode,
   validateGroupTypeDraft,
   type GroupTypeDraft,
   type GroupTypeRecord,
 } from "@/packages/pms/lib/group-types-card4.server";
-import { cn } from "@/shared/lib/utils";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 
 function recordToDraft(row: GroupTypeRecord): GroupTypeDraft {
   return {
@@ -88,34 +87,19 @@ export function PmsCard4GroupTypes({
 
   const types = query.data?.types ?? [];
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<GroupTypeDraft>(emptyGroupTypeDraft());
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<GroupTypeRecord | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
+  const [pendingClose, setPendingClose] = useState(false);
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
-
-  useEffect(() => {
-    if (!query.data) return;
-    if (selectedId && query.data.types.some((row) => row.id === selectedId)) return;
-    const first = query.data.types[0] ?? null;
-    setSelectedId(first?.id ?? null);
-    setDraft(first ? recordToDraft(first) : emptyGroupTypeDraft());
-    setDirty(false);
-  }, [query.data, selectedId]);
 
   function applyRecord(row: GroupTypeRecord | null) {
     setSelectedId(row?.id ?? null);
     setDraft(row ? recordToDraft(row) : emptyGroupTypeDraft());
     setDirty(false);
-  }
-
-  function requestSelect(id: string | null) {
-    if (dirty) {
-      setPendingSwitch(id);
-      return;
-    }
-    applyRecord(types.find((item) => item.id === id) ?? null);
   }
 
   function mark<K extends keyof GroupTypeDraft>(key: K, value: GroupTypeDraft[K]) {
@@ -135,7 +119,9 @@ export function PmsCard4GroupTypes({
           name: draft.name,
           code: normalizeGroupTypeCode(draft.code),
           description: draft.description,
-          active: draft.active,
+          active: draft.id
+            ? (types.find((row) => row.id === draft.id)?.active ?? draft.active)
+            : draft.active,
           sortOrder: draft.sortOrder,
         },
       }),
@@ -145,6 +131,7 @@ export function PmsCard4GroupTypes({
       await queryClient.invalidateQueries({ queryKey: ["group-catalogues", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       if (result.type) applyRecord(result.type);
+      setEditorOpen(false);
       toast.success("Group type saved successfully.");
       onSaved(thenNextRef.current);
     },
@@ -159,7 +146,7 @@ export function PmsCard4GroupTypes({
       await queryClient.invalidateQueries({ queryKey: ["group-create-context", restaurantId] });
       await queryClient.invalidateQueries({ queryKey: ["group-catalogues", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
-      if (draft.id === input.id) mark("active", input.active);
+      setDraft((prev) => (prev.id === input.id ? { ...prev, active: input.active } : prev));
       toast.success(input.active ? "Group type activated." : "Group type deactivated.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -196,32 +183,50 @@ export function PmsCard4GroupTypes({
   }, [saveRequest, canEdit, errors, saveMutation]);
 
   function startCreate() {
-    if (dirty) {
+    if (dirty && editorOpen) {
       setPendingSwitch("__new__");
       return;
     }
     setSelectedId(null);
     setDraft(emptyGroupTypeDraft());
-    setDirty(true);
+    setDirty(false);
+    setEditorOpen(true);
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
+  function openEdit(row: GroupTypeRecord) {
+    if (dirty && editorOpen && selectedId !== row.id) {
+      setPendingSwitch(row.id);
+      return;
+    }
+    applyRecord(row);
+    setEditorOpen(true);
+  }
+
+  function closeEditor() {
+    if (dirty) {
+      setPendingClose(true);
+      return;
+    }
+    setEditorOpen(false);
+  }
+
+  function submitEditor() {
+    if (errors.length > 0 || !canEdit || saveMutation.isPending) {
+      toast.error(errors[0]?.message ?? "Fix the group type before saving.");
+      return;
+    }
+    thenNextRef.current = false;
+    saveMutation.mutate();
+  }
 
   return (
-    <div className="space-y-5" data-testid="card4-group-types">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl text-[#251605]">Group Types</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Configure the group types staff can pick when registering a group. This does not change
-            existing group records.
-          </p>
-        </div>
+    <div className="space-y-3" data-testid="card4-group-types">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg text-[#251605]">Group Types</h2>
         {canEdit ? (
           <Button
             type="button"
+            size="sm"
             onClick={startCreate}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
           >
@@ -230,7 +235,7 @@ export function PmsCard4GroupTypes({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-x-auto overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
         {query.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading group types…</p>
         ) : query.isError ? (
@@ -244,36 +249,22 @@ export function PmsCard4GroupTypes({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Group Type</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Active</TableHead>
-                <TableHead className="w-12" />
+                <TableHead className="w-12 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {types.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={row.id === selectedId ? "bg-[#C89933]/5" : undefined}
-                >
-                  <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
-                  <TableCell>{row.code}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.description || "—"}</TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                        row.active
-                          ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                          : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                      )}
-                    >
-                      {row.active ? "Active" : "Inactive"}
-                    </span>
+                <TableRow key={row.id} className="hover:bg-[#FAF8F5]/80">
+                  <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
+                  <TableCell className="py-2">{row.code}</TableCell>
+                  <TableCell className="max-w-[16rem] truncate py-2 text-muted-foreground">
+                    <span title={row.description || undefined}>{row.description || "—"}</span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-2">
                     <Switch
                       checked={row.active}
                       disabled={!canEdit || toggleMutation.isPending}
@@ -281,17 +272,31 @@ export function PmsCard4GroupTypes({
                       onCheckedChange={(active) => toggleMutation.mutate({ id: row.id, active })}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-2 text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label={`Actions for ${row.name}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          aria-label={`Actions for ${row.name}`}
+                        >
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => requestSelect(row.id)}>
-                          Edit
+                      <DropdownMenuContent align="end" className="w-52 border-[#DDD4C5]">
+                        <DropdownMenuItem onSelect={() => openEdit(row)}>
+                          Edit Group Type
                         </DropdownMenuItem>
+                        {canEdit ? (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              toggleMutation.mutate({ id: row.id, active: !row.active })
+                            }
+                          >
+                            {row.active ? "Deactivate" : "Activate"}
+                          </DropdownMenuItem>
+                        ) : null}
                         {canEdit ? (
                           <DropdownMenuItem onSelect={() => setPendingDelete(row)}>
                             Delete
@@ -307,13 +312,19 @@ export function PmsCard4GroupTypes({
         )}
       </div>
 
-      <section className="space-y-4 rounded-2xl border border-[#CCCCCC] bg-white p-4">
-        <div>
-          <h3 className="text-sm font-medium text-[#251605]">
-            {draft.id ? "Edit Group Type" : "New Group Type"}
-          </h3>
-          <p className="text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-        </div>
+      <Card3OverlapSheet
+        open={editorOpen}
+        title={draft.id ? "Edit Group Type" : "Add Group Type"}
+        onClose={closeEditor}
+        onSubmit={submitEditor}
+        submitLabel={draft.id ? "Save Changes" : "Add Group Type"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[700px]"
+        className="max-h-[80vh]"
+        footerJustify="between"
+      >
+        <p className="text-sm font-medium text-[#251605]">Group Type</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="gt-name">Name *</Label>
@@ -346,9 +357,23 @@ export function PmsCard4GroupTypes({
             onChange={(event) => mark("description", event.target.value)}
           />
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="gt-sort">Sort order</Label>
+        {!draft.id ? (
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="gt-active">Active</Label>
+            <Switch
+              id="gt-active"
+              checked={draft.active}
+              disabled={!canEdit}
+              onCheckedChange={(active) => mark("active", active)}
+            />
+          </div>
+        ) : null}
+        <details className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-[#251605]">
+            Advanced Settings
+          </summary>
+          <div className="mt-3 space-y-1.5">
+            <Label htmlFor="gt-sort">Sort Order</Label>
             <Input
               id="gt-sort"
               type="number"
@@ -359,17 +384,8 @@ export function PmsCard4GroupTypes({
               onChange={(event) => mark("sortOrder", Number(event.target.value) || 0)}
             />
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="gt-active">Active</Label>
-            <Switch
-              id="gt-active"
-              checked={draft.active}
-              disabled={!canEdit}
-              onCheckedChange={(active) => mark("active", active)}
-            />
-          </div>
-        </div>
-      </section>
+        </details>
+      </Card3OverlapSheet>
 
       <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
         <AlertDialogContent>
@@ -401,18 +417,43 @@ export function PmsCard4GroupTypes({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 const next = pendingSwitch;
                 setPendingSwitch(null);
+                setDirty(false);
                 if (next === "__new__") {
                   setSelectedId(null);
                   setDraft(emptyGroupTypeDraft());
-                  setDirty(true);
+                  setEditorOpen(true);
                   return;
                 }
                 applyRecord(types.find((item) => item.id === next) ?? null);
+                setEditorOpen(true);
+              }}
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingClose} onOpenChange={(open) => !open && setPendingClose(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved group type changes. Closing will discard them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingClose(false);
+                setDirty(false);
+                setEditorOpen(false);
               }}
             >
               Discard
@@ -421,20 +462,5 @@ export function PmsCard4GroupTypes({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4GroupTypesGuide({ count }: { count: number }) {
-  const target = Math.max(count, DEFAULT_GROUP_TYPES.length);
-  return (
-    <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-      <p className="mt-2 text-sm text-[#251605]">
-        Group Types
-        <span className="mt-1 block text-muted-foreground">
-          {count} of {target} configured
-        </span>
-      </p>
-    </section>
   );
 }

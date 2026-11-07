@@ -29,6 +29,9 @@ export function foGuestWorkspaceTabs(
     status === "pending" || status === "confirmed" || status === "checked_in"
       ? [OVERVIEW, EDIT_DETAILS]
       : [OVERVIEW];
+  if (status === "cancelled" || status === "no_show") {
+    return options?.canReadFolio ? [OVERVIEW, FOLIO] : [OVERVIEW];
+  }
   return options?.canReadFolio ? [...tabs, FOLIO] : tabs;
 }
 

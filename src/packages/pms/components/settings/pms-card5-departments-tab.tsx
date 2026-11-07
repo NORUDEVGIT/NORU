@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -17,9 +17,34 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { ROLE_LABELS } from "@/core/lib/module-access";
 import { CARD1_LANGUAGES } from "@/packages/pms/lib/pms-property-setup-card1";
-import { PmsPropertySetupCard5Workspace } from "@/packages/pms/components/settings/pms-property-setup-card5-workspace";
+import {
+  CARD5_ACTIONS_TD_CLASS,
+  CARD5_ACTIONS_TH_CLASS,
+  CARD5_FILTER_CLASS,
+  CARD5_SEARCH_CLASS,
+  CARD5_SELECT_CONTENT_CLASS,
+  CARD5_SELECT_ITEM_CLASS,
+  CARD5_STATUS_TD_CLASS,
+  CARD5_STATUS_TH_CLASS,
+  CARD5_TH_CLASS,
+  CARD5_THEAD_CLASS,
+  CARD5_TOOLBAR_CLASS,
+  Card5ConfigNotice,
+  Card5CreateButton,
+  Card5RowMenuButton,
+  Card5Status,
+  Card5TableShell,
+  PmsPropertySetupCard5Workspace,
+} from "@/packages/pms/components/settings/pms-property-setup-card5-workspace";
 import {
   getCard5Departments,
   saveCard5Department,
@@ -45,7 +70,6 @@ import {
   type Card5HoursWindow,
   type Card5OperatingHours,
 } from "@/packages/pms/lib/departments-card5.server";
-import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
 
 const DRAWER_TABS = [
   { id: "basic", label: "Basic" },
@@ -217,13 +241,7 @@ export function Card5DepartmentsTab({
         canEdit: editor,
         role: query.data?.role,
       });
-      const saved =
-        result.snapshot.departments.find(
-          (row) => row.code === draft?.code && row.name === draft?.name,
-        ) ??
-        result.snapshot.departments.find((row) => row.id === draft?.id) ??
-        null;
-      setDraft(saved);
+      setDraft(null);
       setValidated(null);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -275,88 +293,210 @@ export function Card5DepartmentsTab({
 
   const shownReadiness = validated ?? readiness;
 
+  const modalTitle = !draft
+    ? "Add Department"
+    : parentLocked && !draft.id
+      ? "Add Sub Department"
+      : draft.id
+        ? "Edit Department"
+        : "Add Department";
+
   return (
+    <>
     <PmsPropertySetupCard5Workspace
-      validate={
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            const next = evaluateCard5DepartmentsReadiness(snapshot);
-            setValidated(next);
-            if (next.ready) toast.success("Departments are ready.");
-            else toast.error(next.blockers[0] ?? "Departments are not ready.");
-          }}
-        >
-          Validate
-        </Button>
-      }
       search={
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[12rem] flex-1 space-y-1">
-            <Label htmlFor="card5-dept-search">Search</Label>
+        <div className="space-y-2">
+          <h3 className="font-display text-lg text-[#251605]">Departments</h3>
+          <div className={CARD5_TOOLBAR_CLASS}>
             <Input
               id="card5-dept-search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Name, code or type"
+              placeholder="Search departments"
+              className={CARD5_SEARCH_CLASS}
             />
-          </div>
-          <div className="w-36 space-y-1">
-            <Label>Status</Label>
             <Select
               value={statusFilter}
               onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
             >
-              <SelectTrigger>
-                <SelectValue />
+              <SelectTrigger className={`${CARD5_FILTER_CLASS} w-[7.5rem]`} aria-label="Status">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectContent className={CARD5_SELECT_CONTENT_CLASS}>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="all">
+                  All
+                </SelectItem>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="active">
+                  Active
+                </SelectItem>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="inactive">
+                  Inactive
+                </SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="w-44 space-y-1">
-            <Label>Type</Label>
             <Select
               value={typeFilter}
               onValueChange={(value) => setTypeFilter(value as typeof typeFilter)}
             >
-              <SelectTrigger>
-                <SelectValue />
+              <SelectTrigger className={`${CARD5_FILTER_CLASS} w-[9.5rem]`} aria-label="Type">
+                <SelectValue placeholder="Type" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
+              <SelectContent className={CARD5_SELECT_CONTENT_CLASS}>
+                <SelectItem className={CARD5_SELECT_ITEM_CLASS} value="all">
+                  All types
+                </SelectItem>
                 {CARD5_DEPARTMENT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
+                  <SelectItem className={CARD5_SELECT_ITEM_CLASS} key={type} value={type}>
                     {CARD5_DEPARTMENT_TYPE_LABELS[type]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {editor ? (
+              <Card5CreateButton onClick={() => openCreate(null)}>
+                <Plus className="size-4" /> Add Department
+              </Card5CreateButton>
+            ) : null}
           </div>
-          {editor ? (
-            <Button type="button" onClick={() => openCreate(null)}>
-              Add Department
-            </Button>
-          ) : null}
+          <Card5ConfigNotice
+            loading={query.isLoading}
+            blockers={shownReadiness.blockers}
+            warnings={shownReadiness.warnings}
+          />
         </div>
       }
-      drawer={
-        draft ? (
-          <div
-            className="rounded-2xl border border-[#E6D7B8] bg-card p-4"
-            data-testid="pms-card5-department-drawer"
+    >
+      {query.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading departments…</p>
+      ) : query.isError ? (
+        <p className="text-sm text-destructive">{(query.error as Error).message}</p>
+      ) : rows.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-6 text-sm text-muted-foreground">
+          No departments yet. Add a department to start the organization catalogue.
+        </p>
+      ) : (
+        <Card5TableShell>
+          <table
+            className="w-full table-fixed text-left text-sm"
+            data-testid="pms-card5-department-table"
           >
-            <h2 className="font-display text-lg text-[#251605]">
-              {draft.id ? draft.name || "Edit department" : "Add department"}
-            </h2>
+            <thead className={CARD5_THEAD_CLASS}>
+              <tr>
+                <th className={CARD5_TH_CLASS}>Department</th>
+                <th className={`w-24 ${CARD5_TH_CLASS}`}>Code</th>
+                <th className={`w-36 ${CARD5_TH_CLASS}`}>Type</th>
+                <th className={`w-40 ${CARD5_TH_CLASS}`}>Operating Hours</th>
+                <th className={CARD5_STATUS_TH_CLASS}>Status</th>
+                <th className={CARD5_ACTIONS_TH_CLASS}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const hasChildren = snapshot.departments.some((item) => item.parentId === row.id);
+                const isOpen = expanded.has(row.id);
+                return (
+                  <tr key={row.id} className="border-b last:border-0">
+                    <td className="px-3 py-2">
+                      <div
+                        className="flex min-w-0 items-center gap-1"
+                        style={{ paddingLeft: `${row.depth}rem` }}
+                      >
+                        {hasChildren ? (
+                          <button
+                            type="button"
+                            className="rounded p-0.5 text-muted-foreground"
+                            onClick={() =>
+                              setExpanded((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(row.id)) next.delete(row.id);
+                                else next.add(row.id);
+                                return next;
+                              })
+                            }
+                            aria-label={isOpen ? "Collapse" : "Expand"}
+                          >
+                            {isOpen ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        ) : (
+                          <span className="inline-block w-5" />
+                        )}
+                        <button
+                          type="button"
+                          className="min-w-0 truncate text-left font-medium text-[#251605]"
+                          onClick={() => openEdit(row)}
+                        >
+                          {row.name}
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">{row.code}</td>
+                    <td className="px-3 py-2">
+                      {CARD5_DEPARTMENT_TYPE_LABELS[row.departmentType]}
+                    </td>
+                    <td className="px-3 py-2">
+                      {row.operatingHours.is24Hours
+                        ? "24 hours"
+                        : hoursConfigured(row.operatingHours)
+                          ? `${row.operatingHours.daily?.open}–${row.operatingHours.daily?.close}`
+                          : "—"}
+                    </td>
+                    <td className={CARD5_STATUS_TD_CLASS}>
+                      <Card5Status active={row.active} />
+                    </td>
+                    <td className={CARD5_ACTIONS_TD_CLASS}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Card5RowMenuButton label={`Actions for ${row.name}`} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 border-[#DDD4C5]">
+                          <DropdownMenuItem onSelect={() => openEdit(row)}>Edit</DropdownMenuItem>
+                          {editor ? (
+                            <>
+                              <DropdownMenuItem onSelect={() => openCreate(row.id)}>
+                                Add Sub Department
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  deptMutation.mutate({ ...row, active: !row.active })
+                                }
+                              >
+                                {row.active ? "Deactivate" : "Activate"}
+                              </DropdownMenuItem>
+                            </>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card5TableShell>
+      )}
+    </PmsPropertySetupCard5Workspace>
+
+      <Card3OverlapSheet
+        open={Boolean(draft)}
+        title={modalTitle}
+        onClose={() => setDraft(null)}
+        onSubmit={draft && editor ? () => deptMutation.mutate(draft) : undefined}
+        submitLabel="Save"
+        pending={deptMutation.isPending}
+        canEdit={editor}
+        maxWidth="max-w-2xl"
+        className="max-h-[85vh]"
+        footerJustify="between"
+      >
+        {draft ? (
+          <div data-testid="pms-card5-department-drawer">
             <Tabs
               value={drawerTab}
               onValueChange={(value) => setDrawerTab(value as typeof drawerTab)}
-              className="mt-3"
             >
               <TabsList className="mb-3 flex flex-wrap">
                 {DRAWER_TABS.map((tab) => (
@@ -774,170 +914,9 @@ export function Card5DepartmentsTab({
                 </div>
               </TabsContent>
             </Tabs>
-            {editor ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  onClick={() => deptMutation.mutate(draft)}
-                  disabled={deptMutation.isPending}
-                >
-                  Save
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setDraft(null)}>
-                  Close
-                </Button>
-              </div>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4"
-                onClick={() => setDraft(null)}
-              >
-                Close
-              </Button>
-            )}
           </div>
-        ) : (
-          <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-4 text-sm text-muted-foreground">
-            Select a department to edit it in this drawer.
-          </p>
-        )
-      }
-      status={
-        <div className="text-sm">
-          <p>
-            Departments:{" "}
-            {query.isLoading
-              ? "Checking…"
-              : `${propertySetupStatusLabel(shownReadiness.status)}${shownReadiness.ready ? " — ready" : ""}`}
-          </p>
-          {shownReadiness.blockers[0] ? (
-            <p className="text-destructive">{shownReadiness.blockers[0]}</p>
-          ) : shownReadiness.warnings[0] ? (
-            <p className="text-[#C89933]">{shownReadiness.warnings[0]}</p>
-          ) : null}
-        </div>
-      }
-    >
-      {query.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading departments…</p>
-      ) : query.isError ? (
-        <p className="text-sm text-destructive">{(query.error as Error).message}</p>
-      ) : rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-[#D8CDBB] p-6 text-sm text-muted-foreground">
-          No departments yet. Add a department to start the organization catalogue.
-        </p>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border bg-card">
-          <table
-            className="w-full min-w-[40rem] text-left text-sm"
-            data-testid="pms-card5-department-table"
-          >
-            <thead className="border-b text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Department</th>
-                <th className="px-3 py-2 font-medium">Code</th>
-                <th className="px-3 py-2 font-medium">Type</th>
-                <th className="px-3 py-2 font-medium">Hours</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const hasChildren = snapshot.departments.some((item) => item.parentId === row.id);
-                const isOpen = expanded.has(row.id);
-                return (
-                  <tr key={row.id} className="border-b last:border-0">
-                    <td className="px-3 py-2">
-                      <div
-                        className="flex items-center gap-1"
-                        style={{ paddingLeft: `${row.depth * 1.25}rem` }}
-                      >
-                        {hasChildren ? (
-                          <button
-                            type="button"
-                            className="rounded p-0.5 text-muted-foreground"
-                            onClick={() =>
-                              setExpanded((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(row.id)) next.delete(row.id);
-                                else next.add(row.id);
-                                return next;
-                              })
-                            }
-                            aria-label={isOpen ? "Collapse" : "Expand"}
-                          >
-                            {isOpen ? (
-                              <ChevronDown className="size-4" />
-                            ) : (
-                              <ChevronRight className="size-4" />
-                            )}
-                          </button>
-                        ) : (
-                          <span className="inline-block w-5" />
-                        )}
-                        <button
-                          type="button"
-                          className="text-left font-medium text-[#251605]"
-                          onClick={() => openEdit(row)}
-                        >
-                          {row.name}
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">{row.code}</td>
-                    <td className="px-3 py-2">
-                      {CARD5_DEPARTMENT_TYPE_LABELS[row.departmentType]}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.operatingHours.is24Hours
-                        ? "24 hours"
-                        : hoursConfigured(row.operatingHours)
-                          ? `${row.operatingHours.daily?.open}–${row.operatingHours.daily?.close}`
-                          : "—"}
-                    </td>
-                    <td className="px-3 py-2">{row.active ? "Active" : "Inactive"}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEdit(row)}
-                        >
-                          Edit
-                        </Button>
-                        {editor ? (
-                          <>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openCreate(row.id)}
-                            >
-                              Add Sub Department
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deptMutation.mutate({ ...row, active: !row.active })}
-                            >
-                              {row.active ? "Deactivate" : "Activate"}
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </PmsPropertySetupCard5Workspace>
+        ) : null}
+      </Card3OverlapSheet>
+    </>
   );
 }

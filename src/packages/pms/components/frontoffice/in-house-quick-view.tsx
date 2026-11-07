@@ -29,6 +29,8 @@ import {
   FoWorkflowUnavailable,
 } from "@/packages/pms/components/frontoffice/fo-guest-workspace-tabs";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
+import { FoStayAmendmentHistorySection } from "@/packages/pms/components/frontoffice/fo-stay-amendment-presentation";
+import type { FoStayAmendmentHistoryRow } from "@/packages/pms/lib/fo-amendments";
 import { FoEditDetailsForm } from "@/packages/pms/components/frontoffice/fo-edit-details-form";
 import { FoFolioChargesPanel } from "@/packages/pms/components/frontoffice/fo-folio-charges-panel";
 import { useMoney } from "@/core/state/property-format";
@@ -112,6 +114,7 @@ export function InHouseQuickViewSheet({
   restaurantId,
   reservationId,
   reservationRoomId = null,
+  amendmentHistory = [],
   initialTab = "overview",
   open,
   onOpenChange,
@@ -120,6 +123,7 @@ export function InHouseQuickViewSheet({
   restaurantId: string;
   reservationId: string | null;
   reservationRoomId?: string | null;
+  amendmentHistory?: FoStayAmendmentHistoryRow[];
   initialTab?: FoGuestWorkspaceTabId;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -357,6 +361,12 @@ export function InHouseQuickViewSheet({
                   {roomRows(qv)}
                 </Card>
               </div>
+
+              <FoStayAmendmentHistorySection
+                events={amendmentHistory}
+                money={money}
+                testId="fo-inhouse-amendment-history"
+              />
 
               <Card title="Requests, Notes & Guest Services" testId="fo-inhouse-qv-special-requests">
                 <div className="grid gap-3 md:grid-cols-3">

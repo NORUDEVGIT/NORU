@@ -41,7 +41,6 @@ export function PmsPropertySetupCard3Workspace({
       <PropertySetupSectionHeader
         icon={DOMAIN_ICON_KEYS[domain.icon]}
         title={domain.title}
-        description={domain.description}
       />
       <div className="min-w-0 space-y-5" data-testid="pms-card3-content-slot">
         {children}

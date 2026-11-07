@@ -92,10 +92,9 @@ describe("UI-02 Reservation Quick View", () => {
     );
   });
 
-  it("remains lazy, responsive and introduces no additional read path", () => {
-    expect(workspace).toContain("enabled: selectedId !== null");
-    expect(workspace).toContain("<Sheet");
-    expect(workspace).toContain("<ReservationQuickViewPanel");
+  it("is no longer mounted from Reservation Desk", () => {
+    expect(workspace).not.toContain("<ReservationQuickViewPanel");
+    expect(workspace).not.toContain("getReservationQuickView");
     expect(component).not.toContain("useQuery");
     expect(component).not.toContain("useServerFn");
     expect(component).not.toContain('from("');

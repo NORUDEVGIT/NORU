@@ -20,8 +20,6 @@ import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-u
 import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
 import { getCard7Validation } from "@/packages/pms/lib/pms-property-setup-card7.functions";
 import {
-  CARD7_PHASE0_PLACEHOLDER,
-  CARD7_SIDEBAR_OUT,
   CARD7_SUBTITLE,
   CARD7_TABS,
   type Card7TabId,
@@ -42,7 +40,6 @@ function Card7Placeholder({ description }: { description: string }) {
     >
       <div className="rounded-2xl border border-dashed border-[#D8CDBB] bg-card p-6">
         <p className="text-sm text-[#251605]">{description}</p>
-        <p className="mt-2 text-sm text-muted-foreground">{CARD7_PHASE0_PLACEHOLDER}</p>
       </div>
     </PmsPropertySetupCard7Workspace>
   );
@@ -124,7 +121,6 @@ export function PmsPropertySetupCard7Section({
       data-testid="pms-card7-workspace"
       data-card-fullscreen="true"
     >
-      <div className="sr-only">{CARD7_SIDEBAR_OUT}</div>
       <div className="min-w-0 overflow-x-auto flex-1" data-testid="pms-card7-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={7}

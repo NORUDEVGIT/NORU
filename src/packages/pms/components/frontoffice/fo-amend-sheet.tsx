@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -15,12 +14,12 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+  FoActionModal,
+  FO_ACTION_CONTROL,
+  FO_ACTION_SELECT,
+  foActionRoomChip,
+  type FoActionModalSize,
+} from "@/packages/pms/components/frontoffice/fo-action-modal";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { listAssignableRooms } from "@/packages/pms/lib/reservations.functions";
 import { GuestRestrictionWarn } from "@/packages/pms/components/guests/guest-bits";
@@ -144,6 +143,7 @@ function FoAmendSheet({
   pending,
   onConfirm,
   children,
+  size = "medium",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -154,38 +154,55 @@ function FoAmendSheet({
   pending: boolean;
   onConfirm: () => void;
   children: ReactNode;
+  size?: FoActionModalSize;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        data-testid="fo-amend-sheet"
-        className="z-[70] flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
-      >
-        <SheetHeader className="shrink-0 border-b border-[#CCCCCC] px-5 py-4 text-left">
-          <SheetTitle className="text-[#251605]">{title}</SheetTitle>
-          <SheetDescription>
-            {stay.guestName} · {stay.confirmationNumber} ·{" "}
-            {stay.roomNumber ? `Room ${stay.roomNumber}` : "Unassigned"}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">{children}</div>
-        <div className="shrink-0 border-t border-[#CCCCCC] px-5 py-4">
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-              disabled={confirmDisabled || pending}
-              onClick={onConfirm}
-            >
-              {pending ? "Saving…" : confirmLabel}
-            </Button>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <FoActionModal
+      open={open}
+      onOpenChange={onOpenChange}
+      action={title}
+      guestName={stay.guestName}
+      confirmation={stay.confirmationNumber}
+      roomLabel={foActionRoomChip(stay.roomNumber)}
+      size={size}
+      confirmLabel={confirmLabel}
+      confirmDisabled={confirmDisabled}
+      pending={pending}
+      onConfirm={onConfirm}
+      testId="fo-amend-sheet"
+    >
+      <div className="space-y-3">{children}</div>
+    </FoActionModal>
+  );
+}
+
+function FoAmendDenied({
+  open,
+  onOpenChange,
+  stay,
+  title,
+  message,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  stay: FrontOfficeStay;
+  title: string;
+  message: string;
+}) {
+  return (
+    <FoActionModal
+      open={open}
+      onOpenChange={onOpenChange}
+      action={title}
+      guestName={stay.guestName}
+      confirmation={stay.confirmationNumber}
+      roomLabel={foActionRoomChip(stay.roomNumber)}
+      size="medium"
+      confirmLabel="Close"
+      hideConfirm
+    >
+      <PermissionDeniedPanel message={message} />
+    </FoActionModal>
   );
 }
 
@@ -203,6 +220,7 @@ function ReasonField({
       <Label htmlFor={id}>Reason</Label>
       <Textarea
         id={id}
+        className={FO_ACTION_CONTROL}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
@@ -331,11 +349,13 @@ export function FoAmendUpgradeSheet({
 
   if (deny) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message={deny} />
-        </SheetContent>
-      </Sheet>
+      <FoAmendDenied
+        open={open}
+        onOpenChange={onOpenChange}
+        stay={stay}
+        title="Upgrade / Downgrade"
+        message={deny}
+      />
     );
   }
 
@@ -605,11 +625,13 @@ export function FoAmendGuestsSheet({
 
   if (denyMessage) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message={denyMessage} />
-        </SheetContent>
-      </Sheet>
+      <FoAmendDenied
+        open={open}
+        onOpenChange={onOpenChange}
+        stay={stay}
+        title="Add / Remove Guest"
+        message={denyMessage}
+      />
     );
   }
 
@@ -902,11 +924,13 @@ export function FoAmendServiceSheet({
 
   if (denyMessage) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message={denyMessage} />
-        </SheetContent>
-      </Sheet>
+      <FoAmendDenied
+        open={open}
+        onOpenChange={onOpenChange}
+        stay={stay}
+        title="Add Service"
+        message={denyMessage}
+      />
     );
   }
 
@@ -916,19 +940,17 @@ export function FoAmendServiceSheet({
       onOpenChange={onOpenChange}
       title="Add Service"
       stay={stay}
-      confirmLabel="Confirm"
+      confirmLabel="Add Service"
       confirmDisabled={!canConfirm}
       pending={mutation.isPending}
       onConfirm={() => mutation.mutate()}
     >
-      <p className="text-xs text-muted-foreground">
-        Add Service posts a stay extra to the folio. Operational Guest Services requests use Guest Request.
-      </p>
       {pickFirst ? (
         <div className="space-y-2" data-testid="fo-service-catalogue">
           <Label htmlFor="fo-service-catalogue-search">Catalogue</Label>
           <Input
             id="fo-service-catalogue-search"
+            className={FO_ACTION_CONTROL}
             placeholder="Search catalogue"
             value={catalogueSearch}
             onChange={(e) => setCatalogueSearch(e.target.value)}
@@ -955,13 +977,20 @@ export function FoAmendServiceSheet({
             ))}
           </ul>
           <Label htmlFor="fo-service-name">Service</Label>
-          <Input id="fo-service-name" value={name} readOnly placeholder="Select a catalogue item" />
+          <Input
+            id="fo-service-name"
+            className={FO_ACTION_CONTROL}
+            value={name}
+            readOnly
+            placeholder="Select a catalogue item"
+          />
         </div>
       ) : (
         <div className="space-y-2">
           <Label htmlFor="fo-service-name">Service</Label>
           <Input
             id="fo-service-name"
+            className={FO_ACTION_CONTROL}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Late checkout"
@@ -974,6 +1003,7 @@ export function FoAmendServiceSheet({
           <Label htmlFor="fo-service-amount">Amount ({contextQuery.data?.currency ?? "GBP"})</Label>
           <Input
             id="fo-service-amount"
+            className={FO_ACTION_CONTROL}
             type="number"
             min={0}
             step="0.01"
@@ -985,6 +1015,7 @@ export function FoAmendServiceSheet({
           <Label htmlFor="fo-service-qty">Quantity</Label>
           <Input
             id="fo-service-qty"
+            className={FO_ACTION_CONTROL}
             type="number"
             min={1}
             value={quantity}
@@ -992,22 +1023,20 @@ export function FoAmendServiceSheet({
           />
         </div>
       </div>
-      {!posts ? <p className="text-xs text-muted-foreground">{SERVICE_ZERO_NO_POST}</p> : null}
-      <ReasonField id="fo-service-reason" value={reason} onChange={setReason} />
-      <BeforeAfterCard
-        rows={[
-          { label: "service", previous: "—", next: name.trim() || "—" },
-          {
-            label: "amount",
-            previous: money(0),
-            next: Number.isFinite(amountNumber) ? money(amountNumber) : "—",
-          },
-        ]}
-        rate={rateImpact({
-          roomSubtotal: contextQuery.data?.roomSubtotal,
-          nightlyRates: contextQuery.data?.nightlyRates,
-        })}
-      />
+      <p className="text-sm font-medium text-[#251605]">
+        Total: {Number.isFinite(amountNumber) ? money(amountNumber * qtyNumber) : money(0)}
+      </p>
+      {!posts ? <p className="text-xs text-[#6B5E4E]">No folio charge will be posted.</p> : null}
+      <div className="space-y-2">
+        <Label htmlFor="fo-service-reason">Reason / Note</Label>
+        <Textarea
+          id="fo-service-reason"
+          className={FO_ACTION_CONTROL}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+        />
+      </div>
     </FoAmendSheet>
   );
 }
@@ -1073,11 +1102,13 @@ export function FoAmendSpecialRequestSheet({
 
   if (deny) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message={deny} />
-        </SheetContent>
-      </Sheet>
+      <FoAmendDenied
+        open={open}
+        onOpenChange={onOpenChange}
+        stay={stay}
+        title="Add Special Request"
+        message={deny}
+      />
     );
   }
 
@@ -1219,27 +1250,27 @@ export function FoGuestRequestSheet({
 
   if (deny || (summaryQuery.isError && isPermissionDeniedMessage(summaryQuery.error))) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel
-            message={deny ?? errorText(summaryQuery.error)}
-          />
-        </SheetContent>
-      </Sheet>
+      <FoAmendDenied
+        open={open}
+        onOpenChange={onOpenChange}
+        stay={stay}
+        title="Guest Request"
+        message={deny ?? errorText(summaryQuery.error)}
+      />
     );
   }
 
   if (summaryQuery.data?.permissionDenied) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="sm:max-w-[560px]">
-          <PermissionDeniedPanel message="You don't have access to Guest Services for this stay." />
-        </SheetContent>
-      </Sheet>
+      <FoAmendDenied
+        open={open}
+        onOpenChange={onOpenChange}
+        stay={stay}
+        title="Guest Request"
+        message="You don't have access to Guest Services for this stay."
+      />
     );
   }
-
-  const selected = summaryQuery.data?.types.find((type) => type.id === serviceTypeId);
 
   return (
     <FoAmendSheet
@@ -1247,15 +1278,11 @@ export function FoGuestRequestSheet({
       onOpenChange={onOpenChange}
       title="Guest Request"
       stay={stay}
-      confirmLabel="Create request"
+      confirmLabel="Create Request"
       confirmDisabled={!canConfirm}
       pending={mutation.isPending}
       onConfirm={() => mutation.mutate()}
     >
-      <p className="text-xs text-muted-foreground">
-        Creates a Guest Services request for {stay.guestName}
-        {stay.roomNumber ? ` · Room ${stay.roomNumber}` : ""} · {stay.confirmationNumber}.
-      </p>
       {!summaryQuery.data?.available && !summaryQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Guest Services is unavailable until its workspace is configured.</p>
       ) : null}
@@ -1263,9 +1290,9 @@ export function FoGuestRequestSheet({
         <p className="text-sm text-muted-foreground">{GUEST_SERVICES_NO_TYPES}</p>
       ) : null}
       <div className="space-y-2">
-        <Label>Service type</Label>
+        <Label>Service Type</Label>
         <Select value={serviceTypeId} onValueChange={setServiceTypeId} disabled={!typesConfigured}>
-          <SelectTrigger>
+          <SelectTrigger className={FO_ACTION_SELECT}>
             <SelectValue placeholder="Select a type" />
           </SelectTrigger>
           <SelectContent>
@@ -1280,7 +1307,7 @@ export function FoGuestRequestSheet({
       <div className="space-y-2">
         <Label>Priority</Label>
         <Select value={priority} onValueChange={(value) => setPriority(value as GuestServicePriority)}>
-          <SelectTrigger>
+          <SelectTrigger className={FO_ACTION_SELECT}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -1296,6 +1323,7 @@ export function FoGuestRequestSheet({
         <Label htmlFor="fo-guest-request-text">Description</Label>
         <Textarea
           id="fo-guest-request-text"
+          className={FO_ACTION_CONTROL}
           value={description}
           onChange={(e) => setDescription(e.target.value.slice(0, GUEST_SERVICE_DESCRIPTION_MAX))}
           rows={4}
@@ -1306,20 +1334,13 @@ export function FoGuestRequestSheet({
         <Label htmlFor="fo-guest-request-notes">Notes</Label>
         <Textarea
           id="fo-guest-request-notes"
+          className={FO_ACTION_CONTROL}
           value={notes}
           onChange={(e) => setNotes(e.target.value.slice(0, GUEST_SERVICE_DESCRIPTION_MAX))}
           rows={2}
           placeholder="Optional instructions"
         />
       </div>
-      <BeforeAfterCard
-        rows={[
-          { label: "type", previous: "—", next: selected?.name ?? "—" },
-          { label: "priority", previous: "—", next: GUEST_SERVICE_PRIORITY_LABELS[priority] },
-          { label: "request", previous: "—", next: description.trim() || "—" },
-        ]}
-        rate={rateImpact({ roomSubtotal: null, nightlyRates: null })}
-      />
     </FoAmendSheet>
   );
 }

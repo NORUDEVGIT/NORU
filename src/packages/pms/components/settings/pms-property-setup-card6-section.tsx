@@ -12,7 +12,6 @@ import {
 } from "@/packages/pms/components/settings/setup-kit";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
-  CARD6_SIDEBAR_OUT,
   CARD6_SUBTITLE,
   CARD6_TABS,
   type Card6TabId,
@@ -96,7 +95,6 @@ export function PmsPropertySetupCard6Section({
       data-testid="pms-card6-workspace"
       data-card-fullscreen="true"
     >
-      <div className="sr-only">{CARD6_SIDEBAR_OUT}</div>
       <div className="min-w-0 flex-1" data-testid="pms-card6-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={6}

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -7,7 +6,6 @@ import {
   BedDouble,
   CalendarDays,
   ClipboardList,
-  SlidersHorizontal,
   TriangleAlert,
   Users,
   X,
@@ -26,13 +24,17 @@ import {
   StayDatesDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import {
-  ReservationShellSlot,
-  SHELL_ICON_BUTTON,
-  ShellCountBadge,
-} from "@/packages/pms/components/reservations/reservation-shell-slots";
+  PmsFilterPopover,
+  PmsFilterSection,
+  PmsFilterSelect,
+  PmsFilterToggle,
+  PMS_FILTER_DATE,
+} from "@/packages/pms/components/pms-filter-popover";
+import { ReservationShellSlot } from "@/packages/pms/components/reservations/reservation-shell-slots";
+import { PMS_OP_BTN_OUTLINE } from "@/packages/pms/lib/pms-operational-surface";
+import { ArrivalGuestWorkspace } from "@/packages/pms/components/workspaces/arrival-guest-workspace";
 import {
   BulkExpectedArrivalDialog,
-  ExpectedArrivalDialog,
   LateCheckoutDialog,
 } from "@/packages/pms/components/workspaces/arrivals-departures-dialogs";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
@@ -49,14 +51,6 @@ import { listRoomTypes } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatClockInZone } from "@/shared/lib/property-time";
@@ -169,33 +163,6 @@ function financialLabel(financial: ArrivalRow["financial"], currency: string): s
   return "No folio";
 }
 
-/** Titled block inside the Filter menu. */
-function FilterSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="space-y-2 border-b border-[#efe7d8] px-4 py-3 last:border-b-0">
-      <p className="text-xs font-bold text-[#4a2c1a]">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm text-[#4a2c1a] hover:bg-[#faf7f1]">
-      {label}
-      <Checkbox checked={checked} onCheckedChange={(value) => onChange(value === true)} />
-    </label>
-  );
-}
-
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <button
@@ -243,7 +210,6 @@ export function ArrivalsDeparturesWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedArrivalIds, setSelectedArrivalIds] = useState<string[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [etaRow, setEtaRow] = useState<ArrivalRow | null>(null);
   const [bulkEtaOpen, setBulkEtaOpen] = useState(false);
   const [lateRow, setLateRow] = useState<DepartureRow | null>(null);
   const [foAction, setFoAction] = useState<{ kind: FoKind; stay: FrontOfficeStay } | null>(null);
@@ -308,8 +274,8 @@ export function ArrivalsDeparturesWorkspace({
   }, [snapshot?.departures, searchTerm]);
   const selectedArrival = arrivals.find((row) => row.reservationId === selectedId) ?? null;
   const selectedDeparture = departures.find((row) => row.reservationId === selectedId) ?? null;
-  const quickViewOpen =
-    selectedId !== null && (mode === "arrivals" ? selectedArrival : selectedDeparture) !== null;
+  const arrivalWorkspaceOpen = mode === "arrivals" && selectedArrival !== null;
+  const quickViewOpen = mode === "departures" && selectedDeparture !== null;
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: ["pms-arrivals-departures", restaurantId] });
@@ -317,7 +283,6 @@ export function ArrivalsDeparturesWorkspace({
 
   function selectArrival(row: ArrivalRow) {
     setSelectedId(row.reservationId);
-    setMobileOpen(true);
   }
 
   function selectDeparture(row: DepartureRow) {
@@ -416,19 +381,6 @@ export function ArrivalsDeparturesWorkspace({
         ];
   }, [totals, mode]);
 
-  const quickViewArrival = (
-    <ArrivalQuickView
-      row={selectedArrival}
-      timezone={timezone}
-      currencyCode={currencyCode}
-      canManage={canManage}
-      onOpen={openStay}
-      onEta={setEtaRow}
-      onAssign={(row) => setFoAction({ kind: "assign_room", stay: stayFromArrival(row) })}
-      onCheckIn={(row) => setFoAction({ kind: "check_in", stay: stayFromArrival(row) })}
-    />
-  );
-
   const quickViewDeparture = (
     <DepartureQuickView
       row={selectedDeparture}
@@ -478,151 +430,97 @@ export function ArrivalsDeparturesWorkspace({
           ) : null}
 
           <ReservationShellSlot name="filter">
-            {/* One Filter menu for everything */}
-            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-              <PopoverTrigger asChild>
+            <PmsFilterPopover
+              title={mode === "arrivals" ? "Filter Arrivals" : "Filter Departures"}
+              activeCount={activeFilterCount}
+              open={filterOpen}
+              onOpenChange={setFilterOpen}
+              onClear={resetFilters}
+              onApply={() => setFilterOpen(false)}
+              buttonTestId="arrivals-departures-filter-button"
+            >
+              <PmsFilterSection title="Operational date">
+                <Input
+                  type="date"
+                  className={PMS_FILTER_DATE}
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  onKeyDown={(event) => event.stopPropagation()}
+                  aria-label="Operational date"
+                />
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
-                  className={SHELL_ICON_BUTTON}
-                  aria-label={`Filter ${mode}`}
-                  title={`Filter ${mode}`}
-                  data-testid="arrivals-departures-filter-button"
+                  className={cn(PMS_OP_BTN_OUTLINE, "h-9 w-full text-xs font-semibold")}
+                  disabled={!businessDate || date === businessDate}
+                  onClick={() => setDate(businessDate)}
                 >
-                  <SlidersHorizontal className="size-4" />
-                  <ShellCountBadge count={activeFilterCount} />
+                  Jump to business date
                 </Button>
-              </PopoverTrigger>
+              </PmsFilterSection>
 
-              <PopoverContent
-                align="end"
-                className="max-h-[75vh] w-[340px] overflow-y-auto rounded-2xl border-[#e9dfd0] p-0 shadow-[0_8px_24px_rgba(74,44,26,0.15)]"
-              >
-                <div className="flex items-center justify-between border-b border-[#efe7d8] px-4 py-3">
-                  <p className="text-sm font-bold text-[#4a2c1a]">Filter {mode}</p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-[#8C6D23]"
-                    disabled={activeFilterCount === 0}
-                    onClick={resetFilters}
-                  >
-                    Reset all
-                  </Button>
-                </div>
+              <PmsFilterSection title="Room type">
+                <PmsFilterSelect
+                  value={roomTypeId}
+                  onValueChange={setRoomTypeId}
+                  options={[
+                    ["all", "All room types"],
+                    ...(roomTypesQuery.data ?? []).map((type) => [type.id, type.name] as const),
+                  ]}
+                  ariaLabel="Room type"
+                />
+              </PmsFilterSection>
 
-                <FilterSection title="Operational date">
-                  <Input
-                    type="date"
-                    className="h-9"
-                    value={date}
-                    onChange={(event) => setDate(event.target.value)}
-                    onKeyDown={(event) => event.stopPropagation()}
-                    aria-label="Operational date"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full rounded-full border-[#e9dfd0] text-xs font-semibold text-[#4a2c1a] hover:bg-[#f5ead0]"
-                    disabled={!businessDate || date === businessDate}
-                    onClick={() => setDate(businessDate)}
-                  >
-                    Jump to business date
-                  </Button>
-                </FilterSection>
-
-                <FilterSection title="Room type">
-                  <Select value={roomTypeId} onValueChange={setRoomTypeId}>
-                    <SelectTrigger className="h-9 w-full" aria-label="Room type">
-                      <SelectValue placeholder="All room types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All room types</SelectItem>
-                      {(roomTypesQuery.data ?? []).map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FilterSection>
-
-                {mode === "arrivals" ? (
-                  <>
-                    <FilterSection title="Assignment">
-                      <Select
-                        value={assignment}
-                        onValueChange={(value) => setAssignment(value as typeof assignment)}
-                      >
-                        <SelectTrigger className="h-9 w-full" aria-label="Assignment">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="assigned">Assigned</SelectItem>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FilterSection>
-
-                    <FilterSection title="Status">
-                      <Select
-                        value={arrivalStatus}
-                        onValueChange={(value) => setArrivalStatus(value as typeof arrivalStatus)}
-                      >
-                        <SelectTrigger className="h-9 w-full" aria-label="Arrival status">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Pending and confirmed</SelectItem>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="confirmed">Confirmed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FilterSection>
-
-                    <FilterSection title="Guests">
-                      <div className="-mx-2">
-                        <ToggleRow label="VIP only" checked={vip} onChange={setVip} />
-                      </div>
-                    </FilterSection>
-                  </>
-                ) : (
-                  <>
-                    <FilterSection title="Status">
-                      <Select
-                        value={departureStatus}
-                        onValueChange={(value) =>
-                          setDepartureStatus(value as typeof departureStatus)
-                        }
-                      >
-                        <SelectTrigger className="h-9 w-full" aria-label="Departure status">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Confirmed and in-house</SelectItem>
-                          <SelectItem value="confirmed">Confirmed</SelectItem>
-                          <SelectItem value="checked_in">In-house</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FilterSection>
-
-                    <FilterSection title="Stay">
-                      <div className="-mx-2">
-                        <ToggleRow
-                          label="Overstay only"
-                          checked={overstay}
-                          onChange={setOverstay}
-                        />
-                      </div>
-                    </FilterSection>
-                  </>
-                )}
-              </PopoverContent>
-            </Popover>
+              {mode === "arrivals" ? (
+                <>
+                  <PmsFilterSection title="Assignment">
+                    <PmsFilterSelect
+                      value={assignment}
+                      onValueChange={(value) => setAssignment(value as typeof assignment)}
+                      options={[
+                        ["all", "All"],
+                        ["assigned", "Assigned"],
+                        ["unassigned", "Unassigned"],
+                      ]}
+                      ariaLabel="Assignment"
+                    />
+                  </PmsFilterSection>
+                  <PmsFilterSection title="Status">
+                    <PmsFilterSelect
+                      value={arrivalStatus}
+                      onValueChange={(value) => setArrivalStatus(value as typeof arrivalStatus)}
+                      options={[
+                        ["all", "Pending and confirmed"],
+                        ["pending", "Pending"],
+                        ["confirmed", "Confirmed"],
+                      ]}
+                      ariaLabel="Arrival status"
+                    />
+                  </PmsFilterSection>
+                  <PmsFilterSection title="Guests">
+                    <PmsFilterToggle label="VIP only" checked={vip} onChange={setVip} />
+                  </PmsFilterSection>
+                </>
+              ) : (
+                <>
+                  <PmsFilterSection title="Status">
+                    <PmsFilterSelect
+                      value={departureStatus}
+                      onValueChange={(value) => setDepartureStatus(value as typeof departureStatus)}
+                      options={[
+                        ["all", "Confirmed and in-house"],
+                        ["confirmed", "Confirmed"],
+                        ["checked_in", "In-house"],
+                      ]}
+                      ariaLabel="Departure status"
+                    />
+                  </PmsFilterSection>
+                  <PmsFilterSection title="Stay">
+                    <PmsFilterToggle label="Overstay only" checked={overstay} onChange={setOverstay} />
+                  </PmsFilterSection>
+                </>
+              )}
+            </PmsFilterPopover>
           </ReservationShellSlot>
         </div>
 
@@ -749,7 +647,6 @@ export function ArrivalsDeparturesWorkspace({
                 )
               }
               onSelect={selectArrival}
-              onOpen={openStay}
               onAssign={(row) => setFoAction({ kind: "assign_room", stay: stayFromArrival(row) })}
               onCheckIn={(row) => setFoAction({ kind: "check_in", stay: stayFromArrival(row) })}
             />
@@ -778,27 +675,33 @@ export function ArrivalsDeparturesWorkspace({
             >
               <X className="size-4" />
             </Button>
-            {mode === "arrivals" ? quickViewArrival : quickViewDeparture}
+            {quickViewDeparture}
           </aside>
         ) : null}
       </div>
 
-      <Sheet open={!desktop && mobileOpen && selectedId !== null} onOpenChange={setMobileOpen}>
+      <Sheet
+        open={!desktop && mobileOpen && selectedId !== null && mode === "departures"}
+        onOpenChange={setMobileOpen}
+      >
         <SheetContent className="w-full overflow-y-auto p-4 sm:max-w-md xl:hidden">
-          {mode === "arrivals" ? quickViewArrival : quickViewDeparture}
+          {quickViewDeparture}
         </SheetContent>
       </Sheet>
 
-      <ExpectedArrivalDialog
+      <ArrivalGuestWorkspace
         restaurantId={restaurantId}
+        row={selectedArrival}
+        open={arrivalWorkspaceOpen}
         timezone={timezone}
-        row={etaRow}
-        open={etaRow !== null}
-        onOpenChange={(open) => {
-          if (!open) setEtaRow(null);
-        }}
+        currencyCode={currencyCode}
+        canManage={canManage}
+        onClose={() => setSelectedId(null)}
+        onOpenReservation={openStay}
+        onOpenHistory={openStay}
         onSaved={invalidate}
       />
+
       <BulkExpectedArrivalDialog
         restaurantId={restaurantId}
         timezone={timezone}
@@ -1028,7 +931,6 @@ function ArrivalsTable({
   timezone,
   onToggleSelect,
   onSelect,
-  onOpen,
   onAssign,
   onCheckIn,
 }: {
@@ -1038,7 +940,6 @@ function ArrivalsTable({
   timezone: string;
   onToggleSelect: (id: string, checked: boolean) => void;
   onSelect: (row: ArrivalRow) => void;
-  onOpen: (id: string) => void;
   onAssign: (row: ArrivalRow) => void;
   onCheckIn: (row: ArrivalRow) => void;
 }) {
@@ -1134,7 +1035,7 @@ function ArrivalsTable({
                       size="sm"
                       variant="ghost"
                       className="rounded-full text-xs font-semibold text-[#4a2c1a]"
-                      onClick={() => onOpen(row.reservationId)}
+                      onClick={() => onSelect(row)}
                     >
                       Open
                     </Button>
@@ -1265,138 +1166,6 @@ function QuickViewShell({
     >
       {children}
     </div>
-  );
-}
-
-function ArrivalQuickView({
-  row,
-  timezone,
-  currencyCode,
-  canManage,
-  onOpen,
-  onEta,
-  onAssign,
-  onCheckIn,
-}: {
-  row: ArrivalRow | null;
-  timezone: string;
-  currencyCode: string;
-  canManage: boolean;
-  onOpen: (id: string) => void;
-  onEta: (row: ArrivalRow) => void;
-  onAssign: (row: ArrivalRow) => void;
-  onCheckIn: (row: ArrivalRow) => void;
-}) {
-  if (!row) {
-    return (
-      <QuickViewShell data-testid="arrival-quick-view">
-        <p className="text-sm text-[#7A6B58]">
-          Select an arrival to see the guest, room, ETA and actions.
-        </p>
-      </QuickViewShell>
-    );
-  }
-  return (
-    <QuickViewShell data-testid="arrival-quick-view">
-      <p className="flex items-center gap-2 font-display text-lg text-[#4a2c1a]">
-        <Users className="size-4 text-[#c9a24a]" />
-        {row.guest.name}
-        {row.guest.vip ? <VipBadge /> : null}
-      </p>
-      <p className="text-xs text-[#7A6B58]">{row.confirmationNumber}</p>
-      <dl className="mt-3 space-y-2 text-sm">
-        <Field
-          label="Stay"
-          value={`${formatStayDate(row.stay.arrivalDate)} → ${formatStayDate(row.stay.departureDate)}`}
-        />
-        <Field label="Room" value={row.room.roomNumber ?? "Unassigned"} />
-        <Field label="Room type" value={row.room.roomTypeName} />
-        <Field
-          label="Readiness"
-          value={row.room.assigned ? (row.room.ready ? "Ready" : "Not ready") : "Unassigned"}
-        />
-        <Field
-          label="ETA"
-          value={formatClockInZone(row.operational.expectedArrivalTime, timezone)}
-        />
-        <Field label="Guarantee" value={row.commercial.guaranteeMethod ?? "—"} />
-        <Field label="Balance" value={financialLabel(row.financial, currencyCode)} />
-        <Field
-          label="Contact"
-          value={[row.guest.phone, row.guest.email].filter(Boolean).join(" · ") || "—"}
-        />
-        <Field label="Special requests" value={row.operational.specialRequests ?? "—"} />
-      </dl>
-      <div className="mt-3">
-        <ExceptionBadges keys={row.operational.exceptionKeys} labels={ARRIVAL_EXCEPTION_LABELS} />
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {row.hints.canOpen ? (
-          <Button
-            size="sm"
-            className="rounded-full bg-[#C89933] font-bold text-[#251605] hover:bg-[#B98B2D]"
-            onClick={() => onOpen(row.reservationId)}
-          >
-            Open Reservation
-          </Button>
-        ) : null}
-        {row.hints.canViewGuest ? (
-          <Button asChild size="sm" variant="outline" className="rounded-full border-[#e9dfd0]">
-            <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: row.guest.id }}>
-              View guest
-            </Link>
-          </Button>
-        ) : null}
-        {canManage && row.hints.canAssignRoom ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-full border-[#e9dfd0]"
-            onClick={() => onAssign(row)}
-          >
-            Assign room
-          </Button>
-        ) : null}
-        {canManage && row.hints.canCheckIn ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-full border-[#e9dfd0]"
-            onClick={() => onCheckIn(row)}
-          >
-            Check in
-          </Button>
-        ) : null}
-        {canManage && row.hints.canUpdateEta ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-full border-[#e9dfd0]"
-            onClick={() => onEta(row)}
-          >
-            Update ETA
-          </Button>
-        ) : null}
-        {row.hints.canOpenFolio ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-full border-[#e9dfd0]"
-            onClick={() => onOpen(row.reservationId)}
-          >
-            Open folio
-          </Button>
-        ) : null}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="rounded-full"
-          onClick={() => onOpen(row.reservationId)}
-        >
-          History
-        </Button>
-      </div>
-    </QuickViewShell>
   );
 }
 

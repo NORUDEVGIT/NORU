@@ -53,28 +53,21 @@ function bar(overrides: Partial<CalendarBar> = {}): CalendarBar {
 }
 
 describe("RF-QV01 selection and calendar identity", () => {
-  it("selects a Desk row into Quick View without opening Detail", () => {
-    expect(workspace).toContain("onClick={() => onSelect(row)}");
-    expect(workspace).toContain("setSelectedId(row.reservationId)");
-    expect(workspace).toContain("setSelectedRoomId(row.reservationRoomId ?? null)");
-    expect(workspace).toContain("getReservationQuickView");
-    expect(workspace).toContain(
-      'queryKey: ["reservation-quick-view", restaurantId, selectedId, selectedRoomId]',
-    );
+  it("opens Reservation Detail from a Desk row click", () => {
+    expect(workspace).toContain("onClick={() => onOpen(row.reservationId)}");
+    expect(workspace).toContain('setOverlay({ type: "reservation-detail", reservationId: id })');
+    expect(workspace).not.toContain("getReservationQuickView");
+    expect(workspace).not.toContain("<ReservationQuickViewPanel");
     expect(workspace).not.toContain('to: "/restaurant/pms/reservations/$reservationId"');
-    const rowClick = workspace.slice(
-      workspace.indexOf("onClick={() => onSelect(row)}"),
-      workspace.indexOf("onClick={() => onSelect(row)}") + 80,
-    );
-    expect(rowClick).not.toContain("onOpen");
   });
 
-  it("selects a calendar bar into the same Quick View read", () => {
+  it("keeps calendar bar room identity for highlighting without a Quick View rail", () => {
     expect(calendar).toContain("onClick={() => onSelectBar(bar)}");
     expect(workspace).toContain("selectedReservationRoomId={selectedRoomId}");
+    expect(workspace).toContain("setSelectedId(row.reservationId)");
     expect(workspace).toContain("setSelectedRoomId(row.reservationRoomId ?? null)");
     expect(quickView).toContain("reservationRoomId: idSchema.optional()");
-    expect(workspace).toContain("...(selectedRoomId ? { reservationRoomId: selectedRoomId } : {})");
+    expect(workspace).not.toContain("<ReservationQuickViewPanel");
     const selected = calendarBarIsSelected({
       bar: bar(),
       selectedReservationId: "res-1",

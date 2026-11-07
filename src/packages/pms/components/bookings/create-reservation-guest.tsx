@@ -307,6 +307,113 @@ export function CreateReservationGuest({
   );
 }
 
+/** Compact search/selected guest control for nested operational modals (Waitlist). */
+export function CreateReservationGuestCompact() {
+  const picker = useGuestPickerContext();
+  const guest = picker.guest;
+
+  if (guest) {
+    const contact = [guest.profileNumber, guest.phone].filter(Boolean).join(" · ");
+    return (
+      <div
+        className="flex items-start justify-between gap-3 rounded-[6px] border border-[#CCCCCC] bg-white px-3 py-2.5"
+        data-testid="selected-guest-card"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-[#251605]">{guest.fullName}</p>
+          {contact ? <p className="truncate text-xs text-[#6B5E4E]">{contact}</p> : null}
+          <p className="mt-0.5 text-[11px] font-medium text-[#3E7A4A]">✓ Existing guest</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 shrink-0 px-2 text-xs font-medium text-[#8A641A] hover:bg-[#F7F4EE]"
+          data-testid="change-guest"
+          onClick={picker.changeGuest}
+        >
+          Change
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2" data-testid="guest-search-panel">
+      <div className="relative min-w-0">
+        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6B5E4E]" />
+        <label className="sr-only" htmlFor="guest-search-compact">
+          Search guest by name, phone, email or guest ID
+        </label>
+        <Input
+          id="guest-search-compact"
+          ref={picker.searchInputRef}
+          className={cn(PMS_OP_INPUT, "h-9 pl-9")}
+          data-testid="guest-search"
+          placeholder="Search guest by name, phone, email or guest ID..."
+          value={picker.guestSearch}
+          autoComplete="off"
+          onChange={(event) => picker.setGuestSearch(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.preventDefault();
+          }}
+        />
+      </div>
+      {picker.showResults ? (
+        <div
+          className="max-h-48 overflow-y-auto rounded-[6px] border border-[#CCCCCC] bg-white"
+          data-testid="guest-search-results"
+        >
+          {picker.searching ? (
+            <p className="px-3 py-2.5 text-sm text-muted-foreground">Searching guests…</p>
+          ) : null}
+          {!picker.searching && picker.rows.length === 0 ? (
+            <p className="px-3 py-2.5 text-sm text-muted-foreground">No matching guests found.</p>
+          ) : null}
+          {!picker.searching ? (
+            <ul>
+              {picker.rows.map((row) => (
+                <li key={row.id} className="border-b border-[#E7E0D4] last:border-b-0">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-[#FAF8F4]"
+                    onClick={() => picker.selectListedGuest(row)}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-[#251605]">
+                        {row.fullName}
+                        {row.vipStatus ? <VipBadge /> : null}
+                        <GuestRestrictionBadges guest={row} />
+                      </span>
+                      {guestResultMeta(row) ? (
+                        <span className="mt-0.5 block truncate text-xs text-[#6B5E4E]">
+                          {guestResultMeta(row)}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {picker.canCreateGuest ? (
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(PMS_OP_BTN_OUTLINE, "h-9 w-full justify-center")}
+          data-testid="create-guest-inline"
+          onClick={picker.openCreate}
+        >
+          <UserPlus className="size-4" />
+          Create New Guest
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 export function CreateReservationGuestSearch() {
   const picker = useGuestPickerContext();
 

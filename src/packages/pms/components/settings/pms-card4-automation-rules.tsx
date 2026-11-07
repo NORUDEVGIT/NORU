@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Filter, MoreHorizontal, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
+import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import { FieldShell } from "@/packages/pms/components/settings/pms-card6-integration-bits";
 import { PropertySetupRemoveButton } from "@/packages/pms/components/settings/setup-kit";
 import {
@@ -52,7 +53,6 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -86,11 +86,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
-import { cn } from "@/shared/lib/utils";
 
 const PAGE_SIZE = 8;
 type StatusFilter = "all" | "active" | "inactive";
-type PendingAction = AutomationRuleRecord | "new" | "reset" | null;
 
 export function PmsCard4AutomationRules({
   restaurantId,
@@ -134,32 +132,20 @@ export function PmsCard4AutomationRules({
   const [channelFilter, setChannelFilter] = useState<CommunicationChannelType | "all">("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<AutomationRuleDraft>(emptyAutomationRuleDraft());
   const [dirty, setDirty] = useState(false);
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [attemptedSave, setAttemptedSave] = useState(false);
+  const [pendingClose, setPendingClose] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<AutomationRuleRecord | null>(null);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
   const thenNextRef = useRef(false);
 
-  useEffect(() => {
-    if (dirty || creating) return;
-    if (rules.length === 0) {
-      setSelectedId(null);
-      setDraft(emptyAutomationRuleDraft(channels.find((row) => row.active)?.channelType));
-      return;
-    }
-    const selected = rules.find((row) => row.id === selectedId) ?? rules[0];
-    if (!selected) return;
-    setSelectedId(selected.id);
-    setDraft(automationRuleToDraft(selected));
-  }, [rules, selectedId, dirty, creating, channels]);
-
   const errors = validateAutomationRuleDraft(draft, catalogues, false);
   const completeErrors = validateAutomationRuleDraft(draft, catalogues, true);
-  const errorFor = (field: string) => errors.find((row) => row.field === field)?.message ?? null;
+  const errorFor = (field: string) =>
+    attemptedSave ? (errors.find((row) => row.field === field)?.message ?? null) : null;
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rules.filter((row) => {
@@ -231,7 +217,8 @@ export function PmsCard4AutomationRules({
       await queryClient.invalidateQueries({ queryKey });
       setCreating(false);
       setDirty(false);
-      if (result.id) setSelectedId(result.id);
+      setEditorOpen(false);
+      setAttemptedSave(false);
       toast.success("Automation rule saved successfully.");
     },
     onError: (error: Error) => toast.error(error.message || "Unable to save automation rule."),
@@ -252,7 +239,7 @@ export function PmsCard4AutomationRules({
       setDeleteTarget(null);
       setCreating(false);
       setDirty(false);
-      setSelectedId(null);
+      setEditorOpen(false);
       toast.success("Automation rule deleted.");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -273,7 +260,7 @@ export function PmsCard4AutomationRules({
     deleteMutation.isPending ||
     testMutation.isPending;
   const dataReady = Boolean(query.data);
-  const canSave = canEdit && dataReady && !busy && errors.length === 0;
+  const canSave = canEdit && dataReady && !busy && (!editorOpen || errors.length === 0);
   useEffect(() => {
     onSavingChange(busy, canSave);
   }, [busy, canSave, onSavingChange]);
@@ -286,13 +273,14 @@ export function PmsCard4AutomationRules({
       toast.error("Unable to save automation rules.");
       return;
     }
-    if (!creating && !dirty) {
+    if (!editorOpen || (!creating && !dirty)) {
       toast.success("Automation rules saved successfully.");
       onSaved(thenNextRef.current);
       return;
     }
     const blocking = thenNextRef.current ? completeErrors : errors;
     if (blocking.length > 0) {
+      setAttemptedSave(true);
       toast.error(blocking[0]?.message ?? "Fix the automation rule before saving.");
       return;
     }
@@ -301,6 +289,7 @@ export function PmsCard4AutomationRules({
     saveRequest,
     canEdit,
     dataReady,
+    editorOpen,
     creating,
     dirty,
     errors,
@@ -315,64 +304,37 @@ export function PmsCard4AutomationRules({
   }
 
   function selectRule(row: AutomationRuleRecord) {
-    if ((dirty || creating) && row.id !== selectedId) {
-      setPendingAction(row);
-      return;
-    }
     setCreating(false);
-    setSelectedId(row.id);
     setDraft(automationRuleToDraft(row));
     setDirty(false);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
   function startAdd() {
-    if (dirty || creating) {
-      setPendingAction("new");
-      return;
-    }
     setCreating(true);
-    setSelectedId(null);
     setDraft(emptyAutomationRuleDraft(channels.find((row) => row.active)?.channelType));
     setDirty(true);
+    setAttemptedSave(false);
+    setEditorOpen(true);
   }
 
-  function resetDraft() {
-    if (creating) {
+  function requestClose() {
+    if (dirty) setPendingClose(true);
+    else {
+      setEditorOpen(false);
       setCreating(false);
-      const selected = rules.find((row) => row.id === selectedId) ?? rules[0];
-      setSelectedId(selected?.id ?? null);
-      setDraft(
-        selected
-          ? automationRuleToDraft(selected)
-          : emptyAutomationRuleDraft(channels.find((row) => row.active)?.channelType),
-      );
-    } else {
-      const selected = rules.find((row) => row.id === selectedId);
-      if (selected) setDraft(automationRuleToDraft(selected));
     }
-    setDirty(false);
   }
 
-  function discardAndContinue() {
-    const next = pendingAction;
-    setPendingAction(null);
-    setDirty(false);
-    if (next === "new") {
-      setCreating(true);
-      setSelectedId(null);
-      setDraft(emptyAutomationRuleDraft(channels.find((row) => row.active)?.channelType));
-      setDirty(true);
+  function submitRule() {
+    setAttemptedSave(true);
+    const blocking = draft.active ? completeErrors : errors;
+    if (!canEdit || blocking.length > 0) {
+      toast.error(blocking[0]?.message ?? "Fix the automation rule before saving.");
       return;
     }
-    if (next === "reset") {
-      resetDraft();
-      return;
-    }
-    if (next) {
-      setCreating(false);
-      setSelectedId(next.id);
-      setDraft(automationRuleToDraft(next));
-    }
+    saveMutation.mutate();
   }
 
   function updateCondition(index: number, patch: Partial<AutomationCondition>) {
@@ -389,24 +351,14 @@ export function PmsCard4AutomationRules({
     );
   }
 
-  const lastUpdated = query.data?.lastUpdatedAt
-    ? new Date(query.data.lastUpdatedAt).toLocaleString()
-    : "Never";
-
   return (
-    <div className="space-y-5" data-testid="card4-automation-rules">
+    <div className="space-y-3" data-testid="card4-automation-rules">
       <section className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Automation Rules</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Connect events, conditions, recipients, and templates. Rules do not send until a later
-              delivery phase.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Last updated {lastUpdated}</p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg text-[#251605]">Automation Rules</h2>
           <Button
             type="button"
+            size="sm"
             onClick={startAdd}
             disabled={!canEdit || query.isLoading}
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
@@ -415,7 +367,7 @@ export function PmsCard4AutomationRules({
           </Button>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+        <div className="overflow-hidden rounded-xl border border-[#CCCCCC] bg-white">
           <div className="flex flex-wrap gap-2 border-b border-[#CCCCCC] p-3">
             <div className="relative min-w-[14rem] flex-1">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -523,7 +475,7 @@ export function PmsCard4AutomationRules({
               </Button>
             </div>
           ) : rules.length === 0 ? (
-            <div className="p-8 text-center">
+            <div className="p-6 text-center">
               <p className="font-medium text-[#251605]">No automation rules configured</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Add a rule to connect an event, channel, and template.
@@ -537,53 +489,20 @@ export function PmsCard4AutomationRules({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10">
-                        <Checkbox
-                          checked={
-                            paged.length > 0 && paged.every((row) => selectedRows.includes(row.id))
-                          }
-                          aria-label="Select all visible rules"
-                          onCheckedChange={(checked) =>
-                            setSelectedRows(
-                              checked
-                                ? Array.from(
-                                    new Set([...selectedRows, ...paged.map((row) => row.id)]),
-                                  )
-                                : selectedRows.filter((id) => !paged.some((row) => row.id === id)),
-                            )
-                          }
-                        />
-                      </TableHead>
-                      <TableHead>Rule Name</TableHead>
+                      <TableHead>Rule</TableHead>
                       <TableHead>Event</TableHead>
                       <TableHead>Condition</TableHead>
                       <TableHead>Channel</TableHead>
                       <TableHead>Recipient</TableHead>
                       <TableHead>Template</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Active</TableHead>
+                      <TableHead className="w-12 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paged.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        className={cn(selectedId === row.id && !creating && "bg-[#C89933]/5")}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedRows.includes(row.id)}
-                            aria-label={`Select ${row.name}`}
-                            onCheckedChange={(checked) =>
-                              setSelectedRows((current) =>
-                                checked
-                                  ? Array.from(new Set([...current, row.id]))
-                                  : current.filter((id) => id !== row.id),
-                              )
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium text-[#251605]">{row.name}</TableCell>
+                      <TableRow key={row.id}>
+                        <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
                         <TableCell>
                           {events.find((item) => item.id === row.eventId)?.name ??
                             "Unavailable event"}
@@ -606,29 +525,18 @@ export function PmsCard4AutomationRules({
                         <TableCell>
                           {templates.find((item) => item.id === row.templateId)?.name ?? "Not set"}
                         </TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                              row.active
-                                ? "border-[#436436]/40 bg-[#436436]/10 text-[#436436]"
-                                : "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
-                            )}
-                          >
-                            {row.active ? "Active" : "Inactive"}
-                          </span>
+                        <TableCell className="py-2">
+                          <Switch
+                            checked={row.active}
+                            disabled={!canEdit || toggleMutation.isPending}
+                            aria-label={`${row.active ? "Deactivate" : "Activate"} ${row.name}`}
+                            onCheckedChange={(active) =>
+                              toggleMutation.mutate({ id: row.id, active })
+                            }
+                          />
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => selectRule(row)}
-                            >
-                              Edit
-                            </Button>
-                            <DropdownMenu>
+                        <TableCell className="py-2 text-right">
+                          <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
                                   type="button"
@@ -665,7 +573,6 @@ export function PmsCard4AutomationRules({
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -704,17 +611,20 @@ export function PmsCard4AutomationRules({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-[#251605]">Rule Details</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Select event, set conditions, choose recipients, then channel and template.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <Card3OverlapSheet
+        open={editorOpen}
+        title={draft.id ? "Edit Automation Rule" : "Add Automation Rule"}
+        onClose={requestClose}
+        onSubmit={submitRule}
+        submitLabel={draft.id ? "Save Changes" : "Add Rule"}
+        pending={saveMutation.isPending}
+        canEdit={canEdit}
+        maxWidth="max-w-[900px]"
+        className="max-h-[88vh]"
+        footerJustify="between"
+      >
+        <p className="text-sm font-medium text-[#251605]">Rule</p>
+        <div className="grid gap-3 md:grid-cols-2">
           <FieldShell
             id="automation-rule-name"
             label="Rule Name"
@@ -754,7 +664,7 @@ export function PmsCard4AutomationRules({
           </FieldShell>
         </div>
 
-        <div className="mt-6 space-y-3">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-[#251605]">Conditions</h3>
             <Button
@@ -846,7 +756,7 @@ export function PmsCard4AutomationRules({
           )}
         </div>
 
-        <div className="mt-6 space-y-3">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-[#251605]">Recipients</h3>
             <Button
@@ -935,7 +845,8 @@ export function PmsCard4AutomationRules({
           )}
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <p className="text-sm font-medium text-[#251605]">Delivery</p>
+        <div className="grid gap-3 md:grid-cols-2">
           <FieldShell
             id="automation-rule-channel"
             label="Channel"
@@ -997,7 +908,7 @@ export function PmsCard4AutomationRules({
           </FieldShell>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <FieldShell id="automation-rule-schedule" label="Schedule">
             <Select
               value={draft.schedule.mode}
@@ -1069,7 +980,8 @@ export function PmsCard4AutomationRules({
           )}
         </div>
 
-        <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-[#CCCCCC] p-4">
+        <p className="text-sm font-medium text-[#251605]">Status</p>
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#CCCCCC] p-4">
           <div>
             <Label htmlFor="automation-rule-active">Active</Label>
             <p className="text-xs text-muted-foreground">
@@ -1084,39 +996,39 @@ export function PmsCard4AutomationRules({
           />
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {draft.id ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!canEdit || testMutation.isPending}
-              onClick={() => testMutation.mutate(draft.id as string)}
-            >
-              {testMutation.isPending ? "Testing…" : "Test Rule"}
-            </Button>
-          ) : null}
-          {(dirty || creating) && canEdit ? (
-            <Button type="button" variant="outline" onClick={() => setPendingAction("reset")}>
-              Cancel Changes
-            </Button>
-          ) : null}
-        </div>
-      </section>
+        {draft.id ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!canEdit || testMutation.isPending}
+            onClick={() => testMutation.mutate(draft.id as string)}
+          >
+            {testMutation.isPending ? "Testing…" : "Test Rule"}
+          </Button>
+        ) : null}
+      </Card3OverlapSheet>
 
-      <AlertDialog
-        open={Boolean(pendingAction)}
-        onOpenChange={(open) => !open && setPendingAction(null)}
-      >
+      <AlertDialog open={pendingClose} onOpenChange={(open) => !open && setPendingClose(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>You have unsaved changes.</AlertDialogTitle>
             <AlertDialogDescription>
-              Discard them before continuing with another automation rule?
+              Discard them to close this automation rule form?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Continue Editing</AlertDialogCancel>
-            <AlertDialogAction onClick={discardAndContinue}>Discard Changes</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingClose(false);
+                setEditorOpen(false);
+                setCreating(false);
+                setDirty(false);
+                setAttemptedSave(false);
+              }}
+            >
+              Discard Changes
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1145,26 +1057,5 @@ export function PmsCard4AutomationRules({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-export function Card4AutomationRulesGuide({ rules }: { rules: readonly AutomationRuleRecord[] }) {
-  const active = rules.filter((row) => row.active).length;
-  return (
-    <>
-      <section className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-[#251605]">Quick Setup Guide</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Select a notification event</li>
-          <li>Add optional guest-type conditions</li>
-          <li>Choose departments or roles</li>
-          <li>Pick a matching channel and template</li>
-          <li>Test and activate the rule</li>
-        </ol>
-        <p className="mt-3 text-sm text-[#251605]">
-          {active} of {rules.length} rules active
-        </p>
-      </section>
-    </>
   );
 }

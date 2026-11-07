@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Plus, Search, Trash2, Users } from "lucide-react";
+import { Check, Plus, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { CreateReservationMasterPicker } from "@/packages/pms/components/bookings/create-reservation-master-picker";
+import {
+  CreateReservationGuest,
+  CreateReservationGuestCompact,
+  type PickedReservationGuest,
+} from "@/packages/pms/components/bookings/create-reservation-guest";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import {
@@ -27,6 +32,7 @@ import {
   groupBlockPreflightFromRules,
   groupCreateDraftIsDirty,
   groupCreateSuccessDetail,
+  groupStayIsValid,
   isRoomTypeSelectableForBlock,
   otherLocalRequestedForRow,
   remainingAfterBlockPreview,
@@ -39,7 +45,7 @@ import {
 } from "@/packages/pms/lib/groups-create-wizard";
 import { GROUP_TYPES, type GroupType } from "@/packages/pms/lib/groups";
 import { addGroupBlock, createGroup } from "@/packages/pms/lib/groups.functions";
-import { guestListItems, listGuests } from "@/packages/pms/lib/guests.functions";
+import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import {
   PMS_OP_BTN_COMPACT,
   PMS_OP_BTN_OUTLINE,
@@ -101,7 +107,6 @@ export function CreateGroupWizard({
   const loadPlans = useServerFn(listRatePlans);
   const loadSet6 = useServerFn(getPmsSet6Snapshot);
   const loadRules = useServerFn(getInventoryRules);
-  const loadGuests = useServerFn(listGuests);
 
   const [draft, setDraft] = useState<GroupCreateDraft>(emptyGroupCreateDraft);
   const [step, setStep] = useState(0);
@@ -282,50 +287,56 @@ export function CreateGroupWizard({
         open={open}
         title="Create Group / Block"
         description="Set up the group master and room allotment."
+        size="compact"
+        headerTone="noru"
         onOpenChange={(next) => {
           if (!next) requestClose();
         }}
       >
         <div className="flex min-h-0 flex-1 flex-col" data-testid="create-group-wizard">
           <CreateGroupStepper current={step} detailsValid={detailsValid} onSelect={goTo} />
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
-            <div className="mx-auto grid max-w-[1500px] gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="min-w-0 space-y-4">
-                {step === 0 ? (
-                  <GroupDetailsStep
-                    restaurantId={restaurantId}
-                    draft={draft}
-                    sources={sources}
-                    segments={segments}
-                    ratePlans={ratePlans}
-                    loadGuests={loadGuests}
-                    onChange={patch}
-                  />
-                ) : null}
-                {step === 1 ? (
-                  <RoomAllotmentStep
-                    draft={draft}
-                    roomTypes={roomTypes}
-                    availableByRow={availableByRow}
-                    preflight={preflight}
-                    onChange={(allotments) => patch({ allotments })}
-                  />
-                ) : null}
-                {step === 2 ? (
-                  <GroupReviewStep
-                    draft={draft}
-                    roomTypes={roomTypes}
-                    preferredPlanName={
-                      preferredPlan ? `${preferredPlan.code} · ${preferredPlan.name}` : null
-                    }
-                    availableByRow={availableByRow}
-                    preflight={preflight}
-                    onBackToAllotment={() => goTo(1)}
-                  />
-                ) : null}
+          <div className="min-h-0 flex-1 overflow-auto px-5 py-3">
+            {step === 0 ? (
+              <div className="mx-auto w-full max-w-[920px] space-y-3">
+                <GroupCreateLiveStrip draft={draft} />
+                <GroupDetailsStep
+                  restaurantId={restaurantId}
+                  draft={draft}
+                  detailsIssue={detailsIssue}
+                  sources={sources}
+                  segments={segments}
+                  ratePlans={ratePlans}
+                  onChange={patch}
+                />
               </div>
-              <GroupCreateSummary draft={draft} preferredPlanName={preferredPlan?.name ?? null} />
-            </div>
+            ) : (
+              <div className="mx-auto grid max-w-[1500px] gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="min-w-0 space-y-4">
+                  {step === 1 ? (
+                    <RoomAllotmentStep
+                      draft={draft}
+                      roomTypes={roomTypes}
+                      availableByRow={availableByRow}
+                      preflight={preflight}
+                      onChange={(allotments) => patch({ allotments })}
+                    />
+                  ) : null}
+                  {step === 2 ? (
+                    <GroupReviewStep
+                      draft={draft}
+                      roomTypes={roomTypes}
+                      preferredPlanName={
+                        preferredPlan ? `${preferredPlan.code} · ${preferredPlan.name}` : null
+                      }
+                      availableByRow={availableByRow}
+                      preflight={preflight}
+                      onBackToAllotment={() => goTo(1)}
+                    />
+                  ) : null}
+                </div>
+                <GroupCreateSummary draft={draft} preferredPlanName={preferredPlan?.name ?? null} />
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-white px-5 py-3">
             <Button
@@ -355,7 +366,7 @@ export function CreateGroupWizard({
                   data-testid="group-create-continue"
                   onClick={() => goTo(step + 1)}
                 >
-                  {current.continueLabel} →
+                  {step === 0 ? "Continue" : `${current.continueLabel} →`}
                 </Button>
               ) : (
                 <Button
@@ -411,41 +422,45 @@ function CreateGroupStepper({
 }) {
   return (
     <nav
-      className="shrink-0 overflow-x-auto border-b border-[#DDD4C5] bg-white px-4 py-3"
+      className="shrink-0 overflow-x-auto border-b border-[#DDD4C5] bg-[#FBF7F1] px-5 py-2"
       aria-label="Create group workflow"
       data-testid="create-group-stepper"
     >
-      <ol className="flex min-w-max items-center gap-2">
+      <ol className="flex min-w-max items-center gap-1.5 text-xs">
         {GROUP_CREATE_STEPS.map((step, index) => {
           const active = index === current;
           const completed = index < current;
           const selectable = canSelectGroupCreateStep(current, index, detailsValid);
           return (
-            <li key={step.id} className="flex items-center gap-2">
-              {index > 0 ? <span className="h-px w-8 bg-[#DDD4C5]" aria-hidden /> : null}
+            <li key={step.id} className="flex items-center gap-1.5">
+              {index > 0 ? (
+                <span className="px-0.5 text-[#C4B6A0]" aria-hidden>
+                  —
+                </span>
+              ) : null}
               <button
                 type="button"
                 disabled={!selectable}
                 onClick={() => onSelect(index)}
                 className={cn(
-                  "flex items-center gap-2 rounded-full px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2",
-                  active ? "font-medium text-[#251605]" : "text-muted-foreground",
+                  "flex items-center gap-1.5 rounded-md px-1 py-0.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]",
+                  active ? "font-semibold text-[#251605]" : "font-medium text-[#7A6B58]",
                   !selectable && "cursor-not-allowed opacity-60",
                 )}
               >
                 <span
                   className={cn(
-                    "grid size-6 place-items-center rounded-full text-[11px]",
-                    active || completed
+                    "grid size-5 place-items-center rounded-full text-[10px] font-semibold",
+                    active
                       ? "bg-[#C89933] text-[#251605]"
-                      : "bg-[#EFE8DC] text-muted-foreground",
+                      : completed
+                        ? "bg-[#E8D7A8] text-[#251605]"
+                        : "bg-[#EFE8DC] text-[#8A7B68]",
                   )}
                 >
-                  {completed ? <Check className="size-3.5" /> : index + 1}
+                  {completed ? <Check className="size-3" /> : index + 1}
                 </span>
-                <span className={cn(active && "border-b-2 border-[#C89933] pb-0.5")}>
-                  {step.label}
-                </span>
+                <span>{step.label}</span>
               </button>
             </li>
           );
@@ -455,40 +470,81 @@ function CreateGroupStepper({
   );
 }
 
+function GroupCreateLiveStrip({ draft }: { draft: GroupCreateDraft }) {
+  const parts: string[] = [];
+  if (draft.name.trim()) parts.push(draft.name.trim());
+  parts.push(GROUP_CREATE_STATUS_LABELS[draft.status]);
+  if (draft.arrivalDate && draft.departureDate && groupStayIsValid(draft.arrivalDate, draft.departureDate)) {
+    parts.push(`${formatStayDate(draft.arrivalDate)} → ${formatStayDate(draft.departureDate)}`);
+    const nights = nightsBetween(draft.arrivalDate, draft.departureDate);
+    if (nights > 0) parts.push(`${nights} ${nights === 1 ? "night" : "nights"}`);
+  } else {
+    parts.push("Stay not set");
+  }
+  parts.push(draft.cutoffDate ? `Cut-off ${formatStayDate(draft.cutoffDate)}` : "Cut-off not set");
+  return (
+    <p
+      className="truncate rounded-md border border-[#E8DFD0] bg-white px-3 py-1.5 text-xs text-[#5C4E3E]"
+      data-testid="group-create-summary"
+    >
+      {parts.join(" · ")}
+    </p>
+  );
+}
+
 function GroupDetailsStep({
   restaurantId,
   draft,
+  detailsIssue,
   sources,
   segments,
   ratePlans,
-  loadGuests,
   onChange,
 }: {
   restaurantId: string;
   draft: GroupCreateDraft;
+  detailsIssue: string | null;
   sources: Array<{ code: string; name: string }>;
   segments: Array<{ code: string; name: string }>;
   ratePlans: Array<{ id: string; code: string; name: string; roomTypeName: string }>;
-  loadGuests: typeof listGuests;
   onChange: (partial: Partial<GroupCreateDraft>) => void;
 }) {
+  const [nameTouched, setNameTouched] = useState(false);
+  const showNameError =
+    !draft.name.trim() && (nameTouched || detailsIssue === "Enter a group name.");
+  const leaderGuest: PickedReservationGuest | null = draft.leader
+    ? {
+        id: draft.leader.id,
+        fullName: draft.leader.name,
+        profileNumber: "",
+        phone: null,
+        email: null,
+        vipStatus: false,
+      }
+    : null;
+
   return (
-    <div className="space-y-4" data-testid="group-create-step-details">
+    <div className="space-y-3" data-testid="group-create-step-details">
       <section className={cn(PMS_OP_PANEL, "p-4")}>
-        <h2 className="font-display text-base font-semibold text-[#251605]">Group identity</h2>
+        <h2 className="text-sm font-semibold text-[#251605]">Group Details</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <Field label="Group name" htmlFor="group-create-name">
+          <Field
+            label="Group name"
+            htmlFor="group-create-name"
+            error={showNameError ? "Enter a group name." : undefined}
+          >
             <Input
               id="group-create-name"
               data-testid="group-create-name"
-              className={inputClass}
+              className={cn(inputClass, showNameError && "border-[#9B3A3A]")}
               value={draft.name}
               onChange={(event) => onChange({ name: event.target.value })}
+              onBlur={() => setNameTouched(true)}
               placeholder="Operational group name"
             />
           </Field>
           <Field
-            label="Group code / reference"
+            label="Group Code / Reference"
             htmlFor="group-create-code"
             hint="Optional staff code. The property confirmation number is assigned on create."
           >
@@ -501,7 +557,7 @@ function GroupDetailsStep({
               onChange={(event) => onChange({ code: event.target.value })}
             />
           </Field>
-          <Field label="Group type" htmlFor="group-create-type">
+          <Field label="Group Type" htmlFor="group-create-type">
             <Select
               value={draft.groupType}
               onValueChange={(value) => onChange({ groupType: value as GroupType })}
@@ -544,12 +600,6 @@ function GroupDetailsStep({
               </SelectContent>
             </Select>
           </Field>
-        </div>
-      </section>
-
-      <section className={cn(PMS_OP_PANEL, "p-4")}>
-        <h2 className="font-display text-base font-semibold text-[#251605]">Stay window</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
           <Field label="Arrival" htmlFor="group-create-arrival">
             <Input
               id="group-create-arrival"
@@ -570,18 +620,33 @@ function GroupDetailsStep({
               onChange={(event) => onChange({ departureDate: event.target.value })}
             />
           </Field>
+          <div className="md:col-span-2" data-testid="group-leader-picker">
+            <Label className={PMS_OP_LABEL}>Group leader</Label>
+            <p className="mb-1.5 text-[11px] text-muted-foreground">
+              Search or Create Guest. Primary guest associated with this group.
+            </p>
+            {/* Guest search/create reuses listGuests via CreateReservationGuest. */}
+            <CreateReservationGuest
+              restaurantId={restaurantId}
+              canCreateGuest
+              guest={leaderGuest as PickedReservationGuest | null}
+              onGuestChange={(guest) =>
+                onChange({ leader: guest ? { id: guest.id, name: guest.fullName } : null })
+              }
+            >
+              <CreateReservationGuestCompact />
+            </CreateReservationGuest>
+          </div>
         </div>
       </section>
 
       <section className={cn(PMS_OP_PANEL, "p-4")} data-testid="group-create-commercial">
-        <h2 className="font-display text-base font-semibold text-[#251605]">
-          Commercial relationships
-        </h2>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <h2 className="text-sm font-semibold text-[#251605]">Commercial & Classification</h2>
+        <p className="mt-1 text-[11px] text-muted-foreground">
           Optional links to existing company and travel-agency accounts. Linked reservations are not
           automatically updated from these fields.
         </p>
-        <div className="mt-3 grid gap-4 lg:grid-cols-2">
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
           <CreateReservationMasterPicker
             restaurantId={restaurantId}
             kind="company"
@@ -610,20 +675,6 @@ function GroupDetailsStep({
               })
             }
           />
-        </div>
-        <div className="mt-4">
-          <GroupLeaderPicker
-            restaurantId={restaurantId}
-            leader={draft.leader}
-            loadGuests={loadGuests}
-            onChange={(leader) => onChange({ leader })}
-          />
-        </div>
-      </section>
-
-      <section className={cn(PMS_OP_PANEL, "p-4")}>
-        <h2 className="font-display text-base font-semibold text-[#251605]">Classification</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
           <Field label="Source" htmlFor="group-create-source">
             {sources.length > 0 ? (
               <Select
@@ -656,7 +707,7 @@ function GroupDetailsStep({
               />
             )}
           </Field>
-          <Field label="Market segment" htmlFor="group-create-segment">
+          <Field label="Market Segment" htmlFor="group-create-segment">
             {segments.length > 0 ? (
               <Select
                 value={draft.marketSegment || "__none__"}
@@ -721,10 +772,10 @@ function GroupDetailsStep({
       </section>
 
       <section className={cn(PMS_OP_PANEL, "p-4")}>
-        <h2 className="font-display text-base font-semibold text-[#251605]">Control</h2>
+        <h2 className="text-sm font-semibold text-[#251605]">Controls</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <Field
-            label="Cut-off date"
+            label="Cut-off Date"
             htmlFor="group-create-cutoff"
             hint="Optional. Unused block inventory can be released after this business date."
           >
@@ -746,7 +797,8 @@ function GroupDetailsStep({
             <Textarea
               id="group-create-notes"
               data-testid="group-create-notes"
-              className={cn(PMS_OP_TEXTAREA, PMS_OP_PLACEHOLDER)}
+              className={cn(PMS_OP_TEXTAREA, PMS_OP_PLACEHOLDER, "min-h-[4.5rem]")}
+              rows={3}
               value={draft.notes}
               maxLength={2000}
               onChange={(event) => onChange({ notes: event.target.value })}
@@ -1162,94 +1214,18 @@ function GroupCreateSummary({
   );
 }
 
-function GroupLeaderPicker({
-  restaurantId,
-  leader,
-  loadGuests,
-  onChange,
-}: {
-  restaurantId: string;
-  leader: GroupCreateDraft["leader"];
-  loadGuests: typeof listGuests;
-  onChange: (leader: GroupCreateDraft["leader"]) => void;
-}) {
-  const [search, setSearch] = useState("");
-  const guestsQuery = useQuery({
-    queryKey: ["pms-groups-create-leader", restaurantId, search],
-    queryFn: () => loadGuests({ data: { restaurantId, search, limit: 8 } }),
-    enabled: search.trim().length >= 2,
-  });
-  return (
-    <div data-testid="group-leader-picker">
-      <Label className={PMS_OP_LABEL}>Group leader</Label>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Primary guest associated with this group.
-      </p>
-      {leader ? (
-        <div className="flex items-center justify-between gap-2 rounded-[6px] border border-[#DDD4C5] bg-[#FAF8F4] px-3 py-2">
-          <p className="text-sm font-medium">{leader.name}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={PMS_OP_BTN_COMPACT}
-            onClick={() => onChange(null)}
-          >
-            Change
-          </Button>
-        </div>
-      ) : (
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6B5E4E]" />
-          <Input
-            className={cn(inputClass, "pl-9")}
-            data-testid="group-leader-search"
-            placeholder="Search guests by name, phone or email"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          {search.trim().length >= 2 ? (
-            <div
-              className="mt-1 max-h-48 overflow-y-auto rounded-[6px] border border-[#CCCCCC] bg-white"
-              data-testid="group-leader-results"
-            >
-              {guestsQuery.isLoading ? (
-                <p className="px-3 py-2 text-sm text-muted-foreground">Searching guests…</p>
-              ) : guestListItems(guestsQuery.data).length === 0 ? (
-                <p className="px-3 py-2 text-sm text-muted-foreground">No matching guests.</p>
-              ) : (
-                guestListItems(guestsQuery.data).map((guest) => (
-                  <button
-                    key={guest.id}
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-[#F7F4EE]"
-                    onClick={() => {
-                      onChange({ id: guest.id, name: guest.fullName });
-                      setSearch("");
-                    }}
-                  >
-                    {guest.fullName}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Field({
   label,
   htmlFor,
   hint,
+  error,
   className,
   children,
 }: {
   label: string;
   htmlFor: string;
   hint?: string;
+  error?: string;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -1259,7 +1235,8 @@ function Field({
         {label}
       </Label>
       <div className="mt-1">{children}</div>
-      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+      {error ? <p className="mt-1 text-xs text-[#9B3A3A]">{error}</p> : null}
+      {!error && hint ? <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

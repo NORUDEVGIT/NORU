@@ -3,8 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
-  ArrowLeft,
-  ArrowRight,
   Check,
   Plus,
   RotateCcw,
@@ -40,7 +38,8 @@ import { AmenityIconDisplay } from "@/packages/pms/components/settings/amenity-i
 import { useRoomTypeWizard } from "./room-type-wizard-context";
 
 export function RoomTypeWizardStep3Amenities() {
-  const { restaurantId, canEdit, roomTypeId, typeForm, stagedRooms, setStep } = useRoomTypeWizard();
+  const { restaurantId, canEdit, roomTypeId, typeForm, stagedRooms, setStep, setFooter } =
+    useRoomTypeWizard();
   const disabled = !canEdit || !roomTypeId;
   const queryClient = useQueryClient();
 
@@ -147,10 +146,20 @@ export function RoomTypeWizardStep3Amenities() {
     setStep(4);
   }
 
+  useEffect(() => {
+    setFooter({
+      continueLabel: "Continue",
+      continueBusy: saveTypeMutation.isPending,
+      continueDisabled: disabled || saveTypeMutation.isPending,
+      onContinue: () => void handleContinue(),
+    });
+    return () => setFooter(null);
+  }, [disabled, saveTypeMutation.isPending, setFooter]);
+
   const persistedRooms = stagedRooms.filter((r) => r.persisted && r.id);
 
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-4">
       {/* Top Header Card */}
       <section className="rounded-xl border border-[#E6E1D8] bg-white p-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EDE6D8] pb-3">
@@ -414,30 +423,6 @@ export function RoomTypeWizardStep3Amenities() {
           ) : null}
         </ul>
       </section>
-
-      {/* Sticky Bottom Actions Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#D9D2C4] bg-white/95 px-6 py-3.5 backdrop-blur-xs shadow-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="border-[#D9D2C4] text-[#251605] hover:bg-[#F4EDE0]"
-            onClick={() => setStep(2)}
-          >
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            Back to Pricing
-          </Button>
-          <Button
-            type="button"
-            disabled={disabled || saveTypeMutation.isPending}
-            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 font-medium"
-            onClick={() => void handleContinue()}
-          >
-            {saveTypeMutation.isPending ? "Saving…" : "Save & Continue to Photos"}
-            <ArrowRight className="ml-1.5 h-4 w-4" />
-          </Button>
-        </div>
-      </footer>
 
       {/* Property Amenity Catalogue Dialog */}
       <Dialog open={catalogueOpen} onOpenChange={setCatalogueOpen}>

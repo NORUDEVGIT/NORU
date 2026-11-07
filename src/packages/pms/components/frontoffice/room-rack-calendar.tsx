@@ -40,6 +40,7 @@ import {
   Triangle,
   UserRound,
   Wrench,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -80,6 +81,11 @@ import {
 import { FoRackConfirmSheet } from "@/packages/pms/components/frontoffice/fo-rack-confirm-sheet";
 import { useFoToolbarSlot } from "@/packages/pms/components/frontoffice/front-office-chrome";
 import { StayBadgeStrip } from "@/packages/pms/components/frontoffice/fo-stay-badges";
+import { FoStayAmendedMark } from "@/packages/pms/components/frontoffice/fo-stay-amendment-presentation";
+import {
+  latestStayAmendmentByReservation,
+  type FoStayAmendmentHistoryRow,
+} from "@/packages/pms/lib/fo-amendments";
 import {
   EMPTY_RACK_FILTERS,
   FO_BRAND,
@@ -139,6 +145,7 @@ import {
   type OccupancyRoom,
 } from "@/packages/pms/lib/frontoffice.functions";
 import { listRoomRack, type RackRoom } from "@/packages/pms/lib/housekeeping.functions";
+import type { FoHkTaskRoomTarget } from "@/packages/pms/components/frontoffice/fo-housekeeping-task-modal";
 import { listReservations } from "@/packages/pms/lib/reservations.functions";
 import {
   DaysRangeSelect,
@@ -232,10 +239,11 @@ export function RoomRackCalendar({
   staffRole,
   onRackSearchChange,
   onWalkIn,
-  onOpenGuestSearch,
   category = "rack",
   exceptionStayIds,
   exceptionRoomIds,
+  amendmentStayIds,
+  amendmentHistory,
 }: {
   restaurantId: string;
   restaurantName?: string;
@@ -247,7 +255,7 @@ export function RoomRackCalendar({
   initialGroup?: RackGroupBy;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
-  onSelectRoom: (roomId: string) => void;
+  onSelectRoom: (target: FoHkTaskRoomTarget) => void;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
   canOpenCashiering: boolean;
   staffRole?: string;
@@ -257,8 +265,6 @@ export function RoomRackCalendar({
     group: RackGroupBy;
   }) => void;
   onWalkIn?: () => void;
-  /** Reuses the existing module-level guest search dialog — no second search implementation. */
-  onOpenGuestSearch?: () => void;
   /**
    * Burger-menu-as-filter: narrows the shared Rack/Table dataset to the selected former
    * nav target in place. "rack" ("All") applies no extra narrowing.
@@ -268,6 +274,10 @@ export function RoomRackCalendar({
   exceptionStayIds?: ReadonlySet<string>;
   /** Room ids surfaced by the existing exception desk — used only when category is "exceptions". */
   exceptionRoomIds?: ReadonlySet<string>;
+  /** Reservation ids with canonical stay-date amendment history — used when category is "amendments". */
+  amendmentStayIds?: ReadonlySet<string>;
+  /** Batched stay-date amendment rows for Rack/Table indicators (not N+1). */
+  amendmentHistory?: readonly FoStayAmendmentHistoryRow[];
 }) {
   const [horizon, setHorizon] = useState<CalendarHorizon>(initialHorizon ?? 7);
   const [focusDate, setFocusDate] = useState(() =>
@@ -280,6 +290,7 @@ export function RoomRackCalendar({
   );
   const [groupBy, setGroupBy] = useState<RackGroupBy>(initialGroup);
   const [rackView, setRackView] = useState<FoRackViewMode>("rack");
+  const [staySearch, setStaySearch] = useState("");
   const [rackDragging, setRackDragging] = useState(false);
   const [dragStay, setDragStay] = useState<MoveDragStay & { roomTypeName: string } | null>(null);
   const dragActiveRef = useRef(false);
@@ -440,6 +451,10 @@ export function RoomRackCalendar({
     () => Array.from(new Set(stays.map((s) => s.source).filter(Boolean))).sort(),
     [stays],
   );
+  const amendmentLatestByStay = useMemo(
+    () => latestStayAmendmentByReservation(amendmentHistory ?? []),
+    [amendmentHistory],
+  );
 
   const visibleRooms = rooms.filter((room) =>
     roomMatchesFilters(
@@ -457,24 +472,42 @@ export function RoomRackCalendar({
 
   const visibleStays = stays.filter((stay) => stayMatchesFilters(stay, filters, focusDate));
   // Presentation only: Rack and Table share this operational projection.
-  // Vacant physical rooms and stays outside the four Front Office phases
-  // (arriving, in-house, departing, historical checked-out) are not rows.
+  // Vacant physical rooms and stays that do not overlap the visible range
+  // are not rows. All Reservations keeps every canonical lifecycle that
+  // overlaps, including cancelled and no_show.
   const visibleRoomIds = new Set(visibleRooms.map((room) => room.id));
   const operationalStays = visibleStays.filter((stay) => {
-    if (primaryOperationalPhase(stay, rangeStart, days) == null) return false;
-    if (stay.roomId && !visibleRoomIds.has(stay.roomId)) return false;
     if (category === "exceptions") {
       const flagged =
         Boolean(exceptionStayIds?.has(stay.id)) ||
         Boolean(stay.roomId && exceptionRoomIds?.has(stay.roomId));
       if (!flagged) return false;
+    } else if (category === "amendments") {
+      if (!amendmentStayIds?.has(stay.id)) return false;
     } else if (!stayMatchesRackCategory(stay, category, focusDate)) {
       return false;
     }
+    if (primaryOperationalPhase(stay, rangeStart, days) == null) {
+      return false;
+    }
+    if (stay.roomId && !visibleRoomIds.has(stay.roomId)) return false;
     return true;
   });
+  const searchNeedle = staySearch.trim().toLowerCase();
+  const searchedStays = searchNeedle
+    ? operationalStays.filter((stay) => {
+        const haystack = [
+          stay.guestName,
+          stay.confirmationNumber,
+          stay.roomNumber ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(searchNeedle);
+      })
+    : operationalStays;
   const operationalRoomIds = new Set(
-    operationalStays
+    searchedStays
       .map((stay) => previewRoomId(stay, preview))
       .filter((roomId): roomId is string => Boolean(roomId)),
   );
@@ -499,8 +532,8 @@ export function RoomRackCalendar({
         );
       })
     : visibleRooms.filter((room) => operationalRoomIds.has(room.id));
-  const unassigned = operationalStays.filter((stay) => previewRoomId(stay, preview) == null);
-  const filterEmpty = operationalStays.length === 0;
+  const unassigned = searchedStays.filter((stay) => previewRoomId(stay, preview) == null);
+  const filterEmpty = searchedStays.length === 0;
 
   function dismissConfirm() {
     setDraft(null);
@@ -551,11 +584,11 @@ export function RoomRackCalendar({
       />
 
       <section
-        ref={setToolbarSlot}
-        className="relative rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm"
+        className="rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm"
         data-testid="fo-rack-toolbar"
       >
-        <div className="flex flex-wrap items-center gap-1.5 pl-10">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div ref={setToolbarSlot} className="flex shrink-0 items-center" />
           <div className="flex shrink-0 items-center gap-1.5">
             <WeekRangeControl
               weekStart={mondayOf(focusDate)}
@@ -568,25 +601,29 @@ export function RoomRackCalendar({
               options={LIVE_HORIZONS.map((n) => [String(n), calendarHorizonLabel(n)] as const)}
             />
           </div>
-          {onOpenGuestSearch ? (
-            <div className="flex min-w-[10rem] flex-1 basis-48">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={onOpenGuestSearch}
-                    data-testid="fo-rack-search-trigger"
-                    aria-label="Search guest, room or reservation"
-                    className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-2.5 text-xs text-muted-foreground transition-colors hover:border-[#C89933]/60 hover:text-foreground"
-                  >
-                    <Search className="size-3.5 shrink-0" aria-hidden="true" />
-                    <span className="truncate">Search guest, room or reservation…</span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Search guest, room or reservation</TooltipContent>
-              </Tooltip>
-            </div>
-          ) : null}
+          <div className="flex min-w-[10rem] flex-1 basis-48">
+            <span className="relative w-full">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={staySearch}
+                onChange={(event) => setStaySearch(event.target.value)}
+                className="h-9 pl-8 pr-8 text-xs"
+                placeholder="Search guest, room or reservation…"
+                aria-label="Search guest, room or reservation"
+                data-testid="fo-rack-search-trigger"
+              />
+              {staySearch ? (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                  onClick={() => setStaySearch("")}
+                >
+                  <X className="size-3.5" />
+                </button>
+              ) : null}
+            </span>
+          </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <RackFiltersButton
               filters={filters}
@@ -624,7 +661,7 @@ export function RoomRackCalendar({
                   data-testid="fo-rack-export"
                   aria-label="Export PDF"
                   title="Export PDF"
-                  onClick={() => exportRackStays(restaurantName, rangeStart, rangeEnd, operationalStays)}
+                  onClick={() => exportRackStays(restaurantName, rangeStart, rangeEnd, searchedStays)}
                 >
                   <Download className="size-4" />
                 </Button>
@@ -671,7 +708,7 @@ export function RoomRackCalendar({
       ) : viewport === "phone" ? (
         <PhoneRackList
           rooms={operationalRooms}
-          stays={operationalStays}
+          stays={searchedStays}
           hkByRoom={hkByRoom}
           today={focusDate}
           groupBy={groupBy}
@@ -684,11 +721,12 @@ export function RoomRackCalendar({
           canOpenCashiering={canOpenCashiering}
           businessDate={today}
           staffRole={staffRole}
+          amendmentLatestByStay={amendmentLatestByStay}
         />
       ) : rackView === "table" ? (
         <FoRackTableView
           rooms={visibleRooms}
-          stays={operationalStays}
+          stays={searchedStays}
           focusDate={rangeStart}
           days={days}
           businessDate={today}
@@ -697,13 +735,15 @@ export function RoomRackCalendar({
           staffRole={staffRole}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
+          onSelectRoom={onSelectRoom}
           onRackAction={onRackAction}
+          amendmentLatestByStay={amendmentLatestByStay}
         />
       ) : (
         <>
           <CalendarBoard
             rooms={operationalRooms}
-            stays={operationalStays}
+            stays={searchedStays}
             unassigned={unassigned}
             hkByRoom={hkByRoom}
             hkAvailable={hkAvailable}
@@ -721,6 +761,7 @@ export function RoomRackCalendar({
             canOpenCashiering={canOpenCashiering}
             businessDate={today}
             staffRole={staffRole}
+            amendmentLatestByStay={amendmentLatestByStay}
           onPreview={setPreview}
           onOpenConfirm={openConfirm}
           onRoomDragStart={beginRoomDrag}
@@ -743,13 +784,21 @@ export function RoomRackCalendar({
   );
 }
 
-type FoOperationalPhase = "arriving" | "in_house" | "departing" | "checked_out";
+type FoOperationalPhase =
+  | "arriving"
+  | "in_house"
+  | "departing"
+  | "checked_out"
+  | "cancelled"
+  | "no_show";
 
 const FO_OPERATIONAL_COLOR: Record<FoOperationalPhase, string> = {
   arriving: "#3B6EA5",
   in_house: "#436436",
   departing: "#C89933",
   checked_out: "#8A8A8A",
+  cancelled: "#7A6258",
+  no_show: "#A84848",
 };
 
 const FO_OPERATIONAL_LEGEND: Array<{ phase: FoOperationalPhase; label: string; color: string }> = [
@@ -757,6 +806,8 @@ const FO_OPERATIONAL_LEGEND: Array<{ phase: FoOperationalPhase; label: string; c
   { phase: "in_house", label: "In-House", color: FO_OPERATIONAL_COLOR.in_house },
   { phase: "departing", label: "Departing", color: FO_OPERATIONAL_COLOR.departing },
   { phase: "checked_out", label: "Checked Out", color: FO_OPERATIONAL_COLOR.checked_out },
+  { phase: "cancelled", label: "Cancelled", color: FO_OPERATIONAL_COLOR.cancelled },
+  { phase: "no_show", label: "No-Show", color: FO_OPERATIONAL_COLOR.no_show },
 ];
 
 function operationalPhaseLabel(phase: FoOperationalPhase): string {
@@ -795,10 +846,11 @@ function primaryOperationalPhase(
   days: number,
 ): FoOperationalPhase | null {
   const { status, arrivalDate, departureDate } = stay;
-  if (status === "cancelled" || status === "no_show") return null;
   const overlaps = stayOverlapsRange(arrivalDate, departureDate, rangeStart, days);
   const departsInRange = departureFallsInRackRange(departureDate, rangeStart, days);
   if (!overlaps && !departsInRange) return null;
+  if (status === "cancelled") return "cancelled";
+  if (status === "no_show") return "no_show";
   if (status === "checked_out") return "checked_out";
   if (status === "checked_in") return "in_house";
   return "arriving";
@@ -819,7 +871,10 @@ function rackStayPlacement(
   const place = reservationBarPlacement(arrival, departure, rangeStart, days);
   if (place) return place;
   if (
-    (status === "checked_out" || status === "checked_in") &&
+    (status === "checked_out" ||
+      status === "checked_in" ||
+      status === "cancelled" ||
+      status === "no_show") &&
     departureFallsInRackRange(departure, rangeStart, days)
   ) {
     return reservationBarPlacement(departure, addDays(departure, 1), rangeStart, days);
@@ -1250,6 +1305,20 @@ function RackGroupSelect({
   );
 }
 
+function hkTaskTarget(room: OccupancyRoom, hk: RackRoom | null): FoHkTaskRoomTarget {
+  return {
+    roomId: room.id,
+    roomNumber: room.roomNumber,
+    occupancy: room.occupancy,
+    housekeepingStatus: hk?.housekeepingStatus ?? null,
+    guestName: room.guestName,
+    openTaskId: hk?.openTaskId ?? null,
+    openTaskStatus: hk?.openTaskStatus ?? null,
+    openTaskType: hk?.openTaskType ?? null,
+    openTaskPriority: hk?.openTaskPriority ?? null,
+  };
+}
+
 function inHouseTargetForRoom(
   room: OccupancyRoom,
   stays: readonly FoRackStay[],
@@ -1393,6 +1462,8 @@ function RackStatusChip({ phase }: { phase: FoOperationalPhase }) {
   );
 }
 
+type AmendmentLatestByStay = ReadonlyMap<string, FoStayAmendmentHistoryRow>;
+
 type RackViewRowsProps = {
   rooms: OccupancyRoom[];
   stays: FoRackStay[];
@@ -1404,7 +1475,9 @@ type RackViewRowsProps = {
   hkByRoom: Map<string, RackRoom>;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
+  onSelectRoom: (target: FoHkTaskRoomTarget) => void;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
+  amendmentLatestByStay: AmendmentLatestByStay;
 };
 
 /**
@@ -1423,7 +1496,9 @@ function FoRackTableView({
   hkByRoom,
   onSelectStay,
   onSelectInHouse,
+  onSelectRoom,
   onRackAction,
+  amendmentLatestByStay,
 }: RackViewRowsProps) {
   const sorted = sortedRackStays(stays);
   if (sorted.length === 0) {
@@ -1456,7 +1531,13 @@ function FoRackTableView({
         <TableBody>
           {sorted.map((stay) => {
             const room = stay.roomId ? (rooms.find((r) => r.id === stay.roomId) ?? null) : null;
-            const phase = primaryOperationalPhase(stay, focusDate, days);
+            const phase =
+              primaryOperationalPhase(stay, focusDate, days) ??
+              (stay.status === "cancelled"
+                ? "cancelled"
+                : stay.status === "no_show"
+                  ? "no_show"
+                  : null);
             if (!phase) return null;
             return (
               <TableRow
@@ -1465,9 +1546,51 @@ function FoRackTableView({
                 className="cursor-pointer"
                 onClick={() => selectRackStay(stay, room, focusDate, onSelectStay, onSelectInHouse)}
               >
-                <TableCell className="font-medium">{stay.roomNumber ?? "Unassigned"}</TableCell>
+                <TableCell
+                  className="font-medium"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {stay.roomId && stay.roomNumber ? (
+                    <button
+                      type="button"
+                      className="cursor-pointer rounded-sm text-left font-medium hover:text-[#C89933] hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
+                      data-testid="fo-room-identity"
+                      onClick={() =>
+                        onSelectRoom(
+                          hkTaskTarget(
+                            room ?? {
+                              id: stay.roomId!,
+                              roomNumber: stay.roomNumber!,
+                              roomTypeId: stay.roomTypeId,
+                              roomTypeName: stay.roomTypeName,
+                              floor: null,
+                              status: "available",
+                              occupancy: stay.status === "checked_in" ? "occupied" : "vacant",
+                              guestName: stay.guestName,
+                              reservationId: stay.id,
+                              reservationRoomId: stay.reservationRoomId ?? null,
+                              departureDate: stay.departureDate,
+                            },
+                            stay.roomId ? (hkByRoom.get(stay.roomId) ?? null) : null,
+                          ),
+                        )
+                      }
+                    >
+                      {stay.roomNumber}
+                    </button>
+                  ) : (
+                    "Unassigned"
+                  )}
+                </TableCell>
                 <TableCell className="truncate">{stay.guestName}</TableCell>
-                <TableCell className="text-muted-foreground">{stay.confirmationNumber}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span>{stay.confirmationNumber}</span>
+                    {amendmentLatestByStay.get(stay.id) ? (
+                      <FoStayAmendedMark amendment={amendmentLatestByStay.get(stay.id)!} compact />
+                    ) : null}
+                  </div>
+                </TableCell>
                 <TableCell>{formatStayDate(stay.arrivalDate)}</TableCell>
                 <TableCell>{formatStayDate(stay.departureDate)}</TableCell>
                 <TableCell>
@@ -1516,6 +1639,7 @@ function CalendarBoard({
   onOpenConfirm,
   onRoomDragStart,
   dragSourceRoomId,
+  amendmentLatestByStay,
 }: {
   rooms: OccupancyRoom[];
   stays: FoRackStay[];
@@ -1531,7 +1655,7 @@ function CalendarBoard({
   highlightRoomId: string | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
-  onSelectRoom: (roomId: string) => void;
+  onSelectRoom: (target: FoHkTaskRoomTarget) => void;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
   canOpenCashiering: boolean;
   businessDate: string;
@@ -1540,6 +1664,7 @@ function CalendarBoard({
   onOpenConfirm: (next: RackConfirmDraft) => void;
   onRoomDragStart: (stay: FoRackStay) => void;
   dragSourceRoomId: string | null;
+  amendmentLatestByStay: AmendmentLatestByStay;
 }) {
   const dates = dateRange(focusDate, days);
   const colMin = rackColumnMinPx(days);
@@ -1693,6 +1818,7 @@ function CalendarBoard({
             onPreview={onPreview}
             onOpenDateConfirm={openDateConfirm}
             onRoomDragStart={onRoomDragStart}
+            amendmentLatestByStay={amendmentLatestByStay}
           />
         ) : null}
 
@@ -1738,6 +1864,7 @@ function CalendarBoard({
                 onRoomDragStart={onRoomDragStart}
                 acceptDrop={dragSourceRoomId == null || room.id !== dragSourceRoomId}
                 dropHint={dragSourceRoomId != null && room.id !== dragSourceRoomId}
+                amendmentLatestByStay={amendmentLatestByStay}
               />
             ))}
           </Fragment>
@@ -1764,6 +1891,7 @@ function UnassignedRow({
   onPreview,
   onOpenDateConfirm,
   onRoomDragStart,
+  amendmentLatestByStay,
 }: {
   stays: FoRackStay[];
   focusDate: string;
@@ -1781,6 +1909,7 @@ function UnassignedRow({
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
   onRoomDragStart: (stay: FoRackStay) => void;
+  amendmentLatestByStay: AmendmentLatestByStay;
 }) {
   return (
     <>
@@ -1822,6 +1951,7 @@ function UnassignedRow({
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
           onRoomDragStart={onRoomDragStart}
+          amendmentLatestByStay={amendmentLatestByStay}
         />
       </div>
     </>
@@ -1855,6 +1985,7 @@ function RoomRow({
   onRoomDragStart,
   acceptDrop,
   dropHint,
+  amendmentLatestByStay,
 }: {
   room: OccupancyRoom;
   hk: RackRoom | null;
@@ -1870,7 +2001,7 @@ function RoomRow({
   highlight: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
-  onSelectRoom: (roomId: string) => void;
+  onSelectRoom: (target: FoHkTaskRoomTarget) => void;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
   canOpenCashiering: boolean;
   businessDate: string;
@@ -1882,6 +2013,7 @@ function RoomRow({
   onRoomDragStart: (stay: FoRackStay) => void;
   acceptDrop: boolean;
   dropHint: boolean;
+  amendmentLatestByStay: AmendmentLatestByStay;
 }) {
   const status = rackRoomStatusDisplay(room);
   const dropHandlers = showDrag && acceptDrop
@@ -1919,20 +2051,11 @@ function RoomRow({
       >
         <button
           type="button"
-          className="inline-flex max-w-full items-center text-left font-medium"
+          className="inline-flex max-w-full cursor-pointer items-center rounded-sm text-left font-medium hover:text-[#C89933] hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
           data-testid="fo-room-identity"
-          onClick={() => {
-            const inHouse = inHouseTargetForRoom(room, stays);
-            if (inHouse) {
-              onSelectInHouse(inHouse);
-              return;
-            }
-            const confirmed = foRackConfirmedAssignedStay(stays);
-            if (confirmed) {
-              onSelectStay(foRackActionStay(confirmed, confirmed.arrivalDate));
-              return;
-            }
-            onSelectRoom(room.id);
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelectRoom(hkTaskTarget(room, hk));
           }}
         >
           {room.roomNumber}
@@ -2041,6 +2164,7 @@ function RoomRow({
           onPreview={onPreview}
           onOpenDateConfirm={onOpenDateConfirm}
           onRoomDragStart={onRoomDragStart}
+          amendmentLatestByStay={amendmentLatestByStay}
         />
       </div>
     </>
@@ -2066,6 +2190,7 @@ function BarTrack({
   onPreview,
   onOpenDateConfirm,
   onRoomDragStart,
+  amendmentLatestByStay,
 }: {
   stays: FoRackStay[];
   room: OccupancyRoom | null;
@@ -2085,6 +2210,7 @@ function BarTrack({
   onPreview: (next: RackConfirmDraft | null) => void;
   onOpenDateConfirm: (stay: FoRackStay, arrival: string, departure: string) => void;
   onRoomDragStart: (stay: FoRackStay) => void;
+  amendmentLatestByStay: AmendmentLatestByStay;
 }) {
   return (
     <div
@@ -2100,7 +2226,12 @@ function BarTrack({
             { status: stay.status, arrivalDate: dates.arrival, departureDate: dates.departure },
             focusDate,
             days,
-          ) ?? "arriving";
+          ) ??
+          (stay.status === "cancelled"
+            ? "cancelled"
+            : stay.status === "no_show"
+              ? "no_show"
+              : "arriving");
         const actionStay = foRackActionStay(stay, businessDate);
         return (
           <ReservationBar
@@ -2136,6 +2267,7 @@ function BarTrack({
             onCommitDates={(arrival, departure) => onOpenDateConfirm(stay, arrival, departure)}
             onRoomDragStart={onRoomDragStart}
             hasOpenDiscrepancy={hasOpenDiscrepancy}
+            amendment={amendmentLatestByStay.get(stay.id) ?? null}
             menuItems={foRackBarMenuItems({
               status: stay.status,
               assigned: Boolean(stay.roomId),
@@ -2241,6 +2373,7 @@ function ReservationBar({
   onPreviewDates,
   onCommitDates,
   onRoomDragStart,
+  amendment = null,
 }: {
   stay: FoRackStay;
   phase: FoOperationalPhase;
@@ -2256,13 +2389,24 @@ function ReservationBar({
   onPreviewDates: (arrival: string, departure: string) => void;
   onCommitDates: (arrival: string, departure: string) => void;
   onRoomDragStart: (stay: FoRackStay) => void;
+  amendment?: FoStayAmendmentHistoryRow | null;
 }) {
   const dragged = useRef(false);
   const badges = liveStayBadges({ ...stay, hasOpenDiscrepancy });
   const compact = badgeDisplayMode(days);
   const span = endCol - startCol;
   const tone = operationalBarTone(phase);
-  const guestLabel = rackBarGuestLabel(stay.guestName, stay.confirmationNumber, span);
+  const allowMove = showDrag && phase !== "no_show" && phase !== "cancelled";
+  const guestLabel =
+    phase === "no_show"
+      ? [rackBarGuestLabel(stay.guestName, stay.confirmationNumber, span), "No-Show"]
+          .filter(Boolean)
+          .join(" · ")
+      : phase === "cancelled"
+        ? [rackBarGuestLabel(stay.guestName, stay.confirmationNumber, span), "Cancelled"]
+            .filter(Boolean)
+            .join(" · ")
+        : rackBarGuestLabel(stay.guestName, stay.confirmationNumber, span);
   const departing =
     phase === "in_house" && departureFallsInRackRange(stay.departureDate, focusDate, days);
 
@@ -2271,7 +2415,7 @@ function ReservationBar({
       className="relative mx-1 flex min-w-0 items-stretch"
       style={{ gridColumn: `${startCol} / ${endCol}` }}
     >
-      {showDrag ? (
+      {allowMove ? (
         <span
           data-testid="fo-resize-start"
           className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-ew-resize"
@@ -2306,7 +2450,7 @@ function ReservationBar({
             : {}),
         }}
         onPointerDown={
-          showDrag
+          allowMove
             ? (e) =>
                 startDateGesture(
                   e,
@@ -2329,7 +2473,7 @@ function ReservationBar({
           onOpen(stay);
         }}
       >
-        {showDrag ? (
+        {allowMove ? (
           <span
             data-testid="fo-drag-handle"
             draggable
@@ -2348,12 +2492,18 @@ function ReservationBar({
           </span>
         ) : null}
         <span className="min-w-0 flex-1 truncate font-medium">{guestLabel}</span>
+        {amendment ? (
+          <>
+            <span className="shrink-0 opacity-70">·</span>
+            <FoStayAmendedMark amendment={amendment} />
+          </>
+        ) : null}
         {span >= 3 ? <StayBadgeStrip badges={badges} mode={compact} /> : null}
       </button>
       <div
         className={cn(
           "absolute inset-y-0 z-20 flex items-center",
-          showDrag ? "right-1.5" : "right-0.5",
+          allowMove ? "right-1.5" : "right-0.5",
         )}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -2361,7 +2511,7 @@ function ReservationBar({
         <span aria-hidden className="mr-0.5 h-4 w-px" style={{ backgroundColor: tone.border }} />
         <RackStayMenu items={menuItems} tone="card" onAction={onAction} />
       </div>
-      {showDrag ? (
+      {allowMove ? (
         <span
           data-testid="fo-resize-end"
           className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-ew-resize"
@@ -2461,6 +2611,7 @@ function PhoneRackList({
   canOpenCashiering,
   businessDate,
   staffRole,
+  amendmentLatestByStay,
 }: {
   rooms: OccupancyRoom[];
   stays: FoRackStay[];
@@ -2471,11 +2622,12 @@ function PhoneRackList({
   openDiscrepancyRoomIds: Set<string>;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
-  onSelectRoom: (roomId: string) => void;
+  onSelectRoom: (target: FoHkTaskRoomTarget) => void;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
   canOpenCashiering: boolean;
   businessDate: string;
   staffRole?: string;
+  amendmentLatestByStay: AmendmentLatestByStay;
 }) {
   const todayStays = stays.filter((s) => s.arrivalDate <= today && s.departureDate > today);
   return (
@@ -2504,21 +2656,11 @@ function PhoneRackList({
                 <li key={room.id} className="rounded-xl border border-[#DDD4C5] bg-card p-3">
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 text-left font-medium"
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-sm text-left font-medium hover:text-[#C89933] hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
                     data-testid="fo-room-identity"
-                    onClick={() => {
-                      const roomStays = todayStays.filter((stay) => stay.roomId === room.id);
-                      const inHouse = inHouseTargetForRoom(room, roomStays);
-                      if (inHouse) {
-                        onSelectInHouse(inHouse);
-                        return;
-                      }
-                      const confirmed = foRackConfirmedAssignedStay(roomStays);
-                      if (confirmed) {
-                        onSelectStay(foRackActionStay(confirmed, today));
-                        return;
-                      }
-                      onSelectRoom(room.id);
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectRoom(hkTaskTarget(room, hkByRoom.get(room.id) ?? null));
                     }}
                   >
                     <span>{room.roomNumber}</span>
@@ -2553,7 +2695,15 @@ function PhoneRackList({
                 className="w-full rounded-xl border border-[#DDD4C5] bg-card p-3 pr-10 text-left"
                 onClick={() => selectRackStay(stay, room, today, onSelectStay, onSelectInHouse)}
               >
-                <p className="font-medium">{stay.guestName}</p>
+                <p className="flex min-w-0 items-baseline gap-1.5 font-medium">
+                  <span className="truncate">{stay.guestName}</span>
+                  {amendmentLatestByStay.get(stay.id) ? (
+                    <>
+                      <span className="shrink-0 text-muted-foreground">·</span>
+                      <FoStayAmendedMark amendment={amendmentLatestByStay.get(stay.id)!} />
+                    </>
+                  ) : null}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   {stay.confirmationNumber} · {stay.roomNumber ?? "Unassigned"}
                 </p>
