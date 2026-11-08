@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { resolveSiteAnimationConfig } from "../../../lib/marketing/site-content";
 import { useNoruSite } from "../site-context";
 
 /* Timeline (seconds) */
@@ -175,7 +176,9 @@ function FigureShapes() {
  */
 export function HeroAnimation() {
   const rootRef = useRef<HTMLElement>(null);
-  const { hero } = useNoruSite();
+  const site = useNoruSite();
+  const { hero } = site;
+  const animationEnabled = resolveSiteAnimationConfig(site).enabled;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -204,8 +207,9 @@ export function HeroAnimation() {
     };
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    render(reduceMotion ? END : 0);
-    if (reduceMotion) return;
+    const staticPose = reduceMotion || !animationEnabled;
+    render(staticPose ? END : 0);
+    if (staticPose) return;
 
     let raf = 0;
     let start = performance.now();
@@ -220,7 +224,7 @@ export function HeroAnimation() {
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [animationEnabled]);
 
   return (
     <section className="hh" id="nh-hero" ref={rootRef}>

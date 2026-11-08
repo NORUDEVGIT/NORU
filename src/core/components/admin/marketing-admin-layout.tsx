@@ -2,41 +2,32 @@ import { type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { AdminShell } from "@/core/components/admin-shell";
 import { MarketingEditorProvider, useMarketingEditor } from "@/core/components/admin/marketing-editor-provider";
+import { MARKETING_ADMIN_SECTIONS } from "@/core/lib/marketing";
 import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
-
-const SECTIONS = [
-  { to: "/admin/marketing", label: "Overview", end: true },
-  { to: "/admin/marketing/brand", label: "Brand & hero" },
-  { to: "/admin/marketing/nav", label: "Navigation" },
-  { to: "/admin/marketing/packages", label: "Packages" },
-  { to: "/admin/marketing/pricing", label: "Pricing" },
-  { to: "/admin/marketing/products", label: "Products" },
-  { to: "/admin/marketing/solutions", label: "Solutions" },
-  { to: "/admin/marketing/plans", label: "Plans" },
-  { to: "/admin/marketing/faq", label: "FAQ" },
-  { to: "/admin/marketing/partners", label: "Partners" },
-  { to: "/admin/marketing/events", label: "Events" },
-  { to: "/admin/marketing/resources", label: "Resources" },
-  { to: "/admin/marketing/details", label: "Hero & footer" },
-  { to: "/admin/marketing/content", label: "Content" },
-  { to: "/admin/marketing/site", label: "Site chrome" },
-] as const;
 
 function MarketingSubnav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <nav className="flex flex-wrap gap-2">
-      {SECTIONS.map((item) => {
+    <nav
+      aria-label="Marketing sections"
+      className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]"
+    >
+      {MARKETING_ADMIN_SECTIONS.map((item) => {
         const exact = "end" in item && item.end;
         const active = exact ? pathname === item.to || pathname === `${item.to}/` : pathname === item.to;
+        const legacy = item.label === "Advanced / Legacy";
         return (
           <Link
             key={item.to}
             to={item.to}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium",
-              active ? "bg-primary text-primary-foreground" : "border border-border hover:bg-muted",
+              "shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium",
+              active
+                ? "bg-[#2b1a0e] text-[#FAF6EE] ring-1 ring-[#C89933]"
+                : legacy
+                  ? "border border-[#C89933]/30 bg-[#FAF6EE]/70 text-[#6b5344] hover:bg-[#F3E6C8]"
+                  : "border border-[#C89933]/40 bg-[#FAF6EE] text-[#2b1a0e] hover:bg-[#F3E6C8]",
             )}
           >
             {item.label}
@@ -48,7 +39,7 @@ function MarketingSubnav() {
 }
 
 function MarketingToolbar() {
-  const { dirty, report, publish, revertDraft } = useMarketingEditor();
+  const { dirty, report, publish, revertDraft, resetToSeed } = useMarketingEditor();
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
       <p className="text-sm text-muted-foreground">
@@ -61,7 +52,10 @@ function MarketingToolbar() {
       </p>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => void revertDraft()} disabled={!dirty}>
-          Revert draft
+          Revert Draft
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => void resetToSeed()}>
+          Reset to Seed
         </Button>
         <Button type="button" size="sm" onClick={() => void publish()} disabled={!report.ok}>
           Publish

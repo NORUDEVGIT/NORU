@@ -1,9 +1,8 @@
 /**
- * Phase 8B2 — Platform Admin package entitlement controls.
+ * Platform Admin package entitlement controls.
  *
- * Commercial layer only: this decides what a property has been sold, not who
- * inside that property may use it (that stays with staff module access).
- * Nothing in the tenant product reads these values yet.
+ * PMS is the only operational commercial package. Restaurant Management,
+ * Standalone POS and Back Office remain public marketing products only.
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -91,7 +90,7 @@ export function PackageEntitlementsPanel({ restaurantId }: { restaurantId: strin
     <section className="rounded-xl border border-border bg-card p-5">
       <h2 className="text-lg font-semibold">Package entitlements</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        What this customer has bought. Staff permissions are managed separately inside the property
+        PMS is the operational product. Staff permissions are managed separately inside the property
         and are not affected by these controls.
       </p>
 
@@ -161,9 +160,7 @@ export function PackageEntitlementsPanel({ restaurantId }: { restaurantId: strin
                 {confirmKey === s.packageKey ? (
                   <div className="mt-3 space-y-2 rounded-lg bg-muted/50 p-3">
                     <p className="text-sm">
-                      Disable {PACKAGE_LABELS[s.packageKey]} for this property? This prepares the
-                      package to become unavailable once package enforcement is switched on. Nothing
-                      changes for the customer today.
+                      Disable {PACKAGE_LABELS[s.packageKey]} for this property?
                     </p>
                     <div className="flex gap-2">
                       <Button

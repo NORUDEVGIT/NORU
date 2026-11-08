@@ -21,11 +21,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     await requirePlatformAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const [{ data: restaurants }, customers, orders] = await Promise.all([
-      supabaseAdmin.from("restaurants").select("approved, active"),
-      supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).eq("account_type", "customer"),
-      supabaseAdmin.from("orders").select("id", { count: "exact", head: true }),
-    ]);
+    const { data: restaurants } = await supabaseAdmin.from("restaurants").select("approved, active");
 
     const rows = restaurants ?? [];
     const count = (s: RestaurantStatus) =>
@@ -37,8 +33,6 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       approved: count("approved"),
       suspended: count("suspended"),
       rejected: count("rejected"),
-      totalCustomers: customers.count ?? 0,
-      totalOrders: orders.count ?? 0,
     };
   });
 
@@ -220,26 +214,6 @@ export const reactivateRestaurant = createServerFn({ method: "POST" })
       suspension_reason: null,
     }),
   );
-
-export const listCustomersAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requirePlatformAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
-      .from("profiles")
-      .select("id, first_name, last_name, email, phone, created_at")
-      .eq("account_type", "customer")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    return (data ?? []).map((p) => ({
-      id: p.id,
-      name: [p.first_name, p.last_name].filter(Boolean).join(" ") || "—",
-      email: p.email,
-      phone: p.phone,
-      joinedAt: p.created_at,
-    }));
-  });
 
 export const listAuditLog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

@@ -2213,65 +2213,6 @@ export const postHotelDrawerMovement = createServerFn({ method: "POST" })
     return { ok: true, id: (figures as { shift_id: string }).shift_id };
   });
 
-/**
- * Unused by Cashier Control. Reads the legacy cashier_shifts table and every
- * folio row between opened_at and closed_at. Do not wire this into the hotel
- * drawer. Hotel shift totals come from hotel_drawer_figures and
- * folio_transactions.hotel_cashier_shift_id.
- */
-export const getShiftSummary = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .validator((d: { restaurantId: string; shiftId: string }) =>
-    z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(d),
-  )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<{ payments: number; deposits: number; refunds: number; transactions: number }> => {
-      await requirePmsActor(
-        context as never,
-        data.restaurantId,
-        PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW,
-      );
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-      const { data: shift } = await supabaseAdmin
-        .from("cashier_shifts")
-        .select("opened_at, closed_at")
-        .eq("id", data.shiftId)
-        .eq("restaurant_id", data.restaurantId)
-        .maybeSingle();
-      if (!shift) return { payments: 0, deposits: 0, refunds: 0, transactions: 0 };
-      const s = shift as { opened_at: string; closed_at: string | null };
-
-      let query = supabaseAdmin
-        .from("folio_transactions")
-        .select("transaction_type, amount")
-        .eq("restaurant_id", data.restaurantId)
-        .gte("posted_at", s.opened_at);
-      if (s.closed_at) query = query.lte("posted_at", s.closed_at);
-
-      const { data: txns } = await query;
-      let payments = 0;
-      let deposits = 0;
-      let refunds = 0;
-      const rows = (txns ?? []) as { transaction_type: string; amount: number | string }[];
-      for (const t of rows) {
-        const amount = Number(t.amount);
-        if (t.transaction_type === "payment") payments += -amount;
-        if (t.transaction_type === "deposit") deposits += -amount;
-        if (t.transaction_type === "refund") refunds += amount;
-      }
-      return {
-        payments: round2(payments),
-        deposits: round2(deposits),
-        refunds: round2(refunds),
-        transactions: rows.length,
-      };
-    },
-  );
-
 /* ------------------------------------------- ledger reads by movement type */
 
 export interface LedgerEntryRow {

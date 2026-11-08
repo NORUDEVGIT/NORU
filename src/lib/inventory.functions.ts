@@ -93,14 +93,9 @@ async function requireInventoryAccess(context: any, restaurantId: string) {
 }
 
 /**
- * Phase 8G2C — stock writes are reachable from two entitled packages:
- * Restaurant Management (operational stock) and Back Office (central
- * inventory / warehouse). The role and module check runs first and is
- * unchanged; the property must then hold at least one of those packages.
- *
- * The package is resolved server-side from the property's entitlements — the
- * browser never tells us which package it is calling from, so no caller can
- * widen its own access.
+ * Stock writes: Inventory module/role first, then the shared commercial gate.
+ * PMS-only properties are entitled; explicit RMS / Back Office rows still
+ * work until forced retirement. The browser never supplies a package name.
  */
 async function requireInventoryWrite(context: any, restaurantId: string) {
   const me = await requireInventoryAccess(context, restaurantId);

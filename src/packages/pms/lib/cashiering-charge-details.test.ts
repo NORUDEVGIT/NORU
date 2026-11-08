@@ -38,4 +38,16 @@ describe("charge details drawer", () => {
     assert.match(panels, /Invoice settlement/);
     assert.doesNotMatch(`${sheet}\n${panels}\n${page}`, /captured|tax calculated/i);
   });
+
+  it("keeps historical restaurant_order folio lines readable without RMS", () => {
+    const sheet = read("../components/cashiering/charge-details-sheet.tsx");
+    const cashiering = read("./cashiering.functions.ts");
+    assert.match(sheet, /export function chargeItemTitle/);
+    assert.match(sheet, /row\.referenceType === "restaurant_order"\) return row\.description/);
+    assert.match(sheet, /row\.referenceType === "restaurant_order"\) return "POS"/);
+    assert.match(cashiering, /referenceType: t\.reference_type/);
+    assert.match(cashiering, /reference_type, reference_id/);
+    assert.doesNotMatch(sheet, /post_order_room_charge|postOrderRoomCharge|rm-receipts/);
+    assert.doesNotMatch(cashiering, /post_order_room_charge|packages\/restaurant-management/);
+  });
 });

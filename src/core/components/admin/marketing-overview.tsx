@@ -1,36 +1,40 @@
 import { Link } from "@tanstack/react-router";
 import { useMarketingEditor } from "@/core/components/admin/marketing-editor-provider";
 import { SectionCard } from "@/core/components/admin/marketing-form-fields";
+import { landingInventory } from "@/core/lib/marketing";
 import { Button } from "@/shared/components/ui/button";
-import { MARKETING_CARD_DISCLAIMER, publishedOf } from "@/core/lib/marketing";
 
 const LINKS = [
-  { to: "/admin/marketing/brand", label: "Brand & hero" },
-  { to: "/admin/marketing/nav", label: "Navigation" },
-  { to: "/admin/marketing/packages", label: "Packages" },
-  { to: "/admin/marketing/pricing", label: "Pricing" },
-  { to: "/admin/marketing/content", label: "Content" },
-  { to: "/admin/marketing/site", label: "Site chrome" },
+  { to: "/admin/marketing/header", label: "Header & Navigation" },
+  { to: "/admin/marketing/hero", label: "Hero & Animation" },
+  { to: "/admin/marketing/partners", label: "Partners" },
+  { to: "/admin/marketing/events", label: "Events" },
+  { to: "/admin/marketing/products", label: "Product Highlights" },
+  { to: "/admin/marketing/solutions", label: "Property Solutions" },
+  { to: "/admin/marketing/faq", label: "FAQ" },
+  { to: "/admin/marketing/cta", label: "Final CTA" },
+  { to: "/admin/marketing/footer", label: "Footer" },
 ] as const;
 
 export function MarketingOverview() {
   const { draft, snapshot, report, dirty, publish, revertDraft, resetToSeed } = useMarketingEditor();
+  const inventory = landingInventory(draft);
 
   const cards = [
-    { label: "Nav items", value: draft.nav.length },
-    { label: "Marketing cards", value: draft.packages.length },
-    { label: "Published partners", value: publishedOf(draft.partners).length },
-    { label: "Published testimonials", value: publishedOf(draft.testimonials).length },
-    { label: "Published case studies", value: publishedOf(draft.caseStudies).length },
-    { label: "Published posts", value: publishedOf(draft.blogPosts).length },
-    { label: "FAQ items", value: draft.faq.length },
-    { label: "Promo banners", value: draft.promoBanners.length },
+    { label: "Header nav items", value: String(inventory.headerNavItems) },
+    { label: "Partners", value: String(inventory.partners) },
+    { label: "Events", value: String(inventory.events) },
+    { label: "Product highlights", value: String(inventory.productHighlights) },
+    { label: "Property solutions", value: String(inventory.propertySolutions) },
+    { label: "FAQ items", value: String(inventory.faqItems) },
+    { label: "Final CTA", value: inventory.finalCtaEnabled ? "Enabled" : "Disabled" },
+    { label: "Hero animation", value: inventory.heroAnimationEnabled ? "Enabled" : "Disabled" },
   ];
 
   return (
     <div className="space-y-5">
       <SectionCard
-        title="Publish"
+        title="Publish status"
         description="Draft and published documents live in Core marketing tables. The public site reads the published site block and falls back to the built-in copy when that block is absent. A newer draft from someone else is kept instead of overwritten."
       >
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -63,15 +67,18 @@ export function MarketingOverview() {
             Publish
           </Button>
           <Button type="button" variant="outline" onClick={() => void revertDraft()} disabled={!dirty}>
-            Revert draft
+            Revert Draft
           </Button>
           <Button type="button" variant="outline" onClick={() => void resetToSeed()}>
-            Reset to seed
+            Reset to Seed
           </Button>
         </div>
       </SectionCard>
 
-      <SectionCard title="Inventory" description={MARKETING_CARD_DISCLAIMER}>
+      <SectionCard
+        title="Landing page content"
+        description="Counts for the current public NORU landing. Legacy package and pricing inventory lives under Advanced / Legacy."
+      >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((card) => (
             <div key={card.label} className="rounded-lg border border-border p-3">
@@ -80,9 +87,6 @@ export function MarketingOverview() {
             </div>
           ))}
         </div>
-        <p className="text-sm text-muted-foreground">
-          Partners, testimonials, case studies, and blog start empty. Do not invent social proof.
-        </p>
         <div className="flex flex-wrap gap-2">
           {LINKS.map((link) => (
             <Button key={link.to} asChild variant="outline" size="sm">

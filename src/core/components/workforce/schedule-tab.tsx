@@ -28,7 +28,6 @@ import {
 } from "@/core/lib/workforce.functions";
 import { addDaysIso, formatShiftTime, todayIso, wasLate } from "@/core/lib/workforce-rules";
 import { cn } from "@/shared/lib/utils";
-import { AssignTablesDialog } from "@/packages/restaurant-management/components/assign-tables-dialog";
 
 /**
  * Schedule tab. Owners/managers get the full controls; kitchen/waiter get a
@@ -54,7 +53,6 @@ export function ScheduleTab({
   const [staffMembershipId, setStaffMembershipId] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
-  const [assignShift, setAssignShift] = useState<ShiftRecord | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ShiftRecord | null>(null);
 
   const from = date;
@@ -219,14 +217,11 @@ export function ScheduleTab({
               shift={shift}
               canManage={canManage}
               timezone={timezone}
-              onAssign={() => setAssignShift(shift)}
               onCancel={() => setCancelTarget(shift)}
             />
           ))}
         </ul>
       )}
-
-      <AssignTablesDialog restaurantId={restaurantId} shift={assignShift} onClose={() => setAssignShift(null)} />
 
       <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
         <AlertDialogContent>
@@ -255,14 +250,12 @@ function ShiftRow({
   shift,
   canManage,
   timezone,
-  onAssign,
   onCancel,
 }: {
   restaurantId: string;
   shift: ShiftRecord;
   timezone: string;
   canManage: boolean;
-  onAssign: () => void;
   onCancel: () => void;
 }) {
   const fetchAssignments = useServerFn(listShiftTableAssignments);
@@ -307,9 +300,6 @@ function ShiftRow({
 
       {canManage && shift.status !== "cancelled" ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={onAssign}>
-            Assign tables
-          </Button>
           <Button size="sm" variant="ghost" className="text-destructive" onClick={onCancel}>
             Cancel shift
           </Button>

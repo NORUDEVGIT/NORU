@@ -14,7 +14,8 @@ import { COMMON_CURRENCIES, COMMON_TIMEZONES, formatMoney } from "@/shared/lib/p
 import { FoFeeDefaultsEditor } from "@/packages/pms/components/settings/fo-fee-defaults-editor";
 import { PmsDocumentHeader } from "@/packages/pms/components/settings/pms-document-header";
 import { activatePmsSet1, savePmsSet1Foundation } from "@/packages/pms/lib/pms-set1-foundation.functions";
-import { DEPOSIT_TYPE_LABELS, DEPOSIT_TYPES, FEE_BASIS_LABELS, FEE_BASES, PROPERTY_TYPE_LABELS, PROPERTY_TYPES, SET1_ACTIVATE_LABEL, SET1_BUSINESS_DATE_COPY, SET1_CI_CO_EQUAL_WARNING, SET1_COLUMNS_UNAVAILABLE, SET1_HUB_HREF, SET1_OPS_HELPER, SET1_TAX_HONESTY, SET1_TAX_RM_SHARE, ciCoEqual, formatClockLabel, overallLabel, readinessLabel, type Set1Checklist, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1Readiness, type Set1SectionId, type Set1TaxesDraft } from "@/packages/pms/lib/pms-set1-foundation";
+import { DEPOSIT_TYPE_LABELS, DEPOSIT_TYPES, FEE_BASIS_LABELS, FEE_BASES, PROPERTY_TYPE_LABELS, PROPERTY_TYPES, SET1_ACTIVATE_LABEL, SET1_BUSINESS_DATE_COPY, SET1_CI_CO_EQUAL_WARNING, SET1_COLUMNS_UNAVAILABLE, SET1_HUB_HREF, SET1_OPS_HELPER, SET1_TAX_HONESTY, SET1_TAXES_OWNER_COPY, ciCoEqual, formatClockLabel, overallLabel, readinessLabel, type Set1Checklist, type Set1Foundation, type Set1IdentityDraft, type Set1OpsDraft, type Set1PoliciesDraft, type Set1Readiness, type Set1SectionId } from "@/packages/pms/lib/pms-set1-foundation";
+import { CARD3_TAXES_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { cn } from "@/shared/lib/utils";
 
@@ -308,126 +309,19 @@ export function Set1OpsSection({ restaurantId, snapshot, canEdit }: { restaurant
   );
 }
 
-export function Set1TaxesSection({ restaurantId, snapshot, canEdit }: { restaurantId: string; snapshot: Set1Foundation; canEdit: boolean }) {
-  const queryClient = useQueryClient();
-  const save = useServerFn(savePmsSet1Foundation);
-  const [draft, setDraft] = useState<Set1TaxesDraft>(snapshot.taxes);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  useEffect(() => setDraft(snapshot.taxes), [snapshot.taxes]);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(snapshot.taxes);
-  useDirtyGuard(dirty);
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      save({
-        data: {
-          restaurantId,
-          section: "taxes",
-          taxInclusive: draft.taxInclusive,
-          taxName: draft.taxName || null,
-          taxRate: draft.taxRate,
-          serviceEnabled: draft.serviceEnabled,
-          serviceRate: draft.serviceRate,
-        },
-      }),
-    onSuccess: () => {
-      setConfirmOpen(false);
-      toast.success("Tax settings saved. New postings use these rates.");
-      void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
-    },
-    onError: (error: Error) => {
-      setConfirmOpen(false);
-      toast.error(error.message);
-    },
-  });
-
+export function Set1TaxesSection(_props: { restaurantId: string; snapshot: Set1Foundation; canEdit: boolean }) {
   return (
     <section id="taxes" className="space-y-4 rounded-2xl border border-border bg-card p-5">
       <div>
         <h2 className="font-display text-lg text-[#251605]">Taxes</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{SET1_TAXES_OWNER_COPY}</p>
         <p className="mt-1 text-sm text-muted-foreground">{SET1_TAX_HONESTY}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{SET1_TAX_RM_SHARE}</p>
       </div>
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Tax mode</p>
-        <div className="grid grid-cols-2 gap-2">
-          {(
-            [
-              { value: false, label: "Exclusive" },
-              { value: true, label: "Inclusive" },
-            ] as const
-          ).map((option) => (
-            <button key={String(option.value)} type="button" disabled={!canEdit} onClick={() => setDraft((p) => ({ ...p, taxInclusive: option.value }))} className={cn("h-12 rounded-2xl border text-sm font-semibold", draft.taxInclusive === option.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background")}>
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {snapshot.foundationColumnsAvailable ? <Field id="set1-tax-name" label="Tax name" value={draft.taxName} disabled={!canEdit} onChange={(taxName) => setDraft((p) => ({ ...p, taxName }))} /> : <p className="text-sm text-muted-foreground">{SET1_COLUMNS_UNAVAILABLE}</p>}
-      <div className="space-y-2">
-        <Label htmlFor="set1-tax-rate">Room stay rate</Label>
-        <div className="relative">
-          <Input
-            id="set1-tax-rate"
-            inputMode="decimal"
-            disabled={!canEdit}
-            value={String(draft.taxRate)}
-            onChange={(event) => {
-              const parsed = Number(event.target.value);
-              if (!Number.isFinite(parsed) && event.target.value !== "") return;
-              setDraft((p) => ({ ...p, taxRate: Number(event.target.value) || 0 }));
-            }}
-            className="h-12 pr-10"
-          />
-          <span className="pointer-events-none absolute inset-y-0 right-3 grid place-items-center text-sm text-muted-foreground">%</span>
-        </div>
-        <p className="text-xs text-muted-foreground">Applies to Room stay. Extra named rates are not in this wave.</p>
-      </div>
-      <div className="space-y-3 rounded-xl border border-border p-4">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="set1-service">Service charge</Label>
-          <Switch id="set1-service" checked={draft.serviceEnabled} disabled={!canEdit} onCheckedChange={(serviceEnabled) => setDraft((p) => ({ ...p, serviceEnabled }))} />
-        </div>
-        {draft.serviceEnabled ? (
-          <div className="relative">
-            <Input id="set1-service-rate" inputMode="decimal" disabled={!canEdit} value={String(draft.serviceRate)} onChange={(event) => setDraft((p) => ({ ...p, serviceRate: Number(event.target.value) || 0 }))} className="h-12 pr-10" />
-            <span className="pointer-events-none absolute inset-y-0 right-3 grid place-items-center text-sm text-muted-foreground">%</span>
-          </div>
-        ) : null}
-      </div>
-      {canEdit ? (
-        <>
-          <StickyBar dirty={dirty} busy={mutation.isPending} onDiscard={() => setDraft(snapshot.taxes)} onSave={() => setConfirmOpen(true)} />
-          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-            <AlertDialogContent className="border-[#C89933]">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-[#251605]">Confirm tax settings</AlertDialogTitle>
-                <AlertDialogDescription>{SET1_TAX_HONESTY}</AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="rounded-xl border border-[#CCCCCC] p-3 text-sm">
-                <p>
-                  Before: {snapshot.taxes.taxInclusive ? "Inclusive" : "Exclusive"} · {snapshot.taxes.taxName || "Unnamed"} {snapshot.taxes.taxRate}%
-                </p>
-                <p className="text-[#436436]">
-                  After: {draft.taxInclusive ? "Inclusive" : "Exclusive"} · {draft.taxName || "Unnamed"} {draft.taxRate}%
-                </p>
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    mutation.mutate();
-                  }}
-                >
-                  Confirm
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
-      ) : null}
+      <a href={CARD3_TAXES_HREF} data-testid="set1-open-taxes-fees">
+        <Button type="button" className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90">
+          Open Taxes & Fees
+        </Button>
+      </a>
     </section>
   );
 }

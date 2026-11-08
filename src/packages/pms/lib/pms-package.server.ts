@@ -6,9 +6,8 @@
  * checks. This file only answers "may this property act as a PMS property
  * right now?" and throws a neutral error when it may not.
  *
- * Expiry and the compatibility default (no explicit row = enabled) are not
- * reimplemented here — they come from the shared Phase 8B1 resolver via the
- * fail-closed, short-cached availability helper from Phase 8D2.
+ * Expiry and missing-row compatibility are not reimplemented here — they
+ * come from the shared resolver via the fail-closed availability helper.
  */
 import { publicPackageAvailable } from "@/core/lib/public-package.server";
 

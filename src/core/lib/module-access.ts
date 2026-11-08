@@ -61,11 +61,8 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
  */
 export const MODULE_KEYS = [
   "pms",
-  "food_and_beverage",
   "front_office",
   "housekeeping",
-  "pos",
-  "standalone_pos",
   "inventory",
   "procurement",
   "human_resources",
@@ -79,11 +76,8 @@ export type ModuleKey = (typeof MODULE_KEYS)[number];
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   pms: "PMS",
-  food_and_beverage: "Food & Beverage",
   front_office: "Front Office",
   housekeeping: "Housekeeping",
-  pos: "POS",
-  standalone_pos: "Standalone POS",
   inventory: "Inventory / Warehouse",
   procurement: "Procurement",
   human_resources: "Human Resources",
@@ -99,14 +93,14 @@ const ALL_MODULES = MODULE_KEYS as readonly ModuleKey[];
 export const ROLE_MODULES: Record<StaffRole, ModuleKey[]> = {
   owner: [...ALL_MODULES],
   manager: [...ALL_MODULES],
-  kitchen: ["food_and_beverage", "inventory", "procurement"],
-  waiter: ["food_and_beverage", "pos"],
+  kitchen: ["inventory", "procurement"],
+  waiter: [],
   housekeeping: ["housekeeping"],
   housekeeping_supervisor: ["housekeeping"],
   housekeeper: ["housekeeping"],
   maintenance: ["housekeeping"],
   receptionist: ["front_office"],
-  cashier: ["accounting_finance", "pos", "standalone_pos"],
+  cashier: ["accounting_finance"],
   accountant: ["accounting_finance", "reports_analytics"],
   storekeeper: ["inventory", "procurement"],
 };
@@ -117,9 +111,6 @@ export const ROLE_MODULES: Record<StaffRole, ModuleKey[]> = {
  * tied to owner/manager so an override can't escalate privileges.
  */
 export const OVERRIDABLE_MODULES: ModuleKey[] = [
-  "food_and_beverage",
-  "pos",
-  "standalone_pos",
   "front_office",
   "housekeeping",
   "inventory",
@@ -207,8 +198,3 @@ export const CASHIERING_MANAGE_ROLES = ["owner", "manager"] as const;
 export const INVENTORY_ROLES = ["owner", "manager", "kitchen", "storekeeper"] as const;
 export const PURCHASING_ROLES = ["owner", "manager", "storekeeper"] as const;
 export const REPORTS_ROLES = ["owner", "manager", "accountant"] as const;
-
-/** Phase 8H2 — Standalone POS. Sell/refund roles; accountant is read-only. */
-export const STANDALONE_POS_ROLES = ["owner", "manager", "cashier"] as const;
-export const STANDALONE_POS_READ_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
-export const STANDALONE_POS_MANAGE_ROLES = ["owner", "manager"] as const;

@@ -7,7 +7,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
 import type { AssetHistoryEntry, RestaurantAsset } from "@/lib/assets.functions";
 import type { AssetCondition, AssetEvent, AssetStatus, AssetType } from "@/lib/assets.server";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = {
   active: "Active",

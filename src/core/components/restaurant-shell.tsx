@@ -6,8 +6,6 @@ import {
   LayoutDashboard,
   BedDouble,
   DoorOpen,
-  UtensilsCrossed,
-  ChefHat,
   ReceiptText,
   Wallet,
   MoonStar,
@@ -21,10 +19,8 @@ import {
   CalendarCheck,
   CalendarPlus,
   ClipboardCheck,
-  QrCode,
   Users,
   UserRound,
-  HandPlatter,
   BarChart3,
   Settings,
   LogOut,
@@ -38,7 +34,6 @@ import {
   Menu as MenuIcon,
   X,
   Globe,
-  Briefcase,
   Clock,
 } from "lucide-react";
 import { NoruLogo } from "@/core/components/noru-logo";
@@ -49,9 +44,6 @@ import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { clearRoutePackageCache } from "@/core/lib/route-package-guard";
 import { getPmsModule, pmsLauncherModules } from "@/packages/pms/lib/pms-modules";
-import { RM_GROUPS, RM_MODULES } from "@/packages/restaurant-management/lib/restaurant-management-modules";
-import { BO_GROUPS, BO_MODULES, getBoModule } from "@/packages/back-office/lib/back-office-modules";
-import { POS_MODULES, getPosModule } from "@/packages/standalone-pos/lib/standalone-pos-modules";
 import { useAuth } from "@/core/state/auth-store";
 import { SET_PASSWORD_PATH } from "@/core/lib/password-lifecycle";
 import { usePasswordGate } from "@/core/lib/use-password-gate";
@@ -66,15 +58,6 @@ import { PmsIdleWelcomeWatcher } from "@/packages/pms/components/pms/pms-idle-we
 export type RestaurantNavLabel =
   | "Home"
   | "PMS"
-  | "Restaurant Management"
-  | "Back Office"
-  | "Standalone POS"
-  | "Dashboard"
-  | "Menu"
-  | "Kitchen"
-  | "Orders"
-  | "Tables & QR"
-  | "Take Order"
   | "Inventory"
   | "Rooms"
   | "Arrivals"
@@ -93,7 +76,6 @@ export type RestaurantNavLabel =
   | "Cashier Shifts"
   | "Night Audit"
   | "Staff"
-  | "Customers"
   | "Reports"
   | "Configuration"
   | "Settings";
@@ -129,8 +111,6 @@ const CASH = ["owner", "manager", "cashier", "accountant"];
 const AUDIT = ["owner", "manager", "accountant"];
 const INV = ["owner", "manager", "kitchen", "storekeeper"];
 const PROC = ["owner", "manager", "storekeeper"];
-const FNB = ["owner", "manager", "kitchen", "waiter"];
-
 type NavEntry = {
   to: string;
   /** Optional tab search param for pages that host several tabs. */
@@ -143,22 +123,7 @@ type NavEntry = {
   section?: string;
 };
 
-const RESTAURANT_NAV: NavEntry[] = [
-  { to: "/restaurant/restaurant-management/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: FNB },
-  {
-    to: "/restaurant/restaurant-management/kitchen",
-    label: "Kitchen",
-    icon: ChefHat,
-    roles: ["owner", "manager", "kitchen"],
-  },
-  { to: "/restaurant/restaurant-management/orders", label: "Orders", icon: ReceiptText, roles: FNB },
-  {
-    to: "/restaurant/restaurant-management/digital-ordering",
-    label: "Take Order",
-    icon: HandPlatter,
-    roles: ["owner", "manager", "waiter"],
-  },
-];
+const RESTAURANT_NAV: NavEntry[] = [];
 
 
 const STOCK_NAV: NavEntry[] = [
@@ -193,17 +158,19 @@ const STOCK_NAV: NavEntry[] = [
   { to: "/restaurant/inventory", tab: "equipment", label: "Equipment", icon: Wrench, roles: INV },
 ];
 
-// Phase 8G2B — Back Office is the canonical owner of procurement, so this
-// group points at the canonical Back Office addresses.
+// Shared/Core procurement lives on the property inventory workspace. Back
+// Office keeps its own procurement routes for the commercial BO package.
 const PROCUREMENT_NAV: NavEntry[] = [
   {
-    to: "/restaurant/back-office/procurement/suppliers",
+    to: "/restaurant/inventory",
+    tab: "suppliers",
     label: "Suppliers",
     icon: Truck,
     roles: PROC,
   },
   {
-    to: "/restaurant/back-office/procurement/purchase-orders",
+    to: "/restaurant/inventory",
+    tab: "purchasing",
     label: "Purchasing",
     icon: ShoppingCart,
     roles: PROC,
@@ -351,8 +318,6 @@ const REPORTS_NAV: NavEntry[] = [
 
 const CONFIGURATION_NAV: NavEntry[] = [
   { to: "/restaurant/configuration", label: "Configuration", icon: LayoutDashboard },
-  { to: "/restaurant/restaurant-management/menu", label: "Menu", icon: UtensilsCrossed, section: "Food & Beverage" },
-  { to: "/restaurant/restaurant-management/tables", label: "Tables & QR", icon: QrCode, section: "Food & Beverage" },
 
   {
     to: "/restaurant/rooms",
@@ -439,15 +404,6 @@ const MODULE_TITLE: Record<WorkspaceModule, string> = {
 const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   Home: "home",
   PMS: "pms",
-  "Restaurant Management": "restaurant",
-  "Back Office": "home",
-  "Standalone POS": "home",
-  Dashboard: "restaurant",
-  Menu: "configuration",
-  Kitchen: "restaurant",
-  Orders: "restaurant",
-  "Tables & QR": "configuration",
-  "Take Order": "restaurant",
   Inventory: "stock",
   Rooms: "rooms",
   Arrivals: "rooms",
@@ -466,7 +422,6 @@ const LABEL_MODULE: Record<RestaurantNavLabel, WorkspaceModule> = {
   "Cashier Shifts": "cashiering",
   "Night Audit": "cashiering",
   Staff: "staff",
-  Customers: "restaurant",
   Reports: "reports",
   Configuration: "configuration",
   Settings: "settings",
@@ -478,11 +433,6 @@ export function RestaurantShell({
   pms,
   pmsModule,
   pmsLeaf,
-  rmModule,
-  rmDetailLabel,
-  boModule,
-  boDetailLabel,
-  posModule,
   sidebarDefaultCollapsed,
   hidePackageRail: hidePackageRailProp,
   hideTopHeader = false,
@@ -500,27 +450,6 @@ export function RestaurantShell({
   pmsModule?: string;
   /** Optional final breadcrumb step (e.g. "Reservation", "Guest Profile") for detail pages. */
   pmsLeaf?: string;
-  /**
-   * Phase 8F2 — key from `RM_MODULES`. When set, the page is presented as a
-   * canonical Restaurant Management submodule: breadcrumb, context label and a
-   * way back to the Restaurant Management home. Presentation only.
-   */
-  rmModule?: string;
-  /** Phase 8F3 — final breadcrumb crumb on a Restaurant Management detail page. */
-  rmDetailLabel?: string;
-  /**
-   * Phase 8G1 — key from `BO_MODULES`. When set, the page is presented as a
-   * Back Office submodule: Back Office sidebar, breadcrumb and context label.
-   */
-  boModule?: string;
-  /** Phase 8G2B — final breadcrumb crumb on a Back Office detail page. */
-  boDetailLabel?: string;
-  /**
-   * Phase 8H3 — key from `POS_MODULES`. When set, the page is presented as a
-   * Standalone POS screen: POS-only sidebar and context label. Presentation
-   * only; the route guard and server guards do the enforcing.
-   */
-  posModule?: string;
   /**
    * Create Reservation and Guest Profile start with the existing package rail collapsed.
    * One-click expand stays on this same rail. Other routes omit this prop so their
@@ -570,14 +499,11 @@ export function RestaurantShell({
   const operational = restaurant?.status === "approved";
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
   const hidePackageRail = Boolean(hidePackageRailProp) || shouldSuppressRestaurantPmsRail(pmsModule);
-  const rmMod = rmModule ? RM_MODULES.find((m) => m.key === rmModule) : undefined;
-  const boMod = boModule ? getBoModule(boModule) : undefined;
-  const posMod = posModule ? getPosModule(posModule) : undefined;
 
   const moduleAccess = useQuery({
     queryKey: ["my-module-access", membership?.restaurantId],
     queryFn: () => fetchModules({ data: { restaurantId: membership!.restaurantId } }),
-    enabled: (!!pmsMod || !!rmMod || !!boMod) && !!membership?.restaurantId,
+    enabled: !!pmsMod && !!membership?.restaurantId,
     retry: false,
   });
 
@@ -592,29 +518,17 @@ export function RestaurantShell({
     (!pmsAccess.isLoading && !pmsAccess.isError && pmsSettingsHubVisible(pmsSnapshot));
 
   const workspace = module ?? LABEL_MODULE[active];
-  // Restaurant Management is a package-level nav group: it disappears from
-  // navigation when the package is switched off (routes still work).
-  const workspacePackaged = workspace === "restaurant" ? packages.has("restaurant_management") : true;
-  const items = workspacePackaged
-    ? MODULE_NAV[workspace].filter(
-        (item) => !item.roles || (membership ? item.roles.includes(membership.role) : false),
-      )
-    : [];
+  const items = MODULE_NAV[workspace].filter((item) => {
+        if (item.to.startsWith("/restaurant/restaurant-management")) return false;
+        if (item.to.startsWith("/restaurant/pos")) return false;
+        if (item.to.startsWith("/restaurant/back-office")) return false;
+        return !item.roles || (membership ? item.roles.includes(membership.role) : false);
+      });
   const activeItem = items.find((i) => i.label === active);
   const activeTab =
     search.tab ?? (activeItem && !activeItem.tab ? undefined : items.find((i) => i.tab)?.tab);
 
-  const contextLabel = posMod
-    ? `Standalone POS · ${posMod.title}`
-    : active === "Standalone POS"
-    ? "Standalone POS"
-    : boMod
-    ? `Back Office · ${boMod.title}`
-    : active === "Back Office"
-    ? "Back Office"
-    : rmMod
-    ? `Restaurant Management · ${rmMod.title}`
-    : pmsMod
+  const contextLabel = pmsMod
     ? `PMS · ${pmsMod.title}`
     : pms && pmsPackage && workspace !== "pms"
       ? `PMS · ${MODULE_TITLE[workspace]}`
@@ -650,123 +564,6 @@ export function RestaurantShell({
       </ul>
     </nav>
   );
-
-  // Phase 8F4 — dedicated Restaurant Management navigation, grouped exactly as
-  // the package launcher. Presentation only: visibility still comes from the
-  // existing module-access result.
-  const rmSidebarNav = (
-    <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Restaurant Management navigation">
-      {RM_GROUPS.map((group) => {
-        const groupItems = RM_MODULES.filter(
-          (m) => m.group === group.key && allowedModules.includes(m.moduleKey),
-        );
-        if (groupItems.length === 0) return null;
-        return (
-          <div key={group.key} className="pb-2">
-            <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-              {group.title}
-            </p>
-            <ul className="space-y-1">
-              {groupItems.map((m) => (
-                <li key={m.key}>
-                  <Link
-                    to={m.canonicalRoute}
-                    {...(m.canonicalSearch ? { search: m.canonicalSearch } : {})}
-                    onClick={() => setNavOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                      m.key === rmMod?.key
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    )}
-                  >
-                    <m.icon className="size-4 shrink-0" /> {m.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
-    </nav>
-  );
-
-
-
-  // Phase 8G1 — dedicated Back Office navigation, grouped exactly as the
-  // package launcher. Presentation only; no module-access gating is applied
-  // because these foundation pages carry no business data.
-  const boSidebarNav = (
-    <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Back Office navigation">
-      {BO_GROUPS.map((group) => {
-        const groupItems = BO_MODULES.filter((m) => m.group === group.key);
-        if (groupItems.length === 0) return null;
-        return (
-          <div key={group.key} className="pb-2">
-            <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-              {group.title}
-            </p>
-            <ul className="space-y-1">
-              {groupItems.map((m) => (
-                <li key={m.key}>
-                  <Link
-                    to={m.canonicalRoute}
-                    onClick={() => setNavOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                      m.key === boMod?.key
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    )}
-                  >
-                    <m.icon className="size-4 shrink-0" /> {m.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
-    </nav>
-  );
-
-
-  // Phase 8H3 — Standalone POS navigation. This package never shows
-  // Restaurant Management, PMS or Back Office navigation. Areas that are not
-  // built yet are listed but not clickable, so nobody is routed into an
-  // unfinished screen.
-  const posSidebarNav = (
-    <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Standalone POS navigation">
-      <ul className="space-y-1 pt-2">
-        {POS_MODULES.map((m) => {
-          const className = cn(
-            "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-            m.key === posMod?.key
-              ? "bg-sidebar-primary text-sidebar-primary-foreground"
-              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          );
-          return (
-            <li key={m.key}>
-              {m.canonicalRoute ? (
-                <Link to={m.canonicalRoute} onClick={() => setNavOpen(false)} className={className}>
-                  <m.icon className="size-4 shrink-0" /> {m.title}
-                </Link>
-              ) : (
-                <span
-                  aria-disabled="true"
-                  title="Not available yet"
-                  className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/35"
-                >
-                  <m.icon className="size-4 shrink-0" /> {m.title}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-
 
   const restrictedSidebar = (
     <div className="flex h-full flex-col gap-5 p-4">
@@ -843,57 +640,6 @@ export function RestaurantShell({
             </Link>
           ) : null}
         </div>
-      ) : posMod || active === "Standalone POS" ? (
-        <div className="space-y-1">
-          <Link
-            to="/restaurant/home"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ArrowLeft className="size-4 shrink-0" /> Property Home
-          </Link>
-          <Link
-            to="/restaurant/pos"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ShoppingCart className="size-4 shrink-0" /> Standalone POS Home
-          </Link>
-        </div>
-      ) : boMod || active === "Back Office" ? (
-        <div className="space-y-1">
-          <Link
-            to="/restaurant/home"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ArrowLeft className="size-4 shrink-0" /> Property Home
-          </Link>
-          <Link
-            to="/restaurant/back-office"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <Briefcase className="size-4 shrink-0" /> Back Office Home
-          </Link>
-        </div>
-      ) : rmMod ? (
-        <div className="space-y-1">
-          <Link
-            to="/restaurant/home"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ArrowLeft className="size-4 shrink-0" /> Property Home
-          </Link>
-          <Link
-            to="/restaurant/restaurant-management"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <UtensilsCrossed className="size-4 shrink-0" /> Restaurant Management Home
-          </Link>
-        </div>
       ) : workspace !== "home" ? (
         <div className="space-y-2">
           <Link
@@ -911,12 +657,8 @@ export function RestaurantShell({
       ) : null}
 
       {pmsMod && pmsPackage && !hidePackageRail ? pmsSidebarNav : null}
-      {rmMod ? rmSidebarNav : null}
-      {boMod || active === "Back Office" ? boSidebarNav : null}
-      {posMod || active === "Standalone POS" ? posSidebarNav : null}
 
-      <nav className={cn("min-h-0 flex-1 overflow-y-auto", (pmsMod || rmMod || boMod || posMod || active === "Back Office" || active === "Standalone POS") &&
-            "hidden")}>
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto", pmsMod && "hidden")}>
 
         <ul className="space-y-1">
           {items.map((item, index) => {
@@ -1108,8 +850,8 @@ export function RestaurantShell({
               <div className="rounded-2xl border border-border bg-card p-6">
                 <h1 className="font-display text-2xl">Access denied</h1>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  This account isn't linked to a restaurant. If you're a customer, head back to the
-                  menu — or register your restaurant to get started.
+                  This account isn't linked to a hotel. Register your hotel to get started, or go
+                  back home.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Button asChild>
@@ -1128,55 +870,9 @@ export function RestaurantShell({
                 currencyCode={membership.restaurant.currencyCode}
               >
                 <PmsHeadingProvider
-                  heading={pmsMod?.title ?? rmMod?.title}
-                  kind={pmsMod ? "pms" : rmMod ? "rm" : undefined}
+                  heading={pmsMod?.title}
+                  kind={pmsMod ? "pms" : undefined}
                 >
-
-                  {boMod ? (
-                    <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
-                      <Link to="/restaurant/home" className="hover:text-foreground">
-                        Property Home
-                      </Link>
-                      <span className="px-1.5">→</span>
-                      <Link to="/restaurant/back-office" className="hover:text-foreground">
-                        Back Office
-                      </Link>
-                      <span className="px-1.5">→</span>
-                      {boDetailLabel ? (
-                        <>
-                          <Link to={boMod.canonicalRoute} className="hover:text-foreground">
-                            {boMod.title}
-                          </Link>
-                          <span className="px-1.5">→</span>
-                          <span className="text-foreground">{boDetailLabel}</span>
-                        </>
-                      ) : (
-                        <span className="text-foreground">{boMod.title}</span>
-                      )}
-                    </nav>
-                  ) : null}
-
-                  {rmMod ? (
-                    <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
-                      <Link to="/restaurant/home" className="hover:text-foreground">
-                        Property Home
-                      </Link>
-                      <span className="px-1.5">→</span>
-                      <Link to="/restaurant/restaurant-management" className="hover:text-foreground">
-                        Restaurant Management
-                      </Link>
-                      <span className="px-1.5">→</span>
-                      {rmDetailLabel ? (
-                        <>
-                          <span>{rmMod.title}</span>
-                          <span className="px-1.5">→</span>
-                          <span className="text-foreground">{rmDetailLabel}</span>
-                        </>
-                      ) : (
-                        <span className="text-foreground">{rmMod.title}</span>
-                      )}
-                    </nav>
-                  ) : null}
 
                   {pmsMod && !hidePackageRail ? (
                     <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">

@@ -29,6 +29,7 @@ import {
   saveTaxCard3,
 } from "@/packages/pms/lib/taxes-card3.functions";
 import {
+  CARD3_TAXES_SET1_COPY,
   CARD3_TAXES_TABS,
   EXEMPTION_REASON_LABELS,
   EXEMPTION_REASONS,
@@ -221,6 +222,7 @@ export function PmsPropertySetupCard3Taxes({
         </p>
       ) : (
         <div className="space-y-4" data-testid="pms-card3-taxes">
+          <p className="text-sm text-muted-foreground">{CARD3_TAXES_SET1_COPY}</p>
           <section
             className="rounded-xl border border-border bg-card p-4 shadow-sm"
             data-testid="card3-default-room-tax-group"

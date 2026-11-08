@@ -15,6 +15,7 @@ import {
   MARKETING_NAV_HREFS,
   MARKETING_NAV_PLACEMENTS,
   MARKETING_PACKAGE_ICON_KEYS,
+  NORU_SITE_ADMIN_HREFS,
   type MarketingItemStatus,
   type MarketingNavHref,
   type MarketingNavPlacement,
@@ -76,6 +77,7 @@ export function AreaField({
   onChange,
   hint,
   rows = 3,
+  placeholder,
 }: {
   id: string;
   label: string;
@@ -83,10 +85,17 @@ export function AreaField({
   onChange: (value: string) => void;
   hint?: string;
   rows?: number;
+  placeholder?: string;
 }) {
   return (
     <Field label={label} htmlFor={id} {...(hint ? { hint } : {})}>
-      <Textarea id={id} rows={rows} value={value} onChange={(e) => onChange(e.target.value)} />
+      <Textarea
+        id={id}
+        rows={rows}
+        value={value}
+        {...(placeholder ? { placeholder } : {})}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </Field>
   );
 }
@@ -144,6 +153,33 @@ export function HrefSelect({
       </SelectTrigger>
       <SelectContent>
         {MARKETING_NAV_HREFS.map((href) => (
+          <SelectItem key={href} value={href}>
+            {href}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function NoruHrefSelect({
+  id,
+  value,
+  onChange,
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const options = NORU_SITE_ADMIN_HREFS as readonly string[];
+  const known = options.includes(value) ? value : options[0]!;
+  return (
+    <Select value={known} onValueChange={onChange}>
+      <SelectTrigger id={id} className="h-9">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((href) => (
           <SelectItem key={href} value={href}>
             {href}
           </SelectItem>

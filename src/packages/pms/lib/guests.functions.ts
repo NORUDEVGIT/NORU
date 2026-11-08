@@ -201,7 +201,6 @@ export interface GuestProfile extends GuestSummary {
   country: string | null;
   postalCode: string | null;
   notes: string | null;
-  linkedCustomerUserId: string | null;
   createdAt: string;
   idDocumentType: "passport" | "national_id" | "driving_licence" | "other" | null;
   idDocumentExpiry: string | null;
@@ -359,7 +358,7 @@ async function syncWave2PreferencesToCard4(
 }
 
 const GUEST_COLUMNS_BASE =
-  "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, id_document_type, id_document_number, id_document_expiry, guest_status, vip_status, notes, linked_customer_user_id, created_at, updated_at";
+  "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, id_document_type, id_document_number, id_document_expiry, guest_status, vip_status, notes, created_at, updated_at";
 const GUEST_COLUMNS_W2 = `${GUEST_COLUMNS_BASE}, merged_into_guest_id, data_processing_consent, data_processing_consent_recorded_at, data_processing_consent_recorded_by, marketing_consent, marketing_consent_recorded_at, marketing_consent_recorded_by`;
 const GUEST_COLUMNS_W5 = `${GUEST_COLUMNS_W2}, anonymised_at, anonymised_by_membership_id`;
 const GUEST_COLUMNS_GE2 = `${GUEST_COLUMNS_W5}, title, middle_name, preferred_name, gender, phone_alt, email_alt, employment_position, department, source_of_business, restricted, blacklisted, restriction_severity, restriction_reason, restriction_set_by_membership_id, restriction_set_at, restriction_until`;
@@ -386,7 +385,6 @@ type GuestRow = {
   guest_status: string;
   vip_status: boolean;
   notes?: string | null;
-  linked_customer_user_id?: string | null;
   created_at?: string;
   updated_at: string;
   merged_into_guest_id?: string | null;
@@ -488,7 +486,6 @@ function toProfile(
     country: anonymised ? null : (row.country ?? null),
     postalCode: anonymised ? null : (row.postal_code ?? null),
     notes: anonymised ? null : (row.notes ?? null),
-    linkedCustomerUserId: row.linked_customer_user_id ?? null,
     createdAt: row.created_at ?? row.updated_at,
     idDocumentType: anonymised
       ? null

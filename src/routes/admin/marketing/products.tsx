@@ -16,8 +16,8 @@ export const Route = createFileRoute("/admin/marketing/products")({
   component: () => (
     <MarketingAdminLayout>
       <MarketingPage
-        title="Products"
-        description="Public product cards and detail pages. These are not package entitlements."
+        title="Product Highlights"
+        description="PMS, RMS, Standalone POS, and Back Office cards. These are not package entitlements."
       >
         <SiteProductsForm />
       </MarketingPage>

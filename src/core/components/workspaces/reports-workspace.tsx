@@ -1,13 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, BarChart3, Boxes, ReceiptText, Sparkles, Users, Wallet } from "lucide-react";
+import { ArrowRight, BarChart3, Boxes, Sparkles, Users, Wallet } from "lucide-react";
 import { RevenueOverviewTab } from "@/packages/pms/components/rates/rates-tabs";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { propertyToday } from "@/shared/lib/property-dates";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
-import { useIsRmContext } from "@/packages/restaurant-management/lib/rm-routes";
+import { PageHeading } from "@/core/state/pms-context";
 
 type ReportLink = {
   title: string;
@@ -18,12 +17,6 @@ type ReportLink = {
 };
 
 const REPORT_LINKS: ReportLink[] = [
-  {
-    title: "Food & Beverage",
-    description: "Order volume, revenue trends and service performance.",
-    icon: ReceiptText,
-    to: "/restaurant/restaurant-management/dashboard",
-  },
   {
     title: "Inventory",
     description: "Stock value, low stock, usage and waste reporting.",
@@ -65,16 +58,12 @@ export function ReportsWorkspace({ membership }: { membership: RestaurantMembers
     retry: false,
   });
 
-  const rmContext = useIsRmContext();
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl"><PageHeading fallback="Reports & Analytics" /></h1>
         <p className="text-sm text-muted-foreground">
-          {rmContext
-            ? `Restaurant sales, product performance and restaurant KPIs for ${membership.restaurant.name}. Hotel reporting stays in PMS.`
-            : `Property performance for ${membership.restaurant.name}, using your existing operational data.`}
+          {`Property performance for ${membership.restaurant.name}, using your existing operational data.`}
         </p>
       </div>
 

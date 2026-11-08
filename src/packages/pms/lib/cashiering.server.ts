@@ -436,27 +436,3 @@ export async function callPostFolioTransaction(input: {
   if (error) throw cashierError(error.message);
   return { id: (data as { id: string }).id };
 }
-
-/** Append-only folio audit write; runs with the service role inside a handler. */
-export async function recordFolioEvent(params: {
-  restaurantId: string;
-  folioId?: string | null;
-  cashierShiftId?: string | null;
-  eventType: string;
-  previousValues?: Record<string, unknown> | null;
-  newValues?: Record<string, unknown> | null;
-  notes?: string | null;
-  actorMembershipId: string | null;
-}): Promise<void> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await supabaseAdmin.from("folio_history").insert({
-    restaurant_id: params.restaurantId,
-    folio_id: params.folioId ?? null,
-    cashier_shift_id: params.cashierShiftId ?? null,
-    event_type: params.eventType,
-    previous_values: (params.previousValues ?? null) as never,
-    new_values: (params.newValues ?? null) as never,
-    notes: params.notes ?? null,
-    actor_membership_id: params.actorMembershipId,
-  });
-}

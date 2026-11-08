@@ -2,9 +2,8 @@
  * Phase 8C — the single client-side source of package entitlement state.
  *
  * Presentation only: this decides what a tenant user SEES, never what they
- * may do. Direct routes and server functions are unaffected in this phase.
- * A property with no explicit entitlement row resolves as enabled
- * (compatibility mode), so existing tenants see exactly what they saw before.
+ * may do. Direct routes and server functions keep their own gates.
+ * Missing-row visibility comes from `resolvePackages` / `packageCompatibilityDefault`.
  */
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";

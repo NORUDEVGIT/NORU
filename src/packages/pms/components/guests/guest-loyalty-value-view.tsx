@@ -20,7 +20,7 @@ import {
 } from "@/packages/pms/lib/guest-profile-wave4";
 import { getAccountLoyaltyValue } from "@/packages/pms/lib/guest-accounts.functions";
 import { getGuest, getGuestStayOverview } from "@/packages/pms/lib/guests.functions";
-import { useMoney } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney } from "@/core/state/property-format";
 import { Badge } from "@/shared/components/ui/badge";
 
 export function GuestLoyaltyValueView({
