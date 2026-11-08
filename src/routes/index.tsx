@@ -60,7 +60,7 @@ function PlatformHome() {
       site={site}
       account={{
         signedIn,
-        dashboardHref: hasRestaurant ? "/restaurant/restaurant-management/dashboard" : undefined,
+        dashboardHref: hasRestaurant ? "/restaurant/home" : undefined,
         onSignOut: () => {
           void signOut();
         },

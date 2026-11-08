@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BedDouble, CalendarDays, Ban, DoorOpen, Globe, QrCode, UtensilsCrossed, BarChart3 } from "lucide-react";
+import { ArrowRight, BedDouble, CalendarDays, Ban, DoorOpen, Globe, BarChart3 } from "lucide-react";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 type ConfigLink = {
   title: string;
   description: string;
-  icon: typeof QrCode;
+  icon: typeof BedDouble;
   to: string;
   tab?: string;
   roles?: string[];
@@ -15,24 +15,6 @@ type ConfigLink = {
 type ConfigGroup = { section: string; items: ConfigLink[] };
 
 const GROUPS: ConfigGroup[] = [
-  {
-    section: "Food & Beverage",
-    items: [
-      {
-        title: "Menu",
-        description: "Categories, items, prices, availability and recipe mapping.",
-        icon: UtensilsCrossed,
-        to: "/restaurant/restaurant-management/menu",
-      },
-      {
-        title: "Tables & QR",
-        description: "Tables, QR codes and printable table cards.",
-        icon: QrCode,
-        to: "/restaurant/restaurant-management/tables",
-
-      },
-    ],
-  },
   {
     section: "Rooms",
     items: [

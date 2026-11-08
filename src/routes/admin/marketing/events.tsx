@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin/marketing/events")({
   head: marketingAdminHead,
   component: () => (
     <MarketingAdminLayout>
-      <MarketingPage title="Events" description="Homepage events strip. This is not a full blog.">
+      <MarketingPage title="Events" description="Events We Attend. Title, date label, location, and note. This is not a full blog.">
         <SiteEventsForm />
       </MarketingPage>
     </MarketingAdminLayout>

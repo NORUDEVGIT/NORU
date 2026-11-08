@@ -30,7 +30,7 @@ import { listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functio
 import { getGuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
 import { countryNameFromInput } from "@/packages/pms/lib/pms-geography";
 import { maskedDocumentNumber } from "@/packages/pms/lib/guest-identity-documents";
-import { useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTime } from "@/core/state/property-format";
 
 type QuickViewTab = "overview" | "preferences" | "identity" | "relations";
 

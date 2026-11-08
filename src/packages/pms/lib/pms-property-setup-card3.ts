@@ -80,6 +80,7 @@ export function card3DomainHref(domainId: Card3DomainId): string {
 }
 
 export const CARD3_PROMOTIONS_HREF = card3DomainHref("revenue-commercial-rules");
+export const CARD3_TAXES_HREF = card3DomainHref("taxes-fees");
 export const CARD3_PACKAGES_HREF = CARD2_MEALS_HREF;
 export const CARD3_LEGACY_MEALS_DOMAIN = "meal-plans-packages";
 

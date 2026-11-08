@@ -33,7 +33,6 @@ import {
 } from "@/shared/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { MyShiftCard } from "@/core/components/workforce/my-shift-card";
-import { BackOfficeHrLink } from "@/packages/back-office/components/hr-link";
 import { ScheduleTab } from "@/core/components/workforce/schedule-tab";
 import { AttendanceTab } from "@/core/components/workforce/attendance-tab";
 import { ReportsTab } from "@/core/components/workforce/reports-tab";
@@ -47,14 +46,11 @@ import {
   type StaffRole,
 } from "@/core/lib/staff.functions";
 import { getStaffModuleAccess, setStaffModuleAccess } from "@/core/lib/module-access.functions";
-import { getStaffRmRefundGrant, setStaffRmRefundGrant } from "@/packages/restaurant-management/lib/rm-refunds.functions";
-import { getStaffRmAdjustGrant, setStaffRmAdjustGrant } from "@/packages/restaurant-management/lib/rm-adjust.functions";
 import { Switch } from "@/shared/components/ui/switch";
 import { ROLE_LABELS, SELECTABLE_STAFF_ROLES, type ModuleKey } from "@/core/lib/module-access";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { cn } from "@/shared/lib/utils";
 import { PageHeading, NonPmsOnly, PmsOnly } from "@/core/state/pms-context";
-import { useIsRmContext } from "@/packages/restaurant-management/lib/rm-routes";
 
 const ROLE_LABEL: Record<StaffRole, string> = ROLE_LABELS;
 
@@ -114,12 +110,6 @@ export function StaffWorkspace({ membership, initialTab }: { membership: Restaur
         timezone={membership.restaurant.timezone}
       />
 
-      {canManage ? (
-        <div className="flex justify-end">
-          <BackOfficeHrLink restaurantId={membership.restaurantId} />
-        </div>
-      ) : null}
-
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
           {canManage ? <TabsTrigger value="staff">Staff</TabsTrigger> : null}
@@ -176,7 +166,6 @@ export function StaffManager({
   embedded?: boolean;
 }) {
   const restaurantId = membership.restaurantId;
-  const rmContext = useIsRmContext();
 
   const queryClient = useQueryClient();
 
@@ -326,12 +315,6 @@ export function StaffManager({
                 workforce records live in the property-wide Human Resources module.
               </p>
             </PmsOnly>
-          )}
-          {embedded || !rmContext ? null : (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Your restaurant team, roles, roster and attendance. One shared team record for the
-              property — no separate restaurant employees.
-            </p>
           )}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -994,129 +977,6 @@ function ModuleAccessPanel({
           You can't change your own module access.
         </p>
       ) : null}
-      {member.role === "cashier" ? (
-        <>
-          <CashierRefundGrant
-            restaurantId={restaurantId}
-            membershipId={member.membershipId}
-            isSelf={isSelf}
-          />
-          <CashierAdjustGrant
-            restaurantId={restaurantId}
-            membershipId={member.membershipId}
-            isSelf={isSelf}
-            actionKey="rm_discount"
-            title="Restaurant check discounts"
-            help="Cashiers cannot discount an unpaid restaurant check unless this is granted. Owners and managers already can."
-            label="Allow discounts"
-          />
-          <CashierAdjustGrant
-            restaurantId={restaurantId}
-            membershipId={member.membershipId}
-            isSelf={isSelf}
-            actionKey="rm_comp"
-            title="Restaurant check comps"
-            help="Cashiers cannot comp an unpaid restaurant check unless this is granted. Owners and managers already can."
-            label="Allow comps"
-          />
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-function CashierRefundGrant({
-  restaurantId,
-  membershipId,
-  isSelf,
-}: {
-  restaurantId: string;
-  membershipId: string;
-  isSelf: boolean;
-}) {
-  const queryClient = useQueryClient();
-  const fetchGrant = useServerFn(getStaffRmRefundGrant);
-  const saveGrant = useServerFn(setStaffRmRefundGrant);
-  const grant = useQuery({
-    queryKey: ["staff-rm-refund-grant", restaurantId, membershipId],
-    queryFn: () => fetchGrant({ data: { restaurantId, membershipId } }),
-  });
-  const mutation = useMutation({
-    mutationFn: (enabled: boolean) => saveGrant({ data: { restaurantId, membershipId, enabled } }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["staff-rm-refund-grant", restaurantId, membershipId] });
-      toast.success("Restaurant sale refund permission updated.");
-    },
-    onError: (error: unknown) =>
-      toast.error(error instanceof Error ? error.message : "Could not update refund permission."),
-  });
-
-  return (
-    <div className="space-y-2 pt-2">
-      <Label>Restaurant sale refunds</Label>
-      <p className="text-xs text-muted-foreground">
-        Cashiers cannot refund a restaurant sale unless this is granted. Owners and managers already can.
-      </p>
-      <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-        <p className="text-sm">Allow refunds</p>
-        <Switch
-          checked={grant.data?.enabled === true}
-          disabled={isSelf || mutation.isPending || grant.isLoading}
-          onCheckedChange={(checked) => mutation.mutate(checked)}
-        />
-      </div>
-    </div>
-  );
-}
-
-function CashierAdjustGrant({
-  restaurantId,
-  membershipId,
-  isSelf,
-  actionKey,
-  title,
-  help,
-  label,
-}: {
-  restaurantId: string;
-  membershipId: string;
-  isSelf: boolean;
-  actionKey: "rm_discount" | "rm_comp";
-  title: string;
-  help: string;
-  label: string;
-}) {
-  const queryClient = useQueryClient();
-  const fetchGrant = useServerFn(getStaffRmAdjustGrant);
-  const saveGrant = useServerFn(setStaffRmAdjustGrant);
-  const grant = useQuery({
-    queryKey: ["staff-rm-adjust-grant", restaurantId, membershipId, actionKey],
-    queryFn: () => fetchGrant({ data: { restaurantId, membershipId, actionKey } }),
-  });
-  const mutation = useMutation({
-    mutationFn: (enabled: boolean) => saveGrant({ data: { restaurantId, membershipId, actionKey, enabled } }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["staff-rm-adjust-grant", restaurantId, membershipId, actionKey],
-      });
-      toast.success("Restaurant check permission updated.");
-    },
-    onError: (error: unknown) =>
-      toast.error(error instanceof Error ? error.message : "Could not update that permission."),
-  });
-
-  return (
-    <div className="space-y-2 pt-2">
-      <Label>{title}</Label>
-      <p className="text-xs text-muted-foreground">{help}</p>
-      <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-        <p className="text-sm">{label}</p>
-        <Switch
-          checked={grant.data?.enabled === true}
-          disabled={isSelf || mutation.isPending || grant.isLoading}
-          onCheckedChange={(checked) => mutation.mutate(checked)}
-        />
-      </div>
     </div>
   );
 }

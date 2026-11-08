@@ -288,11 +288,93 @@ export interface SiteFooterContact {
   email: string;
   phone: string;
   address: string;
+  /** Optional chrome. Absent fields keep the hard-coded public footer. */
+  tagline?: string;
+  socialLinks?: NoruSiteFooterSocialLink[];
+  privacyTarget?: string;
+  termsTarget?: string;
+  copyrightText?: string;
 }
 
 export interface SiteHeroCopy {
   tagline: string;
   amharic: string;
+}
+
+export const NORU_SITE_SCENE_VARIANTS = ["greeting-bow", "logo-only", "static"] as const;
+export type NoruSiteSceneVariant = (typeof NORU_SITE_SCENE_VARIANTS)[number];
+
+export const NORU_SITE_ANIMATION_SPEED_PRESETS = ["slow", "normal", "fast"] as const;
+export type NoruSiteAnimationSpeedPreset = (typeof NORU_SITE_ANIMATION_SPEED_PRESETS)[number];
+
+export const NORU_SITE_REDUCED_MOTION_FALLBACKS = ["end-pose", "static-logo", "hide"] as const;
+export type NoruSiteReducedMotionFallback = (typeof NORU_SITE_REDUCED_MOTION_FALLBACKS)[number];
+
+export const NORU_SITE_MOBILE_FALLBACKS = ["full", "static-logo", "still-image"] as const;
+export type NoruSiteMobileFallback = (typeof NORU_SITE_MOBILE_FALLBACKS)[number];
+
+export const NORU_SITE_INTENSITY_PRESETS = ["low", "medium", "high"] as const;
+export type NoruSiteIntensityPreset = (typeof NORU_SITE_INTENSITY_PRESETS)[number];
+
+/**
+ * Safe ranges for optional animation durations (seconds).
+ * Missing values mean “use the current HeroAnimation defaults”.
+ */
+export const NORU_SITE_ANIMATION_DURATION_LIMITS = {
+  introDelaySec: { min: 0, max: 10 },
+  walkDurationSec: { min: 0.5, max: 15 },
+  greetingDurationSec: { min: 0.5, max: 10 },
+  logoRevealDelaySec: { min: 0, max: 15 },
+  holdDurationSec: { min: 0, max: 30 },
+} as const;
+
+export type NoruSiteAnimationDurationField = keyof typeof NORU_SITE_ANIMATION_DURATION_LIMITS;
+
+/**
+ * Admin-safe greeting animation knobs. Application code owns the scene,
+ * shaders, camera, and assets. Do not store JavaScript, GLTF URLs, or CSS here.
+ */
+export interface NoruSiteAnimationConfig {
+  enabled?: boolean;
+  sceneVariant?: NoruSiteSceneVariant;
+  introDelaySec?: number;
+  walkDurationSec?: number;
+  greetingDurationSec?: number;
+  logoRevealDelaySec?: number;
+  holdDurationSec?: number;
+  idleLoop?: boolean;
+  speedPreset?: NoruSiteAnimationSpeedPreset;
+  backgroundPatternEnabled?: boolean;
+  reducedMotionFallback?: NoruSiteReducedMotionFallback;
+  mobileFallback?: NoruSiteMobileFallback;
+  intensityPreset?: NoruSiteIntensityPreset;
+}
+
+/** Final Request Demo band. Absent means the current hard-coded CtaBand copy. */
+export interface NoruSiteCta {
+  enabled?: boolean;
+  title?: string;
+  description?: string;
+  buttonLabel?: string;
+  /** Public hash, https URL, or restaurant auth path — never Admin or javascript:. */
+  target?: string;
+}
+
+export interface NoruSiteFooterSocialLink {
+  id: string;
+  platform: string;
+  href: string;
+  active?: boolean;
+  order?: number;
+}
+
+/** Optional footer chrome beyond the required contact lines. */
+export interface NoruSiteFooterConfig {
+  tagline?: string;
+  socialLinks?: NoruSiteFooterSocialLink[];
+  privacyTarget?: string;
+  termsTarget?: string;
+  copyrightText?: string;
 }
 
 /** Beti public-site contract. Absent on older documents, which fall back to content.ts. */
@@ -309,6 +391,10 @@ export interface NoruSiteContent {
   quotes: SiteQuote[];
   footerContact: SiteFooterContact;
   hero: SiteHeroCopy;
+  /** Optional. Absence keeps the current SVG greeting animation defaults. */
+  animation?: NoruSiteAnimationConfig;
+  /** Optional. Absence keeps the current hard-coded CTA band. */
+  cta?: NoruSiteCta;
 }
 
 export interface MarketingContent {

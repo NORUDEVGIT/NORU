@@ -11,7 +11,6 @@ import { ArrowRight, type LucideIcon, BedDouble, TrendingUp, Users, Wallet } fro
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { FoundationPanel } from "@/packages/pms/components/pms/foundation-panel";
-import { BackOfficeHrLink } from "@/packages/back-office/components/hr-link";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { STAFF_ACCESS_HREF } from "@/packages/pms/lib/pms-property-setup-card5";
 import { PageHeading } from "@/core/state/pms-context";
@@ -54,13 +53,13 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
           </TabsList>
 
           <TabsContent value="users" className="mt-6">
-            <AccessGuide restaurantId={membership.restaurantId} />
+            <AccessGuide />
           </TabsContent>
           <TabsContent value="roles" className="mt-6">
-            <AccessGuide restaurantId={membership.restaurantId} />
+            <AccessGuide />
           </TabsContent>
           <TabsContent value="permissions" className="mt-6">
-            <AccessGuide restaurantId={membership.restaurantId} />
+            <AccessGuide />
           </TabsContent>
 
           <TabsContent value="configuration" className="mt-6 space-y-4">
@@ -119,18 +118,17 @@ export function PmsAdministrationWorkspace({ membership }: { membership: Restaur
   );
 }
 
-function AccessGuide({ restaurantId }: { restaurantId: string }) {
+function AccessGuide() {
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
       <p className="text-sm text-muted-foreground">
         Staff members, roles, and permissions have moved to Settings. Open Staff & Access to manage
-        them. Employment records stay in Human Resources.
+        them. Employment records stay in Staff.
       </p>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <a href={STAFF_ACCESS_HREF} className="text-sm font-medium text-primary">
           Open Staff & Access
         </a>
-        <BackOfficeHrLink restaurantId={restaurantId} />
       </div>
     </div>
   );

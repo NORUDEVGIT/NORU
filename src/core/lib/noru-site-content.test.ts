@@ -15,7 +15,9 @@ describe("noru site content", () => {
   });
 
   it("uses the built-in copy only when the published document has no site block", () => {
-    const fallback = publicNoruSite(MARKETING_SEED);
+    const withoutSite = structuredClone(MARKETING_SEED);
+    delete (withoutSite as { site?: unknown }).site;
+    const fallback = publicNoruSite(withoutSite);
     assert.equal(fallback.products.length, currentNoruSiteContent().products.length);
     const empty = structuredClone(MARKETING_SEED);
     empty.site = currentNoruSiteContent();

@@ -10,47 +10,31 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AccountRouteRouteImport } from './routes/account/route'
-import { Route as CartRouteImport } from './routes/cart'
-import { Route as ConfirmationRouteImport } from './routes/confirmation'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as ReviewRouteImport } from './routes/review'
-import { Route as ScanRouteImport } from './routes/scan'
-import { Route as StatusRouteImport } from './routes/status'
-import { Route as TableRouteImport } from './routes/table'
-import { Route as AccountIndexRouteImport } from './routes/account/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
 import { Route as AdminLeadsRouteImport } from './routes/admin/leads'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminSettingsRouteImport } from './routes/admin/settings'
-import { Route as KitchenIndexRouteImport } from './routes/kitchen/index'
-import { Route as KitchenLoginRouteImport } from './routes/kitchen/login'
-import { Route as RRestaurantSlugRouteRouteImport } from './routes/r/$restaurantSlug/route'
 import { Route as RestaurantConfigurationRouteImport } from './routes/restaurant/configuration'
-import { Route as RestaurantDashboardRouteImport } from './routes/restaurant/dashboard'
+import { Route as RestaurantForgotPasswordRouteImport } from './routes/restaurant/forgot-password'
 import { Route as RestaurantHomeRouteImport } from './routes/restaurant/home'
-import { Route as RestaurantKitchenRouteImport } from './routes/restaurant/kitchen'
 import { Route as RestaurantLoginRouteImport } from './routes/restaurant/login'
-import { Route as RestaurantMenuRouteImport } from './routes/restaurant/menu'
 import { Route as RestaurantRegisterRouteImport } from './routes/restaurant/register'
 import { Route as RestaurantReportsRouteImport } from './routes/restaurant/reports'
+import { Route as RestaurantResetPasswordRouteImport } from './routes/restaurant/reset-password'
 import { Route as RestaurantSetPasswordRouteImport } from './routes/restaurant/set-password'
 import { Route as RestaurantSettingsRouteImport } from './routes/restaurant/settings'
 import { Route as RestaurantStaffRouteImport } from './routes/restaurant/staff'
-import { Route as RestaurantTablesRouteImport } from './routes/restaurant/tables'
-import { Route as RestaurantWaiterRouteImport } from './routes/restaurant/waiter'
-import { Route as AccountOrdersIndexRouteImport } from './routes/account/orders/index'
-import { Route as AccountOrdersOrderIdRouteImport } from './routes/account/orders/$orderId'
 import { Route as AdminMarketingIndexRouteImport } from './routes/admin/marketing/index'
 import { Route as AdminMarketingBrandRouteImport } from './routes/admin/marketing/brand'
 import { Route as AdminMarketingContentRouteImport } from './routes/admin/marketing/content'
+import { Route as AdminMarketingCtaRouteImport } from './routes/admin/marketing/cta'
 import { Route as AdminMarketingDetailsRouteImport } from './routes/admin/marketing/details'
 import { Route as AdminMarketingEventsRouteImport } from './routes/admin/marketing/events'
 import { Route as AdminMarketingFaqRouteImport } from './routes/admin/marketing/faq'
+import { Route as AdminMarketingFooterRouteImport } from './routes/admin/marketing/footer'
+import { Route as AdminMarketingHeaderRouteImport } from './routes/admin/marketing/header'
+import { Route as AdminMarketingHeroRouteImport } from './routes/admin/marketing/hero'
+import { Route as AdminMarketingLegacyRouteImport } from './routes/admin/marketing/legacy'
 import { Route as AdminMarketingNavRouteImport } from './routes/admin/marketing/nav'
 import { Route as AdminMarketingPackagesRouteImport } from './routes/admin/marketing/packages'
 import { Route as AdminMarketingPartnersRouteImport } from './routes/admin/marketing/partners'
@@ -62,20 +46,6 @@ import { Route as AdminMarketingSiteRouteImport } from './routes/admin/marketing
 import { Route as AdminMarketingSolutionsRouteImport } from './routes/admin/marketing/solutions'
 import { Route as AdminRestaurantsIndexRouteImport } from './routes/admin/restaurants/index'
 import { Route as AdminRestaurantsRestaurantIdRouteImport } from './routes/admin/restaurants/$restaurantId'
-import { Route as RRestaurantSlugIndexRouteImport } from './routes/r/$restaurantSlug/index'
-import { Route as RRestaurantSlugCartRouteImport } from './routes/r/$restaurantSlug/cart'
-import { Route as RRestaurantSlugConfirmationRouteImport } from './routes/r/$restaurantSlug/confirmation'
-import { Route as RRestaurantSlugReviewRouteImport } from './routes/r/$restaurantSlug/review'
-import { Route as RRestaurantSlugStatusRouteImport } from './routes/r/$restaurantSlug/status'
-import { Route as RRestaurantSlugTableRouteImport } from './routes/r/$restaurantSlug/table'
-import { Route as RestaurantBackOfficeIndexRouteImport } from './routes/restaurant/back-office/index'
-import { Route as RestaurantBackOfficeAccountingRouteImport } from './routes/restaurant/back-office/accounting'
-import { Route as RestaurantBackOfficeAuditRouteImport } from './routes/restaurant/back-office/audit'
-import { Route as RestaurantBackOfficeCostControlRouteImport } from './routes/restaurant/back-office/cost-control'
-import { Route as RestaurantBackOfficeDashboardRouteImport } from './routes/restaurant/back-office/dashboard'
-import { Route as RestaurantBackOfficeMasterDataRouteImport } from './routes/restaurant/back-office/master-data'
-import { Route as RestaurantBackOfficePayrollRouteImport } from './routes/restaurant/back-office/payroll'
-import { Route as RestaurantBackOfficeReportsRouteImport } from './routes/restaurant/back-office/reports'
 import { Route as RestaurantBookingsIndexRouteImport } from './routes/restaurant/bookings/index'
 import { Route as RestaurantBookingsReservationIdRouteImport } from './routes/restaurant/bookings/$reservationId'
 import { Route as RestaurantBookingsDistributionRouteImport } from './routes/restaurant/bookings/distribution'
@@ -87,8 +57,6 @@ import { Route as RestaurantGuestsIndexRouteImport } from './routes/restaurant/g
 import { Route as RestaurantGuestsGuestIdRouteImport } from './routes/restaurant/guests/$guestId'
 import { Route as RestaurantHousekeepingIndexRouteImport } from './routes/restaurant/housekeeping/index'
 import { Route as RestaurantInventoryIndexRouteImport } from './routes/restaurant/inventory/index'
-import { Route as RestaurantOrdersIndexRouteImport } from './routes/restaurant/orders/index'
-import { Route as RestaurantOrdersOrderIdRouteImport } from './routes/restaurant/orders/$orderId'
 import { Route as RestaurantPmsIndexRouteImport } from './routes/restaurant/pms/index'
 import { Route as RestaurantPmsAdministrationRouteImport } from './routes/restaurant/pms/administration'
 import { Route as RestaurantPmsCashieringRouteImport } from './routes/restaurant/pms/cashiering'
@@ -108,28 +76,6 @@ import { Route as RestaurantPmsRoomInventoryRouteImport } from './routes/restaur
 import { Route as RestaurantPmsSalesEventsRouteImport } from './routes/restaurant/pms/sales-events'
 import { Route as RestaurantPmsSecurityAuditRouteImport } from './routes/restaurant/pms/security-audit'
 import { Route as RestaurantPmsSetupRouteImport } from './routes/restaurant/pms/setup'
-import { Route as RestaurantPosIndexRouteImport } from './routes/restaurant/pos/index'
-import { Route as RestaurantPosCatalogRouteImport } from './routes/restaurant/pos/catalog'
-import { Route as RestaurantPosDashboardRouteImport } from './routes/restaurant/pos/dashboard'
-import { Route as RestaurantPosNewRouteImport } from './routes/restaurant/pos/new'
-import { Route as RestaurantPosRegistersRouteImport } from './routes/restaurant/pos/registers'
-import { Route as RestaurantPosReportsRouteImport } from './routes/restaurant/pos/reports'
-import { Route as RestaurantPosSellRouteImport } from './routes/restaurant/pos/sell'
-import { Route as RestaurantPosSettingsRouteImport } from './routes/restaurant/pos/settings'
-import { Route as RestaurantPosShiftsRouteImport } from './routes/restaurant/pos/shifts'
-import { Route as RestaurantRestaurantManagementIndexRouteImport } from './routes/restaurant/restaurant-management/index'
-import { Route as RestaurantRestaurantManagementDashboardRouteImport } from './routes/restaurant/restaurant-management/dashboard'
-import { Route as RestaurantRestaurantManagementDigitalOrderingRouteImport } from './routes/restaurant/restaurant-management/digital-ordering'
-import { Route as RestaurantRestaurantManagementInventoryRouteImport } from './routes/restaurant/restaurant-management/inventory'
-import { Route as RestaurantRestaurantManagementKitchenRouteImport } from './routes/restaurant/restaurant-management/kitchen'
-import { Route as RestaurantRestaurantManagementMenuRouteImport } from './routes/restaurant/restaurant-management/menu'
-import { Route as RestaurantRestaurantManagementPaymentsRouteImport } from './routes/restaurant/restaurant-management/payments'
-import { Route as RestaurantRestaurantManagementPosSalesRouteImport } from './routes/restaurant/restaurant-management/pos-sales'
-import { Route as RestaurantRestaurantManagementRecipeCostRouteImport } from './routes/restaurant/restaurant-management/recipe-cost'
-import { Route as RestaurantRestaurantManagementReportsRouteImport } from './routes/restaurant/restaurant-management/reports'
-import { Route as RestaurantRestaurantManagementSetupRouteImport } from './routes/restaurant/restaurant-management/setup'
-import { Route as RestaurantRestaurantManagementStaffRouteImport } from './routes/restaurant/restaurant-management/staff'
-import { Route as RestaurantRestaurantManagementTablesRouteImport } from './routes/restaurant/restaurant-management/tables'
 import { Route as RestaurantRoomsIndexRouteImport } from './routes/restaurant/rooms/index'
 import { Route as RestaurantRoomsArrivalsRouteImport } from './routes/restaurant/rooms/arrivals'
 import { Route as RestaurantRoomsDeparturesRouteImport } from './routes/restaurant/rooms/departures'
@@ -138,18 +84,6 @@ import { Route as StayPropertySlugIndexRouteImport } from './routes/stay/$proper
 import { Route as StayPropertySlugBookRouteImport } from './routes/stay/$propertySlug/book'
 import { Route as StayPropertySlugConfirmationRouteImport } from './routes/stay/$propertySlug/confirmation'
 import { Route as StayPropertySlugManageRouteImport } from './routes/stay/$propertySlug/manage'
-import { Route as RRestaurantSlugOrderOrderIdRouteImport } from './routes/r/$restaurantSlug/order/$orderId'
-import { Route as RRestaurantSlugTQrTokenRouteImport } from './routes/r/$restaurantSlug/t/$qrToken'
-import { Route as RestaurantBackOfficeHrIndexRouteImport } from './routes/restaurant/back-office/hr/index'
-import { Route as RestaurantBackOfficeHrAttendanceRouteImport } from './routes/restaurant/back-office/hr/attendance'
-import { Route as RestaurantBackOfficeHrShiftsRouteImport } from './routes/restaurant/back-office/hr/shifts'
-import { Route as RestaurantBackOfficeHrStaffRouteImport } from './routes/restaurant/back-office/hr/staff'
-import { Route as RestaurantBackOfficeInventoryIndexRouteImport } from './routes/restaurant/back-office/inventory/index'
-import { Route as RestaurantBackOfficeInventoryItemsRouteImport } from './routes/restaurant/back-office/inventory/items'
-import { Route as RestaurantBackOfficeInventoryMovementsRouteImport } from './routes/restaurant/back-office/inventory/movements'
-import { Route as RestaurantBackOfficeInventoryUnitsRouteImport } from './routes/restaurant/back-office/inventory/units'
-import { Route as RestaurantBackOfficeProcurementIndexRouteImport } from './routes/restaurant/back-office/procurement/index'
-import { Route as RestaurantBackOfficeProcurementSuppliersRouteImport } from './routes/restaurant/back-office/procurement/suppliers'
 import { Route as RestaurantCashieringFoliosFolioIdRouteImport } from './routes/restaurant/cashiering/folios/$folioId'
 import { Route as RestaurantCashieringNightAuditIndexRouteImport } from './routes/restaurant/cashiering/night-audit/index'
 import { Route as RestaurantCashieringNightAuditRunIdRouteImport } from './routes/restaurant/cashiering/night-audit/$runId'
@@ -159,13 +93,7 @@ import { Route as RestaurantPmsGuestsIndexRouteImport } from './routes/restauran
 import { Route as RestaurantPmsGuestsGuestIdRouteImport } from './routes/restaurant/pms/guests.$guestId'
 import { Route as RestaurantPmsReservationsIndexRouteImport } from './routes/restaurant/pms/reservations.index'
 import { Route as RestaurantPmsReservationsReservationIdRouteImport } from './routes/restaurant/pms/reservations.$reservationId'
-import { Route as RestaurantPosTransactionsIndexRouteImport } from './routes/restaurant/pos/transactions/index'
-import { Route as RestaurantPosTransactionsSaleIdRouteImport } from './routes/restaurant/pos/transactions/$saleId'
-import { Route as RestaurantRestaurantManagementOrdersIndexRouteImport } from './routes/restaurant/restaurant-management/orders/index'
-import { Route as RestaurantRestaurantManagementOrdersOrderIdRouteImport } from './routes/restaurant/restaurant-management/orders/$orderId'
 import { Route as ApiPmsDistributionAiosellReservationsRouteImport } from './routes/api/pms/distribution/aiosell/reservations'
-import { Route as RestaurantBackOfficeProcurementPurchaseOrdersIndexRouteImport } from './routes/restaurant/back-office/procurement/purchase-orders/index'
-import { Route as RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRouteImport } from './routes/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
 import { Route as RestaurantPmsCashieringAccountsAccountIdRouteImport } from './routes/restaurant/pms/cashiering.accounts.$accountId'
 import { Route as RestaurantPmsCashieringFoliosFolioIdRouteImport } from './routes/restaurant/pms/cashiering.folios.$folioId'
 import { Route as RestaurantPmsReservationsGuestsGuestIdRouteImport } from './routes/restaurant/pms/reservations.guests.$guestId'
@@ -175,74 +103,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountRouteRoute = AccountRouteRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CartRoute = CartRouteImport.update({
-  id: '/cart',
-  path: '/cart',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConfirmationRoute = ConfirmationRouteImport.update({
-  id: '/confirmation',
-  path: '/confirmation',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReviewRoute = ReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScanRoute = ScanRouteImport.update({
-  id: '/scan',
-  path: '/scan',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StatusRoute = StatusRouteImport.update({
-  id: '/status',
-  path: '/status',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TableRoute = TableRouteImport.update({
-  id: '/table',
-  path: '/table',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AccountIndexRoute = AccountIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AccountRouteRoute,
-} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminCustomersRoute = AdminCustomersRouteImport.update({
-  id: '/admin/customers',
-  path: '/admin/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminLeadsRoute = AdminLeadsRouteImport.update({
@@ -260,49 +123,25 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/admin/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KitchenIndexRoute = KitchenIndexRouteImport.update({
-  id: '/kitchen/',
-  path: '/kitchen/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KitchenLoginRoute = KitchenLoginRouteImport.update({
-  id: '/kitchen/login',
-  path: '/kitchen/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RRestaurantSlugRouteRoute = RRestaurantSlugRouteRouteImport.update({
-  id: '/r/$restaurantSlug',
-  path: '/r/$restaurantSlug',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RestaurantConfigurationRoute = RestaurantConfigurationRouteImport.update({
   id: '/restaurant/configuration',
   path: '/restaurant/configuration',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RestaurantDashboardRoute = RestaurantDashboardRouteImport.update({
-  id: '/restaurant/dashboard',
-  path: '/restaurant/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const RestaurantForgotPasswordRoute =
+  RestaurantForgotPasswordRouteImport.update({
+    id: '/restaurant/forgot-password',
+    path: '/restaurant/forgot-password',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const RestaurantHomeRoute = RestaurantHomeRouteImport.update({
   id: '/restaurant/home',
   path: '/restaurant/home',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RestaurantKitchenRoute = RestaurantKitchenRouteImport.update({
-  id: '/restaurant/kitchen',
-  path: '/restaurant/kitchen',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RestaurantLoginRoute = RestaurantLoginRouteImport.update({
   id: '/restaurant/login',
   path: '/restaurant/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantMenuRoute = RestaurantMenuRouteImport.update({
-  id: '/restaurant/menu',
-  path: '/restaurant/menu',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RestaurantRegisterRoute = RestaurantRegisterRouteImport.update({
@@ -313,6 +152,11 @@ const RestaurantRegisterRoute = RestaurantRegisterRouteImport.update({
 const RestaurantReportsRoute = RestaurantReportsRouteImport.update({
   id: '/restaurant/reports',
   path: '/restaurant/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestaurantResetPasswordRoute = RestaurantResetPasswordRouteImport.update({
+  id: '/restaurant/reset-password',
+  path: '/restaurant/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RestaurantSetPasswordRoute = RestaurantSetPasswordRouteImport.update({
@@ -330,26 +174,6 @@ const RestaurantStaffRoute = RestaurantStaffRouteImport.update({
   path: '/restaurant/staff',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RestaurantTablesRoute = RestaurantTablesRouteImport.update({
-  id: '/restaurant/tables',
-  path: '/restaurant/tables',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantWaiterRoute = RestaurantWaiterRouteImport.update({
-  id: '/restaurant/waiter',
-  path: '/restaurant/waiter',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AccountOrdersIndexRoute = AccountOrdersIndexRouteImport.update({
-  id: '/orders/',
-  path: '/orders/',
-  getParentRoute: () => AccountRouteRoute,
-} as any)
-const AccountOrdersOrderIdRoute = AccountOrdersOrderIdRouteImport.update({
-  id: '/orders/$orderId',
-  path: '/orders/$orderId',
-  getParentRoute: () => AccountRouteRoute,
-} as any)
 const AdminMarketingIndexRoute = AdminMarketingIndexRouteImport.update({
   id: '/admin/marketing/',
   path: '/admin/marketing/',
@@ -365,6 +189,11 @@ const AdminMarketingContentRoute = AdminMarketingContentRouteImport.update({
   path: '/admin/marketing/content',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminMarketingCtaRoute = AdminMarketingCtaRouteImport.update({
+  id: '/admin/marketing/cta',
+  path: '/admin/marketing/cta',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminMarketingDetailsRoute = AdminMarketingDetailsRouteImport.update({
   id: '/admin/marketing/details',
   path: '/admin/marketing/details',
@@ -378,6 +207,26 @@ const AdminMarketingEventsRoute = AdminMarketingEventsRouteImport.update({
 const AdminMarketingFaqRoute = AdminMarketingFaqRouteImport.update({
   id: '/admin/marketing/faq',
   path: '/admin/marketing/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingFooterRoute = AdminMarketingFooterRouteImport.update({
+  id: '/admin/marketing/footer',
+  path: '/admin/marketing/footer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingHeaderRoute = AdminMarketingHeaderRouteImport.update({
+  id: '/admin/marketing/header',
+  path: '/admin/marketing/header',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingHeroRoute = AdminMarketingHeroRouteImport.update({
+  id: '/admin/marketing/hero',
+  path: '/admin/marketing/hero',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMarketingLegacyRoute = AdminMarketingLegacyRouteImport.update({
+  id: '/admin/marketing/legacy',
+  path: '/admin/marketing/legacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminMarketingNavRoute = AdminMarketingNavRouteImport.update({
@@ -434,85 +283,6 @@ const AdminRestaurantsRestaurantIdRoute =
   AdminRestaurantsRestaurantIdRouteImport.update({
     id: '/admin/restaurants/$restaurantId',
     path: '/admin/restaurants/$restaurantId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RRestaurantSlugIndexRoute = RRestaurantSlugIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => RRestaurantSlugRouteRoute,
-} as any)
-const RRestaurantSlugCartRoute = RRestaurantSlugCartRouteImport.update({
-  id: '/cart',
-  path: '/cart',
-  getParentRoute: () => RRestaurantSlugRouteRoute,
-} as any)
-const RRestaurantSlugConfirmationRoute =
-  RRestaurantSlugConfirmationRouteImport.update({
-    id: '/confirmation',
-    path: '/confirmation',
-    getParentRoute: () => RRestaurantSlugRouteRoute,
-  } as any)
-const RRestaurantSlugReviewRoute = RRestaurantSlugReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
-  getParentRoute: () => RRestaurantSlugRouteRoute,
-} as any)
-const RRestaurantSlugStatusRoute = RRestaurantSlugStatusRouteImport.update({
-  id: '/status',
-  path: '/status',
-  getParentRoute: () => RRestaurantSlugRouteRoute,
-} as any)
-const RRestaurantSlugTableRoute = RRestaurantSlugTableRouteImport.update({
-  id: '/table',
-  path: '/table',
-  getParentRoute: () => RRestaurantSlugRouteRoute,
-} as any)
-const RestaurantBackOfficeIndexRoute =
-  RestaurantBackOfficeIndexRouteImport.update({
-    id: '/restaurant/back-office/',
-    path: '/restaurant/back-office/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeAccountingRoute =
-  RestaurantBackOfficeAccountingRouteImport.update({
-    id: '/restaurant/back-office/accounting',
-    path: '/restaurant/back-office/accounting',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeAuditRoute =
-  RestaurantBackOfficeAuditRouteImport.update({
-    id: '/restaurant/back-office/audit',
-    path: '/restaurant/back-office/audit',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeCostControlRoute =
-  RestaurantBackOfficeCostControlRouteImport.update({
-    id: '/restaurant/back-office/cost-control',
-    path: '/restaurant/back-office/cost-control',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeDashboardRoute =
-  RestaurantBackOfficeDashboardRouteImport.update({
-    id: '/restaurant/back-office/dashboard',
-    path: '/restaurant/back-office/dashboard',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeMasterDataRoute =
-  RestaurantBackOfficeMasterDataRouteImport.update({
-    id: '/restaurant/back-office/master-data',
-    path: '/restaurant/back-office/master-data',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficePayrollRoute =
-  RestaurantBackOfficePayrollRouteImport.update({
-    id: '/restaurant/back-office/payroll',
-    path: '/restaurant/back-office/payroll',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeReportsRoute =
-  RestaurantBackOfficeReportsRouteImport.update({
-    id: '/restaurant/back-office/reports',
-    path: '/restaurant/back-office/reports',
     getParentRoute: () => rootRouteImport,
   } as any)
 const RestaurantBookingsIndexRoute = RestaurantBookingsIndexRouteImport.update({
@@ -576,16 +346,6 @@ const RestaurantInventoryIndexRoute =
     path: '/restaurant/inventory/',
     getParentRoute: () => rootRouteImport,
   } as any)
-const RestaurantOrdersIndexRoute = RestaurantOrdersIndexRouteImport.update({
-  id: '/restaurant/orders/',
-  path: '/restaurant/orders/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantOrdersOrderIdRoute = RestaurantOrdersOrderIdRouteImport.update({
-  id: '/restaurant/orders/$orderId',
-  path: '/restaurant/orders/$orderId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RestaurantPmsIndexRoute = RestaurantPmsIndexRouteImport.update({
   id: '/restaurant/pms/',
   path: '/restaurant/pms/',
@@ -694,129 +454,6 @@ const RestaurantPmsSetupRoute = RestaurantPmsSetupRouteImport.update({
   path: '/restaurant/pms/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RestaurantPosIndexRoute = RestaurantPosIndexRouteImport.update({
-  id: '/restaurant/pos/',
-  path: '/restaurant/pos/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosCatalogRoute = RestaurantPosCatalogRouteImport.update({
-  id: '/restaurant/pos/catalog',
-  path: '/restaurant/pos/catalog',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosDashboardRoute = RestaurantPosDashboardRouteImport.update({
-  id: '/restaurant/pos/dashboard',
-  path: '/restaurant/pos/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosNewRoute = RestaurantPosNewRouteImport.update({
-  id: '/restaurant/pos/new',
-  path: '/restaurant/pos/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosRegistersRoute = RestaurantPosRegistersRouteImport.update({
-  id: '/restaurant/pos/registers',
-  path: '/restaurant/pos/registers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosReportsRoute = RestaurantPosReportsRouteImport.update({
-  id: '/restaurant/pos/reports',
-  path: '/restaurant/pos/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosSellRoute = RestaurantPosSellRouteImport.update({
-  id: '/restaurant/pos/sell',
-  path: '/restaurant/pos/sell',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosSettingsRoute = RestaurantPosSettingsRouteImport.update({
-  id: '/restaurant/pos/settings',
-  path: '/restaurant/pos/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantPosShiftsRoute = RestaurantPosShiftsRouteImport.update({
-  id: '/restaurant/pos/shifts',
-  path: '/restaurant/pos/shifts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RestaurantRestaurantManagementIndexRoute =
-  RestaurantRestaurantManagementIndexRouteImport.update({
-    id: '/restaurant/restaurant-management/',
-    path: '/restaurant/restaurant-management/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementDashboardRoute =
-  RestaurantRestaurantManagementDashboardRouteImport.update({
-    id: '/restaurant/restaurant-management/dashboard',
-    path: '/restaurant/restaurant-management/dashboard',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementDigitalOrderingRoute =
-  RestaurantRestaurantManagementDigitalOrderingRouteImport.update({
-    id: '/restaurant/restaurant-management/digital-ordering',
-    path: '/restaurant/restaurant-management/digital-ordering',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementInventoryRoute =
-  RestaurantRestaurantManagementInventoryRouteImport.update({
-    id: '/restaurant/restaurant-management/inventory',
-    path: '/restaurant/restaurant-management/inventory',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementKitchenRoute =
-  RestaurantRestaurantManagementKitchenRouteImport.update({
-    id: '/restaurant/restaurant-management/kitchen',
-    path: '/restaurant/restaurant-management/kitchen',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementMenuRoute =
-  RestaurantRestaurantManagementMenuRouteImport.update({
-    id: '/restaurant/restaurant-management/menu',
-    path: '/restaurant/restaurant-management/menu',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementPaymentsRoute =
-  RestaurantRestaurantManagementPaymentsRouteImport.update({
-    id: '/restaurant/restaurant-management/payments',
-    path: '/restaurant/restaurant-management/payments',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementPosSalesRoute =
-  RestaurantRestaurantManagementPosSalesRouteImport.update({
-    id: '/restaurant/restaurant-management/pos-sales',
-    path: '/restaurant/restaurant-management/pos-sales',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementRecipeCostRoute =
-  RestaurantRestaurantManagementRecipeCostRouteImport.update({
-    id: '/restaurant/restaurant-management/recipe-cost',
-    path: '/restaurant/restaurant-management/recipe-cost',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementReportsRoute =
-  RestaurantRestaurantManagementReportsRouteImport.update({
-    id: '/restaurant/restaurant-management/reports',
-    path: '/restaurant/restaurant-management/reports',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementSetupRoute =
-  RestaurantRestaurantManagementSetupRouteImport.update({
-    id: '/restaurant/restaurant-management/setup',
-    path: '/restaurant/restaurant-management/setup',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementStaffRoute =
-  RestaurantRestaurantManagementStaffRouteImport.update({
-    id: '/restaurant/restaurant-management/staff',
-    path: '/restaurant/restaurant-management/staff',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementTablesRoute =
-  RestaurantRestaurantManagementTablesRouteImport.update({
-    id: '/restaurant/restaurant-management/tables',
-    path: '/restaurant/restaurant-management/tables',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const RestaurantRoomsIndexRoute = RestaurantRoomsIndexRouteImport.update({
   id: '/restaurant/rooms/',
   path: '/restaurant/rooms/',
@@ -859,77 +496,6 @@ const StayPropertySlugManageRoute = StayPropertySlugManageRouteImport.update({
   path: '/stay/$propertySlug/manage',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RRestaurantSlugOrderOrderIdRoute =
-  RRestaurantSlugOrderOrderIdRouteImport.update({
-    id: '/order/$orderId',
-    path: '/order/$orderId',
-    getParentRoute: () => RRestaurantSlugRouteRoute,
-  } as any)
-const RRestaurantSlugTQrTokenRoute = RRestaurantSlugTQrTokenRouteImport.update({
-  id: '/t/$qrToken',
-  path: '/t/$qrToken',
-  getParentRoute: () => RRestaurantSlugRouteRoute,
-} as any)
-const RestaurantBackOfficeHrIndexRoute =
-  RestaurantBackOfficeHrIndexRouteImport.update({
-    id: '/restaurant/back-office/hr/',
-    path: '/restaurant/back-office/hr/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeHrAttendanceRoute =
-  RestaurantBackOfficeHrAttendanceRouteImport.update({
-    id: '/restaurant/back-office/hr/attendance',
-    path: '/restaurant/back-office/hr/attendance',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeHrShiftsRoute =
-  RestaurantBackOfficeHrShiftsRouteImport.update({
-    id: '/restaurant/back-office/hr/shifts',
-    path: '/restaurant/back-office/hr/shifts',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeHrStaffRoute =
-  RestaurantBackOfficeHrStaffRouteImport.update({
-    id: '/restaurant/back-office/hr/staff',
-    path: '/restaurant/back-office/hr/staff',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeInventoryIndexRoute =
-  RestaurantBackOfficeInventoryIndexRouteImport.update({
-    id: '/restaurant/back-office/inventory/',
-    path: '/restaurant/back-office/inventory/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeInventoryItemsRoute =
-  RestaurantBackOfficeInventoryItemsRouteImport.update({
-    id: '/restaurant/back-office/inventory/items',
-    path: '/restaurant/back-office/inventory/items',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeInventoryMovementsRoute =
-  RestaurantBackOfficeInventoryMovementsRouteImport.update({
-    id: '/restaurant/back-office/inventory/movements',
-    path: '/restaurant/back-office/inventory/movements',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeInventoryUnitsRoute =
-  RestaurantBackOfficeInventoryUnitsRouteImport.update({
-    id: '/restaurant/back-office/inventory/units',
-    path: '/restaurant/back-office/inventory/units',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeProcurementIndexRoute =
-  RestaurantBackOfficeProcurementIndexRouteImport.update({
-    id: '/restaurant/back-office/procurement/',
-    path: '/restaurant/back-office/procurement/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeProcurementSuppliersRoute =
-  RestaurantBackOfficeProcurementSuppliersRouteImport.update({
-    id: '/restaurant/back-office/procurement/suppliers',
-    path: '/restaurant/back-office/procurement/suppliers',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const RestaurantCashieringFoliosFolioIdRoute =
   RestaurantCashieringFoliosFolioIdRouteImport.update({
     id: '/restaurant/cashiering/folios/$folioId',
@@ -984,50 +550,12 @@ const RestaurantPmsReservationsReservationIdRoute =
     path: '/restaurant/pms/reservations/$reservationId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const RestaurantPosTransactionsIndexRoute =
-  RestaurantPosTransactionsIndexRouteImport.update({
-    id: '/restaurant/pos/transactions/',
-    path: '/restaurant/pos/transactions/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantPosTransactionsSaleIdRoute =
-  RestaurantPosTransactionsSaleIdRouteImport.update({
-    id: '/restaurant/pos/transactions/$saleId',
-    path: '/restaurant/pos/transactions/$saleId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementOrdersIndexRoute =
-  RestaurantRestaurantManagementOrdersIndexRouteImport.update({
-    id: '/restaurant/restaurant-management/orders/',
-    path: '/restaurant/restaurant-management/orders/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantRestaurantManagementOrdersOrderIdRoute =
-  RestaurantRestaurantManagementOrdersOrderIdRouteImport.update({
-    id: '/restaurant/restaurant-management/orders/$orderId',
-    path: '/restaurant/restaurant-management/orders/$orderId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPmsDistributionAiosellReservationsRoute =
   ApiPmsDistributionAiosellReservationsRouteImport.update({
     id: '/api/pms/distribution/aiosell/reservations',
     path: '/api/pms/distribution/aiosell/reservations',
     getParentRoute: () => rootRouteImport,
   } as any)
-const RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute =
-  RestaurantBackOfficeProcurementPurchaseOrdersIndexRouteImport.update({
-    id: '/restaurant/back-office/procurement/purchase-orders/',
-    path: '/restaurant/back-office/procurement/purchase-orders/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute =
-  RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRouteImport.update(
-    {
-      id: '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId',
-      path: '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId',
-      getParentRoute: () => rootRouteImport,
-    } as any,
-  )
 const RestaurantPmsCashieringAccountsAccountIdRoute =
   RestaurantPmsCashieringAccountsAccountIdRouteImport.update({
     id: '/accounts/$accountId',
@@ -1049,45 +577,30 @@ const RestaurantPmsReservationsGuestsGuestIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/account': typeof AccountRouteRouteWithChildren
-  '/cart': typeof CartRoute
-  '/confirmation': typeof ConfirmationRoute
-  '/forgot-password': typeof ForgotPasswordRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/review': typeof ReviewRoute
-  '/scan': typeof ScanRoute
-  '/status': typeof StatusRoute
-  '/table': typeof TableRoute
-  '/r/$restaurantSlug': typeof RRestaurantSlugRouteRouteWithChildren
-  '/admin/customers': typeof AdminCustomersRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
-  '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/configuration': typeof RestaurantConfigurationRoute
-  '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/forgot-password': typeof RestaurantForgotPasswordRoute
   '/restaurant/home': typeof RestaurantHomeRoute
-  '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
-  '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/reports': typeof RestaurantReportsRoute
+  '/restaurant/reset-password': typeof RestaurantResetPasswordRoute
   '/restaurant/set-password': typeof RestaurantSetPasswordRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
-  '/restaurant/tables': typeof RestaurantTablesRoute
-  '/restaurant/waiter': typeof RestaurantWaiterRoute
-  '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
-  '/kitchen/': typeof KitchenIndexRoute
-  '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/marketing/brand': typeof AdminMarketingBrandRoute
   '/admin/marketing/content': typeof AdminMarketingContentRoute
+  '/admin/marketing/cta': typeof AdminMarketingCtaRoute
   '/admin/marketing/details': typeof AdminMarketingDetailsRoute
   '/admin/marketing/events': typeof AdminMarketingEventsRoute
   '/admin/marketing/faq': typeof AdminMarketingFaqRoute
+  '/admin/marketing/footer': typeof AdminMarketingFooterRoute
+  '/admin/marketing/header': typeof AdminMarketingHeaderRoute
+  '/admin/marketing/hero': typeof AdminMarketingHeroRoute
+  '/admin/marketing/legacy': typeof AdminMarketingLegacyRoute
   '/admin/marketing/nav': typeof AdminMarketingNavRoute
   '/admin/marketing/packages': typeof AdminMarketingPackagesRoute
   '/admin/marketing/partners': typeof AdminMarketingPartnersRoute
@@ -1098,25 +611,12 @@ export interface FileRoutesByFullPath {
   '/admin/marketing/site': typeof AdminMarketingSiteRoute
   '/admin/marketing/solutions': typeof AdminMarketingSolutionsRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
-  '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
-  '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
-  '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
-  '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
-  '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
-  '/restaurant/back-office/accounting': typeof RestaurantBackOfficeAccountingRoute
-  '/restaurant/back-office/audit': typeof RestaurantBackOfficeAuditRoute
-  '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
-  '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
-  '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
-  '/restaurant/back-office/payroll': typeof RestaurantBackOfficePayrollRoute
-  '/restaurant/back-office/reports': typeof RestaurantBackOfficeReportsRoute
   '/restaurant/bookings/$reservationId': typeof RestaurantBookingsReservationIdRoute
   '/restaurant/bookings/distribution': typeof RestaurantBookingsDistributionRoute
   '/restaurant/bookings/new': typeof RestaurantBookingsNewRoute
   '/restaurant/bookings/rates': typeof RestaurantBookingsRatesRoute
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
-  '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
   '/restaurant/pms/administration': typeof RestaurantPmsAdministrationRoute
   '/restaurant/pms/cashiering': typeof RestaurantPmsCashieringRouteWithChildren
   '/restaurant/pms/dashboard': typeof RestaurantPmsDashboardRoute
@@ -1135,119 +635,62 @@ export interface FileRoutesByFullPath {
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pms/setup': typeof RestaurantPmsSetupRoute
-  '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
-  '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
-  '/restaurant/pos/new': typeof RestaurantPosNewRoute
-  '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
-  '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
-  '/restaurant/pos/sell': typeof RestaurantPosSellRoute
-  '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
-  '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
-  '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
-  '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
-  '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
-  '/restaurant/restaurant-management/kitchen': typeof RestaurantRestaurantManagementKitchenRoute
-  '/restaurant/restaurant-management/menu': typeof RestaurantRestaurantManagementMenuRoute
-  '/restaurant/restaurant-management/payments': typeof RestaurantRestaurantManagementPaymentsRoute
-  '/restaurant/restaurant-management/pos-sales': typeof RestaurantRestaurantManagementPosSalesRoute
-  '/restaurant/restaurant-management/recipe-cost': typeof RestaurantRestaurantManagementRecipeCostRoute
-  '/restaurant/restaurant-management/reports': typeof RestaurantRestaurantManagementReportsRoute
-  '/restaurant/restaurant-management/setup': typeof RestaurantRestaurantManagementSetupRoute
-  '/restaurant/restaurant-management/staff': typeof RestaurantRestaurantManagementStaffRoute
-  '/restaurant/restaurant-management/tables': typeof RestaurantRestaurantManagementTablesRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
   '/stay/$propertySlug/book': typeof StayPropertySlugBookRoute
   '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/stay/$propertySlug/manage': typeof StayPropertySlugManageRoute
-  '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/marketing/': typeof AdminMarketingIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
-  '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
-  '/restaurant/back-office/': typeof RestaurantBackOfficeIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/cashiering/': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
   '/restaurant/housekeeping/': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
-  '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/pms/': typeof RestaurantPmsIndexRoute
-  '/restaurant/pos/': typeof RestaurantPosIndexRoute
-  '/restaurant/restaurant-management/': typeof RestaurantRestaurantManagementIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
-  '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
-  '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
-  '/restaurant/back-office/hr/attendance': typeof RestaurantBackOfficeHrAttendanceRoute
-  '/restaurant/back-office/hr/shifts': typeof RestaurantBackOfficeHrShiftsRoute
-  '/restaurant/back-office/hr/staff': typeof RestaurantBackOfficeHrStaffRoute
-  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
-  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
-  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
-  '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   '/restaurant/pms/guest-services/agreement': typeof RestaurantPmsGuestServicesAgreementRoute
   '/restaurant/pms/guests/$guestId': typeof RestaurantPmsGuestsGuestIdRoute
   '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
-  '/restaurant/pos/transactions/$saleId': typeof RestaurantPosTransactionsSaleIdRoute
-  '/restaurant/restaurant-management/orders/$orderId': typeof RestaurantRestaurantManagementOrdersOrderIdRoute
-  '/restaurant/back-office/hr/': typeof RestaurantBackOfficeHrIndexRoute
-  '/restaurant/back-office/inventory/': typeof RestaurantBackOfficeInventoryIndexRoute
-  '/restaurant/back-office/procurement/': typeof RestaurantBackOfficeProcurementIndexRoute
   '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
   '/restaurant/pms/guests/': typeof RestaurantPmsGuestsIndexRoute
   '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
-  '/restaurant/pos/transactions/': typeof RestaurantPosTransactionsIndexRoute
-  '/restaurant/restaurant-management/orders/': typeof RestaurantRestaurantManagementOrdersIndexRoute
   '/api/pms/distribution/aiosell/reservations': typeof ApiPmsDistributionAiosellReservationsRoute
-  '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId': typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   '/restaurant/pms/cashiering/accounts/$accountId': typeof RestaurantPmsCashieringAccountsAccountIdRoute
   '/restaurant/pms/cashiering/folios/$folioId': typeof RestaurantPmsCashieringFoliosFolioIdRoute
   '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
-  '/restaurant/back-office/procurement/purchase-orders/': typeof RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/cart': typeof CartRoute
-  '/confirmation': typeof ConfirmationRoute
-  '/forgot-password': typeof ForgotPasswordRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/review': typeof ReviewRoute
-  '/scan': typeof ScanRoute
-  '/status': typeof StatusRoute
-  '/table': typeof TableRoute
-  '/admin/customers': typeof AdminCustomersRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
-  '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/configuration': typeof RestaurantConfigurationRoute
-  '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/forgot-password': typeof RestaurantForgotPasswordRoute
   '/restaurant/home': typeof RestaurantHomeRoute
-  '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
-  '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/reports': typeof RestaurantReportsRoute
+  '/restaurant/reset-password': typeof RestaurantResetPasswordRoute
   '/restaurant/set-password': typeof RestaurantSetPasswordRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
-  '/restaurant/tables': typeof RestaurantTablesRoute
-  '/restaurant/waiter': typeof RestaurantWaiterRoute
-  '/account': typeof AccountIndexRoute
   '/admin': typeof AdminIndexRoute
-  '/kitchen': typeof KitchenIndexRoute
-  '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/marketing/brand': typeof AdminMarketingBrandRoute
   '/admin/marketing/content': typeof AdminMarketingContentRoute
+  '/admin/marketing/cta': typeof AdminMarketingCtaRoute
   '/admin/marketing/details': typeof AdminMarketingDetailsRoute
   '/admin/marketing/events': typeof AdminMarketingEventsRoute
   '/admin/marketing/faq': typeof AdminMarketingFaqRoute
+  '/admin/marketing/footer': typeof AdminMarketingFooterRoute
+  '/admin/marketing/header': typeof AdminMarketingHeaderRoute
+  '/admin/marketing/hero': typeof AdminMarketingHeroRoute
+  '/admin/marketing/legacy': typeof AdminMarketingLegacyRoute
   '/admin/marketing/nav': typeof AdminMarketingNavRoute
   '/admin/marketing/packages': typeof AdminMarketingPackagesRoute
   '/admin/marketing/partners': typeof AdminMarketingPartnersRoute
@@ -1258,25 +701,12 @@ export interface FileRoutesByTo {
   '/admin/marketing/site': typeof AdminMarketingSiteRoute
   '/admin/marketing/solutions': typeof AdminMarketingSolutionsRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
-  '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
-  '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
-  '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
-  '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
-  '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
-  '/restaurant/back-office/accounting': typeof RestaurantBackOfficeAccountingRoute
-  '/restaurant/back-office/audit': typeof RestaurantBackOfficeAuditRoute
-  '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
-  '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
-  '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
-  '/restaurant/back-office/payroll': typeof RestaurantBackOfficePayrollRoute
-  '/restaurant/back-office/reports': typeof RestaurantBackOfficeReportsRoute
   '/restaurant/bookings/$reservationId': typeof RestaurantBookingsReservationIdRoute
   '/restaurant/bookings/distribution': typeof RestaurantBookingsDistributionRoute
   '/restaurant/bookings/new': typeof RestaurantBookingsNewRoute
   '/restaurant/bookings/rates': typeof RestaurantBookingsRatesRoute
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
-  '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
   '/restaurant/pms/administration': typeof RestaurantPmsAdministrationRoute
   '/restaurant/pms/cashiering': typeof RestaurantPmsCashieringRouteWithChildren
   '/restaurant/pms/dashboard': typeof RestaurantPmsDashboardRoute
@@ -1295,122 +725,63 @@ export interface FileRoutesByTo {
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pms/setup': typeof RestaurantPmsSetupRoute
-  '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
-  '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
-  '/restaurant/pos/new': typeof RestaurantPosNewRoute
-  '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
-  '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
-  '/restaurant/pos/sell': typeof RestaurantPosSellRoute
-  '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
-  '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
-  '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
-  '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
-  '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
-  '/restaurant/restaurant-management/kitchen': typeof RestaurantRestaurantManagementKitchenRoute
-  '/restaurant/restaurant-management/menu': typeof RestaurantRestaurantManagementMenuRoute
-  '/restaurant/restaurant-management/payments': typeof RestaurantRestaurantManagementPaymentsRoute
-  '/restaurant/restaurant-management/pos-sales': typeof RestaurantRestaurantManagementPosSalesRoute
-  '/restaurant/restaurant-management/recipe-cost': typeof RestaurantRestaurantManagementRecipeCostRoute
-  '/restaurant/restaurant-management/reports': typeof RestaurantRestaurantManagementReportsRoute
-  '/restaurant/restaurant-management/setup': typeof RestaurantRestaurantManagementSetupRoute
-  '/restaurant/restaurant-management/staff': typeof RestaurantRestaurantManagementStaffRoute
-  '/restaurant/restaurant-management/tables': typeof RestaurantRestaurantManagementTablesRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
   '/stay/$propertySlug/book': typeof StayPropertySlugBookRoute
   '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/stay/$propertySlug/manage': typeof StayPropertySlugManageRoute
-  '/account/orders': typeof AccountOrdersIndexRoute
   '/admin/marketing': typeof AdminMarketingIndexRoute
   '/admin/restaurants': typeof AdminRestaurantsIndexRoute
-  '/r/$restaurantSlug': typeof RRestaurantSlugIndexRoute
-  '/restaurant/back-office': typeof RestaurantBackOfficeIndexRoute
   '/restaurant/bookings': typeof RestaurantBookingsIndexRoute
   '/restaurant/cashiering': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests': typeof RestaurantGuestsIndexRoute
   '/restaurant/housekeeping': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory': typeof RestaurantInventoryIndexRoute
-  '/restaurant/orders': typeof RestaurantOrdersIndexRoute
   '/restaurant/pms': typeof RestaurantPmsIndexRoute
-  '/restaurant/pos': typeof RestaurantPosIndexRoute
-  '/restaurant/restaurant-management': typeof RestaurantRestaurantManagementIndexRoute
   '/restaurant/rooms': typeof RestaurantRoomsIndexRoute
   '/stay/$propertySlug': typeof StayPropertySlugIndexRoute
-  '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
-  '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
-  '/restaurant/back-office/hr/attendance': typeof RestaurantBackOfficeHrAttendanceRoute
-  '/restaurant/back-office/hr/shifts': typeof RestaurantBackOfficeHrShiftsRoute
-  '/restaurant/back-office/hr/staff': typeof RestaurantBackOfficeHrStaffRoute
-  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
-  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
-  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
-  '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   '/restaurant/pms/guest-services/agreement': typeof RestaurantPmsGuestServicesAgreementRoute
   '/restaurant/pms/guests/$guestId': typeof RestaurantPmsGuestsGuestIdRoute
   '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
-  '/restaurant/pos/transactions/$saleId': typeof RestaurantPosTransactionsSaleIdRoute
-  '/restaurant/restaurant-management/orders/$orderId': typeof RestaurantRestaurantManagementOrdersOrderIdRoute
-  '/restaurant/back-office/hr': typeof RestaurantBackOfficeHrIndexRoute
-  '/restaurant/back-office/inventory': typeof RestaurantBackOfficeInventoryIndexRoute
-  '/restaurant/back-office/procurement': typeof RestaurantBackOfficeProcurementIndexRoute
   '/restaurant/cashiering/night-audit': typeof RestaurantCashieringNightAuditIndexRoute
   '/restaurant/pms/guests': typeof RestaurantPmsGuestsIndexRoute
   '/restaurant/pms/reservations': typeof RestaurantPmsReservationsIndexRoute
-  '/restaurant/pos/transactions': typeof RestaurantPosTransactionsIndexRoute
-  '/restaurant/restaurant-management/orders': typeof RestaurantRestaurantManagementOrdersIndexRoute
   '/api/pms/distribution/aiosell/reservations': typeof ApiPmsDistributionAiosellReservationsRoute
-  '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId': typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   '/restaurant/pms/cashiering/accounts/$accountId': typeof RestaurantPmsCashieringAccountsAccountIdRoute
   '/restaurant/pms/cashiering/folios/$folioId': typeof RestaurantPmsCashieringFoliosFolioIdRoute
   '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
-  '/restaurant/back-office/procurement/purchase-orders': typeof RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/account': typeof AccountRouteRouteWithChildren
-  '/cart': typeof CartRoute
-  '/confirmation': typeof ConfirmationRoute
-  '/forgot-password': typeof ForgotPasswordRoute
-  '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/review': typeof ReviewRoute
-  '/scan': typeof ScanRoute
-  '/status': typeof StatusRoute
-  '/table': typeof TableRoute
-  '/r/$restaurantSlug': typeof RRestaurantSlugRouteRouteWithChildren
-  '/admin/customers': typeof AdminCustomersRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/settings': typeof AdminSettingsRoute
-  '/kitchen/login': typeof KitchenLoginRoute
   '/restaurant/configuration': typeof RestaurantConfigurationRoute
-  '/restaurant/dashboard': typeof RestaurantDashboardRoute
+  '/restaurant/forgot-password': typeof RestaurantForgotPasswordRoute
   '/restaurant/home': typeof RestaurantHomeRoute
-  '/restaurant/kitchen': typeof RestaurantKitchenRoute
   '/restaurant/login': typeof RestaurantLoginRoute
-  '/restaurant/menu': typeof RestaurantMenuRoute
   '/restaurant/register': typeof RestaurantRegisterRoute
   '/restaurant/reports': typeof RestaurantReportsRoute
+  '/restaurant/reset-password': typeof RestaurantResetPasswordRoute
   '/restaurant/set-password': typeof RestaurantSetPasswordRoute
   '/restaurant/settings': typeof RestaurantSettingsRoute
   '/restaurant/staff': typeof RestaurantStaffRoute
-  '/restaurant/tables': typeof RestaurantTablesRoute
-  '/restaurant/waiter': typeof RestaurantWaiterRoute
-  '/account/': typeof AccountIndexRoute
   '/admin/': typeof AdminIndexRoute
-  '/kitchen/': typeof KitchenIndexRoute
-  '/account/orders/$orderId': typeof AccountOrdersOrderIdRoute
   '/admin/marketing/brand': typeof AdminMarketingBrandRoute
   '/admin/marketing/content': typeof AdminMarketingContentRoute
+  '/admin/marketing/cta': typeof AdminMarketingCtaRoute
   '/admin/marketing/details': typeof AdminMarketingDetailsRoute
   '/admin/marketing/events': typeof AdminMarketingEventsRoute
   '/admin/marketing/faq': typeof AdminMarketingFaqRoute
+  '/admin/marketing/footer': typeof AdminMarketingFooterRoute
+  '/admin/marketing/header': typeof AdminMarketingHeaderRoute
+  '/admin/marketing/hero': typeof AdminMarketingHeroRoute
+  '/admin/marketing/legacy': typeof AdminMarketingLegacyRoute
   '/admin/marketing/nav': typeof AdminMarketingNavRoute
   '/admin/marketing/packages': typeof AdminMarketingPackagesRoute
   '/admin/marketing/partners': typeof AdminMarketingPartnersRoute
@@ -1421,25 +792,12 @@ export interface FileRoutesById {
   '/admin/marketing/site': typeof AdminMarketingSiteRoute
   '/admin/marketing/solutions': typeof AdminMarketingSolutionsRoute
   '/admin/restaurants/$restaurantId': typeof AdminRestaurantsRestaurantIdRoute
-  '/r/$restaurantSlug/cart': typeof RRestaurantSlugCartRoute
-  '/r/$restaurantSlug/confirmation': typeof RRestaurantSlugConfirmationRoute
-  '/r/$restaurantSlug/review': typeof RRestaurantSlugReviewRoute
-  '/r/$restaurantSlug/status': typeof RRestaurantSlugStatusRoute
-  '/r/$restaurantSlug/table': typeof RRestaurantSlugTableRoute
-  '/restaurant/back-office/accounting': typeof RestaurantBackOfficeAccountingRoute
-  '/restaurant/back-office/audit': typeof RestaurantBackOfficeAuditRoute
-  '/restaurant/back-office/cost-control': typeof RestaurantBackOfficeCostControlRoute
-  '/restaurant/back-office/dashboard': typeof RestaurantBackOfficeDashboardRoute
-  '/restaurant/back-office/master-data': typeof RestaurantBackOfficeMasterDataRoute
-  '/restaurant/back-office/payroll': typeof RestaurantBackOfficePayrollRoute
-  '/restaurant/back-office/reports': typeof RestaurantBackOfficeReportsRoute
   '/restaurant/bookings/$reservationId': typeof RestaurantBookingsReservationIdRoute
   '/restaurant/bookings/distribution': typeof RestaurantBookingsDistributionRoute
   '/restaurant/bookings/new': typeof RestaurantBookingsNewRoute
   '/restaurant/bookings/rates': typeof RestaurantBookingsRatesRoute
   '/restaurant/bookings/reservations': typeof RestaurantBookingsReservationsRoute
   '/restaurant/guests/$guestId': typeof RestaurantGuestsGuestIdRoute
-  '/restaurant/orders/$orderId': typeof RestaurantOrdersOrderIdRoute
   '/restaurant/pms/administration': typeof RestaurantPmsAdministrationRoute
   '/restaurant/pms/cashiering': typeof RestaurantPmsCashieringRouteWithChildren
   '/restaurant/pms/dashboard': typeof RestaurantPmsDashboardRoute
@@ -1458,123 +816,64 @@ export interface FileRoutesById {
   '/restaurant/pms/sales-events': typeof RestaurantPmsSalesEventsRoute
   '/restaurant/pms/security-audit': typeof RestaurantPmsSecurityAuditRoute
   '/restaurant/pms/setup': typeof RestaurantPmsSetupRoute
-  '/restaurant/pos/catalog': typeof RestaurantPosCatalogRoute
-  '/restaurant/pos/dashboard': typeof RestaurantPosDashboardRoute
-  '/restaurant/pos/new': typeof RestaurantPosNewRoute
-  '/restaurant/pos/registers': typeof RestaurantPosRegistersRoute
-  '/restaurant/pos/reports': typeof RestaurantPosReportsRoute
-  '/restaurant/pos/sell': typeof RestaurantPosSellRoute
-  '/restaurant/pos/settings': typeof RestaurantPosSettingsRoute
-  '/restaurant/pos/shifts': typeof RestaurantPosShiftsRoute
-  '/restaurant/restaurant-management/dashboard': typeof RestaurantRestaurantManagementDashboardRoute
-  '/restaurant/restaurant-management/digital-ordering': typeof RestaurantRestaurantManagementDigitalOrderingRoute
-  '/restaurant/restaurant-management/inventory': typeof RestaurantRestaurantManagementInventoryRoute
-  '/restaurant/restaurant-management/kitchen': typeof RestaurantRestaurantManagementKitchenRoute
-  '/restaurant/restaurant-management/menu': typeof RestaurantRestaurantManagementMenuRoute
-  '/restaurant/restaurant-management/payments': typeof RestaurantRestaurantManagementPaymentsRoute
-  '/restaurant/restaurant-management/pos-sales': typeof RestaurantRestaurantManagementPosSalesRoute
-  '/restaurant/restaurant-management/recipe-cost': typeof RestaurantRestaurantManagementRecipeCostRoute
-  '/restaurant/restaurant-management/reports': typeof RestaurantRestaurantManagementReportsRoute
-  '/restaurant/restaurant-management/setup': typeof RestaurantRestaurantManagementSetupRoute
-  '/restaurant/restaurant-management/staff': typeof RestaurantRestaurantManagementStaffRoute
-  '/restaurant/restaurant-management/tables': typeof RestaurantRestaurantManagementTablesRoute
   '/restaurant/rooms/arrivals': typeof RestaurantRoomsArrivalsRoute
   '/restaurant/rooms/departures': typeof RestaurantRoomsDeparturesRoute
   '/restaurant/rooms/in-house': typeof RestaurantRoomsInHouseRoute
   '/stay/$propertySlug/book': typeof StayPropertySlugBookRoute
   '/stay/$propertySlug/confirmation': typeof StayPropertySlugConfirmationRoute
   '/stay/$propertySlug/manage': typeof StayPropertySlugManageRoute
-  '/account/orders/': typeof AccountOrdersIndexRoute
   '/admin/marketing/': typeof AdminMarketingIndexRoute
   '/admin/restaurants/': typeof AdminRestaurantsIndexRoute
-  '/r/$restaurantSlug/': typeof RRestaurantSlugIndexRoute
-  '/restaurant/back-office/': typeof RestaurantBackOfficeIndexRoute
   '/restaurant/bookings/': typeof RestaurantBookingsIndexRoute
   '/restaurant/cashiering/': typeof RestaurantCashieringIndexRoute
   '/restaurant/guests/': typeof RestaurantGuestsIndexRoute
   '/restaurant/housekeeping/': typeof RestaurantHousekeepingIndexRoute
   '/restaurant/inventory/': typeof RestaurantInventoryIndexRoute
-  '/restaurant/orders/': typeof RestaurantOrdersIndexRoute
   '/restaurant/pms/': typeof RestaurantPmsIndexRoute
-  '/restaurant/pos/': typeof RestaurantPosIndexRoute
-  '/restaurant/restaurant-management/': typeof RestaurantRestaurantManagementIndexRoute
   '/restaurant/rooms/': typeof RestaurantRoomsIndexRoute
   '/stay/$propertySlug/': typeof StayPropertySlugIndexRoute
-  '/r/$restaurantSlug/order/$orderId': typeof RRestaurantSlugOrderOrderIdRoute
-  '/r/$restaurantSlug/t/$qrToken': typeof RRestaurantSlugTQrTokenRoute
-  '/restaurant/back-office/hr/attendance': typeof RestaurantBackOfficeHrAttendanceRoute
-  '/restaurant/back-office/hr/shifts': typeof RestaurantBackOfficeHrShiftsRoute
-  '/restaurant/back-office/hr/staff': typeof RestaurantBackOfficeHrStaffRoute
-  '/restaurant/back-office/inventory/items': typeof RestaurantBackOfficeInventoryItemsRoute
-  '/restaurant/back-office/inventory/movements': typeof RestaurantBackOfficeInventoryMovementsRoute
-  '/restaurant/back-office/inventory/units': typeof RestaurantBackOfficeInventoryUnitsRoute
-  '/restaurant/back-office/procurement/suppliers': typeof RestaurantBackOfficeProcurementSuppliersRoute
   '/restaurant/cashiering/folios/$folioId': typeof RestaurantCashieringFoliosFolioIdRoute
   '/restaurant/cashiering/night-audit/$runId': typeof RestaurantCashieringNightAuditRunIdRoute
   '/restaurant/inventory/purchasing/$purchaseOrderId': typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   '/restaurant/pms/guest-services/agreement': typeof RestaurantPmsGuestServicesAgreementRoute
   '/restaurant/pms/guests/$guestId': typeof RestaurantPmsGuestsGuestIdRoute
   '/restaurant/pms/reservations/$reservationId': typeof RestaurantPmsReservationsReservationIdRoute
-  '/restaurant/pos/transactions/$saleId': typeof RestaurantPosTransactionsSaleIdRoute
-  '/restaurant/restaurant-management/orders/$orderId': typeof RestaurantRestaurantManagementOrdersOrderIdRoute
-  '/restaurant/back-office/hr/': typeof RestaurantBackOfficeHrIndexRoute
-  '/restaurant/back-office/inventory/': typeof RestaurantBackOfficeInventoryIndexRoute
-  '/restaurant/back-office/procurement/': typeof RestaurantBackOfficeProcurementIndexRoute
   '/restaurant/cashiering/night-audit/': typeof RestaurantCashieringNightAuditIndexRoute
   '/restaurant/pms/guests/': typeof RestaurantPmsGuestsIndexRoute
   '/restaurant/pms/reservations/': typeof RestaurantPmsReservationsIndexRoute
-  '/restaurant/pos/transactions/': typeof RestaurantPosTransactionsIndexRoute
-  '/restaurant/restaurant-management/orders/': typeof RestaurantRestaurantManagementOrdersIndexRoute
   '/api/pms/distribution/aiosell/reservations': typeof ApiPmsDistributionAiosellReservationsRoute
-  '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId': typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   '/restaurant/pms/cashiering/accounts/$accountId': typeof RestaurantPmsCashieringAccountsAccountIdRoute
   '/restaurant/pms/cashiering/folios/$folioId': typeof RestaurantPmsCashieringFoliosFolioIdRoute
   '/restaurant/pms/reservations/guests/$guestId': typeof RestaurantPmsReservationsGuestsGuestIdRoute
-  '/restaurant/back-office/procurement/purchase-orders/': typeof RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/account'
-    | '/cart'
-    | '/confirmation'
-    | '/forgot-password'
-    | '/login'
-    | '/register'
-    | '/reset-password'
-    | '/review'
-    | '/scan'
-    | '/status'
-    | '/table'
-    | '/r/$restaurantSlug'
-    | '/admin/customers'
     | '/admin/leads'
     | '/admin/login'
     | '/admin/settings'
-    | '/kitchen/login'
     | '/restaurant/configuration'
-    | '/restaurant/dashboard'
+    | '/restaurant/forgot-password'
     | '/restaurant/home'
-    | '/restaurant/kitchen'
     | '/restaurant/login'
-    | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/reports'
+    | '/restaurant/reset-password'
     | '/restaurant/set-password'
     | '/restaurant/settings'
     | '/restaurant/staff'
-    | '/restaurant/tables'
-    | '/restaurant/waiter'
-    | '/account/'
     | '/admin/'
-    | '/kitchen/'
-    | '/account/orders/$orderId'
     | '/admin/marketing/brand'
     | '/admin/marketing/content'
+    | '/admin/marketing/cta'
     | '/admin/marketing/details'
     | '/admin/marketing/events'
     | '/admin/marketing/faq'
+    | '/admin/marketing/footer'
+    | '/admin/marketing/header'
+    | '/admin/marketing/hero'
+    | '/admin/marketing/legacy'
     | '/admin/marketing/nav'
     | '/admin/marketing/packages'
     | '/admin/marketing/partners'
@@ -1585,25 +884,12 @@ export interface FileRouteTypes {
     | '/admin/marketing/site'
     | '/admin/marketing/solutions'
     | '/admin/restaurants/$restaurantId'
-    | '/r/$restaurantSlug/cart'
-    | '/r/$restaurantSlug/confirmation'
-    | '/r/$restaurantSlug/review'
-    | '/r/$restaurantSlug/status'
-    | '/r/$restaurantSlug/table'
-    | '/restaurant/back-office/accounting'
-    | '/restaurant/back-office/audit'
-    | '/restaurant/back-office/cost-control'
-    | '/restaurant/back-office/dashboard'
-    | '/restaurant/back-office/master-data'
-    | '/restaurant/back-office/payroll'
-    | '/restaurant/back-office/reports'
     | '/restaurant/bookings/$reservationId'
     | '/restaurant/bookings/distribution'
     | '/restaurant/bookings/new'
     | '/restaurant/bookings/rates'
     | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
-    | '/restaurant/orders/$orderId'
     | '/restaurant/pms/administration'
     | '/restaurant/pms/cashiering'
     | '/restaurant/pms/dashboard'
@@ -1622,119 +908,62 @@ export interface FileRouteTypes {
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
     | '/restaurant/pms/setup'
-    | '/restaurant/pos/catalog'
-    | '/restaurant/pos/dashboard'
-    | '/restaurant/pos/new'
-    | '/restaurant/pos/registers'
-    | '/restaurant/pos/reports'
-    | '/restaurant/pos/sell'
-    | '/restaurant/pos/settings'
-    | '/restaurant/pos/shifts'
-    | '/restaurant/restaurant-management/dashboard'
-    | '/restaurant/restaurant-management/digital-ordering'
-    | '/restaurant/restaurant-management/inventory'
-    | '/restaurant/restaurant-management/kitchen'
-    | '/restaurant/restaurant-management/menu'
-    | '/restaurant/restaurant-management/payments'
-    | '/restaurant/restaurant-management/pos-sales'
-    | '/restaurant/restaurant-management/recipe-cost'
-    | '/restaurant/restaurant-management/reports'
-    | '/restaurant/restaurant-management/setup'
-    | '/restaurant/restaurant-management/staff'
-    | '/restaurant/restaurant-management/tables'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
     | '/stay/$propertySlug/book'
     | '/stay/$propertySlug/confirmation'
     | '/stay/$propertySlug/manage'
-    | '/account/orders/'
     | '/admin/marketing/'
     | '/admin/restaurants/'
-    | '/r/$restaurantSlug/'
-    | '/restaurant/back-office/'
     | '/restaurant/bookings/'
     | '/restaurant/cashiering/'
     | '/restaurant/guests/'
     | '/restaurant/housekeeping/'
     | '/restaurant/inventory/'
-    | '/restaurant/orders/'
     | '/restaurant/pms/'
-    | '/restaurant/pos/'
-    | '/restaurant/restaurant-management/'
     | '/restaurant/rooms/'
     | '/stay/$propertySlug/'
-    | '/r/$restaurantSlug/order/$orderId'
-    | '/r/$restaurantSlug/t/$qrToken'
-    | '/restaurant/back-office/hr/attendance'
-    | '/restaurant/back-office/hr/shifts'
-    | '/restaurant/back-office/hr/staff'
-    | '/restaurant/back-office/inventory/items'
-    | '/restaurant/back-office/inventory/movements'
-    | '/restaurant/back-office/inventory/units'
-    | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
     | '/restaurant/pms/guest-services/agreement'
     | '/restaurant/pms/guests/$guestId'
     | '/restaurant/pms/reservations/$reservationId'
-    | '/restaurant/pos/transactions/$saleId'
-    | '/restaurant/restaurant-management/orders/$orderId'
-    | '/restaurant/back-office/hr/'
-    | '/restaurant/back-office/inventory/'
-    | '/restaurant/back-office/procurement/'
     | '/restaurant/cashiering/night-audit/'
     | '/restaurant/pms/guests/'
     | '/restaurant/pms/reservations/'
-    | '/restaurant/pos/transactions/'
-    | '/restaurant/restaurant-management/orders/'
     | '/api/pms/distribution/aiosell/reservations'
-    | '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
     | '/restaurant/pms/cashiering/accounts/$accountId'
     | '/restaurant/pms/cashiering/folios/$folioId'
     | '/restaurant/pms/reservations/guests/$guestId'
-    | '/restaurant/back-office/procurement/purchase-orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/cart'
-    | '/confirmation'
-    | '/forgot-password'
-    | '/login'
-    | '/register'
-    | '/reset-password'
-    | '/review'
-    | '/scan'
-    | '/status'
-    | '/table'
-    | '/admin/customers'
     | '/admin/leads'
     | '/admin/login'
     | '/admin/settings'
-    | '/kitchen/login'
     | '/restaurant/configuration'
-    | '/restaurant/dashboard'
+    | '/restaurant/forgot-password'
     | '/restaurant/home'
-    | '/restaurant/kitchen'
     | '/restaurant/login'
-    | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/reports'
+    | '/restaurant/reset-password'
     | '/restaurant/set-password'
     | '/restaurant/settings'
     | '/restaurant/staff'
-    | '/restaurant/tables'
-    | '/restaurant/waiter'
-    | '/account'
     | '/admin'
-    | '/kitchen'
-    | '/account/orders/$orderId'
     | '/admin/marketing/brand'
     | '/admin/marketing/content'
+    | '/admin/marketing/cta'
     | '/admin/marketing/details'
     | '/admin/marketing/events'
     | '/admin/marketing/faq'
+    | '/admin/marketing/footer'
+    | '/admin/marketing/header'
+    | '/admin/marketing/hero'
+    | '/admin/marketing/legacy'
     | '/admin/marketing/nav'
     | '/admin/marketing/packages'
     | '/admin/marketing/partners'
@@ -1745,25 +974,12 @@ export interface FileRouteTypes {
     | '/admin/marketing/site'
     | '/admin/marketing/solutions'
     | '/admin/restaurants/$restaurantId'
-    | '/r/$restaurantSlug/cart'
-    | '/r/$restaurantSlug/confirmation'
-    | '/r/$restaurantSlug/review'
-    | '/r/$restaurantSlug/status'
-    | '/r/$restaurantSlug/table'
-    | '/restaurant/back-office/accounting'
-    | '/restaurant/back-office/audit'
-    | '/restaurant/back-office/cost-control'
-    | '/restaurant/back-office/dashboard'
-    | '/restaurant/back-office/master-data'
-    | '/restaurant/back-office/payroll'
-    | '/restaurant/back-office/reports'
     | '/restaurant/bookings/$reservationId'
     | '/restaurant/bookings/distribution'
     | '/restaurant/bookings/new'
     | '/restaurant/bookings/rates'
     | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
-    | '/restaurant/orders/$orderId'
     | '/restaurant/pms/administration'
     | '/restaurant/pms/cashiering'
     | '/restaurant/pms/dashboard'
@@ -1782,121 +998,62 @@ export interface FileRouteTypes {
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
     | '/restaurant/pms/setup'
-    | '/restaurant/pos/catalog'
-    | '/restaurant/pos/dashboard'
-    | '/restaurant/pos/new'
-    | '/restaurant/pos/registers'
-    | '/restaurant/pos/reports'
-    | '/restaurant/pos/sell'
-    | '/restaurant/pos/settings'
-    | '/restaurant/pos/shifts'
-    | '/restaurant/restaurant-management/dashboard'
-    | '/restaurant/restaurant-management/digital-ordering'
-    | '/restaurant/restaurant-management/inventory'
-    | '/restaurant/restaurant-management/kitchen'
-    | '/restaurant/restaurant-management/menu'
-    | '/restaurant/restaurant-management/payments'
-    | '/restaurant/restaurant-management/pos-sales'
-    | '/restaurant/restaurant-management/recipe-cost'
-    | '/restaurant/restaurant-management/reports'
-    | '/restaurant/restaurant-management/setup'
-    | '/restaurant/restaurant-management/staff'
-    | '/restaurant/restaurant-management/tables'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
     | '/stay/$propertySlug/book'
     | '/stay/$propertySlug/confirmation'
     | '/stay/$propertySlug/manage'
-    | '/account/orders'
     | '/admin/marketing'
     | '/admin/restaurants'
-    | '/r/$restaurantSlug'
-    | '/restaurant/back-office'
     | '/restaurant/bookings'
     | '/restaurant/cashiering'
     | '/restaurant/guests'
     | '/restaurant/housekeeping'
     | '/restaurant/inventory'
-    | '/restaurant/orders'
     | '/restaurant/pms'
-    | '/restaurant/pos'
-    | '/restaurant/restaurant-management'
     | '/restaurant/rooms'
     | '/stay/$propertySlug'
-    | '/r/$restaurantSlug/order/$orderId'
-    | '/r/$restaurantSlug/t/$qrToken'
-    | '/restaurant/back-office/hr/attendance'
-    | '/restaurant/back-office/hr/shifts'
-    | '/restaurant/back-office/hr/staff'
-    | '/restaurant/back-office/inventory/items'
-    | '/restaurant/back-office/inventory/movements'
-    | '/restaurant/back-office/inventory/units'
-    | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
     | '/restaurant/pms/guest-services/agreement'
     | '/restaurant/pms/guests/$guestId'
     | '/restaurant/pms/reservations/$reservationId'
-    | '/restaurant/pos/transactions/$saleId'
-    | '/restaurant/restaurant-management/orders/$orderId'
-    | '/restaurant/back-office/hr'
-    | '/restaurant/back-office/inventory'
-    | '/restaurant/back-office/procurement'
     | '/restaurant/cashiering/night-audit'
     | '/restaurant/pms/guests'
     | '/restaurant/pms/reservations'
-    | '/restaurant/pos/transactions'
-    | '/restaurant/restaurant-management/orders'
     | '/api/pms/distribution/aiosell/reservations'
-    | '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
     | '/restaurant/pms/cashiering/accounts/$accountId'
     | '/restaurant/pms/cashiering/folios/$folioId'
     | '/restaurant/pms/reservations/guests/$guestId'
-    | '/restaurant/back-office/procurement/purchase-orders'
   id:
     | '__root__'
     | '/'
-    | '/account'
-    | '/cart'
-    | '/confirmation'
-    | '/forgot-password'
-    | '/login'
-    | '/register'
-    | '/reset-password'
-    | '/review'
-    | '/scan'
-    | '/status'
-    | '/table'
-    | '/r/$restaurantSlug'
-    | '/admin/customers'
     | '/admin/leads'
     | '/admin/login'
     | '/admin/settings'
-    | '/kitchen/login'
     | '/restaurant/configuration'
-    | '/restaurant/dashboard'
+    | '/restaurant/forgot-password'
     | '/restaurant/home'
-    | '/restaurant/kitchen'
     | '/restaurant/login'
-    | '/restaurant/menu'
     | '/restaurant/register'
     | '/restaurant/reports'
+    | '/restaurant/reset-password'
     | '/restaurant/set-password'
     | '/restaurant/settings'
     | '/restaurant/staff'
-    | '/restaurant/tables'
-    | '/restaurant/waiter'
-    | '/account/'
     | '/admin/'
-    | '/kitchen/'
-    | '/account/orders/$orderId'
     | '/admin/marketing/brand'
     | '/admin/marketing/content'
+    | '/admin/marketing/cta'
     | '/admin/marketing/details'
     | '/admin/marketing/events'
     | '/admin/marketing/faq'
+    | '/admin/marketing/footer'
+    | '/admin/marketing/header'
+    | '/admin/marketing/hero'
+    | '/admin/marketing/legacy'
     | '/admin/marketing/nav'
     | '/admin/marketing/packages'
     | '/admin/marketing/partners'
@@ -1907,25 +1064,12 @@ export interface FileRouteTypes {
     | '/admin/marketing/site'
     | '/admin/marketing/solutions'
     | '/admin/restaurants/$restaurantId'
-    | '/r/$restaurantSlug/cart'
-    | '/r/$restaurantSlug/confirmation'
-    | '/r/$restaurantSlug/review'
-    | '/r/$restaurantSlug/status'
-    | '/r/$restaurantSlug/table'
-    | '/restaurant/back-office/accounting'
-    | '/restaurant/back-office/audit'
-    | '/restaurant/back-office/cost-control'
-    | '/restaurant/back-office/dashboard'
-    | '/restaurant/back-office/master-data'
-    | '/restaurant/back-office/payroll'
-    | '/restaurant/back-office/reports'
     | '/restaurant/bookings/$reservationId'
     | '/restaurant/bookings/distribution'
     | '/restaurant/bookings/new'
     | '/restaurant/bookings/rates'
     | '/restaurant/bookings/reservations'
     | '/restaurant/guests/$guestId'
-    | '/restaurant/orders/$orderId'
     | '/restaurant/pms/administration'
     | '/restaurant/pms/cashiering'
     | '/restaurant/pms/dashboard'
@@ -1944,120 +1088,63 @@ export interface FileRouteTypes {
     | '/restaurant/pms/sales-events'
     | '/restaurant/pms/security-audit'
     | '/restaurant/pms/setup'
-    | '/restaurant/pos/catalog'
-    | '/restaurant/pos/dashboard'
-    | '/restaurant/pos/new'
-    | '/restaurant/pos/registers'
-    | '/restaurant/pos/reports'
-    | '/restaurant/pos/sell'
-    | '/restaurant/pos/settings'
-    | '/restaurant/pos/shifts'
-    | '/restaurant/restaurant-management/dashboard'
-    | '/restaurant/restaurant-management/digital-ordering'
-    | '/restaurant/restaurant-management/inventory'
-    | '/restaurant/restaurant-management/kitchen'
-    | '/restaurant/restaurant-management/menu'
-    | '/restaurant/restaurant-management/payments'
-    | '/restaurant/restaurant-management/pos-sales'
-    | '/restaurant/restaurant-management/recipe-cost'
-    | '/restaurant/restaurant-management/reports'
-    | '/restaurant/restaurant-management/setup'
-    | '/restaurant/restaurant-management/staff'
-    | '/restaurant/restaurant-management/tables'
     | '/restaurant/rooms/arrivals'
     | '/restaurant/rooms/departures'
     | '/restaurant/rooms/in-house'
     | '/stay/$propertySlug/book'
     | '/stay/$propertySlug/confirmation'
     | '/stay/$propertySlug/manage'
-    | '/account/orders/'
     | '/admin/marketing/'
     | '/admin/restaurants/'
-    | '/r/$restaurantSlug/'
-    | '/restaurant/back-office/'
     | '/restaurant/bookings/'
     | '/restaurant/cashiering/'
     | '/restaurant/guests/'
     | '/restaurant/housekeeping/'
     | '/restaurant/inventory/'
-    | '/restaurant/orders/'
     | '/restaurant/pms/'
-    | '/restaurant/pos/'
-    | '/restaurant/restaurant-management/'
     | '/restaurant/rooms/'
     | '/stay/$propertySlug/'
-    | '/r/$restaurantSlug/order/$orderId'
-    | '/r/$restaurantSlug/t/$qrToken'
-    | '/restaurant/back-office/hr/attendance'
-    | '/restaurant/back-office/hr/shifts'
-    | '/restaurant/back-office/hr/staff'
-    | '/restaurant/back-office/inventory/items'
-    | '/restaurant/back-office/inventory/movements'
-    | '/restaurant/back-office/inventory/units'
-    | '/restaurant/back-office/procurement/suppliers'
     | '/restaurant/cashiering/folios/$folioId'
     | '/restaurant/cashiering/night-audit/$runId'
     | '/restaurant/inventory/purchasing/$purchaseOrderId'
     | '/restaurant/pms/guest-services/agreement'
     | '/restaurant/pms/guests/$guestId'
     | '/restaurant/pms/reservations/$reservationId'
-    | '/restaurant/pos/transactions/$saleId'
-    | '/restaurant/restaurant-management/orders/$orderId'
-    | '/restaurant/back-office/hr/'
-    | '/restaurant/back-office/inventory/'
-    | '/restaurant/back-office/procurement/'
     | '/restaurant/cashiering/night-audit/'
     | '/restaurant/pms/guests/'
     | '/restaurant/pms/reservations/'
-    | '/restaurant/pos/transactions/'
-    | '/restaurant/restaurant-management/orders/'
     | '/api/pms/distribution/aiosell/reservations'
-    | '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
     | '/restaurant/pms/cashiering/accounts/$accountId'
     | '/restaurant/pms/cashiering/folios/$folioId'
     | '/restaurant/pms/reservations/guests/$guestId'
-    | '/restaurant/back-office/procurement/purchase-orders/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AccountRouteRoute: typeof AccountRouteRouteWithChildren
-  CartRoute: typeof CartRoute
-  ConfirmationRoute: typeof ConfirmationRoute
-  ForgotPasswordRoute: typeof ForgotPasswordRoute
-  LoginRoute: typeof LoginRoute
-  RegisterRoute: typeof RegisterRoute
-  ResetPasswordRoute: typeof ResetPasswordRoute
-  ReviewRoute: typeof ReviewRoute
-  ScanRoute: typeof ScanRoute
-  StatusRoute: typeof StatusRoute
-  TableRoute: typeof TableRoute
-  RRestaurantSlugRouteRoute: typeof RRestaurantSlugRouteRouteWithChildren
-  AdminCustomersRoute: typeof AdminCustomersRoute
   AdminLeadsRoute: typeof AdminLeadsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
-  KitchenLoginRoute: typeof KitchenLoginRoute
   RestaurantConfigurationRoute: typeof RestaurantConfigurationRoute
-  RestaurantDashboardRoute: typeof RestaurantDashboardRoute
+  RestaurantForgotPasswordRoute: typeof RestaurantForgotPasswordRoute
   RestaurantHomeRoute: typeof RestaurantHomeRoute
-  RestaurantKitchenRoute: typeof RestaurantKitchenRoute
   RestaurantLoginRoute: typeof RestaurantLoginRoute
-  RestaurantMenuRoute: typeof RestaurantMenuRoute
   RestaurantRegisterRoute: typeof RestaurantRegisterRoute
   RestaurantReportsRoute: typeof RestaurantReportsRoute
+  RestaurantResetPasswordRoute: typeof RestaurantResetPasswordRoute
   RestaurantSetPasswordRoute: typeof RestaurantSetPasswordRoute
   RestaurantSettingsRoute: typeof RestaurantSettingsRoute
   RestaurantStaffRoute: typeof RestaurantStaffRoute
-  RestaurantTablesRoute: typeof RestaurantTablesRoute
-  RestaurantWaiterRoute: typeof RestaurantWaiterRoute
   AdminIndexRoute: typeof AdminIndexRoute
-  KitchenIndexRoute: typeof KitchenIndexRoute
   AdminMarketingBrandRoute: typeof AdminMarketingBrandRoute
   AdminMarketingContentRoute: typeof AdminMarketingContentRoute
+  AdminMarketingCtaRoute: typeof AdminMarketingCtaRoute
   AdminMarketingDetailsRoute: typeof AdminMarketingDetailsRoute
   AdminMarketingEventsRoute: typeof AdminMarketingEventsRoute
   AdminMarketingFaqRoute: typeof AdminMarketingFaqRoute
+  AdminMarketingFooterRoute: typeof AdminMarketingFooterRoute
+  AdminMarketingHeaderRoute: typeof AdminMarketingHeaderRoute
+  AdminMarketingHeroRoute: typeof AdminMarketingHeroRoute
+  AdminMarketingLegacyRoute: typeof AdminMarketingLegacyRoute
   AdminMarketingNavRoute: typeof AdminMarketingNavRoute
   AdminMarketingPackagesRoute: typeof AdminMarketingPackagesRoute
   AdminMarketingPartnersRoute: typeof AdminMarketingPartnersRoute
@@ -2068,20 +1155,12 @@ export interface RootRouteChildren {
   AdminMarketingSiteRoute: typeof AdminMarketingSiteRoute
   AdminMarketingSolutionsRoute: typeof AdminMarketingSolutionsRoute
   AdminRestaurantsRestaurantIdRoute: typeof AdminRestaurantsRestaurantIdRoute
-  RestaurantBackOfficeAccountingRoute: typeof RestaurantBackOfficeAccountingRoute
-  RestaurantBackOfficeAuditRoute: typeof RestaurantBackOfficeAuditRoute
-  RestaurantBackOfficeCostControlRoute: typeof RestaurantBackOfficeCostControlRoute
-  RestaurantBackOfficeDashboardRoute: typeof RestaurantBackOfficeDashboardRoute
-  RestaurantBackOfficeMasterDataRoute: typeof RestaurantBackOfficeMasterDataRoute
-  RestaurantBackOfficePayrollRoute: typeof RestaurantBackOfficePayrollRoute
-  RestaurantBackOfficeReportsRoute: typeof RestaurantBackOfficeReportsRoute
   RestaurantBookingsReservationIdRoute: typeof RestaurantBookingsReservationIdRoute
   RestaurantBookingsDistributionRoute: typeof RestaurantBookingsDistributionRoute
   RestaurantBookingsNewRoute: typeof RestaurantBookingsNewRoute
   RestaurantBookingsRatesRoute: typeof RestaurantBookingsRatesRoute
   RestaurantBookingsReservationsRoute: typeof RestaurantBookingsReservationsRoute
   RestaurantGuestsGuestIdRoute: typeof RestaurantGuestsGuestIdRoute
-  RestaurantOrdersOrderIdRoute: typeof RestaurantOrdersOrderIdRoute
   RestaurantPmsAdministrationRoute: typeof RestaurantPmsAdministrationRoute
   RestaurantPmsCashieringRoute: typeof RestaurantPmsCashieringRouteWithChildren
   RestaurantPmsDashboardRoute: typeof RestaurantPmsDashboardRoute
@@ -2100,26 +1179,6 @@ export interface RootRouteChildren {
   RestaurantPmsSalesEventsRoute: typeof RestaurantPmsSalesEventsRoute
   RestaurantPmsSecurityAuditRoute: typeof RestaurantPmsSecurityAuditRoute
   RestaurantPmsSetupRoute: typeof RestaurantPmsSetupRoute
-  RestaurantPosCatalogRoute: typeof RestaurantPosCatalogRoute
-  RestaurantPosDashboardRoute: typeof RestaurantPosDashboardRoute
-  RestaurantPosNewRoute: typeof RestaurantPosNewRoute
-  RestaurantPosRegistersRoute: typeof RestaurantPosRegistersRoute
-  RestaurantPosReportsRoute: typeof RestaurantPosReportsRoute
-  RestaurantPosSellRoute: typeof RestaurantPosSellRoute
-  RestaurantPosSettingsRoute: typeof RestaurantPosSettingsRoute
-  RestaurantPosShiftsRoute: typeof RestaurantPosShiftsRoute
-  RestaurantRestaurantManagementDashboardRoute: typeof RestaurantRestaurantManagementDashboardRoute
-  RestaurantRestaurantManagementDigitalOrderingRoute: typeof RestaurantRestaurantManagementDigitalOrderingRoute
-  RestaurantRestaurantManagementInventoryRoute: typeof RestaurantRestaurantManagementInventoryRoute
-  RestaurantRestaurantManagementKitchenRoute: typeof RestaurantRestaurantManagementKitchenRoute
-  RestaurantRestaurantManagementMenuRoute: typeof RestaurantRestaurantManagementMenuRoute
-  RestaurantRestaurantManagementPaymentsRoute: typeof RestaurantRestaurantManagementPaymentsRoute
-  RestaurantRestaurantManagementPosSalesRoute: typeof RestaurantRestaurantManagementPosSalesRoute
-  RestaurantRestaurantManagementRecipeCostRoute: typeof RestaurantRestaurantManagementRecipeCostRoute
-  RestaurantRestaurantManagementReportsRoute: typeof RestaurantRestaurantManagementReportsRoute
-  RestaurantRestaurantManagementSetupRoute: typeof RestaurantRestaurantManagementSetupRoute
-  RestaurantRestaurantManagementStaffRoute: typeof RestaurantRestaurantManagementStaffRoute
-  RestaurantRestaurantManagementTablesRoute: typeof RestaurantRestaurantManagementTablesRoute
   RestaurantRoomsArrivalsRoute: typeof RestaurantRoomsArrivalsRoute
   RestaurantRoomsDeparturesRoute: typeof RestaurantRoomsDeparturesRoute
   RestaurantRoomsInHouseRoute: typeof RestaurantRoomsInHouseRoute
@@ -2128,44 +1187,24 @@ export interface RootRouteChildren {
   StayPropertySlugManageRoute: typeof StayPropertySlugManageRoute
   AdminMarketingIndexRoute: typeof AdminMarketingIndexRoute
   AdminRestaurantsIndexRoute: typeof AdminRestaurantsIndexRoute
-  RestaurantBackOfficeIndexRoute: typeof RestaurantBackOfficeIndexRoute
   RestaurantBookingsIndexRoute: typeof RestaurantBookingsIndexRoute
   RestaurantCashieringIndexRoute: typeof RestaurantCashieringIndexRoute
   RestaurantGuestsIndexRoute: typeof RestaurantGuestsIndexRoute
   RestaurantHousekeepingIndexRoute: typeof RestaurantHousekeepingIndexRoute
   RestaurantInventoryIndexRoute: typeof RestaurantInventoryIndexRoute
-  RestaurantOrdersIndexRoute: typeof RestaurantOrdersIndexRoute
   RestaurantPmsIndexRoute: typeof RestaurantPmsIndexRoute
-  RestaurantPosIndexRoute: typeof RestaurantPosIndexRoute
-  RestaurantRestaurantManagementIndexRoute: typeof RestaurantRestaurantManagementIndexRoute
   RestaurantRoomsIndexRoute: typeof RestaurantRoomsIndexRoute
   StayPropertySlugIndexRoute: typeof StayPropertySlugIndexRoute
-  RestaurantBackOfficeHrAttendanceRoute: typeof RestaurantBackOfficeHrAttendanceRoute
-  RestaurantBackOfficeHrShiftsRoute: typeof RestaurantBackOfficeHrShiftsRoute
-  RestaurantBackOfficeHrStaffRoute: typeof RestaurantBackOfficeHrStaffRoute
-  RestaurantBackOfficeInventoryItemsRoute: typeof RestaurantBackOfficeInventoryItemsRoute
-  RestaurantBackOfficeInventoryMovementsRoute: typeof RestaurantBackOfficeInventoryMovementsRoute
-  RestaurantBackOfficeInventoryUnitsRoute: typeof RestaurantBackOfficeInventoryUnitsRoute
-  RestaurantBackOfficeProcurementSuppliersRoute: typeof RestaurantBackOfficeProcurementSuppliersRoute
   RestaurantCashieringFoliosFolioIdRoute: typeof RestaurantCashieringFoliosFolioIdRoute
   RestaurantCashieringNightAuditRunIdRoute: typeof RestaurantCashieringNightAuditRunIdRoute
   RestaurantInventoryPurchasingPurchaseOrderIdRoute: typeof RestaurantInventoryPurchasingPurchaseOrderIdRoute
   RestaurantPmsGuestsGuestIdRoute: typeof RestaurantPmsGuestsGuestIdRoute
   RestaurantPmsReservationsReservationIdRoute: typeof RestaurantPmsReservationsReservationIdRoute
-  RestaurantPosTransactionsSaleIdRoute: typeof RestaurantPosTransactionsSaleIdRoute
-  RestaurantRestaurantManagementOrdersOrderIdRoute: typeof RestaurantRestaurantManagementOrdersOrderIdRoute
-  RestaurantBackOfficeHrIndexRoute: typeof RestaurantBackOfficeHrIndexRoute
-  RestaurantBackOfficeInventoryIndexRoute: typeof RestaurantBackOfficeInventoryIndexRoute
-  RestaurantBackOfficeProcurementIndexRoute: typeof RestaurantBackOfficeProcurementIndexRoute
   RestaurantCashieringNightAuditIndexRoute: typeof RestaurantCashieringNightAuditIndexRoute
   RestaurantPmsGuestsIndexRoute: typeof RestaurantPmsGuestsIndexRoute
   RestaurantPmsReservationsIndexRoute: typeof RestaurantPmsReservationsIndexRoute
-  RestaurantPosTransactionsIndexRoute: typeof RestaurantPosTransactionsIndexRoute
-  RestaurantRestaurantManagementOrdersIndexRoute: typeof RestaurantRestaurantManagementOrdersIndexRoute
   ApiPmsDistributionAiosellReservationsRoute: typeof ApiPmsDistributionAiosellReservationsRoute
-  RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute: typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute
   RestaurantPmsReservationsGuestsGuestIdRoute: typeof RestaurantPmsReservationsGuestsGuestIdRoute
-  RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute: typeof RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2177,102 +1216,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/account': {
-      id: '/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AccountRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cart': {
-      id: '/cart'
-      path: '/cart'
-      fullPath: '/cart'
-      preLoaderRoute: typeof CartRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/confirmation': {
-      id: '/confirmation'
-      path: '/confirmation'
-      fullPath: '/confirmation'
-      preLoaderRoute: typeof ConfirmationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/review': {
-      id: '/review'
-      path: '/review'
-      fullPath: '/review'
-      preLoaderRoute: typeof ReviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scan': {
-      id: '/scan'
-      path: '/scan'
-      fullPath: '/scan'
-      preLoaderRoute: typeof ScanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/status': {
-      id: '/status'
-      path: '/status'
-      fullPath: '/status'
-      preLoaderRoute: typeof StatusRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/table': {
-      id: '/table'
-      path: '/table'
-      fullPath: '/table'
-      preLoaderRoute: typeof TableRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account/': {
-      id: '/account/'
-      path: '/'
-      fullPath: '/account/'
-      preLoaderRoute: typeof AccountIndexRouteImport
-      parentRoute: typeof AccountRouteRoute
-    }
     '/admin/': {
       id: '/admin/'
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/customers': {
-      id: '/admin/customers'
-      path: '/admin/customers'
-      fullPath: '/admin/customers'
-      preLoaderRoute: typeof AdminCustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/leads': {
@@ -2296,27 +1244,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/kitchen/': {
-      id: '/kitchen/'
-      path: '/kitchen'
-      fullPath: '/kitchen/'
-      preLoaderRoute: typeof KitchenIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kitchen/login': {
-      id: '/kitchen/login'
-      path: '/kitchen/login'
-      fullPath: '/kitchen/login'
-      preLoaderRoute: typeof KitchenLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/r/$restaurantSlug': {
-      id: '/r/$restaurantSlug'
-      path: '/r/$restaurantSlug'
-      fullPath: '/r/$restaurantSlug'
-      preLoaderRoute: typeof RRestaurantSlugRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/restaurant/configuration': {
       id: '/restaurant/configuration'
       path: '/restaurant/configuration'
@@ -2324,11 +1251,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantConfigurationRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/restaurant/dashboard': {
-      id: '/restaurant/dashboard'
-      path: '/restaurant/dashboard'
-      fullPath: '/restaurant/dashboard'
-      preLoaderRoute: typeof RestaurantDashboardRouteImport
+    '/restaurant/forgot-password': {
+      id: '/restaurant/forgot-password'
+      path: '/restaurant/forgot-password'
+      fullPath: '/restaurant/forgot-password'
+      preLoaderRoute: typeof RestaurantForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/home': {
@@ -2338,25 +1265,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantHomeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/restaurant/kitchen': {
-      id: '/restaurant/kitchen'
-      path: '/restaurant/kitchen'
-      fullPath: '/restaurant/kitchen'
-      preLoaderRoute: typeof RestaurantKitchenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/restaurant/login': {
       id: '/restaurant/login'
       path: '/restaurant/login'
       fullPath: '/restaurant/login'
       preLoaderRoute: typeof RestaurantLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/menu': {
-      id: '/restaurant/menu'
-      path: '/restaurant/menu'
-      fullPath: '/restaurant/menu'
-      preLoaderRoute: typeof RestaurantMenuRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/register': {
@@ -2371,6 +1284,13 @@ declare module '@tanstack/react-router' {
       path: '/restaurant/reports'
       fullPath: '/restaurant/reports'
       preLoaderRoute: typeof RestaurantReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restaurant/reset-password': {
+      id: '/restaurant/reset-password'
+      path: '/restaurant/reset-password'
+      fullPath: '/restaurant/reset-password'
+      preLoaderRoute: typeof RestaurantResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/set-password': {
@@ -2394,34 +1314,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantStaffRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/restaurant/tables': {
-      id: '/restaurant/tables'
-      path: '/restaurant/tables'
-      fullPath: '/restaurant/tables'
-      preLoaderRoute: typeof RestaurantTablesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/waiter': {
-      id: '/restaurant/waiter'
-      path: '/restaurant/waiter'
-      fullPath: '/restaurant/waiter'
-      preLoaderRoute: typeof RestaurantWaiterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account/orders/': {
-      id: '/account/orders/'
-      path: '/orders'
-      fullPath: '/account/orders/'
-      preLoaderRoute: typeof AccountOrdersIndexRouteImport
-      parentRoute: typeof AccountRouteRoute
-    }
-    '/account/orders/$orderId': {
-      id: '/account/orders/$orderId'
-      path: '/orders/$orderId'
-      fullPath: '/account/orders/$orderId'
-      preLoaderRoute: typeof AccountOrdersOrderIdRouteImport
-      parentRoute: typeof AccountRouteRoute
-    }
     '/admin/marketing/': {
       id: '/admin/marketing/'
       path: '/admin/marketing'
@@ -2443,6 +1335,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMarketingContentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/marketing/cta': {
+      id: '/admin/marketing/cta'
+      path: '/admin/marketing/cta'
+      fullPath: '/admin/marketing/cta'
+      preLoaderRoute: typeof AdminMarketingCtaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/marketing/details': {
       id: '/admin/marketing/details'
       path: '/admin/marketing/details'
@@ -2462,6 +1361,34 @@ declare module '@tanstack/react-router' {
       path: '/admin/marketing/faq'
       fullPath: '/admin/marketing/faq'
       preLoaderRoute: typeof AdminMarketingFaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/footer': {
+      id: '/admin/marketing/footer'
+      path: '/admin/marketing/footer'
+      fullPath: '/admin/marketing/footer'
+      preLoaderRoute: typeof AdminMarketingFooterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/header': {
+      id: '/admin/marketing/header'
+      path: '/admin/marketing/header'
+      fullPath: '/admin/marketing/header'
+      preLoaderRoute: typeof AdminMarketingHeaderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/hero': {
+      id: '/admin/marketing/hero'
+      path: '/admin/marketing/hero'
+      fullPath: '/admin/marketing/hero'
+      preLoaderRoute: typeof AdminMarketingHeroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/marketing/legacy': {
+      id: '/admin/marketing/legacy'
+      path: '/admin/marketing/legacy'
+      fullPath: '/admin/marketing/legacy'
+      preLoaderRoute: typeof AdminMarketingLegacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/marketing/nav': {
@@ -2541,104 +1468,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRestaurantsRestaurantIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/r/$restaurantSlug/': {
-      id: '/r/$restaurantSlug/'
-      path: '/'
-      fullPath: '/r/$restaurantSlug/'
-      preLoaderRoute: typeof RRestaurantSlugIndexRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/r/$restaurantSlug/cart': {
-      id: '/r/$restaurantSlug/cart'
-      path: '/cart'
-      fullPath: '/r/$restaurantSlug/cart'
-      preLoaderRoute: typeof RRestaurantSlugCartRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/r/$restaurantSlug/confirmation': {
-      id: '/r/$restaurantSlug/confirmation'
-      path: '/confirmation'
-      fullPath: '/r/$restaurantSlug/confirmation'
-      preLoaderRoute: typeof RRestaurantSlugConfirmationRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/r/$restaurantSlug/review': {
-      id: '/r/$restaurantSlug/review'
-      path: '/review'
-      fullPath: '/r/$restaurantSlug/review'
-      preLoaderRoute: typeof RRestaurantSlugReviewRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/r/$restaurantSlug/status': {
-      id: '/r/$restaurantSlug/status'
-      path: '/status'
-      fullPath: '/r/$restaurantSlug/status'
-      preLoaderRoute: typeof RRestaurantSlugStatusRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/r/$restaurantSlug/table': {
-      id: '/r/$restaurantSlug/table'
-      path: '/table'
-      fullPath: '/r/$restaurantSlug/table'
-      preLoaderRoute: typeof RRestaurantSlugTableRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/restaurant/back-office/': {
-      id: '/restaurant/back-office/'
-      path: '/restaurant/back-office'
-      fullPath: '/restaurant/back-office/'
-      preLoaderRoute: typeof RestaurantBackOfficeIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/accounting': {
-      id: '/restaurant/back-office/accounting'
-      path: '/restaurant/back-office/accounting'
-      fullPath: '/restaurant/back-office/accounting'
-      preLoaderRoute: typeof RestaurantBackOfficeAccountingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/audit': {
-      id: '/restaurant/back-office/audit'
-      path: '/restaurant/back-office/audit'
-      fullPath: '/restaurant/back-office/audit'
-      preLoaderRoute: typeof RestaurantBackOfficeAuditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/cost-control': {
-      id: '/restaurant/back-office/cost-control'
-      path: '/restaurant/back-office/cost-control'
-      fullPath: '/restaurant/back-office/cost-control'
-      preLoaderRoute: typeof RestaurantBackOfficeCostControlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/dashboard': {
-      id: '/restaurant/back-office/dashboard'
-      path: '/restaurant/back-office/dashboard'
-      fullPath: '/restaurant/back-office/dashboard'
-      preLoaderRoute: typeof RestaurantBackOfficeDashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/master-data': {
-      id: '/restaurant/back-office/master-data'
-      path: '/restaurant/back-office/master-data'
-      fullPath: '/restaurant/back-office/master-data'
-      preLoaderRoute: typeof RestaurantBackOfficeMasterDataRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/payroll': {
-      id: '/restaurant/back-office/payroll'
-      path: '/restaurant/back-office/payroll'
-      fullPath: '/restaurant/back-office/payroll'
-      preLoaderRoute: typeof RestaurantBackOfficePayrollRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/reports': {
-      id: '/restaurant/back-office/reports'
-      path: '/restaurant/back-office/reports'
-      fullPath: '/restaurant/back-office/reports'
-      preLoaderRoute: typeof RestaurantBackOfficeReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/restaurant/bookings/': {
       id: '/restaurant/bookings/'
       path: '/restaurant/bookings'
@@ -2714,20 +1543,6 @@ declare module '@tanstack/react-router' {
       path: '/restaurant/inventory'
       fullPath: '/restaurant/inventory/'
       preLoaderRoute: typeof RestaurantInventoryIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/orders/': {
-      id: '/restaurant/orders/'
-      path: '/restaurant/orders'
-      fullPath: '/restaurant/orders/'
-      preLoaderRoute: typeof RestaurantOrdersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/orders/$orderId': {
-      id: '/restaurant/orders/$orderId'
-      path: '/restaurant/orders/$orderId'
-      fullPath: '/restaurant/orders/$orderId'
-      preLoaderRoute: typeof RestaurantOrdersOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/pms/': {
@@ -2863,160 +1678,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPmsSetupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/restaurant/pos/': {
-      id: '/restaurant/pos/'
-      path: '/restaurant/pos'
-      fullPath: '/restaurant/pos/'
-      preLoaderRoute: typeof RestaurantPosIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/catalog': {
-      id: '/restaurant/pos/catalog'
-      path: '/restaurant/pos/catalog'
-      fullPath: '/restaurant/pos/catalog'
-      preLoaderRoute: typeof RestaurantPosCatalogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/dashboard': {
-      id: '/restaurant/pos/dashboard'
-      path: '/restaurant/pos/dashboard'
-      fullPath: '/restaurant/pos/dashboard'
-      preLoaderRoute: typeof RestaurantPosDashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/new': {
-      id: '/restaurant/pos/new'
-      path: '/restaurant/pos/new'
-      fullPath: '/restaurant/pos/new'
-      preLoaderRoute: typeof RestaurantPosNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/registers': {
-      id: '/restaurant/pos/registers'
-      path: '/restaurant/pos/registers'
-      fullPath: '/restaurant/pos/registers'
-      preLoaderRoute: typeof RestaurantPosRegistersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/reports': {
-      id: '/restaurant/pos/reports'
-      path: '/restaurant/pos/reports'
-      fullPath: '/restaurant/pos/reports'
-      preLoaderRoute: typeof RestaurantPosReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/sell': {
-      id: '/restaurant/pos/sell'
-      path: '/restaurant/pos/sell'
-      fullPath: '/restaurant/pos/sell'
-      preLoaderRoute: typeof RestaurantPosSellRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/settings': {
-      id: '/restaurant/pos/settings'
-      path: '/restaurant/pos/settings'
-      fullPath: '/restaurant/pos/settings'
-      preLoaderRoute: typeof RestaurantPosSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/shifts': {
-      id: '/restaurant/pos/shifts'
-      path: '/restaurant/pos/shifts'
-      fullPath: '/restaurant/pos/shifts'
-      preLoaderRoute: typeof RestaurantPosShiftsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/': {
-      id: '/restaurant/restaurant-management/'
-      path: '/restaurant/restaurant-management'
-      fullPath: '/restaurant/restaurant-management/'
-      preLoaderRoute: typeof RestaurantRestaurantManagementIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/dashboard': {
-      id: '/restaurant/restaurant-management/dashboard'
-      path: '/restaurant/restaurant-management/dashboard'
-      fullPath: '/restaurant/restaurant-management/dashboard'
-      preLoaderRoute: typeof RestaurantRestaurantManagementDashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/digital-ordering': {
-      id: '/restaurant/restaurant-management/digital-ordering'
-      path: '/restaurant/restaurant-management/digital-ordering'
-      fullPath: '/restaurant/restaurant-management/digital-ordering'
-      preLoaderRoute: typeof RestaurantRestaurantManagementDigitalOrderingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/inventory': {
-      id: '/restaurant/restaurant-management/inventory'
-      path: '/restaurant/restaurant-management/inventory'
-      fullPath: '/restaurant/restaurant-management/inventory'
-      preLoaderRoute: typeof RestaurantRestaurantManagementInventoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/kitchen': {
-      id: '/restaurant/restaurant-management/kitchen'
-      path: '/restaurant/restaurant-management/kitchen'
-      fullPath: '/restaurant/restaurant-management/kitchen'
-      preLoaderRoute: typeof RestaurantRestaurantManagementKitchenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/menu': {
-      id: '/restaurant/restaurant-management/menu'
-      path: '/restaurant/restaurant-management/menu'
-      fullPath: '/restaurant/restaurant-management/menu'
-      preLoaderRoute: typeof RestaurantRestaurantManagementMenuRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/payments': {
-      id: '/restaurant/restaurant-management/payments'
-      path: '/restaurant/restaurant-management/payments'
-      fullPath: '/restaurant/restaurant-management/payments'
-      preLoaderRoute: typeof RestaurantRestaurantManagementPaymentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/pos-sales': {
-      id: '/restaurant/restaurant-management/pos-sales'
-      path: '/restaurant/restaurant-management/pos-sales'
-      fullPath: '/restaurant/restaurant-management/pos-sales'
-      preLoaderRoute: typeof RestaurantRestaurantManagementPosSalesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/recipe-cost': {
-      id: '/restaurant/restaurant-management/recipe-cost'
-      path: '/restaurant/restaurant-management/recipe-cost'
-      fullPath: '/restaurant/restaurant-management/recipe-cost'
-      preLoaderRoute: typeof RestaurantRestaurantManagementRecipeCostRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/reports': {
-      id: '/restaurant/restaurant-management/reports'
-      path: '/restaurant/restaurant-management/reports'
-      fullPath: '/restaurant/restaurant-management/reports'
-      preLoaderRoute: typeof RestaurantRestaurantManagementReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/setup': {
-      id: '/restaurant/restaurant-management/setup'
-      path: '/restaurant/restaurant-management/setup'
-      fullPath: '/restaurant/restaurant-management/setup'
-      preLoaderRoute: typeof RestaurantRestaurantManagementSetupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/staff': {
-      id: '/restaurant/restaurant-management/staff'
-      path: '/restaurant/restaurant-management/staff'
-      fullPath: '/restaurant/restaurant-management/staff'
-      preLoaderRoute: typeof RestaurantRestaurantManagementStaffRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/tables': {
-      id: '/restaurant/restaurant-management/tables'
-      path: '/restaurant/restaurant-management/tables'
-      fullPath: '/restaurant/restaurant-management/tables'
-      preLoaderRoute: typeof RestaurantRestaurantManagementTablesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/restaurant/rooms/': {
       id: '/restaurant/rooms/'
       path: '/restaurant/rooms'
@@ -3071,90 +1732,6 @@ declare module '@tanstack/react-router' {
       path: '/stay/$propertySlug/manage'
       fullPath: '/stay/$propertySlug/manage'
       preLoaderRoute: typeof StayPropertySlugManageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/r/$restaurantSlug/order/$orderId': {
-      id: '/r/$restaurantSlug/order/$orderId'
-      path: '/order/$orderId'
-      fullPath: '/r/$restaurantSlug/order/$orderId'
-      preLoaderRoute: typeof RRestaurantSlugOrderOrderIdRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/r/$restaurantSlug/t/$qrToken': {
-      id: '/r/$restaurantSlug/t/$qrToken'
-      path: '/t/$qrToken'
-      fullPath: '/r/$restaurantSlug/t/$qrToken'
-      preLoaderRoute: typeof RRestaurantSlugTQrTokenRouteImport
-      parentRoute: typeof RRestaurantSlugRouteRoute
-    }
-    '/restaurant/back-office/hr/': {
-      id: '/restaurant/back-office/hr/'
-      path: '/restaurant/back-office/hr'
-      fullPath: '/restaurant/back-office/hr/'
-      preLoaderRoute: typeof RestaurantBackOfficeHrIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/hr/attendance': {
-      id: '/restaurant/back-office/hr/attendance'
-      path: '/restaurant/back-office/hr/attendance'
-      fullPath: '/restaurant/back-office/hr/attendance'
-      preLoaderRoute: typeof RestaurantBackOfficeHrAttendanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/hr/shifts': {
-      id: '/restaurant/back-office/hr/shifts'
-      path: '/restaurant/back-office/hr/shifts'
-      fullPath: '/restaurant/back-office/hr/shifts'
-      preLoaderRoute: typeof RestaurantBackOfficeHrShiftsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/hr/staff': {
-      id: '/restaurant/back-office/hr/staff'
-      path: '/restaurant/back-office/hr/staff'
-      fullPath: '/restaurant/back-office/hr/staff'
-      preLoaderRoute: typeof RestaurantBackOfficeHrStaffRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/inventory/': {
-      id: '/restaurant/back-office/inventory/'
-      path: '/restaurant/back-office/inventory'
-      fullPath: '/restaurant/back-office/inventory/'
-      preLoaderRoute: typeof RestaurantBackOfficeInventoryIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/inventory/items': {
-      id: '/restaurant/back-office/inventory/items'
-      path: '/restaurant/back-office/inventory/items'
-      fullPath: '/restaurant/back-office/inventory/items'
-      preLoaderRoute: typeof RestaurantBackOfficeInventoryItemsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/inventory/movements': {
-      id: '/restaurant/back-office/inventory/movements'
-      path: '/restaurant/back-office/inventory/movements'
-      fullPath: '/restaurant/back-office/inventory/movements'
-      preLoaderRoute: typeof RestaurantBackOfficeInventoryMovementsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/inventory/units': {
-      id: '/restaurant/back-office/inventory/units'
-      path: '/restaurant/back-office/inventory/units'
-      fullPath: '/restaurant/back-office/inventory/units'
-      preLoaderRoute: typeof RestaurantBackOfficeInventoryUnitsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/procurement/': {
-      id: '/restaurant/back-office/procurement/'
-      path: '/restaurant/back-office/procurement'
-      fullPath: '/restaurant/back-office/procurement/'
-      preLoaderRoute: typeof RestaurantBackOfficeProcurementIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/procurement/suppliers': {
-      id: '/restaurant/back-office/procurement/suppliers'
-      path: '/restaurant/back-office/procurement/suppliers'
-      fullPath: '/restaurant/back-office/procurement/suppliers'
-      preLoaderRoute: typeof RestaurantBackOfficeProcurementSuppliersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/cashiering/folios/$folioId': {
@@ -3220,53 +1797,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RestaurantPmsReservationsReservationIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/restaurant/pos/transactions/': {
-      id: '/restaurant/pos/transactions/'
-      path: '/restaurant/pos/transactions'
-      fullPath: '/restaurant/pos/transactions/'
-      preLoaderRoute: typeof RestaurantPosTransactionsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/pos/transactions/$saleId': {
-      id: '/restaurant/pos/transactions/$saleId'
-      path: '/restaurant/pos/transactions/$saleId'
-      fullPath: '/restaurant/pos/transactions/$saleId'
-      preLoaderRoute: typeof RestaurantPosTransactionsSaleIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/orders/': {
-      id: '/restaurant/restaurant-management/orders/'
-      path: '/restaurant/restaurant-management/orders'
-      fullPath: '/restaurant/restaurant-management/orders/'
-      preLoaderRoute: typeof RestaurantRestaurantManagementOrdersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/restaurant-management/orders/$orderId': {
-      id: '/restaurant/restaurant-management/orders/$orderId'
-      path: '/restaurant/restaurant-management/orders/$orderId'
-      fullPath: '/restaurant/restaurant-management/orders/$orderId'
-      preLoaderRoute: typeof RestaurantRestaurantManagementOrdersOrderIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/pms/distribution/aiosell/reservations': {
       id: '/api/pms/distribution/aiosell/reservations'
       path: '/api/pms/distribution/aiosell/reservations'
       fullPath: '/api/pms/distribution/aiosell/reservations'
       preLoaderRoute: typeof ApiPmsDistributionAiosellReservationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/procurement/purchase-orders/': {
-      id: '/restaurant/back-office/procurement/purchase-orders/'
-      path: '/restaurant/back-office/procurement/purchase-orders'
-      fullPath: '/restaurant/back-office/procurement/purchase-orders/'
-      preLoaderRoute: typeof RestaurantBackOfficeProcurementPurchaseOrdersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId': {
-      id: '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
-      path: '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
-      fullPath: '/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId'
-      preLoaderRoute: typeof RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/restaurant/pms/cashiering/accounts/$accountId': {
@@ -3292,47 +1827,6 @@ declare module '@tanstack/react-router' {
     }
   }
 }
-
-interface AccountRouteRouteChildren {
-  AccountIndexRoute: typeof AccountIndexRoute
-  AccountOrdersOrderIdRoute: typeof AccountOrdersOrderIdRoute
-  AccountOrdersIndexRoute: typeof AccountOrdersIndexRoute
-}
-
-const AccountRouteRouteChildren: AccountRouteRouteChildren = {
-  AccountIndexRoute: AccountIndexRoute,
-  AccountOrdersOrderIdRoute: AccountOrdersOrderIdRoute,
-  AccountOrdersIndexRoute: AccountOrdersIndexRoute,
-}
-
-const AccountRouteRouteWithChildren = AccountRouteRoute._addFileChildren(
-  AccountRouteRouteChildren,
-)
-
-interface RRestaurantSlugRouteRouteChildren {
-  RRestaurantSlugCartRoute: typeof RRestaurantSlugCartRoute
-  RRestaurantSlugConfirmationRoute: typeof RRestaurantSlugConfirmationRoute
-  RRestaurantSlugReviewRoute: typeof RRestaurantSlugReviewRoute
-  RRestaurantSlugStatusRoute: typeof RRestaurantSlugStatusRoute
-  RRestaurantSlugTableRoute: typeof RRestaurantSlugTableRoute
-  RRestaurantSlugIndexRoute: typeof RRestaurantSlugIndexRoute
-  RRestaurantSlugOrderOrderIdRoute: typeof RRestaurantSlugOrderOrderIdRoute
-  RRestaurantSlugTQrTokenRoute: typeof RRestaurantSlugTQrTokenRoute
-}
-
-const RRestaurantSlugRouteRouteChildren: RRestaurantSlugRouteRouteChildren = {
-  RRestaurantSlugCartRoute: RRestaurantSlugCartRoute,
-  RRestaurantSlugConfirmationRoute: RRestaurantSlugConfirmationRoute,
-  RRestaurantSlugReviewRoute: RRestaurantSlugReviewRoute,
-  RRestaurantSlugStatusRoute: RRestaurantSlugStatusRoute,
-  RRestaurantSlugTableRoute: RRestaurantSlugTableRoute,
-  RRestaurantSlugIndexRoute: RRestaurantSlugIndexRoute,
-  RRestaurantSlugOrderOrderIdRoute: RRestaurantSlugOrderOrderIdRoute,
-  RRestaurantSlugTQrTokenRoute: RRestaurantSlugTQrTokenRoute,
-}
-
-const RRestaurantSlugRouteRouteWithChildren =
-  RRestaurantSlugRouteRoute._addFileChildren(RRestaurantSlugRouteRouteChildren)
 
 interface RestaurantPmsCashieringRouteChildren {
   RestaurantPmsCashieringAccountsAccountIdRoute: typeof RestaurantPmsCashieringAccountsAccountIdRoute
@@ -3369,43 +1863,30 @@ const RestaurantPmsGuestServicesRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AccountRouteRoute: AccountRouteRouteWithChildren,
-  CartRoute: CartRoute,
-  ConfirmationRoute: ConfirmationRoute,
-  ForgotPasswordRoute: ForgotPasswordRoute,
-  LoginRoute: LoginRoute,
-  RegisterRoute: RegisterRoute,
-  ResetPasswordRoute: ResetPasswordRoute,
-  ReviewRoute: ReviewRoute,
-  ScanRoute: ScanRoute,
-  StatusRoute: StatusRoute,
-  TableRoute: TableRoute,
-  RRestaurantSlugRouteRoute: RRestaurantSlugRouteRouteWithChildren,
-  AdminCustomersRoute: AdminCustomersRoute,
   AdminLeadsRoute: AdminLeadsRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminSettingsRoute: AdminSettingsRoute,
-  KitchenLoginRoute: KitchenLoginRoute,
   RestaurantConfigurationRoute: RestaurantConfigurationRoute,
-  RestaurantDashboardRoute: RestaurantDashboardRoute,
+  RestaurantForgotPasswordRoute: RestaurantForgotPasswordRoute,
   RestaurantHomeRoute: RestaurantHomeRoute,
-  RestaurantKitchenRoute: RestaurantKitchenRoute,
   RestaurantLoginRoute: RestaurantLoginRoute,
-  RestaurantMenuRoute: RestaurantMenuRoute,
   RestaurantRegisterRoute: RestaurantRegisterRoute,
   RestaurantReportsRoute: RestaurantReportsRoute,
+  RestaurantResetPasswordRoute: RestaurantResetPasswordRoute,
   RestaurantSetPasswordRoute: RestaurantSetPasswordRoute,
   RestaurantSettingsRoute: RestaurantSettingsRoute,
   RestaurantStaffRoute: RestaurantStaffRoute,
-  RestaurantTablesRoute: RestaurantTablesRoute,
-  RestaurantWaiterRoute: RestaurantWaiterRoute,
   AdminIndexRoute: AdminIndexRoute,
-  KitchenIndexRoute: KitchenIndexRoute,
   AdminMarketingBrandRoute: AdminMarketingBrandRoute,
   AdminMarketingContentRoute: AdminMarketingContentRoute,
+  AdminMarketingCtaRoute: AdminMarketingCtaRoute,
   AdminMarketingDetailsRoute: AdminMarketingDetailsRoute,
   AdminMarketingEventsRoute: AdminMarketingEventsRoute,
   AdminMarketingFaqRoute: AdminMarketingFaqRoute,
+  AdminMarketingFooterRoute: AdminMarketingFooterRoute,
+  AdminMarketingHeaderRoute: AdminMarketingHeaderRoute,
+  AdminMarketingHeroRoute: AdminMarketingHeroRoute,
+  AdminMarketingLegacyRoute: AdminMarketingLegacyRoute,
   AdminMarketingNavRoute: AdminMarketingNavRoute,
   AdminMarketingPackagesRoute: AdminMarketingPackagesRoute,
   AdminMarketingPartnersRoute: AdminMarketingPartnersRoute,
@@ -3416,20 +1897,12 @@ const rootRouteChildren: RootRouteChildren = {
   AdminMarketingSiteRoute: AdminMarketingSiteRoute,
   AdminMarketingSolutionsRoute: AdminMarketingSolutionsRoute,
   AdminRestaurantsRestaurantIdRoute: AdminRestaurantsRestaurantIdRoute,
-  RestaurantBackOfficeAccountingRoute: RestaurantBackOfficeAccountingRoute,
-  RestaurantBackOfficeAuditRoute: RestaurantBackOfficeAuditRoute,
-  RestaurantBackOfficeCostControlRoute: RestaurantBackOfficeCostControlRoute,
-  RestaurantBackOfficeDashboardRoute: RestaurantBackOfficeDashboardRoute,
-  RestaurantBackOfficeMasterDataRoute: RestaurantBackOfficeMasterDataRoute,
-  RestaurantBackOfficePayrollRoute: RestaurantBackOfficePayrollRoute,
-  RestaurantBackOfficeReportsRoute: RestaurantBackOfficeReportsRoute,
   RestaurantBookingsReservationIdRoute: RestaurantBookingsReservationIdRoute,
   RestaurantBookingsDistributionRoute: RestaurantBookingsDistributionRoute,
   RestaurantBookingsNewRoute: RestaurantBookingsNewRoute,
   RestaurantBookingsRatesRoute: RestaurantBookingsRatesRoute,
   RestaurantBookingsReservationsRoute: RestaurantBookingsReservationsRoute,
   RestaurantGuestsGuestIdRoute: RestaurantGuestsGuestIdRoute,
-  RestaurantOrdersOrderIdRoute: RestaurantOrdersOrderIdRoute,
   RestaurantPmsAdministrationRoute: RestaurantPmsAdministrationRoute,
   RestaurantPmsCashieringRoute: RestaurantPmsCashieringRouteWithChildren,
   RestaurantPmsDashboardRoute: RestaurantPmsDashboardRoute,
@@ -3448,38 +1921,6 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPmsSalesEventsRoute: RestaurantPmsSalesEventsRoute,
   RestaurantPmsSecurityAuditRoute: RestaurantPmsSecurityAuditRoute,
   RestaurantPmsSetupRoute: RestaurantPmsSetupRoute,
-  RestaurantPosCatalogRoute: RestaurantPosCatalogRoute,
-  RestaurantPosDashboardRoute: RestaurantPosDashboardRoute,
-  RestaurantPosNewRoute: RestaurantPosNewRoute,
-  RestaurantPosRegistersRoute: RestaurantPosRegistersRoute,
-  RestaurantPosReportsRoute: RestaurantPosReportsRoute,
-  RestaurantPosSellRoute: RestaurantPosSellRoute,
-  RestaurantPosSettingsRoute: RestaurantPosSettingsRoute,
-  RestaurantPosShiftsRoute: RestaurantPosShiftsRoute,
-  RestaurantRestaurantManagementDashboardRoute:
-    RestaurantRestaurantManagementDashboardRoute,
-  RestaurantRestaurantManagementDigitalOrderingRoute:
-    RestaurantRestaurantManagementDigitalOrderingRoute,
-  RestaurantRestaurantManagementInventoryRoute:
-    RestaurantRestaurantManagementInventoryRoute,
-  RestaurantRestaurantManagementKitchenRoute:
-    RestaurantRestaurantManagementKitchenRoute,
-  RestaurantRestaurantManagementMenuRoute:
-    RestaurantRestaurantManagementMenuRoute,
-  RestaurantRestaurantManagementPaymentsRoute:
-    RestaurantRestaurantManagementPaymentsRoute,
-  RestaurantRestaurantManagementPosSalesRoute:
-    RestaurantRestaurantManagementPosSalesRoute,
-  RestaurantRestaurantManagementRecipeCostRoute:
-    RestaurantRestaurantManagementRecipeCostRoute,
-  RestaurantRestaurantManagementReportsRoute:
-    RestaurantRestaurantManagementReportsRoute,
-  RestaurantRestaurantManagementSetupRoute:
-    RestaurantRestaurantManagementSetupRoute,
-  RestaurantRestaurantManagementStaffRoute:
-    RestaurantRestaurantManagementStaffRoute,
-  RestaurantRestaurantManagementTablesRoute:
-    RestaurantRestaurantManagementTablesRoute,
   RestaurantRoomsArrivalsRoute: RestaurantRoomsArrivalsRoute,
   RestaurantRoomsDeparturesRoute: RestaurantRoomsDeparturesRoute,
   RestaurantRoomsInHouseRoute: RestaurantRoomsInHouseRoute,
@@ -3488,30 +1929,14 @@ const rootRouteChildren: RootRouteChildren = {
   StayPropertySlugManageRoute: StayPropertySlugManageRoute,
   AdminMarketingIndexRoute: AdminMarketingIndexRoute,
   AdminRestaurantsIndexRoute: AdminRestaurantsIndexRoute,
-  RestaurantBackOfficeIndexRoute: RestaurantBackOfficeIndexRoute,
   RestaurantBookingsIndexRoute: RestaurantBookingsIndexRoute,
   RestaurantCashieringIndexRoute: RestaurantCashieringIndexRoute,
   RestaurantGuestsIndexRoute: RestaurantGuestsIndexRoute,
   RestaurantHousekeepingIndexRoute: RestaurantHousekeepingIndexRoute,
   RestaurantInventoryIndexRoute: RestaurantInventoryIndexRoute,
-  RestaurantOrdersIndexRoute: RestaurantOrdersIndexRoute,
   RestaurantPmsIndexRoute: RestaurantPmsIndexRoute,
-  RestaurantPosIndexRoute: RestaurantPosIndexRoute,
-  RestaurantRestaurantManagementIndexRoute:
-    RestaurantRestaurantManagementIndexRoute,
   RestaurantRoomsIndexRoute: RestaurantRoomsIndexRoute,
   StayPropertySlugIndexRoute: StayPropertySlugIndexRoute,
-  RestaurantBackOfficeHrAttendanceRoute: RestaurantBackOfficeHrAttendanceRoute,
-  RestaurantBackOfficeHrShiftsRoute: RestaurantBackOfficeHrShiftsRoute,
-  RestaurantBackOfficeHrStaffRoute: RestaurantBackOfficeHrStaffRoute,
-  RestaurantBackOfficeInventoryItemsRoute:
-    RestaurantBackOfficeInventoryItemsRoute,
-  RestaurantBackOfficeInventoryMovementsRoute:
-    RestaurantBackOfficeInventoryMovementsRoute,
-  RestaurantBackOfficeInventoryUnitsRoute:
-    RestaurantBackOfficeInventoryUnitsRoute,
-  RestaurantBackOfficeProcurementSuppliersRoute:
-    RestaurantBackOfficeProcurementSuppliersRoute,
   RestaurantCashieringFoliosFolioIdRoute:
     RestaurantCashieringFoliosFolioIdRoute,
   RestaurantCashieringNightAuditRunIdRoute:
@@ -3521,29 +1946,14 @@ const rootRouteChildren: RootRouteChildren = {
   RestaurantPmsGuestsGuestIdRoute: RestaurantPmsGuestsGuestIdRoute,
   RestaurantPmsReservationsReservationIdRoute:
     RestaurantPmsReservationsReservationIdRoute,
-  RestaurantPosTransactionsSaleIdRoute: RestaurantPosTransactionsSaleIdRoute,
-  RestaurantRestaurantManagementOrdersOrderIdRoute:
-    RestaurantRestaurantManagementOrdersOrderIdRoute,
-  RestaurantBackOfficeHrIndexRoute: RestaurantBackOfficeHrIndexRoute,
-  RestaurantBackOfficeInventoryIndexRoute:
-    RestaurantBackOfficeInventoryIndexRoute,
-  RestaurantBackOfficeProcurementIndexRoute:
-    RestaurantBackOfficeProcurementIndexRoute,
   RestaurantCashieringNightAuditIndexRoute:
     RestaurantCashieringNightAuditIndexRoute,
   RestaurantPmsGuestsIndexRoute: RestaurantPmsGuestsIndexRoute,
   RestaurantPmsReservationsIndexRoute: RestaurantPmsReservationsIndexRoute,
-  RestaurantPosTransactionsIndexRoute: RestaurantPosTransactionsIndexRoute,
-  RestaurantRestaurantManagementOrdersIndexRoute:
-    RestaurantRestaurantManagementOrdersIndexRoute,
   ApiPmsDistributionAiosellReservationsRoute:
     ApiPmsDistributionAiosellReservationsRoute,
-  RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute:
-    RestaurantBackOfficeProcurementPurchaseOrdersPurchaseOrderIdRoute,
   RestaurantPmsReservationsGuestsGuestIdRoute:
     RestaurantPmsReservationsGuestsGuestIdRoute,
-  RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute:
-    RestaurantBackOfficeProcurementPurchaseOrdersIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

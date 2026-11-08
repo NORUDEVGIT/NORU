@@ -14,7 +14,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { toast } from "sonner";
 
-function useSiteDraft() {
+export function useSiteDraft() {
   const { draft, updateDraft } = useMarketingEditor();
   const site = draft.site ?? currentNoruSiteContent();
   const updateSite = (mutator: (site: NoruSiteContent) => void) => {
@@ -98,9 +98,19 @@ function OfferingEditor({
               </select>
             </label>
           </div>
+          <TextField
+            id={`${row.id}-order`}
+            label="Order"
+            value={String(row.order)}
+            onChange={(order) =>
+              patch(row.id, (item) => {
+                item.order = Number(order) || 0;
+              })
+            }
+          />
           <AreaField
             id={`${row.id}-blurb`}
-            label="Card blurb"
+            label="Description"
             value={row.blurb}
             onChange={(blurb) =>
               patch(row.id, (item) => {
@@ -363,13 +373,9 @@ function PlanGroup({
 export function SiteFaqForm() {
   const { site, updateSite } = useSiteDraft();
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {sortByOrder(site.faq).map((item) => (
-        <SectionCard
-          key={item.id}
-          title={item.question || "Question"}
-          description="Active questions appear on the homepage."
-        >
+        <div key={item.id} className="space-y-3 rounded-lg border border-border p-3">
           <TextField
             id={`${item.id}-q`}
             label="Question"
@@ -392,29 +398,42 @@ export function SiteFaqForm() {
               })
             }
           />
-          <Flag
-            label="Active"
-            checked={item.active}
-            onChange={(active) =>
-              updateSite((next) => {
-                const row = next.faq.find((entry) => entry.id === item.id);
-                if (row) row.active = active;
-              })
-            }
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              updateSite((next) => {
-                next.faq = next.faq.filter((entry) => entry.id !== item.id);
-              })
-            }
-          >
-            Remove
-          </Button>
-        </SectionCard>
+          <div className="grid gap-3 sm:grid-cols-[8rem_1fr_auto] sm:items-end">
+            <TextField
+              id={`${item.id}-order`}
+              label="Order"
+              value={String(item.order)}
+              onChange={(order) =>
+                updateSite((next) => {
+                  const row = next.faq.find((entry) => entry.id === item.id);
+                  if (row) row.order = Number(order) || 0;
+                })
+              }
+            />
+            <Flag
+              label="Active"
+              checked={item.active}
+              onChange={(active) =>
+                updateSite((next) => {
+                  const row = next.faq.find((entry) => entry.id === item.id);
+                  if (row) row.active = active;
+                })
+              }
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                updateSite((next) => {
+                  next.faq = next.faq.filter((entry) => entry.id !== item.id);
+                })
+              }
+            >
+              Remove
+            </Button>
+          </div>
+        </div>
       ))}
       <Button
         type="button"
@@ -472,6 +491,17 @@ export function SitePartnersForm() {
                   return;
                 }
                 setOptionalString(row, "href", trimmed);
+              })
+            }
+          />
+          <TextField
+            id={`${partner.id}-order`}
+            label="Order"
+            value={String(partner.order)}
+            onChange={(order) =>
+              updateSite((next) => {
+                const row = next.partners.find((item) => item.id === partner.id);
+                if (row) row.order = Number(order) || 0;
               })
             }
           />
@@ -580,9 +610,20 @@ export function SiteEventsForm() {
               })
             }
           />
+          <TextField
+            id={`${event.id}-order`}
+            label="Order"
+            value={String(event.order)}
+            onChange={(order) =>
+              updateSite((next) => {
+                const row = next.events.find((item) => item.id === event.id);
+                if (row) row.order = Number(order) || 0;
+              })
+            }
+          />
           <AreaField
             id={`${event.id}-note`}
-            label="Note"
+            label="Description"
             value={event.note}
             onChange={(note) =>
               updateSite((next) => {

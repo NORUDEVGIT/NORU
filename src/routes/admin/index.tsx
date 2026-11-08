@@ -14,7 +14,7 @@ export const Route = createFileRoute("/admin/")({
   head: () => ({
     meta: [
       { title: "Admin Dashboard — NORU" },
-      { name: "description", content: "Platform operations overview: restaurants, approvals and customer totals." },
+      { name: "description", content: "Platform operations overview: restaurants and approvals." },
       { property: "og:title", content: "Admin Dashboard — NORU" },
       { property: "og:description", content: "Platform operations overview." },
       { property: "og:type", content: "website" },
@@ -47,8 +47,6 @@ function Metrics() {
     { label: "Approved", value: data.approved },
     { label: "Suspended", value: data.suspended },
     { label: "Rejected", value: data.rejected },
-    { label: "Total customers", value: data.totalCustomers },
-    { label: "Total orders", value: data.totalOrders },
   ];
 
   return (

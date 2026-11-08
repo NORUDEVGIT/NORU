@@ -121,7 +121,7 @@ describe("PMS-SET1 role gate", () => {
 });
 
 describe("PMS-SET1 mandatory checklist", () => {
-  it("requires name, timezone, currency, CI and CO, tax mode + named rate, and 0042 defaults", () => {
+  it("requires name, timezone, currency, CI and CO, and 0042 defaults", () => {
     const missingName = checklist({
       identity: emptyIdentity({ timezone: "Europe/London", currencyCode: "GBP" }),
       ops: completeOps,
@@ -159,9 +159,9 @@ describe("PMS-SET1 mandatory checklist", () => {
       pmsSet1Live: false,
       role: "owner",
     });
-    assert.equal(missingTaxName.domains.taxes.readiness, "incomplete");
-    assert.ok(missingTaxName.mandatoryMissing.includes("Tax name"));
-    assert.equal(missingTaxName.canActivate, false);
+    assert.equal(missingTaxName.domains.taxes.readiness, "complete");
+    assert.equal(missingTaxName.mandatoryMissing.includes("Tax name"), false);
+    assert.equal(missingTaxName.canActivate, true);
 
     const missingFees = checklist({
       identity: completeIdentity,
@@ -229,8 +229,8 @@ describe("PMS-SET1 mandatory checklist", () => {
     });
     assert.equal(missingCols.domains.ops.readiness, "incomplete");
     assert.ok(missingCols.domains.ops.warnings.includes(SET1_COLUMNS_UNAVAILABLE));
-    assert.equal(missingCols.domains.taxes.readiness, "incomplete");
-    assert.ok(missingCols.mandatoryMissing.includes("Tax name"));
+    assert.equal(missingCols.domains.taxes.readiness, "complete");
+    assert.equal(missingCols.mandatoryMissing.includes("Tax name"), false);
     assert.equal(missingCols.canActivate, false);
     assert.notEqual(missingCols.domains.identity.readiness, "blocked");
     assert.equal(missingCols.domains.policies.readiness, "warning");
@@ -388,18 +388,26 @@ describe("PMS-SET1 hub locks", () => {
     assert.doesNotMatch(chrome, /deskHours/);
     assert.match(chrome, /FO_ESCAPE_MODULES/);
 
-    const rmTax = readFileSync(
-      new URL("../../restaurant-management/lib/rm-tax.functions.ts", import.meta.url),
-      "utf8",
-    );
-    assert.match(rmTax, /tax_inclusive/);
-    assert.match(rmTax, /tax_rate/);
-    assert.match(rmTax, /service_enabled/);
-    assert.match(rmTax, /service_rate/);
-
     const feeFns = readFileSync(new URL("./fo-cancel-noshow.functions.ts", import.meta.url), "utf8");
     assert.match(feeFns, /async function loadFeePolicy/);
     assert.match(feeFns, /fo_cancel_fee_required, fo_cancel_fee_default, fo_noshow_fee_required, fo_noshow_fee_default/);
+  });
+
+  it("retires SET1 restaurant tax sharing; PMS Taxes & Fees owns pms_taxes", () => {
+    const taxesFns = readFileSync(new URL("./taxes-card3.functions.ts", import.meta.url), "utf8");
+    assert.match(taxesFns, /from\("pms_taxes"\)/);
+    assert.doesNotMatch(taxesFns, /from\("restaurants"\)[\s\S]{0,120}tax_rate/);
+    const set1Fns = readFileSync(new URL("./pms-set1-foundation.functions.ts", import.meta.url), "utf8");
+    assert.doesNotMatch(set1Fns, /tax_inclusive, tax_rate, service_enabled, service_rate/);
+    assert.doesNotMatch(set1Fns, /tax_inclusive:\s*data/);
+    const set1Section = readFileSync(
+      new URL("../components/settings/pms-set1-section.tsx", import.meta.url),
+      "utf8",
+    );
+    assert.match(set1Section, /SET1_TAXES_OWNER_COPY/);
+    assert.match(set1Section, /CARD3_TAXES_HREF/);
+    assert.doesNotMatch(set1Section, /SET1_TAX_RM_SHARE/);
+    assert.doesNotMatch(set1Section, /id="set1-tax-rate"/);
   });
 
   it("detects missing-column honesty", () => {

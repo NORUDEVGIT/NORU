@@ -3,7 +3,6 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  UtensilsCrossed,
   Boxes,
   Users,
   Settings,
@@ -12,29 +11,25 @@ import {
   Hotel,
   Truck,
   SlidersHorizontal,
-  TrendingUp,
-  ReceiptText,
   PackageOpen,
   UserCheck,
   BedDouble,
-  Briefcase,
   ArrowUpRight,
-  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { NoruLogo } from "@/core/components/noru-logo";
 import { supabase } from "@/integrations/supabase/client";
-import { getRestaurantDashboard } from "@/packages/restaurant-management/lib/dashboard.functions";
 import { getInventoryDashboard } from "@/lib/inventory-reporting.functions";
 import { listShifts } from "@/core/lib/workforce.functions";
 import { getFrontOfficeDashboard } from "@/packages/pms/lib/frontoffice.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { useMoney, useRestaurantTimezone } from "@/packages/restaurant-management/state/restaurant-context";
+import { useRestaurantTimezone } from "@/core/state/property-format";
 import { localDateInZone } from "@/shared/lib/property-time";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import type { ModuleKey } from "@/core/lib/module-access";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
+import { sharedCoreLinkVisible } from "@/core/lib/shared-core-access";
 import { pmsSettingsHubVisible } from "@/packages/pms/lib/pms-client-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { cn } from "@/shared/lib/utils";
@@ -45,6 +40,7 @@ export const Route = createFileRoute("/restaurant/home")({
   // blocked. Property Home is Core and is never package-gated, so no loop.
   validateSearch: (search: Record<string, unknown>) => ({
     ...(typeof search["blocked"] === "string" ? { blocked: search["blocked"] as string } : {}),
+    ...(typeof search["retired"] === "string" ? { retired: search["retired"] as string } : {}),
     ...(search["verify"] === "failed" ? { verify: "failed" as const } : {}),
   }),
   beforeLoad: async () => {
@@ -81,8 +77,12 @@ function PropertyHomeRoute() {
  * or billing.
  */
 function BlockedNotice() {
-  const { blocked, verify } = Route.useSearch() as { blocked?: string; verify?: string };
-  if (!blocked && verify !== "failed") return null;
+  const { blocked, verify, retired } = Route.useSearch() as {
+    blocked?: string;
+    verify?: string;
+    retired?: string;
+  };
+  if (!blocked && !retired && verify !== "failed") return null;
   return (
     <div
       role="status"
@@ -90,14 +90,16 @@ function BlockedNotice() {
     >
       {verify === "failed"
         ? "Package access could not be verified. Please try again."
-        : "This package isn't enabled for this property."}
+        : retired
+          ? "This product is retired and is no longer available."
+          : "This package isn't enabled for this property."}
     </div>
   );
 }
 
 
-/** Shared services that Back Office will own; they stay where they are today. */
-const BACK_OFFICE_LINKS: {
+/** Shared/Core hotel services retained with PMS. Module permission still required. */
+const SHARED_CORE_LINKS: {
   moduleKey: ModuleKey;
   title: string;
   note: string;
@@ -169,11 +171,8 @@ const PMS_SUBMODULES = [
 
 function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
-  const money = useMoney();
   const timezone = useRestaurantTimezone();
-  const tzOffsetMinutes = useMemo(() => new Date().getTimezoneOffset(), []);
 
-  const fetchDashboard = useServerFn(getRestaurantDashboard);
   const fetchInventory = useServerFn(getInventoryDashboard);
   const fetchShifts = useServerFn(listShifts);
   const fetchFrontOffice = useServerFn(getFrontOfficeDashboard);
@@ -190,15 +189,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
 
   const canManageStaff = allowed.includes("front_office");
   const canSeeStock = allowed.includes("inventory");
-  const canSeeFnB = allowed.includes("food_and_beverage");
   const today = useMemo(() => localDateInZone(timezone), [timezone]);
-
-  const dashboard = useQuery({
-    queryKey: ["property-home-dashboard", restaurantId],
-    queryFn: () => fetchDashboard({ data: { restaurantId, tzOffsetMinutes } }),
-    enabled: canSeeFnB,
-    retry: false,
-  });
 
   const inventory = useQuery({
     queryKey: ["property-home-inventory", restaurantId],
@@ -231,19 +222,15 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
       })()
     : null;
 
-  // Package tile = package entitlement AND existing module access.
-  const showRestaurant = packages.has("restaurant_management") && canSeeFnB;
+  // Package tile = operational policy AND entitlement AND existing module access.
   const showPms =
     packages.has("pms") &&
     !pmsAccess.isLoading &&
     !pmsAccess.isError &&
     (pmsAccess.isOwner || pmsAccess.permissions.length > 0);
-  const showBackOffice = packages.has("back_office");
-  // Phase 8H3 — Standalone POS is its own package with its own module key.
-  const showStandalonePos = packages.has("pos") && allowed.includes("standalone_pos");
-  const backOfficeLinks = showBackOffice
-    ? BACK_OFFICE_LINKS.filter((l) => allowed.includes(l.moduleKey))
-    : [];
+  const sharedCoreLinks = SHARED_CORE_LINKS.filter((l) =>
+    sharedCoreLinkVisible(l.moduleKey, allowed, (key) => packages.has(key)),
+  );
   const setupLinks = SETUP_LINKS.filter((l) => {
     if (!allowed.includes(l.moduleKey)) return false;
     if (l.to === "/restaurant/settings" && packages.has("pms")) {
@@ -252,7 +239,9 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
     return true;
   });
   const nothingVisible =
-    !showRestaurant && !showPms && !showBackOffice && !showStandalonePos && !packages.loading;
+    !showPms &&
+    sharedCoreLinks.length === 0 &&
+    !packages.loading;
 
   return (
     <div className="space-y-8">
@@ -270,18 +259,6 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
       <BlockedNotice />
 
       <section aria-label="Today at a glance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <SummaryCard
-          icon={TrendingUp}
-          label="Today's F&B order value"
-          value={canSeeFnB ? (dashboard.data ? money(dashboard.data.today.revenue) : null) : "—"}
-          loading={canSeeFnB && dashboard.isLoading}
-        />
-        <SummaryCard
-          icon={ReceiptText}
-          label="Active orders"
-          value={canSeeFnB ? (dashboard.data ? String(dashboard.data.counts.active) : null) : "—"}
-          loading={canSeeFnB && dashboard.isLoading}
-        />
         <SummaryCard
           icon={BedDouble}
           label="Occupancy"
@@ -318,16 +295,6 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
         <h2 className="font-display text-xl">Available packages</h2>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          {showRestaurant ? (
-            <PackageTile
-              icon={UtensilsCrossed}
-              title="Restaurant Management"
-              description="Food & beverage service, kitchen, orders, menu, tables and the restaurant POS."
-              detail="Dashboard · Kitchen · Orders · Take Order · Menu · Tables & QR · POS"
-              to="/restaurant/restaurant-management"
-            />
-          ) : null}
-
           {showPms ? (
             <PackageTile
               icon={Hotel}
@@ -337,42 +304,16 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
               to="/restaurant/pms"
             />
           ) : null}
-
-          {showStandalonePos ? (
-            <PackageTile
-              icon={ShoppingCart}
-              title="Standalone POS"
-              description="An independent till with its own products, prices, tills and receipts."
-              detail="Sell · Catalog · Transactions · Registers & Shifts · Reports · Settings"
-              to="/restaurant/pos"
-            />
-          ) : null}
         </div>
 
-        {showBackOffice ? (
+        {sharedCoreLinks.length > 0 ? (
           <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-            <Link
-              to="/restaurant/back-office"
-              className="group flex flex-wrap items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className="inline-flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Briefcase className="size-6" />
-              </span>
-              <div className="min-w-0">
-                <p className="flex items-center gap-1 font-display text-lg leading-snug">
-                  Back Office
-                  <ArrowUpRight className="size-4 text-muted-foreground" />
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  The enterprise consolidation and control layer for this property.
-                </p>
-              </div>
-              <span className="ml-auto rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Foundation
-              </span>
-            </Link>
+            <p className="font-display text-lg">Shared property services</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Property-wide hotel services available with this PMS.
+            </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {backOfficeLinks.map((l) => (
+              {sharedCoreLinks.map((l) => (
                 <Link
                   key={l.title}
                   to={l.to}

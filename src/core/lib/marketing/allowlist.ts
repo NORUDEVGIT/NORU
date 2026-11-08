@@ -14,10 +14,6 @@ export const MARKETING_NAV_HREFS = [
   "#for-restaurants",
   "/restaurant/login",
   "/restaurant/register",
-  "/login",
-  "/register",
-  "/account",
-  "/scan",
 ] as const;
 
 export type MarketingNavHref = (typeof MARKETING_NAV_HREFS)[number];
@@ -50,6 +46,47 @@ export function isAllowedSocialHref(href: string): boolean {
     return false;
   }
 }
+
+const UNSAFE_HREF_SCHEMES = /^(javascript|data|vbscript):/i;
+
+/** Hash pages the current Noru public site actually routes (`/#product/pms`, `/#resources/contact`). */
+const NORU_SITE_HASH_PAGES = ["home", "product", "solutions", "pricing", "resources"] as const;
+
+/**
+ * Targets for the live Noru site CTA / legal links.
+ * Does not treat obsolete landing hashes (`#packages`, `#how-it-works`) as valid.
+ */
+export function isAllowedNoruSiteHref(href: string): boolean {
+  const trimmed = href.trim();
+  if (!trimmed || isRejectedAdminHref(trimmed) || UNSAFE_HREF_SCHEMES.test(trimmed)) {
+    return false;
+  }
+  if (trimmed === "#" || trimmed === "/") return true;
+  if (trimmed === "/restaurant/login" || trimmed === "/restaurant/register") return true;
+  if (trimmed.startsWith("https://")) return isAllowedSocialHref(trimmed);
+  if (!trimmed.startsWith("#")) return false;
+  const [page, ...rest] = trimmed.slice(1).split("/");
+  if (!page) return true;
+  if (!(NORU_SITE_HASH_PAGES as readonly string[]).includes(page)) return false;
+  return rest.every((segment) => /^[\w-]+$/.test(segment));
+}
+
+/** Selectable targets for the live NORU header/CTA/legal editors. */
+export const NORU_SITE_ADMIN_HREFS = [
+  "#",
+  "#resources/contact",
+  "#pricing",
+  "#product",
+  "#solutions",
+  "#resources",
+  "#resources/about",
+  "#resources/blogs",
+  "#resources/testimonials",
+  "/restaurant/login",
+  "/restaurant/register",
+] as const;
+
+export type NoruSiteAdminHref = (typeof NORU_SITE_ADMIN_HREFS)[number];
 
 export function isHashHref(href: string): boolean {
   return href.startsWith("#");

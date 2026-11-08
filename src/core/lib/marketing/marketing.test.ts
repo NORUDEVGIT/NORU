@@ -25,11 +25,14 @@ describe("marketing nav allowlist", () => {
     assert.equal(isAllowedMarketingHref("/admin"), false);
   });
 
-  it("allows public landing anchors and existing auth/customer entry", () => {
+  it("allows public landing anchors and tenant auth entry", () => {
     assert.equal(isAllowedMarketingHref("#packages"), true);
     assert.equal(isAllowedMarketingHref("/restaurant/register"), true);
-    assert.equal(isAllowedMarketingHref("/account"), true);
-    assert.equal(isAllowedMarketingHref("/scan"), true);
+    assert.equal(isAllowedMarketingHref("/restaurant/login"), true);
+    assert.equal(isAllowedMarketingHref("/account"), false);
+    assert.equal(isAllowedMarketingHref("/login"), false);
+    assert.equal(isAllowedMarketingHref("/register"), false);
+    assert.equal(isAllowedMarketingHref("/scan"), false);
   });
 });
 

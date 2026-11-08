@@ -98,8 +98,8 @@ export const SET1_BUSINESS_DATE_COPY =
 export const SET1_OPS_HELPER =
   "Front Office uses these times to judge early check-in and late check-out. Night Audit owns the business-date roll.";
 export const SET1_TAX_HONESTY = "Changes apply to new postings only. Closed folios are not rewritten.";
-export const SET1_TAX_RM_SHARE =
-  "This is the same 0038 property tax the Restaurant Management till uses. Extra named rates are not in this wave.";
+export const SET1_TAXES_OWNER_COPY =
+  "Operational tax is owned by PMS Taxes & Fees (`pms_taxes`). This page does not edit retired restaurant till columns.";
 export const SET1_CI_CO_EQUAL_WARNING = "Check-out is the same as check-in. Confirm this is intended.";
 export const SET1_COLUMNS_UNAVAILABLE = "Unavailable — foundation columns are not applied yet.";
 export const SET1_ACTIVATE_LABEL = "Go live / Activate property";
@@ -196,7 +196,7 @@ export const SET1_LIVE_CARDS: {
 }[] = [
   { id: "identity", title: "Identity", purpose: "Name, logo, address and document header." },
   { id: "ops", title: "Check-in & business date", purpose: "Check-in and check-out times in the property timezone." },
-  { id: "taxes", title: "Taxes", purpose: "Inclusive or exclusive room-stay rate and service charge." },
+  { id: "taxes", title: "Taxes", purpose: "Opens PMS Taxes & Fees. Operational rates live on pms_taxes." },
   { id: "policies", title: "Policies & fees", purpose: "Cancel, no-show, deposit, early check-in and late check-out." },
   { id: "structure", title: "Structure", purpose: "Buildings, floors and wings." },
   { id: "rooms", title: "Rooms & amenities", purpose: "Deep-link to Room Inventory. Amenities catalogue CRUD is here; attach stays on room types." },
@@ -433,10 +433,8 @@ export function opsMandatoryComplete(ops: Set1OpsDraft, foundationColumnsAvailab
   return Boolean(normalizeClock(ops.checkInTime) && normalizeClock(ops.checkOutTime));
 }
 
-export function taxesMandatoryComplete(taxes: Set1TaxesDraft, foundationColumnsAvailable: boolean): boolean {
-  if (!taxModeSet(taxes.taxInclusive) || !Number.isFinite(Number(taxes.taxRate))) return false;
-  if (!foundationColumnsAvailable) return false;
-  return namedTaxRateComplete(taxes.taxName, taxes.taxRate);
+export function taxesMandatoryComplete(_taxes: Set1TaxesDraft, _foundationColumnsAvailable: boolean): boolean {
+  return true;
 }
 
 export type DocumentHeaderInput = {
@@ -512,22 +510,12 @@ export function evaluateOps(ops: Set1OpsDraft, foundationColumnsAvailable: boole
   };
 }
 
-export function evaluateTaxes(taxes: Set1TaxesDraft, foundationColumnsAvailable: boolean): Set1DomainReport {
-  const missing: string[] = [];
-  const warnings: string[] = [];
-  if (!taxModeSet(taxes.taxInclusive)) missing.push("Tax mode");
-  if (!Number.isFinite(Number(taxes.taxRate))) missing.push("Tax rate");
-  if (!foundationColumnsAvailable) {
-    missing.push("Tax name");
-    warnings.push(SET1_COLUMNS_UNAVAILABLE);
-  } else if (!String(taxes.taxName ?? "").trim()) {
-    missing.push("Tax name");
-  }
+export function evaluateTaxes(_taxes: Set1TaxesDraft, _foundationColumnsAvailable: boolean): Set1DomainReport {
   return {
     id: "taxes",
-    readiness: missing.length ? "incomplete" : warnings.length ? "warning" : "complete",
-    missing,
-    warnings,
+    readiness: "complete",
+    missing: [],
+    warnings: [],
   };
 }
 
@@ -572,7 +560,7 @@ export function evaluateGoLive(
     ...domains["maintenance-rules"].missing,
   ];
   // SET5 missing (dual-hub honesty), SET6 and Wave 1 warnings are checklist honesty only — never Activate mandatory.
-  const blocked = !foundationColumnsAvailable && Boolean(domains.ops.missing.length || domains.taxes.missing.includes("Tax name"));
+  const blocked = !foundationColumnsAvailable && Boolean(domains.ops.missing.length);
   const warnings = Object.values(domains).flatMap((d) => d.warnings);
   if (pmsSet1Live && !mandatory.length) {
     return { id: "golive", readiness: warnings.length ? "warning" : "complete", missing: [], warnings };

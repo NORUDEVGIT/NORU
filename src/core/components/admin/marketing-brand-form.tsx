@@ -27,12 +27,10 @@ function CtaFields({
   );
 }
 
-export function MarketingBrandForm() {
+export function MarketingBrandFields() {
   const { draft, updateDraft } = useMarketingEditor();
-
   return (
-    <div className="space-y-5">
-      <SectionCard title="Brand" description="Site name, tagline, and SEO used on the public landing.">
+    <SectionCard title="Brand" description="Display name, logo, and SEO used by the public site head.">
         <TextField
           id="site-name"
           label="Site name"
@@ -70,9 +68,14 @@ export function MarketingBrandForm() {
           value={draft.brand.ogDescription}
           onChange={(ogDescription) => updateDraft((d) => { d.brand.ogDescription = ogDescription; })}
         />
-      </SectionCard>
+    </SectionCard>
+  );
+}
 
-      <SectionCard title="Hero" description="Primary landing headline and allowlisted calls to action.">
+export function MarketingLegacyHeroForm() {
+  const { draft, updateDraft } = useMarketingEditor();
+  return (
+      <SectionCard title="Legacy hero" description="Not used by the current NORU landing. Kept for published-document compatibility.">
         <TextField
           id="hero-eyebrow"
           label="Eyebrow"
@@ -107,6 +110,14 @@ export function MarketingBrandForm() {
           }
         />
       </SectionCard>
+  );
+}
+
+export function MarketingBrandForm() {
+  return (
+    <div className="space-y-5">
+      <MarketingBrandFields />
+      <MarketingLegacyHeroForm />
     </div>
   );
 }

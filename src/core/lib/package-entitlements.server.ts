@@ -27,7 +27,7 @@ async function loadRows(client: QueryClient, restaurantId: string): Promise<Pack
   return (data ?? []) as PackageEntitlementRow[];
 }
 
-/** All four package states for a property, each tagged explicit vs default. */
+/** Operational package states for a property, each tagged explicit vs default. */
 export async function getPropertyPackageEntitlements(
   client: QueryClient,
   restaurantId: string,
@@ -47,8 +47,9 @@ export async function propertyHasPackage(
 }
 
 /**
- * New-tenant provisioning: four explicit disabled rows. Legacy properties with
- * zero rows keep compatibility (missing = enabled) and must not be backfilled.
+ * New-tenant provisioning: one explicit disabled PMS row so new properties
+ * never depend on missing-row fallback. Legacy properties with zero rows must
+ * not be backfilled; `resolvePackages` enables PMS in that case.
  */
 export async function provisionDisabledPackageEntitlements(restaurantId: string): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

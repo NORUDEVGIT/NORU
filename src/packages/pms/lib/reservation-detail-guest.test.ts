@@ -107,7 +107,6 @@ const guest = {
   country: "Portugal",
   postalCode: null,
   notes: "Profile note",
-  linkedCustomerUserId: null,
   createdAt: reservation.createdAt,
   idDocumentType: "passport",
   idDocumentExpiry: null,

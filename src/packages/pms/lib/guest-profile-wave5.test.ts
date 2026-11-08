@@ -125,7 +125,7 @@ describe("Guest Profile Wave 5 lock — AC-W5-1…7", () => {
     assert.match(functions, /export const anonymiseGuest/);
     assert.match(functions, /anonymised_at: now/);
     assert.match(functions, /id_document_number: null/);
-    assert.match(functions, /linked_customer_user_id: null/);
+    assert.doesNotMatch(functions, /linked_customer_user_id/);
     assert.match(guests, /anonymisedAt \? WAVE5_ANONYMISED_GUEST_LABEL/);
     assert.match(guests, /anonymisedAt \? null : row\.phone/);
     assert.match(guests, /anonymisedAt \? null : row\.email/);
@@ -276,5 +276,16 @@ describe("Guest Profile Wave 5 catalogue, honesty and gates", () => {
     const privacy = readRel("../components/guests/guest-privacy-card.tsx");
     assert.match(detail, /GuestConsentPanel/);
     assert.match(privacy, /GuestConsentPanel/);
+  });
+
+  it("does not treat consumer customer accounts as hotel guests", () => {
+    const guests = readRel("./guests.functions.ts");
+    const quickView = readRel("../components/guests/guest-quick-view-drawer.tsx");
+    const loyalty = readRel("../components/guests/guest-loyalty-value-view.tsx");
+    assert.match(guests, /\.from\("guest_profiles"\)/);
+    for (const source of [guests, quickView, loyalty]) {
+      assert.doesNotMatch(source, /registerCustomer|customer\.functions/);
+      assert.doesNotMatch(source, /account_type\s*[:=]\s*["']customer["']/);
+    }
   });
 });

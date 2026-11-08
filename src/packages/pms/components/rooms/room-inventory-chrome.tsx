@@ -27,7 +27,6 @@ export const PMS_MODULE_NAV_ITEMS = [
   { label: "Rooms & Inventory", to: "/restaurant/pms/room-inventory" },
   { label: "Guest Profiles", to: "/restaurant/pms/guests" },
   { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
-  { label: "F&B", to: "/restaurant/restaurant-management/dashboard" },
   { label: "Reports", to: "/restaurant/pms/reports" },
   { label: "Settings", to: "/restaurant/settings" },
 ] as const;

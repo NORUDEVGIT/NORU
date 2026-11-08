@@ -188,7 +188,7 @@ function HotelLogin() {
           />
 
           <div className="-mt-1.5 flex justify-end text-sm">
-            <Link to="/forgot-password" className={authLinkClass}>
+            <Link to="/restaurant/forgot-password" className={authLinkClass}>
               Forgot password?
             </Link>
           </div>

@@ -163,4 +163,28 @@ describe("publish does not touch entitlements", () => {
     assert.deepEqual(result.snapshot.published.partners, []);
     assert.equal("restaurant_package_entitlements" in result.snapshot, false);
   });
+
+  it("keeps four public marketing products without reading entitlements", () => {
+    assert.deepEqual(
+      MARKETING_SEED.packages.map((pkg) => pkg.id),
+      ["restaurant-management", "pms", "standalone-pos", "back-office"],
+    );
+    assert.deepEqual(
+      MARKETING_SEED.packages.map((pkg) => pkg.title),
+      ["Restaurant Management", "PMS", "Standalone POS", "Back Office Management"],
+    );
+    const site = MARKETING_SEED.site;
+    assert.ok(site);
+    assert.deepEqual(
+      site.products.map((product) => product.id),
+      ["pms", "rms", "pos", "back"],
+    );
+    assert.deepEqual(
+      site.products.map((product) => product.title),
+      ["PMS", "RMS", "Standalone POS", "Back Office"],
+    );
+    const published = JSON.stringify(createSeedMarketingSnapshot().published);
+    assert.equal(published.includes("restaurant_package_entitlements"), false);
+    assert.equal(published.includes("PACKAGE_KEYS"), false);
+  });
 });

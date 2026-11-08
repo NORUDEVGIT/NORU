@@ -38,12 +38,7 @@ export const getMyPackageEntitlements = createServerFn({ method: "POST" })
         expiresAt: null,
       }));
       return {
-        packages: {
-          restaurant_management: false,
-          pms: false,
-          pos: false,
-          back_office: false,
-        },
+        packages: { pms: false },
         states: disabled,
       };
     }
@@ -71,9 +66,7 @@ export const getMyPackageEntitlements = createServerFn({ method: "POST" })
 export const getMyRoutePackageAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
-    z.object({ packageKey: z.enum(["restaurant_management", "pms", "pos", "back_office"]) }).parse(
-      input,
-    ),
+    z.object({ packageKey: z.enum(["pms"]) }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ allowed: boolean }> => {
     const ctx = context as never as {
@@ -112,12 +105,13 @@ export interface AdminPackageState extends PackageState {
   activatedAt: string | null;
 }
 
-const packageKeySchema = z.enum(["restaurant_management", "pms", "pos", "back_office"]);
+const packageKeySchema = z.enum(["pms"]);
 const restaurantIdSchema = z.string().uuid();
 
 async function loadAdminStates(restaurantId: string): Promise<AdminPackageState[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { PACKAGE_KEYS, resolvePackages } = await import("./package-entitlements");
+  const { PACKAGE_KEYS, packageCompatibilityDefault, resolvePackages } =
+    await import("./package-entitlements");
 
   const { data } = await supabaseAdmin
     .from("restaurant_package_entitlements")
@@ -133,8 +127,9 @@ async function loadAdminStates(restaurantId: string): Promise<AdminPackageState[
     return {
       ...states[key],
       // The stored switch, before expiry is applied — an admin needs to see
-      // "on but expired" as distinct from "switched off".
-      enabledFlag: row ? row.enabled : true,
+      // "on but expired" as distinct from "switched off". Missing rows use the
+      // same compatibility default as resolvePackages (PMS on, others off).
+      enabledFlag: row ? row.enabled : packageCompatibilityDefault(key),
       activatedAt: row?.activated_at ?? null,
     };
   });
@@ -247,8 +242,8 @@ export const setPropertyPackageEntitlement = createServerFn({ method: "POST" })
   });
 
 /**
- * Removes the explicit row so the package returns to the compatibility
- * default. This is NOT the same as disabling it.
+ * Removes the explicit row so PMS returns to the compatibility default
+ * (missing row = enabled).
  */
 export const clearPropertyPackageEntitlement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
