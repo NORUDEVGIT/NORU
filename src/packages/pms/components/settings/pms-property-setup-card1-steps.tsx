@@ -103,6 +103,7 @@ import {
   generateHourlyTimeOptions,
   isHttpOrDataAsset,
   validateBrandImageFile,
+  validateTinFormat,
   structureRoomCodeExample,
   vatCertificateRequired,
   type Card1AddressFieldErrors,
@@ -1806,158 +1807,185 @@ export function LegalStep({
   canEdit: boolean;
   warnings?: string[];
 }) {
+  const tinFormatError = validateTinFormat(draft.tinNumber);
+
   return (
     <div className="space-y-4" data-testid="pms-card1-step-legal">
-      <Panel title="Legal Identity" icon="briefcase">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <Field
-            id="card1-legal-name"
-            label="Registered Company Name"
-            required
-            value={draft.legalName}
-            disabled={!canEdit}
-            onChange={(legalName) => setDraft((p) => ({ ...p, legalName }))}
-          />
-          <Field
-            id="card1-legal-entity"
-            label="Legal entity name"
-            value={draft.legalEntityName}
-            disabled={!canEdit}
-            onChange={(legalEntityName) => setDraft((p) => ({ ...p, legalEntityName }))}
-          />
-          <Field
-            id="card1-incorp"
-            label="Date of Incorporation"
-            type="date"
-            value={draft.legalExtras.incorporationDate}
-            disabled={!canEdit}
-            onChange={(incorporationDate) =>
-              setDraft((p) => ({ ...p, legalExtras: { ...p.legalExtras, incorporationDate } }))
-            }
-          />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-entity-type">Entity type</Label>
-            <Select
-              value={draft.legalEntityType || "unset"}
-              onValueChange={(value) =>
-                setDraft((p) => ({
-                  ...p,
-                  legalEntityType: value === "unset" ? "" : (value as typeof draft.legalEntityType),
-                }))
-              }
-              disabled={!canEdit}
-            >
-              <SelectTrigger id="card1-entity-type" className={SELECT_TRIGGER_CLASS}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unset">Not set</SelectItem>
-                {LEGAL_ENTITY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {LEGAL_ENTITY_TYPE_LABELS[type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Field
-            id="card1-reg"
-            label="Registration number"
-            value={draft.registrationNumber}
-            disabled={!canEdit}
-            onChange={(registrationNumber) => setDraft((p) => ({ ...p, registrationNumber }))}
-          />
-        </div>
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="Certificate of Incorporation"
-          kind="certificate_of_incorporation"
-          refs={draft.legalUploadRefs}
-          canEdit={canEdit}
-          onChange={(legalUploadRefs) => setDraft((p) => ({ ...p, legalUploadRefs }))}
-        />
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="Trade License Copy"
-          kind="trade_license"
-          refs={draft.legalUploadRefs}
-          canEdit={canEdit}
-          onChange={(legalUploadRefs) => setDraft((p) => ({ ...p, legalUploadRefs }))}
-        />
-      </Panel>
-
-      <Panel title="Tax & Documents" helper={CARD1_VAT_GATE_COPY} icon="tax">
+      <Panel title="Legal & Tax Information" helper={CARD1_VAT_GATE_COPY} icon="tax">
         <div className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 p-3 text-sm text-[#251605]">
-          Tax identity is used for property setup and compliance. VAT certificate is required only
-          when VAT Registered is On.
+          Legal business registration and tax identity are used for property setup, cashiering documents, folios, and fiscal device compliance.
         </div>
-        <ToggleRow
-          id="card1-vat-registered"
-          label="VAT Registered"
-          checked={draft.vatRegistered}
-          disabled={!canEdit}
-          onChange={(vatRegistered) => setDraft((p) => ({ ...p, vatRegistered }))}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          {draft.vatRegistered ? (
+
+        {/* Group 1: Legal Business Information */}
+        <div className="space-y-3 pt-1">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Legal Business Information</h3>
+            <p className="text-xs text-slate-500">Corporate registration and entity classification details.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field
-              id="card1-vat-number"
-              label="VAT number"
+              id="card1-legal-name"
+              label="Registered Company Name"
               required
-              value={draft.vatNumber}
+              value={draft.legalName}
               disabled={!canEdit}
-              onChange={(vatNumber) => setDraft((p) => ({ ...p, vatNumber }))}
+              onChange={(legalName) => setDraft((p) => ({ ...p, legalName }))}
             />
-          ) : null}
-          <Field
-            id="card1-tin"
-            label="TIN"
-            value={draft.tinNumber}
-            disabled={!canEdit}
-            onChange={(tinNumber) => setDraft((p) => ({ ...p, tinNumber }))}
-          />
-          <Field
-            id="card1-licence"
-            label="Licence number"
-            value={draft.licenceNumber}
-            disabled={!canEdit}
-            onChange={(licenceNumber) => setDraft((p) => ({ ...p, licenceNumber }))}
-          />
+            <div className="space-y-1">
+              <Field
+                id="card1-legal-entity"
+                label="Operating Entity Name"
+                value={draft.legalEntityName}
+                disabled={!canEdit}
+                onChange={(legalEntityName) => setDraft((p) => ({ ...p, legalEntityName }))}
+              />
+              <p className="text-[11px] text-slate-500">
+                Only enter this if the entity operating the hotel differs from the registered company.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="card1-entity-type">Entity type</Label>
+              <Select
+                value={draft.legalEntityType || "unset"}
+                onValueChange={(value) =>
+                  setDraft((p) => ({
+                    ...p,
+                    legalEntityType: value === "unset" ? "" : (value as typeof draft.legalEntityType),
+                  }))
+                }
+                disabled={!canEdit}
+              >
+                <SelectTrigger id="card1-entity-type" className={SELECT_TRIGGER_CLASS}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unset">Not set</SelectItem>
+                  {draft.legalEntityType === "private_limited" ? (
+                    <SelectItem value="private_limited">Private Limited Company (PLC)</SelectItem>
+                  ) : (
+                    <SelectItem value="plc">Private Limited Company (PLC)</SelectItem>
+                  )}
+                  <SelectItem value="sole_proprietor">Sole proprietorship</SelectItem>
+                  <SelectItem value="partnership">Partnership</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Field
+              id="card1-reg"
+              label="Commercial Registration Number"
+              value={draft.registrationNumber}
+              disabled={!canEdit}
+              onChange={(registrationNumber) => setDraft((p) => ({ ...p, registrationNumber }))}
+            />
+          </div>
         </div>
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="Trade License"
-          kind="trade_license"
-          required
-          refs={draft.taxUploadRefs}
-          canEdit={canEdit}
-          onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
-        />
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="TIN Certificate"
-          kind="tin_certificate"
-          required
-          refs={draft.taxUploadRefs}
-          canEdit={canEdit}
-          onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
-        />
-        {vatCertificateRequired(draft.vatRegistered) ? (
+
+        <div className="my-2 border-t border-slate-200/80" />
+
+        {/* Group 2: Tax & Licensing */}
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Tax & Licensing</h3>
+            <p className="text-xs text-slate-500">Taxpayer identification, trade licensing, and VAT registration posture.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Field
+                id="card1-tin"
+                label="Taxpayer Identification Number (TIN)"
+                value={draft.tinNumber}
+                disabled={!canEdit}
+                onChange={(tinNumber) => setDraft((p) => ({ ...p, tinNumber }))}
+              />
+              {tinFormatError ? (
+                <p className="text-[11px] font-medium text-amber-600">{tinFormatError}</p>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  10-digit Ethiopian taxpayer identifier used for cashiering and fiscal machine integration.
+                </p>
+              )}
+            </div>
+            <Field
+              id="card1-licence"
+              label="Trade License Number"
+              value={draft.licenceNumber}
+              disabled={!canEdit}
+              onChange={(licenceNumber) => setDraft((p) => ({ ...p, licenceNumber }))}
+            />
+          </div>
+          <ToggleRow
+            id="card1-vat-registered"
+            label="VAT Registered"
+            checked={draft.vatRegistered}
+            disabled={!canEdit}
+            onChange={(vatRegistered) => setDraft((p) => ({ ...p, vatRegistered }))}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {draft.vatRegistered ? (
+              <Field
+                id="card1-vat-number"
+                label="VAT Registration Number"
+                required
+                value={draft.vatNumber}
+                disabled={!canEdit}
+                onChange={(vatNumber) => setDraft((p) => ({ ...p, vatNumber }))}
+              />
+            ) : null}
+          </div>
+        </div>
+
+        <div className="my-2 border-t border-slate-200/80" />
+
+        {/* Group 3: Legal Documents */}
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Legal Documents</h3>
+            <p className="text-xs text-slate-500">Attach verification and compliance documents (PDF, PNG, JPG under 1 MB).</p>
+          </div>
           <UploadRefs
             restaurantId={restaurantId}
-            label="VAT certificate"
-            kind="vat_certificate"
-            required
+            label="Trade License"
+            kind="trade_license"
+            refs={draft.taxUploadRefs}
+            canEdit={canEdit}
+            onChange={(taxUploadRefs) => {
+              setDraft((p) => {
+                const remainingTradePaths = new Set(
+                  taxUploadRefs.filter((r) => r.kind === "trade_license").map((r) => r.storagePath).filter(Boolean),
+                );
+                const nextLegalUploadRefs = p.legalUploadRefs.filter(
+                  (r) => r.kind !== "trade_license" || (r.storagePath && remainingTradePaths.has(r.storagePath)),
+                );
+                return { ...p, taxUploadRefs, legalUploadRefs: nextLegalUploadRefs };
+              });
+            }}
+          />
+          <UploadRefs
+            restaurantId={restaurantId}
+            label="TIN Certificate"
+            kind="tin_certificate"
             refs={draft.taxUploadRefs}
             canEdit={canEdit}
             onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
           />
-        ) : null}
-        {warnings.map((warning) => (
-          <p key={warning} className="text-sm text-[#C89933]" data-testid="card1-vat-warning">
-            {warning}
-          </p>
-        ))}
+          {vatCertificateRequired(draft.vatRegistered) ? (
+            <UploadRefs
+              restaurantId={restaurantId}
+              label="VAT certificate"
+              kind="vat_certificate"
+              required
+              refs={draft.taxUploadRefs}
+              canEdit={canEdit}
+              onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
+            />
+          ) : null}
+          {warnings.map((warning) => (
+            <p key={warning} className="text-sm text-[#C89933]" data-testid="card1-vat-warning">
+              {warning}
+            </p>
+          ))}
+        </div>
       </Panel>
     </div>
   );

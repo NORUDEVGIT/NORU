@@ -47,6 +47,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+import { useOptionalGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
 
 type CommsFilter = "all" | "notes" | "phone" | "in_person" | "email" | "other";
 
@@ -172,9 +173,13 @@ export function GuestCommunicationNotesView({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const profileActions = useOptionalGuestProfileActions();
+  const canEditProfile = profileActions?.canEdit ?? false;
+
   const data = hubQuery.data;
   const rawEntries = data?.entries ?? [];
   const frozen = data?.anonymised ?? false;
+  const readOnly = frozen || !canEditProfile;
   const sendAvailable = Boolean(data?.sendChannel);
 
   // Filter entries down to communications and notes
@@ -250,7 +255,7 @@ export function GuestCommunicationNotesView({
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            disabled={frozen}
+            disabled={readOnly}
             onClick={() => setNoteOpen(true)}
             className="h-8 text-xs bg-white border border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE] shadow-sm font-medium"
           >
@@ -259,7 +264,7 @@ export function GuestCommunicationNotesView({
 
           <Button
             size="sm"
-            disabled={frozen}
+            disabled={readOnly}
             onClick={() => setCommsOpen(true)}
             className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
           >
@@ -269,7 +274,7 @@ export function GuestCommunicationNotesView({
           {sendAvailable ? (
             <Button
               size="sm"
-              disabled={frozen}
+              disabled={readOnly}
               onClick={() => setSendOpen(true)}
               className="h-8 text-xs bg-white border border-[#DDD4C5] text-[#251605] hover:bg-[#F7F4EE]"
             >

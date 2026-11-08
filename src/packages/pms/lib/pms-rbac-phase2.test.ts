@@ -232,10 +232,8 @@ describe("PMS RBAC Phase 2 permission decisions", () => {
     const guestEditor = await staff("receptionist", [
       { roleId: "role-guest", roleName: "Guest", codes: [PMS_PERMISSIONS.GUEST_PROFILE_EDIT] },
     ]);
+    assert.equal(allows(guestEditor, PMS_PERMISSIONS.GUEST_PROFILE_ACTIVATE), false);
     assert.equal(allows(guestEditor, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE), false);
-    assert.equal(allows(guestEditor, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT), false);
-    assert.equal(allows(guestEditor, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE), false);
-    assert.equal(allows(guestEditor, PMS_PERMISSIONS.GUEST_RESTRICTION_AUTHORIZE), false);
 
     const ratePlanner = await staff("receptionist", [
       { roleId: "role-rate", roleName: "Rates", codes: [PMS_PERMISSIONS.RATES_CONFIGURE] },

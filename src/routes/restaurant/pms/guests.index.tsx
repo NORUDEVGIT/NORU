@@ -54,7 +54,11 @@ function GuestProfileDirectoryRoute() {
       hideTopHeader
     >
       {(m) => (
-        <PmsRouteGate restaurantId={m.restaurantId} allowAny={PMS_GUEST_ROUTE_PERMISSIONS}>
+        <PmsRouteGate
+          restaurantId={m.restaurantId}
+          membershipRole={m.role}
+          allowAny={PMS_GUEST_ROUTE_PERMISSIONS}
+        >
         <GuestProfileWorkspace
           membership={m}
           returnCard={card}

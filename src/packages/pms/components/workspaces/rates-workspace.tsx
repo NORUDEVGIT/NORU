@@ -909,7 +909,7 @@ export function RatesWorkspace({
                 ) : (
                   <div ref={setViewSlot} className="shrink-0 empty:hidden" />
                 )}
-                {access.canViewRates &&
+                {access.canEditDailyRates &&
                 (requestedView === "rate-plans-reference" || requestedView === "rate-calendar") ? (
                   <Button
                     type="button"

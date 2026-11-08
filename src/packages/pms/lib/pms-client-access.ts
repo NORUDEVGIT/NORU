@@ -19,6 +19,11 @@ export function pmsCan(access: PmsAccessSnapshot, code: PmsPermissionCode): bool
   return access.isOwner || access.codes.includes(code);
 }
 
+/** Property membership role — matches server `isOwnerMembership`. */
+export function pmsPropertyOwnerRole(role: string | null | undefined): boolean {
+  return role === "owner";
+}
+
 export function pmsCanAny(access: PmsAccessSnapshot, codes: readonly PmsPermissionCode[]): boolean {
   return access.isOwner || codes.some((code) => access.codes.includes(code));
 }

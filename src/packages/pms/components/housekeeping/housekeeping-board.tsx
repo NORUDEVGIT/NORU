@@ -73,6 +73,8 @@ type Props = {
   scope: HousekeepingScope;
   membershipId: string;
   openRoomId?: string;
+  canCreateTask: boolean;
+  canEditTask: boolean;
 };
 
 const LANE_VISUAL: Record<
@@ -136,6 +138,8 @@ export function HousekeepingBoardTab({
   scope,
   membershipId,
   openRoomId,
+  canCreateTask,
+  canEditTask,
 }: Props) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -321,7 +325,7 @@ export function HousekeepingBoardTab({
       <HkShellSlot name="view">
         <HkViewSwitcher value={viewMode} onChange={setViewMode} testId="hk-board-view-switcher" />
       </HkShellSlot>
-      {scope === "supervisor" ? (
+      {scope === "supervisor" && canCreateTask ? (
         <HkShellSlot name="cta">
           <Button
             className={HK_SHELL_PRIMARY_BUTTON}
@@ -479,7 +483,7 @@ export function HousekeepingBoardTab({
         membershipId={membershipId}
         pendingInspection={pendingInspect.find((i) => i.roomId === qvRoom?.id) ?? null}
         openMaint={openMaint.filter((m) => m.roomId === qvRoom?.id)}
-        {...(scope === "supervisor"
+        {...(scope === "supervisor" && canCreateTask
           ? {
               onCreateTask: (room: RackRoom) => {
                 setLockedTaskRoom(room);
@@ -487,6 +491,7 @@ export function HousekeepingBoardTab({
               },
             }
           : {})}
+        canEditTask={canEditTask}
         onClose={() => {
           setQvRoomId(null);
           if (openRoomId) {
@@ -601,6 +606,7 @@ function HousekeepingRoomQuickView({
   pendingInspection,
   openMaint,
   onCreateTask,
+  canEditTask,
   onClose,
 }: {
   restaurantId: string;
@@ -611,6 +617,7 @@ function HousekeepingRoomQuickView({
   pendingInspection: { id: string; status: string } | null;
   openMaint: Array<{ id: string; description: string; status: string }>;
   onCreateTask?: (room: RackRoom) => void;
+  canEditTask: boolean;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -658,13 +665,16 @@ function HousekeepingRoomQuickView({
     onError: (e) => toast.error(e instanceof Error ? e.message : "Something went wrong."),
   });
 
-  const canOperate = scope === "supervisor" || scope === "housekeeper";
+  const canOperateField =
+    canEditTask && (scope === "supervisor" || scope === "housekeeper");
   const ownTask = Boolean(room?.assignedMembershipId && room.assignedMembershipId === membershipId);
   const canStart =
+    canEditTask &&
     Boolean(room?.openTaskId) &&
     room?.openTaskStatus !== "in_progress" &&
     (scope === "supervisor" || ownTask);
   const canComplete =
+    canEditTask &&
     Boolean(room?.openTaskId) &&
     (room?.openTaskStatus === "assigned" || room?.openTaskStatus === "in_progress") &&
     (scope === "supervisor" || ownTask);
@@ -825,7 +835,7 @@ function HousekeepingRoomQuickView({
               ) : null}
             </div>
 
-            {canOperate && (room.openTaskId || onCreateTask) ? (
+            {(canOperateField || onCreateTask) && (room.openTaskId || onCreateTask) ? (
               <div className="mt-auto grid grid-cols-1 gap-2 pt-6 sm:grid-cols-2">
                 {onCreateTask ? (
                   <Button className={HK_FIELD_ACTION_CLASS} variant="outline" onClick={() => onCreateTask(room)}>

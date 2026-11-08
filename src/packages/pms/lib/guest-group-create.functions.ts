@@ -4,6 +4,12 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requirePmsActor } from "./pms-permissions.server";
+import {
+  requireGuestAccountActivateActor,
+  requireGuestAccountCreateActor,
+  requireGuestAccountEditActor,
+  requireGuestAccountViewActor,
+} from "./guest-master-guards.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
@@ -69,7 +75,7 @@ export const getGroupCreateContext = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GroupCreateContext> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
+    const me = await requireGuestAccountCreateActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const [
@@ -141,7 +147,7 @@ export const saveGroupCreateDraft = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, payload: z.record(z.unknown()) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
+    const me = await requireGuestAccountCreateActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = admin(supabaseAdmin);
     const existing = await db
@@ -179,7 +185,7 @@ export const deleteGroupCreateDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
+    const me = await requireGuestAccountCreateActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await admin(supabaseAdmin)
       .from("pms_group_create_drafts")
@@ -201,7 +207,7 @@ export const loadGroupCreateCredit = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const result = await admin(supabaseAdmin)
       .from("guest_account_masters")
@@ -313,7 +319,7 @@ export const persistGroupCreate = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
+    await requireGuestAccountCreateActor(context as never, data.restaurantId);
     const draft = data.draft;
     if (!draft.groupId) {
       const { assertListingCreateAllowed } = await import("./guest-workspace-config.functions");

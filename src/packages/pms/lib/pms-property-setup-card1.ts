@@ -1049,6 +1049,50 @@ export function parseUploadRefs(value: unknown): Card1UploadRef[] {
     .filter((row): row is Card1UploadRef => row !== null);
 }
 
+/**
+ * Validates Ethiopian Taxpayer Identification Number (TIN) format when provided.
+ * Standard Ethiopian TIN is a 10-digit numeric string.
+ * Returns an error string or null if valid / empty (TIN is optional during draft onboarding).
+ */
+export function validateTinFormat(tin: string): string | null {
+  const trimmed = tin.trim().replace(/[\s-]/g, "");
+  if (!trimmed) return null;
+  if (!/^\d{10}$/.test(trimmed)) {
+    return "TIN must be a 10-digit numeric taxpayer identification number.";
+  }
+  return null;
+}
+
+/**
+ * Merges Trade License documents from legacy legalUploadRefs and taxUploadRefs.
+ * Deduplicates identical files while ensuring any Trade License in either array is preserved.
+ * Retains non-trade-license documents (e.g., Certificate of Incorporation) in legalRefs.
+ */
+export function mergeTradeLicenseRefs(
+  taxRefs: Card1UploadRef[],
+  legalRefs: Card1UploadRef[],
+): { unifiedTaxRefs: Card1UploadRef[]; unifiedLegalRefs: Card1UploadRef[] } {
+  const legalTrade = legalRefs.filter((r) => r.kind === "trade_license");
+  const taxTrade = taxRefs.filter((r) => r.kind === "trade_license");
+  const taxNonTrade = taxRefs.filter((r) => r.kind !== "trade_license");
+  const legalNonTrade = legalRefs.filter((r) => r.kind !== "trade_license");
+
+  const combinedTrade: Card1UploadRef[] = [...taxTrade];
+  for (const item of legalTrade) {
+    const exists = combinedTrade.some((t) =>
+      item.storagePath && t.storagePath ? t.storagePath === item.storagePath : t.name === item.name,
+    );
+    if (!exists) {
+      combinedTrade.push(item);
+    }
+  }
+
+  return {
+    unifiedTaxRefs: [...taxNonTrade, ...combinedTrade],
+    unifiedLegalRefs: [...legalNonTrade, ...combinedTrade],
+  };
+}
+
 export function parseDepartmentContacts(value: unknown): Card1DepartmentContact[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -1638,10 +1682,7 @@ export function card1StepComplete(
     return card1BusinessDateSubstepComplete(draft);
   }
   if (step === "legal") {
-    return (
-      Boolean(draft.legalName.trim() || draft.legalEntityName.trim()) &&
-      card1TaxSubstepComplete(draft)
-    );
+    return Boolean(draft.legalName.trim()) && card1TaxSubstepComplete(draft);
   }
   if (step === "tax") {
     return card1TaxSubstepComplete(draft);

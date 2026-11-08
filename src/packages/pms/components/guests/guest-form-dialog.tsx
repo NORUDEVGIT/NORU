@@ -735,18 +735,6 @@ function LegacyGuestEditFormDialog({
                         Open existing guest
                       </Button>
                     ) : null}
-                    {guest && onMergeRequested ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          onOpenChange(false);
-                          onMergeRequested(d.id);
-                        }}
-                      >
-                        Merge…
-                      </Button>
-                    ) : null}
                   </span>
                 </li>
               ))}
@@ -1228,67 +1216,6 @@ function LegacyGuestEditFormDialog({
                 data-testid="individual-source-of-business"
                 value={form.sourceOfBusiness}
                 onChange={(e) => set("sourceOfBusiness", e.target.value)}
-              />
-            </Field>
-          </Section>
-
-          <Section id="restrictions" title="Restrictions">
-            <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-              <Label htmlFor="guest-restricted">Restricted</Label>
-              <Switch
-                id="guest-restricted"
-                data-testid="individual-restricted"
-                checked={form.restricted}
-                onCheckedChange={(v) => set("restricted", v)}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-              <Label htmlFor="guest-blacklisted">Blacklisted</Label>
-              <Switch
-                id="guest-blacklisted"
-                data-testid="individual-blacklisted"
-                checked={form.blacklisted}
-                onCheckedChange={(v) => set("blacklisted", v)}
-              />
-            </div>
-            <div>
-              <Label>Severity</Label>
-              <Select
-                value={form.restrictionSeverity || "__none"}
-                onValueChange={(value) =>
-                  set(
-                    "restrictionSeverity",
-                    value === "__none" ? "" : (value as RestrictionSeverity),
-                  )
-                }
-              >
-                <SelectTrigger data-testid="individual-restriction-severity">
-                  <SelectValue placeholder="Optional" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">Optional</SelectItem>
-                  {RESTRICTION_SEVERITIES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {RESTRICTION_SEVERITY_LABELS[item]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Field label="Reason">
-              <Textarea
-                rows={2}
-                data-testid="individual-restriction-reason"
-                value={form.restrictionReason}
-                onChange={(e) => set("restrictionReason", e.target.value)}
-              />
-            </Field>
-            <Field label="Until">
-              <Input
-                type="date"
-                data-testid="individual-restriction-until"
-                value={form.restrictionUntil}
-                onChange={(e) => set("restrictionUntil", e.target.value)}
               />
             </Field>
           </Section>

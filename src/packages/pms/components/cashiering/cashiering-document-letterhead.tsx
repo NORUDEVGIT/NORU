@@ -15,6 +15,7 @@ export function CashieringDocumentLetterhead({
   const hotelName = cashieringPropertyHotelName(property);
   const tin = property?.tinNumber?.trim();
   const vat = property?.vatNumber?.trim();
+  const isVatApplicable = property?.vatRegistered !== false && Boolean(vat);
   const phone = property?.phone?.trim();
   const email = property?.email?.trim();
   const address = property?.fullAddress?.trim();
@@ -39,7 +40,7 @@ export function CashieringDocumentLetterhead({
       <h2 className="text-base font-bold text-slate-950">{hotelName}</h2>
       {address ? <p className="text-xs text-slate-600">{address}</p> : null}
       {tin ? <p className="text-xs text-slate-600">TIN: {tin}</p> : null}
-      {!tin && vat ? <p className="text-xs text-slate-600">VAT: {vat}</p> : null}
+      {isVatApplicable ? <p className="text-xs text-slate-600">VAT: {vat}</p> : null}
       {phone ? <p className="text-xs text-slate-600">Tel: {phone}</p> : null}
       {email ? <p className="text-xs text-slate-600">{email}</p> : null}
     </div>

@@ -3,6 +3,12 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requirePmsActor } from "./pms-permissions.server";
+import {
+  requireGuestAccountActivateActor,
+  requireGuestAccountCreateActor,
+  requireGuestAccountEditActor,
+  requireGuestAccountViewActor,
+} from "./guest-master-guards.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
@@ -112,7 +118,7 @@ export const listGroupTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GroupTypeRow[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     return loadGroupTypes(data.restaurantId, context.supabase);
   });
 

@@ -350,6 +350,8 @@ export function RoomsWorkspace({
             restaurantId={restaurantId}
             commandSearch={commandSearch}
             canConfigure={accessQuery.data?.canConfigure === true}
+            canBlockEdit={accessQuery.data?.canBlockEdit === true}
+            canManageRestrictions={accessQuery.data?.canRestrictionEdit === true}
             onInspectAssignment={(room) =>
               inspectAssignment({ roomId: room.id, roomTypeId: room.roomTypeId })
             }
@@ -377,7 +379,11 @@ export function RoomsWorkspace({
         );
       case "blocks":
         return (
-          <RoomInventoryBlocksView restaurantId={restaurantId} createPrefill={blockPrefill} />
+          <RoomInventoryBlocksView
+            restaurantId={restaurantId}
+            createPrefill={blockPrefill}
+            canBlockEdit={accessQuery.data?.canBlockEdit === true}
+          />
         );
       case "assignment-eligibility":
         return (

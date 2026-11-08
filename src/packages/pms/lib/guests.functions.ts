@@ -4,6 +4,10 @@ import {
   requirePmsActor,
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
+import {
+  requireGuestProfileViewActor,
+  requireGuestWorkspaceViewActor,
+} from "./guest-master-guards.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -860,7 +864,12 @@ export const getGuestsAccess = createServerFn({ method: "POST" })
     const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
     return {
       role: me.role,
+      isOwner: resolved.isOwner,
       canManage: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_VIEW),
+      canEdit: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_EDIT),
+      canActivate: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_ACTIVATE),
+      canPrintExport: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_PRINT),
+      canCreateReservation: hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_CREATE),
       canPrivacy:
         hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT) ||
         hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE),
@@ -1017,7 +1026,7 @@ export const listGuests = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestListPage> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
     const offset = data.offset ?? 0;
     const limit = data.limit ?? 100;
     const sort: GuestListSort = data.sort && isGuestListSort(data.sort) ? data.sort : "updated_at";
@@ -1203,7 +1212,7 @@ export const getGuestDirectoryStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestDirectoryStats> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
 
     const pageSize = 1_000;
     const loadProfiles = async (excludeMerged: boolean) => {
@@ -1304,7 +1313,7 @@ export const getGuestWorkspaceStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestWorkspaceStats> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestWorkspaceViewActor(context as never, data.restaurantId);
     const individuals = await countRows(
       context.supabase,
       "guest_profiles",
@@ -1390,7 +1399,7 @@ export const listGuestWorkspaceActivity = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestWorkspaceActivityItem[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
     const limit = data.limit ?? LISTING_ACTIVITY_LIMIT;
     const items: GuestWorkspaceActivityItem[] = [];
 
@@ -1555,7 +1564,7 @@ export const findGuestDuplicates = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestSummary[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
 
     const email = normalizeEmail(data.email);
     const phone = normalizePhone(data.phone);
@@ -1617,7 +1626,7 @@ export const getGuest = createServerFn({ method: "POST" })
       preferences: GuestPreferences;
       history: GuestHistoryEntry[];
     }> => {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+      await requireGuestProfileViewActor(context as never, data.restaurantId);
 
       let wave2 = true;
       let rowResult = await fromTable(context.supabase, "guest_profiles")
@@ -2455,7 +2464,7 @@ export const listGuestPreferenceWorkspace = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPreferenceWorkspace> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
     const guest = await context.supabase
@@ -2545,7 +2554,7 @@ export const listGuestPreferenceRegistrationCatalogue = createServerFn({ method:
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestPreferenceRegistrationCatalogue> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
     const catalogue = await loadPreferenceWorkspaceCatalogue(data.restaurantId);
     const categories = catalogue.categories
       .map((category) => {
@@ -2800,7 +2809,7 @@ export const getGuestReservationPreferenceDefaults = createServerFn({ method: "P
       specialRequests: string | null;
       roomTypeId: string | null;
     }> => {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+      await requireGuestProfileViewActor(context as never, data.restaurantId);
       const workspace = await listGuestPreferenceWorkspace({
         data: { restaurantId: data.restaurantId, guestId: data.guestId },
       });
@@ -2877,7 +2886,7 @@ export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPreferenceSummary> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const values = await supabaseAdmin
       .from("guest_preference_values")
@@ -3683,7 +3692,7 @@ export const getGuestPreferenceCatalogues = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<GuestPreferenceCatalogues> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const [rooms, floors, options] = await Promise.all([
@@ -4040,7 +4049,7 @@ export const listGuestDocuments = createServerFn({ method: "POST" })
   )
   .handler(
     async ({ data, context }): Promise<{ available: boolean; documents: GuestDocument[] }> => {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+      await requireGuestProfileViewActor(context as never, data.restaurantId);
       const query = context.supabase
         .from("guest_documents")
         .select(GUEST_DOCUMENT_SELECT)
@@ -4142,7 +4151,7 @@ export const listGuestIdentityDocumentTypes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<{ types: GuestIdentityDocumentTypeOption[] }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
     return { types: await loadIdentityDocumentTypes(data.restaurantId) };
   });
 
@@ -4156,7 +4165,7 @@ export const getGuestDocument = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ ok: true; document: GuestDocumentDetail } | { ok: false; message: string }> => {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+      await requireGuestProfileViewActor(context as never, data.restaurantId);
       const { data: row, error } = await context.supabase
         .from("guest_documents")
         .select(GUEST_DOCUMENT_SELECT)
@@ -4617,7 +4626,8 @@ export const mergeGuests = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE);
+    throw new Error("Guest profile merge is not available for this property.");
     if (data.survivorId === data.retiredId) {
       throw new Error("Choose two different guests to merge.");
     }
@@ -5000,10 +5010,19 @@ type GuestStayRow = {
 const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
 
 export function guestStayAccessForRole(role: string): GuestStayAccess {
+  const reservation = canManageReservations(role);
+  const frontOffice = canManageReservations(role);
+  const folio = (CASHIER_ACCESS_ROLES as readonly string[]).includes(role);
   return {
-    reservation: canManageReservations(role),
-    frontOffice: canManageReservations(role),
-    folio: (CASHIER_ACCESS_ROLES as readonly string[]).includes(role),
+    reservation,
+    frontOffice,
+    folio,
+    canViewReservation: reservation,
+    canEditReservation: reservation,
+    canCreateReservation: reservation,
+    canCheckIn: frontOffice,
+    canCheckOut: frontOffice,
+    canCancel: frontOffice,
   };
 }
 
@@ -5013,10 +5032,21 @@ export async function guestStayAccessForActor(
   restaurantId: string,
 ): Promise<GuestStayAccess> {
   const resolved = await resolveEffectivePermissions(context, restaurantId);
+  const canViewReservation = hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_VIEW);
+  const canEditReservation = hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_EDIT);
+  const canCreateReservation = hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_CREATE);
+  const frontOfficeView = hasEffectivePermission(resolved, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
+  const folio = hasEffectivePermission(resolved, PMS_PERMISSIONS.CASHIERING_VIEW);
   return {
-    reservation: hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_VIEW),
-    frontOffice: hasEffectivePermission(resolved, PMS_PERMISSIONS.FRONT_OFFICE_VIEW),
-    folio: hasEffectivePermission(resolved, PMS_PERMISSIONS.CASHIERING_VIEW),
+    reservation: canViewReservation,
+    frontOffice: frontOfficeView,
+    folio,
+    canViewReservation,
+    canEditReservation,
+    canCreateReservation,
+    canCheckIn: hasEffectivePermission(resolved, PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN),
+    canCheckOut: hasEffectivePermission(resolved, PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT),
+    canCancel: hasEffectivePermission(resolved, PMS_PERMISSIONS.FRONT_OFFICE_CANCEL),
   };
 }
 
@@ -5233,7 +5263,7 @@ export const getGuestBookingDetail = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ timeline: GuestBookingHistoryEvent[] }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+    await requireGuestProfileViewActor(context as never, data.restaurantId);
 
     const { data: reservation, error } = await context.supabase
       .from("hotel_reservations")

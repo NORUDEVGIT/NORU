@@ -29,7 +29,8 @@ import {
   type FoInHouseDeskRow,
   type FoInHouseQuickView,
 } from "@/packages/pms/lib/fo-inhouse.functions";
-import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
+import { frontOfficeDeskAccess } from "@/packages/pms/lib/front-office-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { GUEST_PROFILE_DETAIL_PATH } from "@/packages/pms/lib/guest-profile-wave1";
 import type { DepartureRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
@@ -127,20 +128,17 @@ export function InHouseWorkspace({
   const [amend, setAmend] = useState<{ stay: FoInHouseDeskRow["stay"]; kind: FoAmendKind } | null>(null);
   const [maintenanceStay, setMaintenanceStay] = useState<FoInHouseDeskRow["stay"] | null>(null);
 
-  const fetchAccess = useServerFn(getBookingsAccess);
-  const fetchDesk = useServerFn(listFrontOfficeInHouseDesk);
-
-  const accessQuery = useQuery({
-    queryKey: ["bookings-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
+  const permissions = usePmsPermissions(restaurantId);
+  const foAccess = frontOfficeDeskAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
   });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const fetchDesk = useServerFn(listFrontOfficeInHouseDesk);
 
   const deskQuery = useQuery({
     queryKey: ["front-office", "inhouse-desk", restaurantId, today],
     queryFn: () => fetchDesk({ data: { restaurantId, today } }),
-    enabled: canManage,
+    enabled: foAccess.canViewDesk && !permissions.isLoading,
     ...foOperationalQueryOptions(),
     retry: false,
   });
@@ -322,8 +320,10 @@ export function InHouseWorkspace({
         </Select>
       </div>
 
-      {!canManage && accessQuery.isSuccess ? (
-        <p className="text-sm text-muted-foreground">You do not have permission to manage in-house stays.</p>
+      {permissions.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading in-house guests…</p>
+      ) : !foAccess.canViewDesk ? (
+        <p className="text-sm text-muted-foreground">You do not have permission to view in-house stays.</p>
       ) : deskQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading in-house guests…</p>
       ) : deskQuery.isError ? (

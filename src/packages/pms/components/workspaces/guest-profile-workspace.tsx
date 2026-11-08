@@ -308,10 +308,15 @@ export function GuestProfileWorkspace({
     GUEST_WORKSPACE_SECTIONS.find((s) => s.id === activeSection) ?? GUEST_WORKSPACE_SECTIONS[0];
   const typeConfig = configQuery.data?.types.find((t) => t.domain === sectionDef.domain);
   const isTypeInactive = typeConfig ? !typeConfig.active : false;
-  const canCreate = accessQuery.data?.canCreate === true && !isTypeInactive;
+  const canCreateGrantForDomain = (domain: string) =>
+    domain === "individual"
+      ? accessQuery.data?.canCreate === true
+      : accessQuery.data?.canCreateAccount === true;
+
+  const canCreate = canCreateGrantForDomain(sectionDef.domain) && !isTypeInactive;
 
   const canCreateDomain = (domain: string) => {
-    if (accessQuery.data?.canCreate !== true) return false;
+    if (!canCreateGrantForDomain(domain)) return false;
     const cfg = configQuery.data?.types.find((t) => t.domain === domain);
     return cfg ? cfg.active : true;
   };

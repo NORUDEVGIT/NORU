@@ -95,6 +95,7 @@ export const STAFF_ACCESS_MODULES: readonly StaffAccessModule[] = [
           item(P.RESERVATION_EDIT, "Edit Reservation", "Change reservation details."),
           item(P.RESERVATION_CANCEL, "Cancel Reservation", "Cancel a reservation."),
           item(P.RESERVATION_ASSIGNMENT_EDIT, "Assign / Change Room", "Assign or move a room."),
+          item(P.RESERVATION_PRINT, "Print Reservation", "Print a reservation confirmation or summary."),
         ],
       },
       {
@@ -153,39 +154,38 @@ export const STAFF_ACCESS_MODULES: readonly StaffAccessModule[] = [
     groups: [
       {
         id: "profile",
-        label: "Profile",
+        label: "Individual guests",
         permissions: [
-          item(P.GUEST_PROFILE_CREATE, "Create Guest", "Create a guest profile."),
-          item(P.GUEST_PROFILE_EDIT, "Edit Guest", "Edit a guest profile."),
-          item(P.GUEST_PROFILE_ACTIVATE, "Activate / Deactivate Guest", "Change guest profile status."),
+          item(P.GUEST_PROFILE_CREATE, "Create Guest", "Create an individual guest profile."),
+          item(P.GUEST_PROFILE_EDIT, "Edit Guest", "Edit an individual guest profile."),
+          item(
+            P.GUEST_PROFILE_PRINT,
+            "Print & Export Lists",
+            "Print guest profiles and download individual or commercial directory lists as CSV.",
+          ),
+          item(P.GUEST_PROFILE_ACTIVATE, "Activate / Deactivate Guest", "Change individual guest status."),
         ],
       },
       {
-        id: "profile-sensitive",
-        label: "Sensitive Profile Actions",
+        id: "commercial-accounts",
+        label: "Commercial accounts",
         permissions: [
-          item(P.GUEST_MERGE_AUTHORIZE, "Merge Guests", "Authorize a guest merge."),
-          item(P.GUEST_RESTRICTION_AUTHORIZE, "Guest Restriction", "Authorize a guest restriction."),
-          item(P.GUEST_PRIVACY_EXPORT, "Export Guest Data", "Export guest privacy data."),
-          item(P.GUEST_PRIVACY_DELETE, "Anonymise Guest", "Anonymise or delete guest data."),
-        ],
-      },
-    ],
-  },
-  {
-    id: "commercial-accounts",
-    label: "Commercial Accounts",
-    section: null,
-    view: P.GUEST_ACCOUNT_VIEW,
-    viewLabel: "View Commercial Accounts",
-    groups: [
-      {
-        id: "accounts",
-        label: "Accounts",
-        permissions: [
-          item(P.GUEST_ACCOUNT_CREATE, "Create Account", "Create a company, group, or travel-agent account."),
-          item(P.GUEST_ACCOUNT_EDIT, "Edit Account", "Edit a commercial account."),
-          item(P.GUEST_ACCOUNT_ACTIVATE, "Activate / Deactivate Account", "Change account status."),
+          item(
+            P.GUEST_ACCOUNT_VIEW,
+            "View Commercial Accounts",
+            "View company, group, and travel-agent master lists.",
+          ),
+          item(
+            P.GUEST_ACCOUNT_CREATE,
+            "Create Account",
+            "Create a company, group, or travel-agent master.",
+          ),
+          item(P.GUEST_ACCOUNT_EDIT, "Edit Account", "Edit a company, group, or travel-agent master."),
+          item(
+            P.GUEST_ACCOUNT_ACTIVATE,
+            "Activate / Deactivate Account",
+            "Change commercial account status.",
+          ),
         ],
       },
     ],
@@ -529,9 +529,11 @@ export function templatePermissionCodes(id: StaffAccessTemplateId): PmsPermissio
         P.RESERVATION_CREATE,
         P.RESERVATION_EDIT,
         P.RESERVATION_ASSIGNMENT_EDIT,
+        P.RESERVATION_PRINT,
         P.GUEST_PROFILE_VIEW,
         P.GUEST_PROFILE_CREATE,
         P.GUEST_PROFILE_EDIT,
+        P.GUEST_PROFILE_PRINT,
         P.ROOM_INVENTORY_VIEW,
       ];
     case "reservation-agent":
@@ -541,9 +543,11 @@ export function templatePermissionCodes(id: StaffAccessTemplateId): PmsPermissio
         P.RESERVATION_EDIT,
         P.RESERVATION_CANCEL,
         P.RESERVATION_ASSIGNMENT_EDIT,
+        P.RESERVATION_PRINT,
         P.GUEST_PROFILE_VIEW,
         P.GUEST_PROFILE_CREATE,
         P.GUEST_PROFILE_EDIT,
+        P.GUEST_PROFILE_PRINT,
       ];
     case "cashier":
       return [

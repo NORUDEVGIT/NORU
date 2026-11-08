@@ -155,6 +155,7 @@ import {
   type ReservationActionResult,
 } from "@/packages/pms/lib/reservation-actions";
 import {
+  reservationDetailActionAccess,
   reservationDetailActionInput,
   reservationDetailActionIsDestructive,
   reservationDetailActionLabel,
@@ -237,9 +238,19 @@ export function ReservationDetailWorkspace({
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
-  const canManage = accessQuery.data?.canManage ?? false;
   const permissions = usePmsPermissions(restaurantId);
+  const permissionsReady = !permissions.isLoading && !permissions.isError;
+  const reservationAccess = permissionsReady
+    ? reservationDetailActionAccess({
+        isOwner: permissions.isOwner,
+        codes: permissions.permissions,
+      })
+    : null;
+  const canEditReservation =
+    permissionsReady && permissions.can(PMS_PERMISSIONS.RESERVATION_EDIT);
   const canViewReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
+  const canPrintReservation =
+    permissionsReady && permissions.can(PMS_PERMISSIONS.RESERVATION_PRINT);
 
   const detailQuery = useQuery({
     queryKey: ["reservation", restaurantId, reservationId],
@@ -444,7 +455,7 @@ export function ReservationDetailWorkspace({
     status: reservation.status,
     arrivalDate: reservation.arrivalDate,
     businessDate,
-    canManage,
+    canManage: canEditReservation,
   });
   const createdBy =
     reservation.createdByName ??
@@ -467,6 +478,8 @@ export function ReservationDetailWorkspace({
             departureDate: reservation.departureDate,
             roomId: reservation.roomId,
             role: accessQuery.data?.role ?? "",
+            access: reservationAccess ?? undefined,
+            canOpenFolio: permissions.can(PMS_PERMISSIONS.CASHIERING_VIEW),
           }),
         );
   function runDetailAction(actionId: ReservationActionId) {
@@ -499,6 +512,9 @@ export function ReservationDetailWorkspace({
         return;
       case "open_folio":
         setDetailTab("folio");
+        return;
+      case "print":
+        window.print();
         return;
       default:
         return;
@@ -1028,15 +1044,17 @@ export function ReservationDetailWorkspace({
               </h1>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                data-testid="reservation-detail-print"
-                aria-label="Print"
-                className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
-                onClick={() => window.print()}
-              >
-                <Printer className="size-4" />
-              </button>
+              {canPrintReservation ? (
+                <button
+                  type="button"
+                  data-testid="reservation-detail-print"
+                  aria-label="Print"
+                  className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                  onClick={() => window.print()}
+                >
+                  <Printer className="size-4" />
+                </button>
+              ) : null}
               {detailActionBar}
               <button
                 type="button"

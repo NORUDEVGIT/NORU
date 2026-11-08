@@ -24,7 +24,8 @@ import {
   type FoDepartureDeskRow,
   type FoDepartureQuickView,
 } from "@/packages/pms/lib/fo-departure.functions";
-import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
+import { frontOfficeDeskAccess } from "@/packages/pms/lib/front-office-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { GUEST_PROFILE_DETAIL_PATH } from "@/packages/pms/lib/guest-profile-wave1";
 import type { DepartureRow } from "@/packages/pms/lib/reservation-workspace/shared-read-models";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
@@ -151,20 +152,17 @@ export function DeparturesWorkspace({
     }
   }, [initialReservationId]);
 
-  const fetchAccess = useServerFn(getBookingsAccess);
-  const fetchDesk = useServerFn(listFrontOfficeDeparturesDesk);
-
-  const accessQuery = useQuery({
-    queryKey: ["bookings-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
+  const permissions = usePmsPermissions(restaurantId);
+  const foAccess = frontOfficeDeskAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
   });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const fetchDesk = useServerFn(listFrontOfficeDeparturesDesk);
 
   const deskQuery = useQuery({
     queryKey: ["front-office", "departures-desk", restaurantId, today],
     queryFn: () => fetchDesk({ data: { restaurantId, date: today } }),
-    enabled: canManage,
+    enabled: foAccess.canViewDesk && !permissions.isLoading,
     ...foOperationalQueryOptions(),
     retry: false,
   });
@@ -317,8 +315,10 @@ export function DeparturesWorkspace({
         </Select>
       </div>
 
-      {!canManage && accessQuery.isSuccess ? (
-        <p className="text-sm text-muted-foreground">You do not have permission to manage departures.</p>
+      {permissions.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading departures…</p>
+      ) : !foAccess.canViewDesk ? (
+        <p className="text-sm text-muted-foreground">You do not have permission to view departures.</p>
       ) : deskQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading departures…</p>
       ) : deskQuery.isError ? (

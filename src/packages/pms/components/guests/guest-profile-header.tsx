@@ -5,11 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Camera, ChevronDown, FileText, Pencil, Plus, Printer, Sparkles, StickyNote, UserX } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  GuestRestrictionBadges,
-  StatusBadge,
-  VipBadge,
-} from "@/packages/pms/components/guests/guest-bits";
+import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { useGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
 import {
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -210,7 +206,6 @@ export function GuestProfileHeader({
               </h1>
               {guest.vipStatus ? <VipBadge /> : null}
               <StatusBadge status={guest.guestStatus} />
-              <GuestRestrictionBadges guest={guest} />
             </div>
 
             {/* Sub-row 1: Contact & Location */}
@@ -280,14 +275,16 @@ export function GuestProfileHeader({
             </Button>
           ) : null}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={actions.openEdit}
-            className="border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm font-medium"
-          >
-            <Pencil className="mr-1.5 size-3.5" /> Edit Guest
-          </Button>
+          {actions.canEdit ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={actions.openEdit}
+              className="border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm font-medium"
+            >
+              <Pencil className="mr-1.5 size-3.5" /> Edit Guest
+            </Button>
+          ) : null}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -301,27 +298,28 @@ export function GuestProfileHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-white border-[#DDD4C5] text-[#251605] shadow-lg">
-              <DropdownMenuItem onSelect={actions.openNote} disabled={!actions.canManage}>
-                <StickyNote className="mr-2 size-4 text-[#8A641A]" />
-                Add Note
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={actions.openUpload} disabled={!actions.canManage}>
-                <FileText className="mr-2 size-4 text-[#756A5B]" />
-                Upload Document
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={actions.printProfile}>
-                <Printer className="mr-2 size-4 text-[#756A5B]" />
-                Print Profile
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-[#DDD4C5]/60" />
-              {guest.mergedIntoGuestId ? null : (
-                <DropdownMenuItem onSelect={actions.openMerge} disabled={!actions.canManage}>
-                  Merge Profile
+              {actions.canEdit ? (
+                <DropdownMenuItem onSelect={actions.openNote}>
+                  <StickyNote className="mr-2 size-4 text-[#8A641A]" />
+                  Add Note
                 </DropdownMenuItem>
-              )}
+              ) : null}
+              {actions.canEdit ? (
+                <DropdownMenuItem onSelect={actions.openUpload}>
+                  <FileText className="mr-2 size-4 text-[#756A5B]" />
+                  Upload Document
+                </DropdownMenuItem>
+              ) : null}
+              {actions.canPrintExport ? (
+                <DropdownMenuItem onSelect={actions.printProfile}>
+                  <Printer className="mr-2 size-4 text-[#756A5B]" />
+                  Print Profile
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuSeparator className="bg-[#DDD4C5]/60" />
               <DropdownMenuItem
                 onSelect={actions.toggleStatus}
-                disabled={!actions.canManage}
+                disabled={!actions.canActivate}
                 className={guest.guestStatus === "active" ? "text-rose-700 focus:text-rose-800" : ""}
               >
                 <UserX className="mr-2 size-4" />

@@ -32,6 +32,7 @@ export async function loadRevenueAccess(
     membershipId: me.id,
     canView,
     canViewRates: canView,
+    canConfigureRates: has(PMS_PERMISSIONS.RATES_CONFIGURE),
     canEditDailyRates: has(PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE),
     canViewRestrictions: canView,
     canApplyRestrictions: has(PMS_PERMISSIONS.RATES_RESTRICTION_CONFIGURE),

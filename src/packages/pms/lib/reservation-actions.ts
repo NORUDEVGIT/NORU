@@ -57,6 +57,7 @@ export type ReservationActionAccess = {
   noShow: boolean;
   reactivate: boolean;
   copy: boolean;
+  print: boolean;
 };
 
 export type ReservationActionInput = {
@@ -188,7 +189,7 @@ export function getReservationActions(input: ReservationActionInput): Reservatio
   if (input.actionHints.canOpenFolio) {
     actions.push({ id: "open_folio", label: "Open Folio" });
   }
-  if (input.actionHints.canPrint) {
+  if (allowed(allow("print"), input.actionHints.canPrint, true, true)) {
     actions.push({ id: "print", label: "Print" });
   }
 

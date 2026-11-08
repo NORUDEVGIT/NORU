@@ -22,11 +22,8 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
-import {
-  GuestRestrictionBadges,
-  GuestRestrictionWarn,
-  VipBadge,
-} from "@/packages/pms/components/guests/guest-bits";
+import { VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import { toast } from "sonner";
 import {
   CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS,
   CREATE_RESERVATION_GUEST_SEARCH_LIMIT,
@@ -45,14 +42,10 @@ import {
   type GuestSummary,
 } from "@/packages/pms/lib/guests.functions";
 
-export type PickedReservationGuest = GuestSummary & { restrictionReason?: string | null };
+export type PickedReservationGuest = GuestSummary;
 
 export function toPickedGuest(guest: GuestProfile | GuestSummary): PickedReservationGuest {
-  const picked: PickedReservationGuest = { ...guest };
-  if ("restrictionReason" in guest && guest.restrictionReason != null) {
-    picked.restrictionReason = guest.restrictionReason;
-  }
-  return picked;
+  return { ...guest };
 }
 
 function formatLastStay(value: string | null | undefined): string {
@@ -186,6 +179,10 @@ function useGuestPicker({
   }
 
   function selectListedGuest(row: GuestSummary) {
+    if (row.guestStatus !== "active") {
+      toast.error("This guest profile is inactive. Reactivate it before booking.");
+      return;
+    }
     onGuestChange(toPickedGuest(row));
     clearSearch();
   }
@@ -193,9 +190,17 @@ function useGuestPicker({
   async function selectById(guestId: string) {
     try {
       const result = await fetchGuest({ data: { restaurantId, guestId } });
+      if (result.guest.guestStatus !== "active") {
+        toast.error("This guest profile is inactive. Reactivate it before booking.");
+        return;
+      }
       onGuestChange(toPickedGuest(result.guest));
     } catch {
       const match = rows.find((row) => row.id === guestId) ?? null;
+      if (match && match.guestStatus !== "active") {
+        toast.error("This guest profile is inactive. Reactivate it before booking.");
+        return;
+      }
       onGuestChange(match);
     }
     clearSearch();
@@ -284,14 +289,12 @@ export function CreateReservationGuest({
               <p className="flex flex-wrap items-center gap-2 font-medium">
                 {peekQuery.data.guest.fullName}
                 {peekQuery.data.guest.vipStatus ? <VipBadge /> : null}
-                <GuestRestrictionBadges guest={peekQuery.data.guest} />
               </p>
               <p className="text-muted-foreground">
                 {[peekQuery.data.guest.phone, peekQuery.data.guest.email]
                   .filter(Boolean)
                   .join(" · ") || "No contact details"}
               </p>
-              <GuestRestrictionWarn guest={peekQuery.data.guest} />
               {peekQuery.data.guest.nationality ? (
                 <p className="text-muted-foreground">
                   Nationality: {peekQuery.data.guest.nationality}
@@ -567,9 +570,6 @@ export function CreateReservationGuestSelected() {
             >
               Change Guest
             </Button>
-          </div>
-          <div className="mt-3">
-            <GuestRestrictionWarn guest={guest} />
           </div>
         </div>
       ) : (

@@ -55,6 +55,7 @@ import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatClockInZone } from "@/shared/lib/property-time";
 import { cn } from "@/shared/lib/utils";
+import type { FrontOfficeDeskAccess } from "@/packages/pms/lib/front-office-desk-access";
 
 type Mode = "arrivals" | "departures";
 type FoKind = "assign_room" | "check_in" | "check_out" | "no_show" | "extend_stay";
@@ -182,7 +183,7 @@ export function ArrivalsDeparturesWorkspace({
   search = "",
   timezone,
   currencyCode,
-  canManage,
+  foAccess,
   onOpenReservation,
 }: {
   restaurantId: string;
@@ -190,7 +191,7 @@ export function ArrivalsDeparturesWorkspace({
   search?: string;
   timezone: string;
   currencyCode: string;
-  canManage: boolean;
+  foAccess: FrontOfficeDeskAccess;
   onOpenReservation: (reservationId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -386,7 +387,7 @@ export function ArrivalsDeparturesWorkspace({
       row={selectedDeparture}
       timezone={timezone}
       currencyCode={currencyCode}
-      canManage={canManage}
+      foAccess={foAccess}
       onOpen={openStay}
       onCheckOut={(row) => setFoAction({ kind: "check_out", stay: stayFromDeparture(row) })}
       onExtend={(row) => setFoAction({ kind: "extend_stay", stay: stayFromDeparture(row) })}
@@ -586,13 +587,15 @@ export function ArrivalsDeparturesWorkspace({
             >
               Clear
             </Button>
-            <Button
-              size="sm"
-              className="rounded-full bg-[#C89933] text-xs font-bold text-[#251605] hover:bg-[#B98B2D]"
-              onClick={() => setBulkEtaOpen(true)}
-            >
-              Set expected arrival
-            </Button>
+            {foAccess.canStayEdit ? (
+              <Button
+                size="sm"
+                className="rounded-full bg-[#C89933] text-xs font-bold text-[#251605] hover:bg-[#B98B2D]"
+                onClick={() => setBulkEtaOpen(true)}
+              >
+                Set expected arrival
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -639,6 +642,7 @@ export function ArrivalsDeparturesWorkspace({
               selectedId={selectedId}
               selectedIds={selectedArrivalIds}
               timezone={timezone}
+              foAccess={foAccess}
               onToggleSelect={(id, checked) =>
                 setSelectedArrivalIds((current) =>
                   checked
@@ -695,7 +699,7 @@ export function ArrivalsDeparturesWorkspace({
         open={arrivalWorkspaceOpen}
         timezone={timezone}
         currencyCode={currencyCode}
-        canManage={canManage}
+        canManage={foAccess.canStayEdit}
         onClose={() => setSelectedId(null)}
         onOpenReservation={openStay}
         onOpenHistory={openStay}
@@ -929,6 +933,7 @@ function ArrivalsTable({
   selectedId,
   selectedIds,
   timezone,
+  foAccess,
   onToggleSelect,
   onSelect,
   onAssign,
@@ -938,6 +943,7 @@ function ArrivalsTable({
   selectedId: string | null;
   selectedIds: string[];
   timezone: string;
+  foAccess: FrontOfficeDeskAccess;
   onToggleSelect: (id: string, checked: boolean) => void;
   onSelect: (row: ArrivalRow) => void;
   onAssign: (row: ArrivalRow) => void;
@@ -1012,7 +1018,7 @@ function ArrivalsTable({
               </td>
               <td className="px-3 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
                 <div className="flex justify-end gap-1.5">
-                  {row.hints.canCheckIn ? (
+                  {foAccess.canCheckIn && row.hints.canCheckIn ? (
                     <Button
                       size="sm"
                       className="rounded-full bg-[#C89933] text-xs font-bold text-[#251605] hover:bg-[#B98B2D]"
@@ -1020,7 +1026,7 @@ function ArrivalsTable({
                     >
                       Check in
                     </Button>
-                  ) : row.hints.canAssignRoom ? (
+                  ) : foAccess.canAssignRoom && row.hints.canAssignRoom ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1173,7 +1179,7 @@ function DepartureQuickView({
   row,
   timezone,
   currencyCode,
-  canManage,
+  foAccess,
   onOpen,
   onCheckOut,
   onExtend,
@@ -1182,7 +1188,7 @@ function DepartureQuickView({
   row: DepartureRow | null;
   timezone: string;
   currencyCode: string;
-  canManage: boolean;
+  foAccess: FrontOfficeDeskAccess;
   onOpen: (id: string) => void;
   onCheckOut: (row: DepartureRow) => void;
   onExtend: (row: DepartureRow) => void;
@@ -1244,7 +1250,7 @@ function DepartureQuickView({
             Open Reservation
           </Button>
         ) : null}
-        {canManage && row.hints.canCheckOut ? (
+        {foAccess.canCheckOut && row.hints.canCheckOut ? (
           <Button
             size="sm"
             variant="outline"
@@ -1254,7 +1260,7 @@ function DepartureQuickView({
             Check out
           </Button>
         ) : null}
-        {canManage && row.hints.canExtendStay ? (
+        {foAccess.canStayEdit && row.hints.canExtendStay ? (
           <Button
             size="sm"
             variant="outline"
@@ -1264,7 +1270,7 @@ function DepartureQuickView({
             Extend Stay
           </Button>
         ) : null}
-        {canManage && row.hints.canGrantLateCheckout ? (
+        {foAccess.canStayEdit && row.hints.canGrantLateCheckout ? (
           <Button
             size="sm"
             variant="outline"

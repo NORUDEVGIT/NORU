@@ -742,7 +742,9 @@ function TenderReceiptPropertyHeader({ receipt }: { receipt: TenderReceipt }) {
         {legalAddress && legalAddress !== brandAddress ? <p>{legalAddress}</p> : null}
         {property?.email ? <p>{property.email}</p> : null}
         {property?.tinNumber ? <p>TIN: {property.tinNumber}</p> : null}
-        {!property?.tinNumber && property?.vatNumber ? <p>VAT: {property.vatNumber}</p> : null}
+        {property?.vatRegistered !== false && property?.vatNumber ? (
+          <p>VAT: {property.vatNumber}</p>
+        ) : null}
       </div>
     </div>
   );

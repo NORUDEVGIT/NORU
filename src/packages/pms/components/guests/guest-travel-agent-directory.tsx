@@ -42,6 +42,7 @@ import {
   displayProfileNumber,
   listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
+import { guestAccountAccess } from "@/packages/pms/lib/guest-account-access";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
@@ -155,19 +156,25 @@ export function GuestTravelAgentDirectory({
   }, [debouncedSearch, status, agencyType, country, pageSize]);
 
   const permissions = usePmsPermissions(restaurantId);
-  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+  const accountAccess = guestAccountAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
+  });
+  const canPrintExport =
+    !permissions.isLoading &&
+    (permissions.isOwner || permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_PRINT));
 
   const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     retry: false,
   });
 
   const summaryQuery = useQuery({
     queryKey: ["travel-agent-workspace-summary", restaurantId],
     queryFn: () => fetchSummary({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     staleTime: 60_000,
   });
 
@@ -196,7 +203,7 @@ export function GuestTravelAgentDirectory({
           ...(country.trim() ? { country: country.trim() } : {}),
         },
       }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     retry: false,
   });
 
@@ -216,6 +223,7 @@ export function GuestTravelAgentDirectory({
   }
 
   function runExport() {
+    if (!canPrintExport) return;
     const rows = selected.length > 0 ? accounts.filter((row) => selected.includes(row.id)) : accounts;
     const header = [
       "Profile No.",
@@ -277,7 +285,7 @@ export function GuestTravelAgentDirectory({
     return <p className="text-sm text-[#756A5B]">Loading travel agencies…</p>;
   }
 
-  if (!canManage) {
+  if (!accountAccess.canView) {
     return (
       <div className="rounded-2xl border border-[#DDD4C5] bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-bold text-[#251605]">Travel Agencies</h2>
@@ -292,7 +300,8 @@ export function GuestTravelAgentDirectory({
   const accounts = accountListItems(pageData);
   const total = pageData && !Array.isArray(pageData) ? pageData.total : accounts.length;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const canCreate = listingCreateAllowed("travel_agent", configQuery.data);
+  const canCreate =
+    accountAccess.canCreate && listingCreateAllowed("travel-agent", configQuery.data);
 
   const agencyIdsWithActivePlans = new Set(summaryQuery.data?.agencyIdsWithActivePlans ?? []);
   const agencyFilterCount =
@@ -373,25 +382,27 @@ export function GuestTravelAgentDirectory({
         <>
           <GuestProfileShellSlot name="search">{agencySearchField}</GuestProfileShellSlot>
           <GuestProfileShellSlot name="filter">{agencyFilterMenu}</GuestProfileShellSlot>
-          <GuestProfileShellSlot name="export">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className={cn(SHELL_ICON_BUTTON, "relative")}
-              onClick={runExport}
-              aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              data-testid="travel-agent-export"
-            >
-              <Download className="size-4" />
-              {selected.length > 0 ? (
-                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                  {selected.length}
-                </span>
-              ) : null}
-            </Button>
-          </GuestProfileShellSlot>
+          {canPrintExport ? (
+            <GuestProfileShellSlot name="export">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(SHELL_ICON_BUTTON, "relative")}
+                onClick={runExport}
+                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                data-testid="travel-agent-export"
+              >
+                <Download className="size-4" />
+                {selected.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
+                    {selected.length}
+                  </span>
+                ) : null}
+              </Button>
+            </GuestProfileShellSlot>
+          ) : null}
         </>
       ) : null}
       {embedded ? null : (
@@ -667,10 +678,12 @@ export function GuestTravelAgentDirectory({
                               <CalendarPlus className="mr-2 size-3.5" />
                               New Booking
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setEditAgencyId(row.id)}>
-                              <Pencil className="mr-2 size-3.5" />
-                              Edit Agency
-                            </DropdownMenuItem>
+                            {accountAccess.canEdit ? (
+                              <DropdownMenuItem onClick={() => setEditAgencyId(row.id)}>
+                                <Pencil className="mr-2 size-3.5" />
+                                Edit Agency
+                              </DropdownMenuItem>
+                            ) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

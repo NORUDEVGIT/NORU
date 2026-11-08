@@ -169,10 +169,10 @@ describe("NORU PMS — Guest Profile: New Guest Wide Modal Modernization (6-Step
     assert.match(modalCode, /\+ Add Contact/);
   });
 
-  it("17. Restrictions and blacklist flags are preserved in Step 5", () => {
-    assert.match(modalCode, /restricted/);
-    assert.match(modalCode, /blacklisted/);
-    assert.match(modalCode, /restrictionReason/);
+  it("17. Step 5 records notes without restriction toggles", () => {
+    assert.match(modalCode, /Notes/);
+    assert.doesNotMatch(modalCode, /Restricted Profile/);
+    assert.doesNotMatch(modalCode, /Blacklisted/);
   });
 
   it("18. Duplicate detection is preserved with clear matching alert", () => {

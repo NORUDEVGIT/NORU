@@ -63,6 +63,7 @@ import {
   parseStarRating,
   parseStructureRules,
   parseUploadRefs,
+  mergeTradeLicenseRefs,
   vatCertificateRequired,
   hasVatCertificate,
   type Card1Draft,
@@ -363,6 +364,9 @@ function snapshotFromRow(
   if (coverImageUrl && (!locationExtras.propertyImages || locationExtras.propertyImages.length === 0)) {
     locationExtras.propertyImages = [coverImageUrl];
   }
+  const rawLegal = card1ColumnsAvailable ? parseUploadRefs(row?.legal_upload_refs) : [];
+  const rawTax = card1ColumnsAvailable ? parseUploadRefs(row?.tax_upload_refs) : [];
+  const { unifiedTaxRefs, unifiedLegalRefs } = mergeTradeLicenseRefs(rawTax, rawLegal);
   const draft = emptyCard1Draft({
     name: String(row?.name ?? ""),
     tradingName: card1ColumnsAvailable ? text(row, "trading_name") : "",
@@ -431,13 +435,13 @@ function snapshotFromRow(
     legalEntityName: card1ColumnsAvailable ? text(row, "legal_entity_name") : "",
     legalEntityType: card1ColumnsAvailable ? parseLegalEntityType(row?.legal_entity_type) : "",
     registrationNumber: card1ColumnsAvailable ? text(row, "registration_number") : "",
-    legalUploadRefs: card1ColumnsAvailable ? parseUploadRefs(row?.legal_upload_refs) : [],
+    legalUploadRefs: unifiedLegalRefs,
     legalExtras: parseLegalExtras(fidelityColumnsAvailable ? row?.legal_extras : null),
     vatRegistered: card1ColumnsAvailable ? row?.vat_registered === true : false,
     vatNumber: card1ColumnsAvailable ? text(row, "vat_number") : "",
     tinNumber: card1ColumnsAvailable ? text(row, "tin_number") : "",
     licenceNumber: card1ColumnsAvailable ? text(row, "licence_number") : "",
-    taxUploadRefs: card1ColumnsAvailable ? parseUploadRefs(row?.tax_upload_refs) : [],
+    taxUploadRefs: unifiedTaxRefs,
     structureRules: parseStructureRules(
       card1ColumnsAvailable ? row?.structure_rules_posture : null,
     ),

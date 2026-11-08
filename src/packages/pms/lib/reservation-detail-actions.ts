@@ -7,16 +7,36 @@ import {
 } from "@/packages/pms/lib/reservation-dates";
 import type {
   ReservationAction,
+  ReservationActionAccess,
   ReservationActionId,
   ReservationActionInput,
   ReservationActionResult,
 } from "@/packages/pms/lib/reservation-actions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import type { PmsAccessSnapshot } from "@/packages/pms/lib/pms-client-access";
 
 const DETAIL_ACTION_LABELS: Partial<Record<ReservationActionId, string>> = {
   confirm: "Confirm Reservation",
   copy: "Copy Stay",
   no_show: "Mark No-show",
 };
+
+export function reservationDetailActionAccess(access: PmsAccessSnapshot): ReservationActionAccess {
+  const can = (code: string) => access.isOwner || access.codes.includes(code);
+  return {
+    edit: can(PMS_PERMISSIONS.RESERVATION_EDIT),
+    confirm: can(PMS_PERMISSIONS.RESERVATION_EDIT),
+    assignRoom: can(PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT),
+    changeRoom: can(PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT),
+    checkIn: can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN),
+    checkOut: can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT),
+    cancel: can(PMS_PERMISSIONS.RESERVATION_CANCEL),
+    noShow: can(PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW),
+    reactivate: can(PMS_PERMISSIONS.RESERVATION_EDIT),
+    copy: can(PMS_PERMISSIONS.RESERVATION_CREATE),
+    print: can(PMS_PERMISSIONS.RESERVATION_PRINT),
+  };
+}
 
 export function reservationDetailActionInput(input: {
   status: ReservationStatus;
@@ -25,6 +45,8 @@ export function reservationDetailActionInput(input: {
   departureDate: string;
   roomId: string | null;
   role: string;
+  access?: ReservationActionAccess;
+  canOpenFolio?: boolean;
 }): ReservationActionInput {
   const desk = deskActionHints({ status: input.status, roomId: input.roomId });
   const pastUnarrived = isUnarrivedPastStay({
@@ -39,6 +61,7 @@ export function reservationDetailActionInput(input: {
     departureDate: input.departureDate,
     roomAssigned: input.roomId !== null,
     role: input.role,
+    access: input.access,
     actionHints: {
       canEdit: !pastUnarrived,
       canAssignRoom: desk.canAssignRoom && !pastUnarrived,
@@ -51,8 +74,8 @@ export function reservationDetailActionInput(input: {
       canReactivate:
         input.status === "cancelled" && isAllowedBookingStatusTransition(input.status, "pending"),
       canCopyStay: true,
-      canOpenFolio: true,
-      canPrint: true,
+      canOpenFolio: input.canOpenFolio ?? true,
+      canPrint: input.access?.print ?? true,
     },
   };
 }

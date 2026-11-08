@@ -61,7 +61,7 @@ export function CompetitorSetupView({
   restaurantId: string;
   access: RevenueAccess;
 }) {
-  const canManage = access.canViewCommercial;
+  const canManage = access.canConfigureRates;
   const queryClient = useQueryClient();
   const loadWorkspace = useServerFn(getCompetitorSetupWorkspace);
   const createCompetitorFn = useServerFn(createHotelCompetitor);

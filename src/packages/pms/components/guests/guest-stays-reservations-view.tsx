@@ -30,6 +30,7 @@ import {
   GUEST_BOOKINGS_PAGE_SIZE,
   GUEST_BOOKINGS_TITLE,
   RESERVATION_STATUSES,
+  canCreateGuestStayReservation,
   bookingRowActions,
   bookingTimelineLabel,
   filterGuestBookings,
@@ -171,7 +172,10 @@ export function GuestStaysReservationsView({
   const cancelledCount = allStays.filter((s) => s.status === "cancelled" || s.status === "no_show").length;
   const totalNights = allStays.reduce((sum, s) => sum + (s.nights || 0), 0);
 
+  const canPrintExport = profileActions?.canPrintExport ?? false;
+
   function exportCsv() {
+    if (!canPrintExport) return;
     const csv = guestBookingsCsv(filtered);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -291,27 +295,31 @@ export function GuestStaysReservationsView({
                 <X className="mr-1 size-3" /> Clear
               </Button>
             ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportCsv}
-              className="h-8 border-[#DDD4C5] bg-white text-xs text-[#756A5B] hover:bg-[#F7F4EE]"
-            >
-              <Download className="mr-1.5 size-3.5" /> Export CSV
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              className="h-8 bg-[#8A641A] text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#725215]"
-            >
-              <Link
-                to="/restaurant/pms/reservations"
-                search={{ create: "new", guestId }}
-                data-testid="guest-bookings-new"
+            {canPrintExport ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportCsv}
+                className="h-8 border-[#DDD4C5] bg-white text-xs text-[#756A5B] hover:bg-[#F7F4EE]"
               >
-                <CalendarPlus className="mr-1.5 size-3.5" /> + New Reservation
-              </Link>
-            </Button>
+                <Download className="mr-1.5 size-3.5" /> Export CSV
+              </Button>
+            ) : null}
+            {canCreateGuestStayReservation(access) ? (
+              <Button
+                asChild
+                size="sm"
+                className="h-8 bg-[#8A641A] text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#725215]"
+              >
+                <Link
+                  to="/restaurant/pms/reservations"
+                  search={{ create: "new", guestId }}
+                  data-testid="guest-bookings-new"
+                >
+                  <CalendarPlus className="mr-1.5 size-3.5" /> + New Reservation
+                </Link>
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -396,7 +404,13 @@ export function GuestStaysReservationsView({
                         className="px-3.5 py-2.5 text-right"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <GuestStayActions stay={stay} access={access} today={today} size="sm" />
+                        <GuestStayActions
+                          stay={stay}
+                          access={access}
+                          today={today}
+                          size="sm"
+                          presentation="menu"
+                        />
                       </td>
                     </tr>
                   );

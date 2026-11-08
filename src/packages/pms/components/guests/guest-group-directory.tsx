@@ -29,7 +29,6 @@ import {
 import {
   GUEST_ACCOUNT_STATUSES,
   accountListItems,
-  accountTypeToProfileType,
 } from "@/packages/pms/lib/guest-profile-wave4";
 import {
   LISTING_DEFAULT_PAGE_SIZE,
@@ -37,6 +36,7 @@ import {
   displayProfileNumber,
   listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
+import { guestAccountAccess } from "@/packages/pms/lib/guest-account-access";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
@@ -164,13 +164,19 @@ export function GuestGroupDirectory({
   }, [status, groupTypeId, pageSize]);
 
   const permissions = usePmsPermissions(restaurantId);
-  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+  const accountAccess = guestAccountAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
+  });
+  const canPrintExport =
+    !permissions.isLoading &&
+    (permissions.isOwner || permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_PRINT));
   const offset = page * pageSize;
 
   const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     staleTime: 60_000,
   });
 
@@ -200,7 +206,7 @@ export function GuestGroupDirectory({
           offset,
         },
       }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
   });
 
   // KPI Query
@@ -220,7 +226,7 @@ export function GuestGroupDirectory({
         cancelled: cancRes.total,
       };
     },
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     staleTime: 30_000,
   });
 
@@ -241,7 +247,8 @@ export function GuestGroupDirectory({
 
   const totalCount = accountsQuery.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
-  const canCreate = listingCreateAllowed(canManage, accountTypeToProfileType("group"));
+  const canCreate =
+    accountAccess.canCreate && listingCreateAllowed("group", configQuery.data);
 
   function handleClear() {
     setSearch("");
@@ -252,6 +259,7 @@ export function GuestGroupDirectory({
   }
 
   function runExport() {
+    if (!canPrintExport) return;
     const exportRows = selected.length > 0 ? rows.filter((row) => selected.includes(row.id)) : rows;
     const header = [
       "Profile No.",
@@ -293,7 +301,7 @@ export function GuestGroupDirectory({
   if (permissions.isLoading) {
     return <p className="text-sm text-muted-foreground">Checking access…</p>;
   }
-  if (!canManage) {
+  if (!accountAccess.canView) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6" data-testid="group-directory">
         <h2 className="font-display text-xl">Groups</h2>
@@ -360,25 +368,27 @@ export function GuestGroupDirectory({
         <>
           <GuestProfileShellSlot name="search">{groupSearchField}</GuestProfileShellSlot>
           <GuestProfileShellSlot name="filter">{groupFilterMenu}</GuestProfileShellSlot>
-          <GuestProfileShellSlot name="export">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className={cn(SHELL_ICON_BUTTON, "relative")}
-              onClick={runExport}
-              aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              data-testid="group-export"
-            >
-              <Download className="size-4" />
-              {selected.length > 0 ? (
-                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                  {selected.length}
-                </span>
-              ) : null}
-            </Button>
-          </GuestProfileShellSlot>
+          {canPrintExport ? (
+            <GuestProfileShellSlot name="export">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(SHELL_ICON_BUTTON, "relative")}
+                onClick={runExport}
+                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                data-testid="group-export"
+              >
+                <Download className="size-4" />
+                {selected.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
+                    {selected.length}
+                  </span>
+                ) : null}
+              </Button>
+            </GuestProfileShellSlot>
+          ) : null}
         </>
       ) : null}
       {embedded ? null : (
@@ -633,10 +643,12 @@ export function GuestGroupDirectory({
                               <CalendarPlus className="mr-2 size-3.5" />
                               Add Reservation
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setEditingGroupId(row.id)}>
-                              <Pencil className="mr-2 size-3.5" />
-                              Edit Group
-                            </DropdownMenuItem>
+                            {accountAccess.canEdit ? (
+                              <DropdownMenuItem onClick={() => setEditingGroupId(row.id)}>
+                                <Pencil className="mr-2 size-3.5" />
+                                Edit Group
+                              </DropdownMenuItem>
+                            ) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

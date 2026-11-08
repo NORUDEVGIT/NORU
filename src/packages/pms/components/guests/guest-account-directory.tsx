@@ -37,7 +37,7 @@ import {
   displayProfileNumber,
   listingCreateAllowed,
 } from "@/packages/pms/lib/guest-profile-listing";
-import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { guestAccountAccess } from "@/packages/pms/lib/guest-account-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
@@ -106,12 +106,15 @@ export function GuestAccountDirectory({
   }, [searchValue, status, agencyType, country]);
 
   const permissions = usePmsPermissions(restaurantId);
-  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+  const accountAccess = guestAccountAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
+  });
   const offset = page * pageSize;
   const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     retry: false,
   });
 
@@ -144,7 +147,7 @@ export function GuestAccountDirectory({
             : {}),
         },
       }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     retry: false,
   });
 
@@ -157,7 +160,7 @@ export function GuestAccountDirectory({
   }
 
   if (permissions.isLoading) return <p className="text-sm text-muted-foreground">Checking access…</p>;
-  if (!canManage) {
+  if (!accountAccess.canView) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
         <h2 className="font-display text-xl">{title} directory</h2>
@@ -176,7 +179,9 @@ export function GuestAccountDirectory({
     accountsQuery.isError &&
     accountsQuery.error instanceof Error &&
     accountsQuery.error.message === WAVE4_MIGRATION_UNAVAILABLE;
-  const canCreate = listingCreateAllowed(accountTypeToListingSection(accountType), configQuery.data);
+  const canCreate =
+    accountAccess.canCreate &&
+    listingCreateAllowed(accountTypeToListingSection(accountType), configQuery.data);
 
   return (
     <div className="space-y-6" data-testid="guest-account-directory">

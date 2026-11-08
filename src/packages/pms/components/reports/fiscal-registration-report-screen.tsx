@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -68,6 +68,8 @@ import {
   type ReportPageSize,
   type ReportsRouteSearch,
 } from "@/packages/pms/lib/reports-shell";
+import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 const FIELD =
   "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
@@ -90,6 +92,13 @@ export function FiscalRegistrationReportScreen({
   search: ReportsRouteSearch;
 }) {
   const definition = reportByCode("fiscal-registration");
+  const permissions = usePmsPermissions(restaurantId);
+  const fiscal = useMemo(
+    () => fiscalDeskAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
+  const fiscalViewReady =
+    !permissions.isLoading && !permissions.isError && fiscal.canView;
   const navigate = useNavigate();
   const from = search.from ?? businessDate;
   const to = search.to ?? businessDate;
@@ -171,7 +180,7 @@ export function FiscalRegistrationReportScreen({
           exportAll: false,
         }),
       }),
-    enabled: Boolean(search.from && search.to),
+    enabled: Boolean(search.from && search.to) && fiscalViewReady,
     retry: false,
   });
 
@@ -255,8 +264,18 @@ export function FiscalRegistrationReportScreen({
   if (!definition || definition.kind !== "row") return null;
 
   const failure = query.isError ? fiscalReportFailure(query.error) : null;
+  const clientDenied =
+    !permissions.isLoading && !permissions.isError && !fiscal.canView;
   const phase =
-    failure === "access" ? "no-access" : failure ? "error" : query.isPending ? "loading" : "ready";
+    clientDenied || failure === "access"
+      ? "no-access"
+      : permissions.isLoading
+        ? "loading"
+        : failure
+          ? "error"
+          : query.isPending
+            ? "loading"
+            : "ready";
   const result = query.data;
   const errorMessage = failure === "too-large" ? FISCAL_REGISTRATION_TOO_LARGE_MESSAGE : undefined;
 
@@ -270,7 +289,11 @@ export function FiscalRegistrationReportScreen({
       page={page}
       pageSize={pageSize}
       totalRows={result?.total ?? 0}
-      capability={{ canView: true, canPrint: true, canExport: true }}
+      capability={{
+        canView: fiscalViewReady,
+        canPrint: fiscalViewReady,
+        canExport: fiscalViewReady,
+      }}
       onPrint={() => void preparePrint()}
       onPdf={() => void preparePrint()}
       onExcel={() => void prepareExcel()}

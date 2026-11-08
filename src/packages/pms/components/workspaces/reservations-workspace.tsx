@@ -46,6 +46,7 @@ import type {
   ReservationActionCapabilities,
   ReservationContextActionId,
 } from "@/packages/pms/components/reservations/reservation-context-actions";
+import { frontOfficeDeskAccess } from "@/packages/pms/lib/front-office-desk-access";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { ReservationContextMenu } from "@/packages/pms/components/reservations/reservation-context-menu";
@@ -362,6 +363,10 @@ export function ReservationsWorkspace({
     PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
     PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
   ]);
+  const foDeskAccess = frontOfficeDeskAccess({
+    isOwner: access.isOwner,
+    codes: access.permissions,
+  });
 
   const [view, setView] = useState<OperationalReservationView>("all");
   const [search, setSearch] = useState("");
@@ -1183,7 +1188,7 @@ export function ReservationsWorkspace({
               search={workspaceSearch}
               timezone={membership.restaurant.timezone}
               currencyCode={membership.restaurant.currencyCode}
-              canManage={canManageActions}
+              foAccess={foDeskAccess}
               onOpenReservation={openReservation}
             />
           ) : workspaceSection === "exceptions" ? (

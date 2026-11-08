@@ -6,6 +6,12 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requirePmsActor } from "./pms-permissions.server";
+import {
+  requireGuestAccountActivateActor,
+  requireGuestAccountCreateActor,
+  requireGuestAccountEditActor,
+  requireGuestAccountViewActor,
+} from "./guest-master-guards.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -259,7 +265,7 @@ export const getGuestAccountActivityHub = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestActivityHub> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     const client = db(context.supabase);
     const account = await client
       .from("guest_account_masters")
@@ -360,7 +366,7 @@ export const recordGuestAccountCommunication = createServerFn({ method: "POST" }
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requireGuestAccountEditActor(context as never, data.restaurantId);
     const client = db(context.supabase);
     const account = await client
       .from("guest_account_masters")
@@ -441,7 +447,7 @@ export const sendGuestAccountMessage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requireGuestAccountEditActor(context as never, data.restaurantId);
     const channel = await loadSendChannel(data.restaurantId);
     if (!channel) throw new Error("No send channel is configured.");
     const client = db(context.supabase);
@@ -512,7 +518,7 @@ export const listGuestAccountPrivacyAudit = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestPrivacyAuditEntry[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     const history = await db(context.supabase)
       .from("guest_account_history")
       .select("id, event_type, notes, actor_membership_id, created_at")
@@ -1024,6 +1030,8 @@ export const unmergeGuests = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE);
+    throw new Error("Guest profile merge is not available for this property.");
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE);
     const assessment = await assessUnmerge(data.restaurantId, data.survivorId, data.retiredId);
     if (assessment.status === "blocked") {

@@ -31,6 +31,8 @@ import {
 } from "@/packages/pms/lib/cashiering-guest-allocation";
 import { getGuestInvoiceSettlement } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
 import { getGuestInvoiceFiscal } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -103,6 +105,11 @@ export function GuestInvoiceModal({
     }
   }, [open, initialTab]);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const permissions = usePmsPermissions(restaurantId);
+  const fiscal = useMemo(
+    () => fiscalDeskAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
   const queryClient = useQueryClient();
   const loadSettlement = useServerFn(getGuestInvoiceSettlement);
   const loadFiscal = useServerFn(getGuestInvoiceFiscal);
@@ -327,7 +334,7 @@ export function GuestInvoiceModal({
             registered={fiscalRegistered}
             canReceive={workspace.canOperate}
             canAllocate={workspace.canAllocateInvoices}
-            canFiscalRegister={workspace.canManage}
+            canFiscalRegister={fiscal.canRegister}
             money={money}
             onReceive={() => setReceiveOpen(true)}
             onAllocate={() => onAllocate?.(invoice.id)}
@@ -423,8 +430,8 @@ export function GuestInvoiceModal({
               <GuestInvoiceFiscalSection
                 restaurantId={restaurantId}
                 invoiceId={invoice.id}
-                canRegister={workspace.canManage}
-                canInspect={workspace.canManage}
+                canRegister={fiscal.canRegister}
+                canInspect={fiscal.canInspect}
                 money={money}
               />
             </div>
@@ -440,7 +447,6 @@ export function GuestInvoiceModal({
                 money={money}
                 dateTime={dateTime}
                 canAllocate={workspace.canAllocateInvoices && availableUnallocated > 0.009}
-                canFiscalRegister={workspace.canManage}
                 onAllocate={onAllocate}
               />
             </div>
@@ -461,7 +467,6 @@ export function GuestInvoiceModal({
               <CreditNoteSection
                 restaurantId={restaurantId}
                 guestInvoiceId={invoice.id}
-                canManage={workspace.canManage}
                 money={money}
                 dateTime={dateTime}
                 onIssued={onChanged}
@@ -483,7 +488,6 @@ export function GuestInvoiceModal({
               <DebitNoteSection
                 restaurantId={restaurantId}
                 guestInvoiceId={invoice.id}
-                canManage={workspace.canManage}
                 money={money}
                 dateTime={dateTime}
                 onIssued={onChanged}

@@ -104,7 +104,7 @@ export const GUEST_DETAIL_VIEW_DEFINITIONS: readonly GuestDetailViewDefinition[]
     label: "Privacy & Administration",
     group: "more",
     legacyCard: "admin-privacy",
-    description: "Consent flags, profile export, anonymisation and profile administration.",
+    description: "Consent preferences and privacy audit history.",
   },
   {
     id: "activity",

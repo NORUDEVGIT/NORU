@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { methodLabel } from "@/packages/pms/components/cashiering/cashiering-desk-shared";
+import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { GuestSalesReceiptSection } from "@/packages/pms/components/cashiering/guest-sales-receipt-section";
 import {
   applyGuestDepositInvoiceAllocations,
@@ -406,7 +408,6 @@ export function GuestInvoiceSettlementDetail({
   money,
   dateTime,
   canAllocate = false,
-  canFiscalRegister = false,
   onAllocate,
 }: {
   restaurantId: string;
@@ -416,9 +417,13 @@ export function GuestInvoiceSettlementDetail({
   money: Money;
   dateTime: DateTime;
   canAllocate?: boolean | undefined;
-  canFiscalRegister?: boolean | undefined;
   onAllocate?: ((invoiceId: string) => void) | undefined;
 }) {
+  const permissions = usePmsPermissions(restaurantId);
+  const fiscal = useMemo(
+    () => fiscalDeskAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
   const fetchSettlement = useServerFn(getGuestInvoiceSettlement);
   const query = useQuery({
     queryKey: ["guest-invoice-settlement", restaurantId, folioId, invoiceId],
@@ -569,8 +574,8 @@ export function GuestInvoiceSettlementDetail({
       <GuestSalesReceiptSection
         restaurantId={restaurantId}
         invoiceId={invoiceId}
-        canRegister={canFiscalRegister}
-        canInspect={canFiscalRegister}
+        canRegister={fiscal.canRegister}
+        canInspect={fiscal.canInspect}
         canAllocate={canAllocate}
         money={money}
       />

@@ -15,7 +15,6 @@ import {
   VipBadge,
 } from "@/packages/pms/components/guests/guest-bits";
 import { GuestConsentPanel } from "@/packages/pms/components/guests/guest-consent-panel";
-import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { GuestPreferencesCard } from "@/packages/pms/components/guests/guest-preferences-card";
 import { MaskedIdNumber } from "@/packages/pms/components/guests/guest-id-mask";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
@@ -50,6 +49,7 @@ import {
   guestRestrictionActive,
 } from "@/packages/pms/lib/guest-profile-individual";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { pmsPropertyOwnerRole } from "@/packages/pms/lib/pms-client-access";
 import { useRestaurantTime } from "@/core/state/property-format";
 
 const EVENT_LABEL: Record<string, string> = {
@@ -116,8 +116,6 @@ export function GuestDetailWorkspace({
   const [editOpen, setEditOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
-  const [mergeOpen, setMergeOpen] = useState(false);
-  const [mergeRetiredId, setMergeRetiredId] = useState<string | undefined>(undefined);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [liftOpen, setLiftOpen] = useState(false);
   const [liftReason, setLiftReason] = useState("");
@@ -127,7 +125,11 @@ export function GuestDetailWorkspace({
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const ownerBypass =
+    pmsPropertyOwnerRole(membership.role) || Boolean(accessQuery.data?.isOwner);
+  const canManage = ownerBypass || (accessQuery.data?.canManage ?? false);
+  const canEdit = ownerBypass || (accessQuery.data?.canEdit ?? false);
+  const canActivate = ownerBypass || (accessQuery.data?.canActivate ?? false);
 
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, guestId],
@@ -185,15 +187,25 @@ export function GuestDetailWorkspace({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (accessQuery.isLoading || guestQuery.isLoading) {
+  if ((accessQuery.isLoading || guestQuery.isLoading) && !ownerBypass) {
     return <p className="text-sm text-muted-foreground">Loading guest…</p>;
+  }
+  if (accessQuery.isError && !ownerBypass) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <h1 className="font-display text-2xl">Guest Profile</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Guest access could not be loaded. Refresh the page and try again.
+        </p>
+      </div>
+    );
   }
   if (!canManage) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">Front Office</h1>
+        <h1 className="font-display text-2xl">Guest Profile</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          You don't have permission to open this guest profile.
+          You don&apos;t have permission to open this guest profile.
         </p>
       </div>
     );
@@ -236,28 +248,19 @@ export function GuestDetailWorkspace({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil className="size-4 sm:mr-2" />
-              <span className="hidden sm:inline">Edit</span>
-            </Button>
+            {canEdit ? (
+              <Button variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil className="size-4 sm:mr-2" />
+                <span className="hidden sm:inline">Edit</span>
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={() => setNoteOpen(true)}>
               <StickyNote className="size-4 sm:mr-2" />
               <span className="hidden sm:inline">Add note</span>
             </Button>
-            {guest.mergedIntoGuestId ? null : (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setMergeRetiredId(undefined);
-                  setMergeOpen(true);
-                }}
-              >
-                Merge guests
-              </Button>
-            )}
             <Button
               variant="outline"
-              disabled={statusMutation.isPending}
+              disabled={statusMutation.isPending || !canActivate}
               onClick={() =>
                 statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active")
               }
@@ -474,22 +477,6 @@ export function GuestDetailWorkspace({
         onOpenChange={setEditOpen}
         guest={guest}
         onSaved={() => refresh()}
-        onMergeRequested={(duplicateId) => {
-          setMergeRetiredId(duplicateId);
-          setMergeOpen(true);
-        }}
-      />
-
-      <GuestMergeDialog
-        restaurantId={restaurantId}
-        open={mergeOpen}
-        onOpenChange={setMergeOpen}
-        initialSurvivorId={guest.id}
-        initialRetiredId={mergeRetiredId}
-        onMerged={() => {
-          refresh();
-          void navigate({ to: GUEST_PROFILE_DIRECTORY_PATH });
-        }}
       />
 
       <Dialog open={liftOpen} onOpenChange={setLiftOpen}>

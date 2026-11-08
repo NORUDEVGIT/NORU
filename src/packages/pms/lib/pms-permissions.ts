@@ -27,6 +27,7 @@ export const PMS_PERMISSIONS = {
   RESERVATION_GROUP_EDIT: "reservation.group.edit",
   RESERVATION_WAITLIST_EDIT: "reservation.waitlist.edit",
   RESERVATION_OVERBOOKING_AUTHORIZE: "reservation.overbooking.authorize",
+  RESERVATION_PRINT: "reservation.reservation.print",
 
   FRONT_OFFICE_VIEW: "front_office.desk.view",
   FRONT_OFFICE_CHECK_IN: "front_office.check_in.create",
@@ -41,6 +42,7 @@ export const PMS_PERMISSIONS = {
   GUEST_PROFILE_VIEW: "guest.profile.view",
   GUEST_PROFILE_CREATE: "guest.profile.create",
   GUEST_PROFILE_EDIT: "guest.profile.edit",
+  GUEST_PROFILE_PRINT: "guest.profile.print",
   GUEST_PROFILE_ACTIVATE: "guest.profile.activate",
   GUEST_MERGE_AUTHORIZE: "guest.merge.authorize",
   GUEST_RESTRICTION_AUTHORIZE: "guest.restriction.authorize",
@@ -141,7 +143,6 @@ export type PmsPermissionRisk = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export const RETIRED_PMS_PERMISSION_CODES = [
   "front_office.check_out.print",
-  "reservation.reservation.print",
   "reservation.quote.view",
   "reservation.status.edit",
   "guest.vip.edit",

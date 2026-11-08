@@ -111,7 +111,7 @@ describe("Guest listing honesty", () => {
     assert.match(listing, /TOUR_OPERATOR_UNAVAILABLE/);
     assert.doesNotMatch(listing, /accountType="tour_operator"|accountType="contact"/);
     assert.match(directory, /setGuestStatus/);
-    assert.match(directory, /GuestMergeDialog/);
+    assert.doesNotMatch(directory, /GuestMergeDialog/);
     assert.match(directory, /GuestFormDialog/);
     assert.doesNotMatch(directory, /\bdeleteGuest\b|hard delete/i);
     assert.match(config, /requireGuestManager/);

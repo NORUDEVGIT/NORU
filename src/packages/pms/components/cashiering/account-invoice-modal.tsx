@@ -37,6 +37,8 @@ import { getFinancialAccountInvoiceSettlement } from "@/packages/pms/lib/cashier
 import type { IssuedAccountInvoice } from "@/packages/pms/lib/cashiering-account-invoices";
 import type { CashieringDocumentProperty } from "@/packages/pms/lib/cashiering-document-property";
 import { getCompanyInvoiceFiscal } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -90,6 +92,11 @@ export function AccountInvoiceModal({
   onAllocate?: ((invoiceId: string) => void) | undefined;
   initialTab?: string | undefined;
 }) {
+  const permissions = usePmsPermissions(restaurantId);
+  const fiscal = useMemo(
+    () => fiscalDeskAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
   const [activeTab, setActiveTab] = useState<AccountInvoiceModalTabId>(() => {
     if (initialTab && ["preview", "fiscal", "settlement", "withholding", "credit-notes", "debit-notes"].includes(initialTab)) {
       return initialTab as AccountInvoiceModalTabId;
@@ -363,7 +370,7 @@ export function AccountInvoiceModal({
               registered={fiscalRegistered}
               canReceive={canOperate && accountOpen}
               canAllocate={canAllocate && accountOpen}
-              canFiscalRegister={canManage}
+              canFiscalRegister={fiscal.canRegister}
               money={money}
               onReceive={() => setReceiveOpen(true)}
               onAllocate={() => openAllocation()}
@@ -463,8 +470,8 @@ export function AccountInvoiceModal({
                 <CompanyInvoiceFiscalSection
                   restaurantId={restaurantId}
                   invoiceId={invoice.id}
-                  canRegister={canManage}
-                  canInspect={canManage}
+                  canRegister={fiscal.canRegister}
+                  canInspect={fiscal.canInspect}
                   money={money}
                 />
               </div>
@@ -629,8 +636,8 @@ export function AccountInvoiceModal({
                     <CompanySalesReceiptSection
                       restaurantId={restaurantId}
                       invoiceId={invoice.id}
-                      canRegister={canManage}
-                      canInspect={canManage}
+                      canRegister={fiscal.canRegister}
+                      canInspect={fiscal.canInspect}
                       canAllocate={canAllocate}
                       money={money}
                     />
@@ -665,7 +672,6 @@ export function AccountInvoiceModal({
                 <CreditNoteSection
                   restaurantId={restaurantId}
                   accountInvoiceId={invoice.id}
-                  canManage={canManage}
                   money={money}
                   dateTime={dateTime}
                   onIssued={() => {
@@ -691,7 +697,6 @@ export function AccountInvoiceModal({
                 <DebitNoteSection
                   restaurantId={restaurantId}
                   accountInvoiceId={invoice.id}
-                  canManage={canManage}
                   money={money}
                   dateTime={dateTime}
                   onIssued={() => {

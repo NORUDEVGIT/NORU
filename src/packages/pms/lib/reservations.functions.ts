@@ -30,6 +30,7 @@ import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { buildStayAmendmentResult, type StayAmendmentResult } from "./reservation-stay-amendment";
 import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
+import { assertGuestProfilesActiveForBooking } from "./guests.server";
 
 async function assertExplicitOverbookingAllowed(
   db: {
@@ -1814,6 +1815,12 @@ export const createReservation = createServerFn({ method: "POST" })
       .maybeSingle();
     assertArrivalAfterOpeningDate(arrival, (propRow as { opening_date?: string | null } | null)?.opening_date);
 
+      await assertGuestProfilesActiveForBooking(context.supabase, data.restaurantId, [
+        data.guestId,
+        ...(data.bookerGuestId ? [data.bookerGuestId] : []),
+        ...(data.roomGuestAssignments?.map((assignment) => assignment.guestId) ?? []),
+      ]);
+
       const { data: roomType, error: occupancyError } = await context.supabase
         .from("room_types")
         .select("max_occupancy")
@@ -2618,6 +2625,10 @@ export const amendReservation = createServerFn({ method: "POST" })
         .maybeSingle();
       if (readError) throw new Error(readError.message);
       if (!existing) throw new Error("Reservation not found for this property.");
+
+      if (data.guestId !== existing.guest_id) {
+        await assertGuestProfilesActiveForBooking(context.supabase, data.restaurantId, [data.guestId]);
+      }
 
       const stayRow = existing as {
         status?: string;

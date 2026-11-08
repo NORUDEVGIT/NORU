@@ -27,6 +27,8 @@ import {
   parseLegalExtras,
   vatCertificateRequired,
   hasVatCertificate,
+  validateTinFormat,
+  mergeTradeLicenseRefs,
 } from "./pms-property-setup-card1";
 import {
   isValidLatitude,
@@ -864,6 +866,14 @@ describe("Property Configuration Corrections (Card 1 Step 1)", () => {
       new URL("./pms-property-setup-card1.functions.ts", import.meta.url),
       "utf8",
     );
+    const letterheadFile = readFileSync(
+      new URL("../components/cashiering/cashiering-document-letterhead.tsx", import.meta.url),
+      "utf8",
+    );
+    const folioDialogsFile = readFileSync(
+      new URL("../components/cashiering/folio-dialogs.tsx", import.meta.url),
+      "utf8",
+    );
 
     it("removes redundant Ownership Type from the Step 4 UI while preserving Legal Entity Type", () => {
       // Ownership Type field is absent from Step 4 UI
@@ -876,10 +886,10 @@ describe("Property Configuration Corrections (Card 1 Step 1)", () => {
       assert.match(stepsFile, /LEGAL_ENTITY_TYPES/);
       assert.match(stepsFile, /LEGAL_ENTITY_TYPE_LABELS/);
 
-      // Registered Company Name, Legal entity name, Incorporation date, and Registration number remain
+      // Registered Company Name, Legal entity name, and Registration number remain
       assert.match(stepsFile, /id="card1-legal-name"/);
       assert.match(stepsFile, /id="card1-legal-entity"/);
-      assert.match(stepsFile, /id="card1-incorp"/);
+      assert.doesNotMatch(stepsFile, /id="card1-incorp"/);
       assert.match(stepsFile, /id="card1-reg"/);
     });
 
@@ -992,6 +1002,99 @@ describe("Property Configuration Corrections (Card 1 Step 1)", () => {
       assert.match(fnFile, /vatCertificateRequired\(draft\.vatRegistered\)/);
       assert.match(fnFile, /throw new Error\("VAT number is required while VAT Registered is On\."\)/);
       assert.match(fnFile, /throw new Error\("VAT certificate is required while VAT Registered is On\."\)/);
+    });
+
+    it("consolidates Step 4 into one unified Legal & Tax Information panel with three logical groups", () => {
+      // Single main panel
+      assert.match(stepsFile, /<Panel title="Legal & Tax Information"/);
+      assert.doesNotMatch(stepsFile, /<Panel title="Legal Identity"/);
+      assert.doesNotMatch(stepsFile, /<Panel title="Tax & Documents"/);
+
+      // Three visual group headings
+      assert.match(stepsFile, /Legal Business Information/);
+      assert.match(stepsFile, /Tax & Licensing/);
+      assert.match(stepsFile, /Legal Documents/);
+    });
+
+    it("displays Operating Entity Name as optional with distinct helper text", () => {
+      assert.match(stepsFile, /id="card1-legal-entity"/);
+      assert.match(stepsFile, /label="Operating Entity Name"/);
+      assert.match(stepsFile, /Only enter this if the entity operating the hotel differs from the registered company/);
+    });
+
+    it("presents one clear Private Limited Company option and handles plc/private_limited safely", () => {
+      assert.match(stepsFile, /Private Limited Company \(PLC\)/);
+      // Handles both private_limited and plc values in select item options
+      assert.match(stepsFile, /draft\.legalEntityType === "private_limited"/);
+      assert.match(stepsFile, /<SelectItem value="plc">Private Limited Company \(PLC\)<\/SelectItem>/);
+    });
+
+    it("removes Date of Incorporation and Certificate of Incorporation from UI while preserving database compatibility", () => {
+      // Date of Incorporation is absent from Step 4 UI
+      assert.doesNotMatch(stepsFile, /id="card1-incorp"/);
+      assert.doesNotMatch(stepsFile, /label="Date of Incorporation"/);
+
+      // Certificate of Incorporation upload is absent from Step 4 UI
+      assert.doesNotMatch(stepsFile, /kind="certificate_of_incorporation"/);
+      assert.doesNotMatch(stepsFile, /label="Certificate of Incorporation"/);
+    });
+
+    it("renders exactly one Trade License upload and merges legacy references without data loss", () => {
+      // Exactly one Trade License upload control in Step 4
+      const tradeLicenseMatches = stepsFile.match(/label="Trade License"/g);
+      assert.equal(tradeLicenseMatches?.length, 1);
+      assert.doesNotMatch(stepsFile, /label="Trade License Copy"/);
+
+      // mergeTradeLicenseRefs merges legacy Trade License documents safely
+      const merged = mergeTradeLicenseRefs(
+        [
+          { name: "tax_tl.pdf", kind: "trade_license", storagePath: "rest-1/compliance/tax-tl.pdf" },
+          { name: "tin.pdf", kind: "tin_certificate", storagePath: "rest-1/compliance/tin.pdf" },
+        ],
+        [
+          { name: "legal_tl.pdf", kind: "trade_license", storagePath: "rest-1/compliance/legal-tl.pdf" },
+          { name: "tax_tl.pdf", kind: "trade_license", storagePath: "rest-1/compliance/tax-tl.pdf" }, // duplicate by path
+          { name: "incorp.pdf", kind: "certificate_of_incorporation", storagePath: "rest-1/compliance/incorp.pdf" },
+        ],
+      );
+
+      // Tax refs has both distinct trade licenses + tin certificate
+      const tradeInTax = merged.unifiedTaxRefs.filter((r) => r.kind === "trade_license");
+      assert.equal(tradeInTax.length, 2);
+      assert.ok(tradeInTax.some((r) => r.storagePath === "rest-1/compliance/tax-tl.pdf"));
+      assert.ok(tradeInTax.some((r) => r.storagePath === "rest-1/compliance/legal-tl.pdf"));
+
+      // Legal refs preserves certificate of incorporation and trade licenses
+      assert.ok(merged.unifiedLegalRefs.some((r) => r.kind === "certificate_of_incorporation"));
+      assert.equal(merged.unifiedLegalRefs.filter((r) => r.kind === "trade_license").length, 2);
+    });
+
+    it("validates Ethiopian TIN format as 10 digits while keeping it optional during onboarding", () => {
+      // Optional when empty or blank
+      assert.equal(validateTinFormat(""), null);
+      assert.equal(validateTinFormat("   "), null);
+
+      // Valid 10-digit formats
+      assert.equal(validateTinFormat("1234567890"), null);
+      assert.equal(validateTinFormat("0012345678"), null); // leading zeroes preserved
+      assert.equal(validateTinFormat("123-456-7890"), null); // spaces / hyphens accepted and normalized
+
+      // Invalid formats rejected
+      assert.notEqual(validateTinFormat("12345"), null);
+      assert.notEqual(validateTinFormat("12345678901"), null);
+      assert.notEqual(validateTinFormat("ABC1234567"), null);
+    });
+
+    it("renders TIN and VAT independently on cashiering letterheads and folio dialogs without suppression", () => {
+      // Cashiering document letterhead does not suppress VAT when TIN exists
+      assert.doesNotMatch(letterheadFile, /!tin\s*&&\s*vat/);
+      assert.match(letterheadFile, /\{tin \? <p className="text-xs text-slate-600">TIN: \{tin\}<\/p> : null\}/);
+      assert.match(letterheadFile, /\{isVatApplicable \? <p className="text-xs text-slate-600">VAT: \{vat\}<\/p> : null\}/);
+
+      // Folio dialogs does not suppress VAT when TIN exists
+      assert.doesNotMatch(folioDialogsFile, /!property\?\.tinNumber\s*&&\s*property\?\.vatNumber/);
+      assert.match(folioDialogsFile, /\{property\?\.tinNumber \? <p>TIN: \{property\.tinNumber\}<\/p> : null\}/);
+      assert.match(folioDialogsFile, /property\?\.vatRegistered !== false && property\?\.vatNumber/);
     });
   });
 });
