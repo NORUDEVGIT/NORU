@@ -31,9 +31,9 @@ import { loadCard8ActivationEligibility } from "./pms-property-setup-card8-activ
 
 const idSchema = z.string().uuid();
 
-const CORE_COLUMNS = "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, tax_inclusive, tax_rate, service_enabled, service_rate, fo_cancel_fee_required, fo_cancel_fee_default, fo_noshow_fee_required, fo_noshow_fee_default";
+const CORE_COLUMNS = "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, fo_cancel_fee_required, fo_cancel_fee_default, fo_noshow_fee_required, fo_noshow_fee_default";
 
-const FOUNDATION_COLUMNS = `${CORE_COLUMNS}, property_code, legal_name, property_type, tax_identities, check_in_time, check_out_time, hotel_day_open, tax_name, cancel_window_hours, cancel_fee_basis, noshow_fee_basis, deposit_required, deposit_type, deposit_value, early_checkin_allowed, early_checkin_fee, early_checkin_needs_approval, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, pms_set1_live`;
+const FOUNDATION_COLUMNS = `${CORE_COLUMNS}, property_code, legal_name, property_type, tax_identities, check_in_time, check_out_time, hotel_day_open, cancel_window_hours, cancel_fee_basis, noshow_fee_basis, deposit_required, deposit_type, deposit_value, early_checkin_allowed, early_checkin_fee, early_checkin_needs_approval, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, pms_set1_live`;
 
 type RestaurantRow = Database["public"]["Tables"]["restaurants"]["Row"];
 type RestaurantUpdate = Database["public"]["Tables"]["restaurants"]["Update"];
@@ -69,13 +69,7 @@ function snapshotFromRow(row: RestaurantRow | null, foundationColumnsAvailable: 
     checkOutTime: foundationColumnsAvailable ? normalizeClock(String(row?.check_out_time ?? "")) : "",
     hotelDayOpen: foundationColumnsAvailable ? row?.hotel_day_open !== false : true,
   });
-  const taxes = emptyTaxes({
-    taxInclusive: row?.tax_inclusive === true,
-    taxName: foundationColumnsAvailable ? String(row?.tax_name ?? "") : "",
-    taxRate: Number(row?.tax_rate ?? 0) || 0,
-    serviceEnabled: row?.service_enabled === true,
-    serviceRate: Number(row?.service_rate ?? 0) || 0,
-  });
+  const taxes = emptyTaxes();
   const policies = emptyPolicies({
     cancelWindowHours: foundationColumnsAvailable && row?.cancel_window_hours != null ? String(row.cancel_window_hours) : "",
     cancelFeeBasis: foundationColumnsAvailable ? parseFeeBasis(row?.cancel_fee_basis) : "",
@@ -214,16 +208,6 @@ const opsSchema = z.object({
   hotelDayOpen: z.boolean(),
 });
 
-const taxesSchema = z.object({
-  restaurantId: idSchema,
-  section: z.literal("taxes"),
-  taxInclusive: z.boolean(),
-  taxName: z.string().trim().max(80).optional().nullable(),
-  taxRate: z.number().min(0).max(100),
-  serviceEnabled: z.boolean(),
-  serviceRate: z.number().min(0).max(100),
-});
-
 const policiesSchema = z.object({
   restaurantId: idSchema,
   section: z.literal("policies"),
@@ -245,7 +229,7 @@ const policiesSchema = z.object({
   noshowFeeDefault: z.number().min(0),
 });
 
-const saveSchema = z.discriminatedUnion("section", [identitySchema, opsSchema, taxesSchema, policiesSchema]);
+const saveSchema = z.discriminatedUnion("section", [identitySchema, opsSchema, policiesSchema]);
 
 function identityPatch(data: z.infer<typeof identitySchema>, foundationColumnsAvailable: boolean): RestaurantUpdate {
   const patch: RestaurantUpdate = {
@@ -275,17 +259,6 @@ function opsPatch(data: z.infer<typeof opsSchema>): RestaurantUpdate {
     check_out_time: normalizeClock(data.checkOutTime) || null,
     hotel_day_open: data.hotelDayOpen,
   };
-}
-
-function taxesPatch(data: z.infer<typeof taxesSchema>, foundationColumnsAvailable: boolean): RestaurantUpdate {
-  const patch: RestaurantUpdate = {
-    tax_inclusive: data.taxInclusive,
-    tax_rate: data.taxRate,
-    service_enabled: data.serviceEnabled,
-    service_rate: data.serviceEnabled ? data.serviceRate : data.serviceRate,
-  };
-  if (foundationColumnsAvailable) patch.tax_name = data.taxName?.trim() || null;
-  return patch;
 }
 
 function policiesPatch(data: z.infer<typeof policiesSchema>): RestaurantUpdate {
@@ -336,8 +309,6 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
         throw new Error("Check-in and check-out times are required.");
       }
       patch = opsPatch(data);
-    } else if (data.section === "taxes") {
-      patch = taxesPatch(data, loaded.foundationColumnsAvailable);
     } else {
       feeAfter = feesFromSave(data);
       const invalid = validateFoFeeDefaults(feeAfter);
@@ -353,15 +324,11 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
 
     const { error } = await supabaseAdmin.from("restaurants").update(patch).eq("id", data.restaurantId);
     if (error) {
-      if (isMissingColumnError(error) && data.section !== "identity" && data.section !== "taxes") {
+      if (isMissingColumnError(error) && data.section !== "identity") {
         throw new Error("Those foundation fields are unavailable until migration 0047 is applied.");
       }
       if (isMissingColumnError(error) && data.section === "identity") {
         const coreOnly = identityPatch(data, false);
-        const retry = await supabaseAdmin.from("restaurants").update(coreOnly).eq("id", data.restaurantId);
-        if (retry.error) throw new Error(retry.error.message);
-      } else if (isMissingColumnError(error) && data.section === "taxes") {
-        const coreOnly = taxesPatch(data, false);
         const retry = await supabaseAdmin.from("restaurants").update(coreOnly).eq("id", data.restaurantId);
         if (retry.error) throw new Error(retry.error.message);
       } else {

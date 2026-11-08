@@ -16,8 +16,8 @@ export const Route = createFileRoute("/admin/marketing/solutions")({
   component: () => (
     <MarketingAdminLayout>
       <MarketingPage
-        title="Solutions"
-        description="Property solutions. Upload a photo to replace the bundled image."
+        title="Property Solutions"
+        description="Hotels, restaurants, guest houses, and resorts. Upload a photo to replace the bundled image."
       >
         <SiteSolutionsForm />
       </MarketingPage>

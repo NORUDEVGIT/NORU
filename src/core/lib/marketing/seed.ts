@@ -1,10 +1,13 @@
 /**
- * Honest seed / last-good fallback matching the post-#7 landing.
+ * Honest seed / last-good fallback.
  *
- * Empty social-proof and promo collections on purpose — no fictional partners,
- * testimonials, case studies, blog posts, or banners.
+ * Legacy MarketingContent keys remain for older admin/data paths.
+ * `site` is the current NORU public-site contract, from currentNoruSiteContent().
+ * Empty top-level social-proof and promo collections on purpose — no fictional
+ * partners, testimonials, case studies, blog posts, or banners.
  */
 
+import { currentNoruSiteContent } from "./noru-site-defaults.ts";
 import type { MarketingContent } from "./types.ts";
 
 export const MARKETING_SEED: MarketingContent = {
@@ -65,8 +68,6 @@ export const MARKETING_SEED: MarketingContent = {
       placement: "utility",
       protectedRole: "register",
     },
-    { id: "account", label: "My Account", href: "/account", order: 90, visible: true, placement: "utility" },
-    { id: "scan", label: "Scan QR Code", href: "/scan", order: 100, visible: true, placement: "utility" },
   ],
   packagesSection: {
     eyebrow: "Commercial packages",
@@ -175,16 +176,6 @@ export const MARKETING_SEED: MarketingContent = {
           { id: "ft-rest-register", label: "Register Your Company", href: "/restaurant/register", order: 20 },
         ],
       },
-      {
-        id: "customers",
-        title: "Customers",
-        order: 30,
-        links: [
-          { id: "ft-scan", label: "Scan QR Code", href: "/scan", order: 10 },
-          { id: "ft-cust-signin", label: "Sign In", href: "/login", order: 20 },
-          { id: "ft-cust-register", label: "Create Account", href: "/register", order: 30 },
-        ],
-      },
     ],
     socials: [],
   },
@@ -196,4 +187,5 @@ export const MARKETING_SEED: MarketingContent = {
     primaryCta: { label: "Register Your Company", target: "/restaurant/register" },
     secondaryCta: { label: "Sign In", target: "/restaurant/login" },
   },
+  site: currentNoruSiteContent(),
 };

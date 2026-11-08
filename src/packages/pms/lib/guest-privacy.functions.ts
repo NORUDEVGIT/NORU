@@ -730,7 +730,6 @@ export const anonymiseGuest = createServerFn({ method: "POST" })
       id_document_number: null,
       id_document_expiry: null,
       notes: null,
-      linked_customer_user_id: null,
       anonymised_at: now,
       anonymised_by_membership_id: me.id,
     };

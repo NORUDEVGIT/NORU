@@ -28,7 +28,7 @@ import type { InventoryItem } from "@/lib/inventory.functions";
 import type { MovementType } from "@/lib/inventory.server";
 import { cn } from "@/shared/lib/utils";
 
-export type ItemAction = MovementType | "history" | "edit" | "recipes";
+export type ItemAction = MovementType | "history" | "edit";
 
 export function statusOf(item: InventoryItem): "out" | "low" | "in" {
   if (item.quantity <= 0) return "out";
@@ -221,11 +221,6 @@ function ItemActions({
         <DropdownMenuItem onSelect={() => onAction(item, "history")}>
           <History className="mr-2 size-4" /> View history
         </DropdownMenuItem>
-        {item.inventoryType === "ingredient" ? (
-          <DropdownMenuItem onSelect={() => onAction(item, "recipes")}>
-            Used in recipes
-          </DropdownMenuItem>
-        ) : null}
         {canManage ? (
           <DropdownMenuItem onSelect={() => onAction(item, "edit")}>
             <Pencil className="mr-2 size-4" /> Edit item

@@ -1,14 +1,11 @@
 /**
- * Legacy purchase order address kept working for bookmarks and existing links.
- * Back Office owns procurement (Phase 8G2B): the canonical address is
- * /restaurant/back-office/procurement/purchase-orders/:purchaseOrderId and both
- * render the same shared body.
+ * Shared purchase order detail. Canonical procurement address under Inventory.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
-import { PurchaseOrderPage } from "@/packages/back-office/components/purchase-order-page";
+import { PurchaseOrderPage } from "@/components/inventory/purchase-order-page";
 
 export const Route = createFileRoute("/restaurant/inventory/purchasing/$purchaseOrderId")({
   ssr: false,
@@ -39,7 +36,7 @@ function PurchaseOrderRoute() {
   const { purchaseOrderId } = Route.useParams();
   return (
     <RestaurantShell active="Inventory" module="procurement">
-      {(m) => <PurchaseOrderPage membership={m} purchaseOrderId={purchaseOrderId} back="inventory" />}
+      {(m) => <PurchaseOrderPage membership={m} purchaseOrderId={purchaseOrderId} />}
     </RestaurantShell>
   );
 }

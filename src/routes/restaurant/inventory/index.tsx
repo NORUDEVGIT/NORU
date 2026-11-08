@@ -1,12 +1,11 @@
 /**
- * Legacy address kept working for bookmarks. The canonical Restaurant
- * Management address renders the same shared workspace component.
+ * Shared Inventory / Procurement workspace.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { requireOperationalRestaurantRoute } from "@/core/lib/route-package-guard";
-import { InventoryPage } from "@/packages/restaurant-management/components/workspaces/inventory-workspace";
+import { InventoryPage } from "@/components/inventory/inventory-page";
 
 export const Route = createFileRoute("/restaurant/inventory/")({
   ssr: false,

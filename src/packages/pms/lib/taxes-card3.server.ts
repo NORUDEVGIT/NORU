@@ -1,6 +1,6 @@
 /**
  * Card 3 Phase 2 — Taxes & Fees (pure helpers).
- * SET1 / RM restaurants.tax_* and service_* stay the live till rate.
+ * Operational owner for PMS cashiering, reservations, invoicing and night audit.
  * Exemption rows here are configuration rules, not applied folio exemptions.
  */
 
@@ -57,7 +57,7 @@ export const CARD3_TAXES_AUDIT_SECTION = "card3-taxes";
 export const CARD3_TAXES_UNAVAILABLE =
   "Taxes & Fees are unavailable until their approved migration is applied.";
 export const CARD3_TAXES_SET1_COPY =
-  "The SET1 / restaurant till still uses the single property tax and service charge. This catalogue does not replace those columns.";
+  "Cashiering, reservations, invoicing and night audit use this catalogue (`pms_taxes`). Retired restaurant till columns are historical only.";
 
 export const TAX_CHARGE_TYPE_LABELS: Record<TaxChargeType, string> = {
   percentage: "Percentage",

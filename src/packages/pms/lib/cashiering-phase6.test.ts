@@ -63,4 +63,10 @@ describe("Cashiering Phase 6 hotel drawer", () => {
     assert.match(desk, /selectOwnOpenShift/);
     assert.doesNotMatch(desk, /expected_cash/);
   });
+
+  it("does not read RMS cashier_shifts or keep getShiftSummary", () => {
+    assert.doesNotMatch(poster, /\.from\(\s*["']cashier_shifts["']\s*\)/);
+    assert.doesNotMatch(poster, /export const getShiftSummary/);
+    assert.match(poster, /list_hotel_drawers/);
+  });
 });

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/admin/marketing/partners")({
     <MarketingAdminLayout>
       <MarketingPage
         title="Partners"
-        description="Homepage partner strip. An empty published list shows no placeholder tiles."
+        description="Our Partners strip. An empty published list shows no placeholder tiles."
       >
         <SitePartnersForm />
       </MarketingPage>

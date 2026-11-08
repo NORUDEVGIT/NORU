@@ -1,0 +1,18 @@
+export {
+  ANIMATION_BEHAVIOUR_DEFAULTS,
+  LEGACY_DOCUMENT_KEYS,
+  MARKETING_ADMIN_SECTIONS,
+  MARKETING_ADMIN_TAB_OWNERSHIP,
+  RETIRED_PRIMARY_TAB_LABELS,
+  animationFormValues,
+  ctaFormValues,
+  ensureMarketingSite,
+  footerFormValues,
+  landingInventory,
+  patchFooterContact,
+  patchSiteAnimation,
+  patchSiteCta,
+  previewMarketingAdmin,
+  primaryMarketingTabLabels,
+  snapshotLegacyKeys,
+} from "@/core/lib/marketing/admin-ia";

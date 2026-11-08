@@ -24,7 +24,7 @@ import type { FeeBasis, Set1DomainReport, Set1Readiness } from "./pms-set1-found
 import { evaluateAdminControls, type Set5ActivateInput } from "./pms-set5-depts-guestsvc.ts";
 
 export const POLISH1_ADMIN_HREF = "/restaurant/pms/administration";
-export const POLISH1_HR_HREF = "/restaurant/back-office/hr";
+export const POLISH1_HR_HREF = "/restaurant/staff";
 export const POLISH1_PAYMENT_METHODS_HREF = "/restaurant/settings#payment-methods";
 
 export const POLISH1_PAYMENTS_UNAVAILABLE = "Unavailable — payment methods are not applied yet.";

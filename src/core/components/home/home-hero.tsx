@@ -1,6 +1,5 @@
 import { type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
-import { QrCode, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { MockBars, MockKpi, MockOrderCard } from "@/core/components/home/ui-mock";
 import { MarketingHref } from "@/core/components/home/marketing-href";
@@ -44,19 +43,9 @@ export function HomeHero({ shortcuts }: { shortcuts?: ReactNode }) {
             ) : null}
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Button
-              asChild
-              variant="ghost"
-              className="h-11 rounded-full px-4 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-            >
-              <Link to="/scan">
-                <QrCode className="mr-2 size-5" aria-hidden />
-                Scan a table QR code
-              </Link>
-            </Button>
-            {shortcuts}
-          </div>
+          {shortcuts ? (
+            <div className="mt-6 flex flex-wrap items-center gap-3">{shortcuts}</div>
+          ) : null}
         </div>
 
         <div className="fade-up rounded-4xl border border-primary-foreground/15 bg-primary-foreground/5 p-4 sm:p-6">

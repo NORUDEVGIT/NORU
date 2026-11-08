@@ -1,39 +1,28 @@
 /**
- * Phase 8B1 — NORU four-package entitlement model (client-safe definitions).
+ * PRODUCT-RETIRE-14G — NORU package entitlement model (client-safe).
  *
- * A property either has an explicit entitlement row for a package or it has
- * none. During compatibility mode (Phase 8B1) an ABSENT row resolves as
- * ENABLED, so introducing this layer cannot lock any existing tenant out.
- * Only an explicit row can report a package as off — and nothing enforces
- * that yet; enforcement lands in a later phase.
+ * PMS is the only commercial package in the operational registry.
+ * Restaurant Management, Standalone POS and Back Office remain marketing
+ * products only. Staff module/RBAC checks are separate.
  *
- * NORU Core is not sellable and is always available to an active member.
+ * Missing-row compatibility (`packageCompatibilityDefault`) still applies to
+ * PMS. NORU Core is not sellable and stays available to an active member.
  */
 import type { ModuleKey } from "./module-access";
 
-export const PACKAGE_KEYS = [
-  "restaurant_management",
-  "pms",
-  "pos",
-  "back_office",
-] as const;
+export const PACKAGE_KEYS = ["pms"] as const;
 
 export type PackageKey = (typeof PACKAGE_KEYS)[number];
 
 export const PACKAGE_LABELS: Record<PackageKey, string> = {
-  restaurant_management: "Restaurant Management",
   pms: "PMS",
-  pos: "Standalone POS",
-  back_office: "Back Office",
 };
 
 /**
  * Transitional documentation only — nothing reads this for enforcement.
- * It records which package will eventually own each of today's module keys.
- * Some keys are shared today and appear under more than one package.
+ * Shared/Core modules are presented under PMS.
  */
 export const PACKAGE_MODULE_MAP: Record<PackageKey, ModuleKey[]> = {
-  restaurant_management: ["food_and_beverage", "pos"],
   pms: [
     "pms",
     "front_office",
@@ -42,16 +31,9 @@ export const PACKAGE_MODULE_MAP: Record<PackageKey, ModuleKey[]> = {
     "property_settings",
     "reports_analytics",
     "accounting_finance",
-  ],
-  // The current `pos` module key stays bound to the restaurant till; the
-  // Standalone POS package owns the `standalone_pos` module key (Phase 8H2).
-  pos: ["standalone_pos"],
-  back_office: [
-    "human_resources",
     "inventory",
     "procurement",
-    "accounting_finance",
-    "reports_analytics",
+    "human_resources",
   ],
 };
 
@@ -71,6 +53,14 @@ export interface PackageState {
   expiresAt: string | null;
 }
 
+/**
+ * Canonical missing-row policy. PMS keeps historical compatibility (absent =
+ * enabled).
+ */
+export function packageCompatibilityDefault(packageKey: PackageKey): boolean {
+  return packageKey === "pms";
+}
+
 /** An explicit row counts as active when enabled and not past its expiry. */
 export function isEntitlementActive(row: PackageEntitlementRow, now: Date = new Date()): boolean {
   if (!row.enabled) return false;
@@ -78,7 +68,7 @@ export function isEntitlementActive(row: PackageEntitlementRow, now: Date = new 
   return true;
 }
 
-/** Resolve all four packages from whatever rows exist for a property. */
+/** Resolve operational packages from whatever rows exist for a property. */
 export function resolvePackages(
   rows: PackageEntitlementRow[] = [],
   now: Date = new Date(),
@@ -96,8 +86,7 @@ export function resolvePackages(
         }
       : {
           packageKey: key,
-          // Compatibility mode: no row means the package stays available.
-          enabled: true,
+          enabled: packageCompatibilityDefault(key),
           source: "default_compatibility",
           expiresAt: null,
         };
@@ -106,10 +95,5 @@ export function resolvePackages(
 }
 
 export function packageFlags(states: Record<PackageKey, PackageState>): Record<PackageKey, boolean> {
-  return {
-    restaurant_management: states.restaurant_management.enabled,
-    pms: states.pms.enabled,
-    pos: states.pos.enabled,
-    back_office: states.back_office.enabled,
-  };
+  return { pms: states.pms.enabled };
 }

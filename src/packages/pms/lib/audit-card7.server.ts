@@ -24,7 +24,7 @@ export const CARD7_AUDIT_VIEWER_LIMITATIONS = [
   "No login, logout, failed-login, IP, device or session rows.",
   "Department is not stored on events, so that filter is not applied.",
   "Severity is derived from the category matrix, not stored on source rows.",
-  "folio_history is federated but often empty because recordFolioEvent is unused.",
+  "folio_history is federated; RMS cashier-shift attribution is historical snapshot only.",
   "Housekeeping history is operational and is not a Card 7 category.",
 ] as const;
 

@@ -17,7 +17,7 @@ import { listSuppliers } from "@/lib/suppliers.functions";
 import { listInventoryItems } from "@/lib/inventory.functions";
 import { PO_STATUS_LABEL, PO_STATUSES, type PoStatus } from "@/lib/purchasing.server";
 import { RANGE_PRESETS, type RangePreset } from "@/lib/inventory-reporting.server";
-import { useMoney, useRestaurantTime } from "@/packages/restaurant-management/state/restaurant-context";
+import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { cn } from "@/shared/lib/utils";
 
 export const PO_STATUS_STYLE: Record<PoStatus, string> = {
@@ -35,28 +35,7 @@ const PRESET_LABEL: Record<RangePreset, string> = {
   custom: "Custom",
 };
 
-/**
- * `detailRoute` picks which address the "View" links generate. Back Office is
- * the canonical owner of procurement (Phase 8G2B); the legacy inventory tab
- * keeps its own address so existing bookmarks stay stable.
- */
-function PoDetailLink({
-  detailRoute,
-  purchaseOrderId,
-}: {
-  detailRoute: "back-office" | "inventory";
-  purchaseOrderId: string;
-}) {
-  if (detailRoute === "back-office") {
-    return (
-      <Link
-        to="/restaurant/back-office/procurement/purchase-orders/$purchaseOrderId"
-        params={{ purchaseOrderId }}
-      >
-        View
-      </Link>
-    );
-  }
+function PoDetailLink({ purchaseOrderId }: { purchaseOrderId: string }) {
   return (
     <Link to="/restaurant/inventory/purchasing/$purchaseOrderId" params={{ purchaseOrderId }}>
       View
@@ -64,13 +43,7 @@ function PoDetailLink({
   );
 }
 
-export function PurchasingTab({
-  restaurantId,
-  detailRoute = "inventory",
-}: {
-  restaurantId: string;
-  detailRoute?: "back-office" | "inventory";
-}) {
+export function PurchasingTab({ restaurantId }: { restaurantId: string }) {
   const queryClient = useQueryClient();
   const money = useMoney();
   const { date } = useRestaurantTime();
@@ -250,7 +223,7 @@ export function PurchasingTab({
                     <td className="px-4 py-3 text-xs text-muted-foreground">{o.createdBy ?? "—"}</td>
                     <td className="px-4 py-3 text-right">
                       <Button asChild variant="outline" size="sm">
-                        <PoDetailLink detailRoute={detailRoute} purchaseOrderId={o.id} />
+                        <PoDetailLink purchaseOrderId={o.id} />
                       </Button>
                     </td>
                   </tr>
@@ -276,7 +249,7 @@ export function PurchasingTab({
                   <span>{o.lineCount} lines</span>
                   <span className="font-medium text-foreground tabular-nums">{money(o.total)}</span>
                   <Button asChild variant="outline" size="sm" className="ml-auto">
-                    <PoDetailLink detailRoute={detailRoute} purchaseOrderId={o.id} />
+                    <PoDetailLink purchaseOrderId={o.id} />
                   </Button>
                 </div>
               </li>

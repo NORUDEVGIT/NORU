@@ -15,21 +15,7 @@ import { ArrowUpRight, Boxes, Truck, Users, Wallet, BarChart3, type LucideIcon }
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import { MODULE_LABELS, type ModuleKey } from "@/core/lib/module-access";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
-import type { PackageKey } from "@/core/lib/package-entitlements";
-
-/**
- * Phase 8C — which package will own each shared service. A link is hidden
- * when that package is switched off for the property (presentation only).
- */
-const OWNING_PACKAGE: Partial<Record<ModuleKey, PackageKey>> = {
-  inventory: "back_office",
-  procurement: "back_office",
-  human_resources: "back_office",
-  accounting_finance: "back_office",
-  reports_analytics: "back_office",
-  food_and_beverage: "restaurant_management",
-  pos: "restaurant_management",
-};
+import { sharedCoreOwningPackage } from "@/core/lib/shared-core-access";
 
 type SharedTarget = {
   icon: LucideIcon;
@@ -94,7 +80,7 @@ export function SharedModuleLinks({
   const allowed = access.data?.modules ?? [];
   const items = modules.filter((key) => {
     if (!SHARED[key] || !allowed.includes(key)) return false;
-    const owner = OWNING_PACKAGE[key];
+    const owner = sharedCoreOwningPackage(key);
     return owner ? packages.has(owner) : true;
   });
   if (items.length === 0) return null;

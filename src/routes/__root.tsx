@@ -15,7 +15,6 @@ import { useEffect, type ReactNode } from "react";
 import "../styles.css";
 
 import { reportLovableError } from "@/core/lib/lovable-error-reporting";
-import { OrderProvider } from "@/packages/restaurant-management/state/order-store";
 import { AuthProvider } from "@/core/state/auth-store";
 import { Toaster } from "@/shared/components/ui/sonner";
 
@@ -98,12 +97,11 @@ export const Route = createRootRouteWithContext<{
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "NORU — Restaurant Ordering Platform",
+        title: "NORU",
       },
       {
         name: "description",
-        content:
-          "NORU connects customers and restaurants: scan, order to your table, and run service smoothly.",
+        content: "NORU property management for hotels.",
       },
       {
         name: "author",
@@ -111,7 +109,7 @@ export const Route = createRootRouteWithContext<{
       },
       {
         property: "og:title",
-        content: "NORU — Restaurant Ordering Platform",
+        content: "NORU",
       },
       {
         property: "og:site_name",
@@ -119,8 +117,7 @@ export const Route = createRootRouteWithContext<{
       },
       {
         property: "og:description",
-        content:
-          "NORU connects customers and restaurants: scan, order to your table, and run service smoothly.",
+        content: "NORU property management for hotels.",
       },
       {
         property: "og:type",
@@ -185,14 +182,12 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <OrderProvider>
           {/* Tooltips anywhere in the app (e.g. Reservations quick view) need this provider. */}
           <TooltipProvider delayDuration={200}>
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <Outlet />
             <Toaster position="top-center" />
           </TooltipProvider>
-        </OrderProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
