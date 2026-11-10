@@ -676,11 +676,11 @@ describe("Property Configuration Corrections (Card 1 Step 1)", () => {
       assert.doesNotMatch(stepsFile, /pms-card1-create-dept-btn/);
       assert.doesNotMatch(stepsFile, /pms-card1-open-create-dept/);
 
-      // Card 1 section integrates unsaved dialog and session draft restore banner
-      assert.match(sectionFile, /pms-card1-unsaved-dialog/);
-      assert.match(sectionFile, /pms-card1-keep-editing/);
-      assert.match(sectionFile, /pms-card1-discard-changes/);
-      assert.match(sectionFile, /pms-card1-save-draft-leave/);
+      // Card 1 holds typed fields in the session and restores them without a leave prompt
+      assert.doesNotMatch(sectionFile, /pms-card1-unsaved-dialog/);
+      assert.doesNotMatch(sectionFile, /useBlocker/);
+      assert.match(sectionFile, /saveCard1SessionDraft/);
+      assert.match(sectionFile, /loadCard1SessionDraft/);
       assert.match(sectionFile, /pms-card1-session-restored-banner/);
       assert.match(sectionFile, /pms-card1-discard-session-draft/);
     });

@@ -332,7 +332,7 @@ export function GuestInvoiceModal({
             expectedMode={fiscalMode}
             fiscalReason={fiscalReason}
             registered={fiscalRegistered}
-            canReceive={workspace.canOperate}
+            canReceive={folio.status === "open" && workspace.canOperate}
             canAllocate={workspace.canAllocateInvoices}
             canFiscalRegister={fiscal.canRegister}
             money={money}

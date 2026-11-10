@@ -1837,7 +1837,8 @@ export function SettlementTab({
             <SectionCard title="Closed folio">
               <p className="px-4 py-4 text-sm text-muted-foreground">
                 Closed{folio.closedAt ? ` ${dateTime(folio.closedAt)}` : ""}. New charges, payments,
-                refunds, transfers and normal corrections cannot be posted.
+                refunds, transfers and normal corrections cannot be posted. An existing payment or
+                deposit can still be allocated to an issued invoice.
               </p>
             </SectionCard>
           ) : null}
@@ -1860,7 +1861,7 @@ export function SettlementTab({
             money={money}
             dateTime={dateTime}
             canAllocate={workspace.canAllocateInvoices}
-            canReceive={workspace.canOperate}
+            canReceive={open && workspace.canOperate}
             onAllocate={onAllocateInvoice}
             onReceive={setReceiveInvoice}
             filter={invoiceFilter}
@@ -2502,6 +2503,7 @@ export function TransactionDetailDialog({
   onClose,
   onViewReceipt,
   canAllocate = false,
+  canReverse = false,
   onAllocatePayment,
   allocationNet = 0,
 }: {
@@ -2515,6 +2517,8 @@ export function TransactionDetailDialog({
   onClose: () => void;
   onViewReceipt?: (row: FolioTransactionRow) => void;
   canAllocate?: boolean;
+  /** Reversal stays off a closed folio. Allocation of money already posted stays on. */
+  canReverse?: boolean;
   onAllocatePayment?: (paymentId: string) => void;
   allocationNet?: number;
 }) {
@@ -2626,7 +2630,7 @@ export function TransactionDetailDialog({
                 money={money}
                 dateTime={dateTime}
                 canAllocate={canAllocate}
-                canReverse={canAllocate}
+                canReverse={canReverse}
                 onAllocate={() => onAllocatePayment?.(row.id)}
               />
             ) : null}

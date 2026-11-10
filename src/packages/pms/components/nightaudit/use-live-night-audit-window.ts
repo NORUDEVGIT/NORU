@@ -5,10 +5,10 @@ import {
   type NightAuditWindowState,
 } from "@/packages/pms/lib/night-audit-window";
 
-/** Server window config re-evaluated on a property-local clock so OPEN/CLOSED does not go stale. */
+/** Server window config re-evaluated on a property-local clock so Open/Closed does not go stale. */
 export function useLiveNightAuditWindow(
   base: NightAuditWindowState | null | undefined,
-  role: string,
+  canOverride: boolean,
 ) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -20,7 +20,8 @@ export function useLiveNightAuditWindow(
     start: base.start,
     end: base.end,
     timezone: base.timezone,
-    role,
+    configValid: base.configValid,
+    canOverride,
     now,
   });
 }

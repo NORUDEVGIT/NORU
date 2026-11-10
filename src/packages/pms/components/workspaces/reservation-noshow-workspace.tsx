@@ -107,11 +107,13 @@ export function ReservationNoShowWorkspace({
   reservationId,
   onBackToDesk,
   onOpenReservation,
+  finishLabel = "Go to Reservation Desk",
 }: {
   membership: RestaurantMembership;
   reservationId: string;
   onBackToDesk: () => void;
   onOpenReservation: (reservationId: string) => void;
+  finishLabel?: string;
 }) {
   const restaurantId = membership.restaurant.id;
   const queryClient = useQueryClient();
@@ -968,7 +970,7 @@ export function ReservationNoShowWorkspace({
               Back to Reservation
             </Button>
             <Button type="button" onClick={onBackToDesk}>
-              Go to Reservation Desk
+              {finishLabel}
               <ArrowRight className="size-3.5" />
             </Button>
           </>

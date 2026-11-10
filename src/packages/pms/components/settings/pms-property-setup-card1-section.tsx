@@ -1,20 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useBlocker } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/shared/components/ui/alert-dialog";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
 import type { Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
@@ -33,6 +22,7 @@ import {
   hasVatCertificate,
   loadCard1SessionDraft,
   nextCard1Step,
+  normalizeCard1StepId,
   previousCard1Step,
   saveCard1SessionDraft,
   card1StructureWarnings,
@@ -83,7 +73,13 @@ export function PmsPropertySetupCard1Section({
 }) {
   const queryClient = useQueryClient();
   const save = useServerFn(savePmsPropertySetupCard1);
-  const [step, setStep] = useState<Card1StepId>(initialStep);
+  const [step, setStep] = useState<Card1StepId>(() => {
+    const backup = loadCard1SessionDraft(restaurantId);
+    if (backup && JSON.stringify(backup.draft) !== JSON.stringify(snapshot.draft)) {
+      return normalizeCard1StepId(backup.activeStep) ?? initialStep;
+    }
+    return initialStep;
+  });
   const [draft, setDraft] = useState<Card1Draft>(() => {
     const backup = loadCard1SessionDraft(restaurantId);
     if (backup && JSON.stringify(backup.draft) !== JSON.stringify(snapshot.draft)) {
@@ -105,16 +101,7 @@ export function PmsPropertySetupCard1Section({
   const [propertyImagePreviews, setPropertyImagePreviews] = useState<Record<string, string>>(
     snapshot.propertyImagePreviews ?? {},
   );
-  const [pendingExitAction, setPendingExitAction] = useState<(() => void) | null>(null);
-  const [pendingExitOnSave, setPendingExitOnSave] = useState(false);
-
   const dirty = JSON.stringify(draft) !== JSON.stringify(snapshot.draft);
-
-  const blocker = useBlocker({
-    shouldBlockFn: () => dirty,
-    enableBeforeUnload: () => dirty,
-    withResolver: true,
-  });
 
   const lastRestaurantIdRef = useRef(restaurantId);
   useEffect(() => {
@@ -124,9 +111,11 @@ export function PmsPropertySetupCard1Section({
       const backup = loadCard1SessionDraft(restaurantId);
       if (backup && JSON.stringify(backup.draft) !== JSON.stringify(snapshot.draft)) {
         setDraft(backup.draft);
+        setStep(normalizeCard1StepId(backup.activeStep) ?? initialStep);
         setRestoredFromSession(true);
       } else {
         setDraft(snapshot.draft);
+        setStep(initialStep);
         setRestoredFromSession(false);
       }
       setLogoPreviewUrl(snapshot.logoPreviewUrl);
@@ -151,23 +140,16 @@ export function PmsPropertySetupCard1Section({
     snapshot.propertyImagePreviews,
     snapshot.departmentOptions,
     dirty,
+    initialStep,
   ]);
 
   useEffect(() => {
     if (dirty) {
       saveCard1SessionDraft(restaurantId, draft, step);
+      return;
     }
+    clearCard1SessionDraft(restaurantId);
   }, [dirty, restaurantId, draft, step]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [dirty]);
 
   const composedAddress = useMemo(() => composeFullAddress(draft), [draft]);
 
@@ -191,18 +173,6 @@ export function PmsPropertySetupCard1Section({
       clearCard1SessionDraft(restaurantId);
       setRestoredFromSession(false);
       toast.success(mode === "finish" ? "Property & Business saved." : "Draft saved.");
-      if (pendingExitOnSave) {
-        setPendingExitOnSave(false);
-        const exit = pendingExitAction;
-        setPendingExitAction(null);
-        if (blocker?.status === "blocked") {
-          blocker.proceed();
-        }
-        if (exit) {
-          exit();
-        }
-        return;
-      }
       if (mode === "continue") {
         const next = nextCard1Step(step);
         if (next) setStep(next);
@@ -221,7 +191,6 @@ export function PmsPropertySetupCard1Section({
       }
     },
     onError: (error: Error) => {
-      setPendingExitOnSave(false);
       toast.error(error.message);
     },
   });
@@ -263,42 +232,8 @@ export function PmsPropertySetupCard1Section({
       setStep(previous);
       return;
     }
-    if (dirty) {
-      setPendingExitAction(() => performExit);
-      return;
-    }
     performExit();
   }
-
-  function handleKeepEditing() {
-    if (blocker?.status === "blocked") {
-      blocker.reset();
-    }
-    setPendingExitAction(null);
-    setPendingExitOnSave(false);
-  }
-
-  function handleDiscardChanges() {
-    clearCard1SessionDraft(restaurantId);
-    setDraft(snapshot.draft);
-    setRestoredFromSession(false);
-    const exit = pendingExitAction;
-    setPendingExitAction(null);
-    setPendingExitOnSave(false);
-    if (blocker?.status === "blocked") {
-      blocker.proceed();
-    }
-    if (exit) {
-      exit();
-    }
-  }
-
-  function handleSaveDraftAndLeave() {
-    setPendingExitOnSave(true);
-    mutation.mutate("draft");
-  }
-
-  const showLeaveDialog = blocker?.status === "blocked" || pendingExitAction !== null;
 
   function saveMode(mode: "draft" | "continue" | "finish") {
     if (isShortDescriptionOverLimit(draft.shortDescription)) {
@@ -507,45 +442,6 @@ export function PmsPropertySetupCard1Section({
           {dirty ? <p className="sr-only">Unsaved Card 1 changes</p> : null}
         </PropertySetupWorkspaceShell>
       </div>
-
-      <AlertDialog
-        open={showLeaveDialog}
-        onOpenChange={(open) => {
-          if (!open) handleKeepEditing();
-        }}
-      >
-        <AlertDialogContent data-testid="pms-card1-unsaved-dialog">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved changes in Property Configuration. Do you want to save your draft, discard your changes, or keep editing?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-            <AlertDialogCancel
-              onClick={handleKeepEditing}
-              data-testid="pms-card1-keep-editing"
-            >
-              Keep Editing
-            </AlertDialogCancel>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDiscardChanges}
-              data-testid="pms-card1-discard-changes"
-            >
-              Discard Changes
-            </Button>
-            <AlertDialogAction
-              onClick={handleSaveDraftAndLeave}
-              disabled={mutation.isPending}
-              data-testid="pms-card1-save-draft-leave"
-            >
-              {mutation.isPending ? "Saving..." : "Save Draft"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </section>
   );
 }

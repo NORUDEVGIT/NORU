@@ -437,6 +437,17 @@ export async function loadFrontOfficeStay(
   return hydrated ?? null;
 }
 
+/** One stay for an existing Front Office screen. Reads only. */
+export const getFrontOfficeStay = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z.object({ restaurantId: idSchema, reservationId: idSchema, today: dateSchema }).parse(input),
+  )
+  .handler(async ({ data, context }): Promise<FrontOfficeStay | null> => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
+    return loadFrontOfficeStay(context.supabase, data);
+  });
+
 export const listArrivals = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>

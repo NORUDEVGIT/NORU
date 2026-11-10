@@ -21,6 +21,7 @@ import {
   guestPaymentAvailable,
 } from "./cashiering-guest-allocation.ts";
 import { folioLedgerExceptions, settlementIntegrityExceptions } from "./night-audit-settlement.ts";
+import { summarizeDayFinance, type DayFinance } from "./night-audit-day-finance.ts";
 
 export const NIGHT_AUDIT_FINANCIAL_DETAIL_ROLES = [
   "owner",
@@ -75,6 +76,8 @@ export type NightAuditFinancialIssue = {
   currency?: string;
   amount?: number;
   createdAt?: string;
+  /** fiscal_registrations.id when a row already exists. */
+  fiscalRegistrationId?: string;
 };
 
 export type NightAuditFinancialException = {
@@ -106,6 +109,11 @@ export type FinancialTransactionFact = {
   postedAt: string;
   referenceType: string | null;
   referenceId: string | null;
+  transactionType?: string;
+  category?: string | null;
+  paymentMethod?: string | null;
+  /** Posted inside the audit business date (property-local). */
+  onAuditDate?: boolean;
 };
 
 export type MissingFolioFact = {
@@ -203,11 +211,17 @@ export type TransferFact = {
   accountId: string | null;
 };
 
+/** Figures come from list_hotel_drawers (hotel_drawer_figures) and are used as stored. */
 export type DrawerFact = {
   id: string;
   cashier: string;
   shift: string;
   openedAt: string;
+  closedAt?: string | null;
+  opening?: number | null;
+  cashIn?: number | null;
+  cashOut?: number | null;
+  hotelCash?: number | null;
   expectedCash: number;
   closingCount: number | null;
   variance: number | null;
@@ -228,6 +242,8 @@ export type FiscalDocumentFact = {
   folioId?: string | null;
   accountId?: string | null;
   invoiceId?: string | null;
+  /** fiscal_registrations.id. Absent when the document was never sent. */
+  registrationId?: string | null;
 };
 
 export type TaxLineFact = {
@@ -240,6 +256,7 @@ export type NightAuditFinancialFacts = {
   businessDate: string;
   timezone: string;
   checkedAt: string;
+  currency?: string;
   folios: readonly GuestFolioFact[];
   transactions: readonly FinancialTransactionFact[];
   missingFolios: readonly MissingFolioFact[];
@@ -326,7 +343,12 @@ export type DrawerRow = {
   cashier: string;
   shift: string;
   openedAt: string;
+  closedAt: string | null;
   currency: string | null;
+  opening: number | null;
+  cashIn: number | null;
+  cashOut: number | null;
+  hotelCash: number | null;
   expectedCash: number | null;
   closingCount: number | null;
   variance: number | null;
@@ -392,6 +414,15 @@ export type NightAuditFinancialReconciliation = {
   taxSummary: TaxCurrencyRow[];
   occupancyFeeSeparated: false;
   occupancyFeeNote: string;
+  /** Postings dated on the audit business date. Null when the caller may not see money. */
+  dayFinance: DayFinance | null;
+  folioSummary: {
+    open: number;
+    zeroBalance: number;
+    outstanding: number;
+    missing: number;
+    integrity: number;
+  };
   issues: NightAuditFinancialIssue[];
 };
 
@@ -728,6 +759,19 @@ export function reconcileNightAuditFinancials(
     taxSummary: tax.rows,
     occupancyFeeSeparated: false,
     occupancyFeeNote: OCCUPANCY_FEE_NOTE,
+    dayFinance: summarizeDayFinance(
+      facts.transactions
+        .filter((txn) => txn.onAuditDate && txn.transactionType)
+        .map((txn) => ({
+          transactionType: txn.transactionType!,
+          category: txn.category ?? null,
+          amount: txn.amount,
+          paymentMethod: txn.paymentMethod ?? null,
+          referenceType: txn.referenceType,
+        })),
+      facts.currency ?? facts.folios[0]?.currency ?? "",
+    ),
+    folioSummary: folioCounts(facts, ledger.balances, issues),
     issues,
   };
 }
@@ -1128,6 +1172,29 @@ function transferProblems(
   return { issues, accountIds };
 }
 
+/** Step 5 counts. Integrity is every blocking folio or invoice finding; an open balance is not one. */
+function folioCounts(
+  facts: NightAuditFinancialFacts,
+  balances: ReadonlyMap<string, number>,
+  issues: readonly NightAuditFinancialIssue[],
+): NightAuditFinancialReconciliation["folioSummary"] {
+  const open = facts.folios.filter((folio) => folio.status === "open");
+  const outstanding = open.filter(
+    (folio) => Math.abs(balances.get(folio.id) ?? 0) >= GUEST_ALLOCATION_TOLERANCE,
+  ).length;
+  return {
+    open: open.length,
+    zeroBalance: open.length - outstanding,
+    outstanding,
+    missing: facts.missingFolios.length,
+    integrity: issues.filter(
+      (row) =>
+        row.severity === "blocking" &&
+        (row.category === "guest_folios" || row.category === "invoices"),
+    ).length,
+  };
+}
+
 function reconcileDrawers(facts: NightAuditFinancialFacts): {
   issues: NightAuditFinancialIssue[];
   rows: DrawerRow[];
@@ -1180,7 +1247,12 @@ function reconcileDrawers(facts: NightAuditFinancialFacts): {
       cashier: drawer.cashier,
       shift: drawer.shift,
       openedAt: drawer.openedAt,
+      closedAt: drawer.closedAt ?? null,
       currency: drawer.currency,
+      opening: drawer.opening ?? null,
+      cashIn: drawer.cashIn ?? null,
+      cashOut: drawer.cashOut ?? null,
+      hotelCash: drawer.hotelCash ?? null,
       expectedCash: drawer.expectedCash,
       closingCount: drawer.closingCount,
       variance: drawer.variance,
@@ -1311,6 +1383,7 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
         route: targetRoute,
         search: targetSearch,
         createdAt: facts.checkedAt,
+        ...(document.registrationId ? { fiscalRegistrationId: document.registrationId } : {}),
       });
       if (problem) issues.push(created);
       rows.push({
@@ -1439,6 +1512,7 @@ export function presentNightAuditFinancials(
     ...result,
     access: "summary",
     taxSummary: [],
+    dayFinance: null,
     guestFolios: result.guestFolios.map((row) => ({ ...row, balance: null, currency: null })),
     invoiceSettlement: result.invoiceSettlement.map((row) => ({
       ...row,
@@ -1466,6 +1540,10 @@ export function presentNightAuditFinancials(
     drawers: result.drawers.map((row) => ({
       ...row,
       currency: null,
+      opening: null,
+      cashIn: null,
+      cashOut: null,
+      hotelCash: null,
       expectedCash: null,
       closingCount: null,
       variance: null,

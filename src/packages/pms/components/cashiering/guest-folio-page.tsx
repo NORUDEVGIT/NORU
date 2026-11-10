@@ -1117,6 +1117,7 @@ function FolioWorkspaceBody({
         dateTime={dateTime}
         onClose={() => setDetailRow(null)}
         canAllocate={workspace.canAllocateInvoices}
+        canReverse={open && workspace.canAllocateInvoices}
         allocationNet={detailRow ? (workspace.paymentAllocationNets[detailRow.id] ?? 0) : 0}
         onAllocatePayment={(paymentId) => {
           setDetailRow(null);
@@ -1203,7 +1204,7 @@ function FolioWorkspaceBody({
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap gap-2">
-            {workspace.canOperate && (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
+            {open && workspace.canOperate && (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
               <Button
                 type="button"
                 disabled={issuedOutstanding == null}

@@ -23,6 +23,7 @@ import {
 } from "./night-audit-operational.ts";
 import { financialAllowsClose } from "./night-audit-financial.ts";
 import { nightAuditSearch } from "./night-audit-shell.ts";
+import { endOfDayStep } from "./night-audit-steps.ts";
 
 const DATE = "2026-10-21";
 const TOMORROW = "2026-10-22";
@@ -32,9 +33,9 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 const pure = read("./night-audit-operational.ts");
 const server = read("./night-audit-operational.server.ts");
 const functions = read("./nightaudit.functions.ts");
-const panel = read("../components/nightaudit/night-audit-operational-panel.tsx");
-const desk = read("../components/nightaudit/night-audit-desk.tsx");
-const closePanel = read("../components/nightaudit/na1-panels.tsx");
+const steps = read("../components/nightaudit/end-of-day-steps.tsx");
+const parts = read("../components/nightaudit/end-of-day-parts.tsx");
+const closeSummary = read("../components/nightaudit/night-audit-close-summary.tsx");
 const workspace = read("../components/workspaces/night-audit-workspace.tsx");
 
 let seq = 0;
@@ -571,7 +572,7 @@ describe("NA-P3 overbooking", () => {
     assert.equal(result.overbooking[0]?.approval, "approved");
   });
 
-  it("38. over the effective limit without an approval is a blocker tonight", () => {
+  it("38. over the effective limit without an approval does not block End of Day", () => {
     const result = reconcileNightAuditOperations(
       facts({
         overbooking: {
@@ -582,7 +583,8 @@ describe("NA-P3 overbooking", () => {
       }),
     );
     const issue = ofCode(result, "overbooking_unapproved")[0]!;
-    assert.equal(issue.severity, "blocking");
+    assert.equal(issue.severity, "warning");
+    assert.equal(result.summary.blockerCount, 0);
     assert.equal(result.overbooking[0]?.excess, 2);
     assert.equal(issue.route, "/restaurant/pms/room-inventory");
     assert.deepEqual(issue.search, { tab: "overbooking" });
@@ -632,7 +634,8 @@ describe("NA-P3 overbooking", () => {
         },
       }),
     );
-    assert.equal(ofCode(result, "overbooking_unapproved")[0]?.severity, "blocking");
+    assert.equal(ofCode(result, "overbooking_unapproved")[0]?.severity, "warning");
+    assert.equal(result.summary.blockerCount, 0);
   });
 
   it("41–42. rules are room-type specific with no shared property pool", () => {
@@ -790,7 +793,7 @@ describe("NA-P3 distribution", () => {
       facts({ distribution: { state: "ok", connections: [connection()], failedEvents: [] } }),
     );
     assert.equal(ofCode(result, "distribution_no_known_failures")[0]?.title, "No known failures");
-    assert.doesNotMatch(pure + panel, /[Ff]ully synchroni[sz]ed/);
+    assert.doesNotMatch(pure + steps, /[Ff]ully synchroni[sz]ed/);
   });
 
   it("51. no connection is N/A", () => {
@@ -967,11 +970,9 @@ describe("NA-P3 services", () => {
 });
 
 describe("NA-P3 UI", () => {
-  it("65–69. Operations shows loading, ready, warning, blocked, and unavailable", () => {
-    assert.match(panel, /night-audit-operations-loading/);
-    assert.match(panel, /night-audit-operations-unavailable/);
-    assert.match(panel, /Operational Status: UNAVAILABLE/);
-    assert.match(panel, /result\.status\.toUpperCase\(\)/);
+  it("65–69. operations reconcile to ready, warning, and blocked; a failed read is a blocker", () => {
+    assert.match(workspace, /data\.evaluation\.message \?\? "Recheck to try again\."/);
+    assert.match(functions, /unavailableSourceConditions\(\["operational", "financial"\]\)/);
     assert.equal(reconcileNightAuditOperations(facts()).status, "ready");
     assert.equal(
       reconcileNightAuditOperations(facts({ rooms: [room({ housekeepingStatus: "dirty" })] }))
@@ -1005,48 +1006,29 @@ describe("NA-P3 UI", () => {
       matchesOperationalFilter({ status: "blocker", category: "arrivals", text: "R-9" }, filter),
       false,
     );
-    assert.match(panel, /night-audit-operations-severity/);
-    assert.match(panel, /night-audit-operations-category/);
-    assert.match(panel, /night-audit-operations-search/);
   });
 
-  it("73–74. detail drawer opens the owner module and has no fix button", () => {
-    assert.match(panel, /night-audit-operations-detail/);
-    for (const label of [
-      "Severity",
-      "Reservation / room / guest",
-      "Audit date",
-      "Detected",
-      "Source status",
-      "Owner module",
-      "Recommended action",
-      "Last checked",
-    ]) {
-      assert.match(panel, new RegExp(label));
+  it("73–74. each blocker links to its source module and offers no fix-in-place button", () => {
+    assert.match(parts, /condition\.sourceModule/);
+    assert.match(parts, /condition\.actions/);
+    for (const source of [steps, parts]) {
+      assert.doesNotMatch(source, />\s*Fix\b|Mark resolved|>\s*Ignore|Waive/);
     }
-    assert.match(panel, /Open \{selected\.ownerModule\}/);
-    assert.doesNotMatch(panel, />\s*Fix\b|Mark resolved|Ignore|Waive|Override/);
   });
 
-  it("75. Control Center counts come from the same operational query and filter Operations", () => {
-    assert.match(workspace, /getNightAuditOperations/);
-    assert.match(workspace, /operationsQuery\.data\.summary\.blockerCount/);
-    assert.match(desk, /night-audit-operations-kpis/);
-    assert.match(desk, /onOpenOperations\?\.\(focus\)/);
-    assert.deepEqual(nightAuditSearch("operations", null, "arrivals"), {
-      tab: "operations",
-      focus: "arrivals",
-    });
+  it("75. one workspace query feeds every step and step links keep the step id", () => {
+    assert.match(workspace, /getNightAuditWorkspace/);
+    assert.doesNotMatch(workspace, /getNightAuditOperations|getNightAuditFinancials/);
+    assert.deepEqual(nightAuditSearch("current", { step: "arrivals" }), { tab: "current", step: "arrivals" });
+    assert.equal(endOfDayStep("arrivals")?.id, "arrivals");
     assert.deepEqual(operationalFocusFilter("overstays"), {
       category: "departures",
       severity: "blocker",
     });
   });
 
-  it("76. Run & Close shows Operations state", () => {
-    assert.match(desk, /night-audit-close-readiness/);
-    assert.match(desk, /label="Operations"/);
-    assert.match(closePanel, /operationalGate/);
+  it("76. Update Business Date shows the remaining blockers", () => {
+    assert.match(steps, /closeBlockedCopy\(data\.blockerCount\)/);
   });
 
   it("sorts blockers first, earliest arrival first", () => {
@@ -1135,13 +1117,13 @@ describe("NA-P3 close gate", () => {
 
   it("82. close re-evaluates operational truth before the close RPC", () => {
     const body = functions.slice(functions.indexOf("export const closeBusinessDate"));
-    const readAt = body.indexOf("readOperationalReconciliation");
-    const gateAt = body.indexOf("operationalAllowsClose");
-    const overallAt = body.indexOf("nightAuditOverallStatus");
+    const readAt = body.indexOf("evaluateEndOfDay(");
+    const gateAt = body.indexOf("evaluation.operational.ok");
+    const blockersAt = body.indexOf("openBlockers(conditions)");
     const rpcAt = body.indexOf('rpc("close_business_date"');
-    assert.ok(readAt > 0 && gateAt > readAt && overallAt > gateAt && rpcAt > overallAt);
+    assert.ok(readAt > 0 && gateAt > readAt && blockersAt > gateAt && rpcAt > blockersAt);
     assert.match(body, /OPERATIONAL_UNAVAILABLE_MESSAGE/);
-    assert.match(body, /financialAllowsClose/);
+    assert.match(body, /FINANCIAL_UNAVAILABLE_MESSAGE/);
   });
 
   it("83–85. both domains must allow close", () => {
@@ -1153,16 +1135,10 @@ describe("NA-P3 close gate", () => {
     assert.equal(nightAuditOverallStatus({ ...base, openBlockingExceptions: 1 }), "blocked");
   });
 
-  it("runNightAudit uses the same overall status for canClose", () => {
-    const body = functions.slice(
-      functions.indexOf("export const runNightAudit"),
-      functions.indexOf("export const updateException"),
-    );
-    assert.match(
-      body,
-      /canClose:\s*\(run\.status === "open" \|\| run\.status === "ready"\) && nightAuditAllowsClose\(overallStatus\)/,
-    );
-    assert.match(body, /financial\.ok && operational\.ok/);
+  it("the workspace read evaluates both sources together", () => {
+    const evaluate = functions.slice(functions.indexOf("async function evaluateEndOfDay"));
+    assert.match(evaluate, /readFinancialReconciliation\(/);
+    assert.match(evaluate, /readOperationalReconciliation\(/);
   });
 
   it("replaces older reservation-level rows for owned findings and keeps others", () => {
@@ -1190,7 +1166,6 @@ describe("NA-P3 close gate", () => {
       "hk_conflict",
       "occupied_maintenance_unavailable",
       "occupied_restricted_room",
-      "overbooking_unapproved",
       "overstay",
       "room_double_occupancy",
     ]);
@@ -1208,7 +1183,7 @@ describe("NA-P3 close gate", () => {
     assert.doesNotMatch(pure, /Date\.now|new Date\(\)|toLocaleDateString/);
     assert.match(
       functions,
-      /loadNightAuditOperationalReconciliation\(\s*supabaseAdmin,\s*data\.restaurantId,\s*property\.businessDate/,
+      /readOperationalReconciliation\(admin, restaurantId, businessDate, property\.timezone\)/,
     );
     assert.match(server, /propertyDayBounds\(businessDate, timezone\)/);
   });
@@ -1217,25 +1192,23 @@ describe("NA-P3 close gate", () => {
 describe("NA-P3 run summary", () => {
   const body = functions.slice(functions.indexOf("export const closeBusinessDate"));
   for (const [n, field] of [
-    [86, "operationalBlockerCount"],
-    [87, "operationalWarningCount"],
     [88, "unresolvedArrivalCount"],
     [89, "overstayCount"],
     [90, "roomConflictCount"],
     [91, "overbookingIssueCount"],
   ] as const) {
     it(`${n}. saves ${field}`, () => {
-      assert.match(
-        body,
-        new RegExp(
-          `${field}: operational\\.result\\.summary\\.${field === "operationalBlockerCount" ? "blockerCount" : field === "operationalWarningCount" ? "warningCount" : field}`,
-        ),
-      );
+      assert.match(body, new RegExp(`${field}: operational\\.summary\\.${field}`));
       assert.match(functions, new RegExp(`${field}\\?: number`));
     });
   }
 
+  it("86–87. a completed close stores zero open blockers and keeps the legacy fields", () => {
+    assert.match(body, /operationalBlockerCount: 0/);
+    assert.match(body, /operationalWarningCount: 0/);
+  });
+
   it("92. an old run without operational fields still renders", () => {
-    assert.match(closePanel, /typeof run\?\.summary\?\.operationalBlockerCount === "number"/);
+    assert.match(closeSummary, /typeof summary\.operationalBlockerCount === "number"/);
   });
 });

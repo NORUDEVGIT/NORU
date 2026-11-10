@@ -11,15 +11,8 @@ export const NIGHT_AUDIT_WINDOW_EQUAL_TIMES_MESSAGE =
 
 export const NIGHT_AUDIT_WINDOW_DEFAULT = { start: "00:00", end: "04:00" } as const;
 
-export const OWNER_OUTSIDE_WINDOW_COPY =
-  "Owner access: closing outside the configured Night Audit window.";
-
-/** Roles allowed to close outside the configured window. A future Night Auditor role is NOT included. */
-const NIGHT_AUDIT_WINDOW_BYPASS_ROLES = ["owner"] as const;
-
-export function canBypassNightAuditWindow(role: string): boolean {
-  return (NIGHT_AUDIT_WINDOW_BYPASS_ROLES as readonly string[]).includes(role);
-}
+export const WINDOW_OVERRIDE_COPY =
+  "You are authorized to close outside the configured Night Audit window. Blockers still apply.";
 
 /** "HH:MM" -> minutes after midnight, or null when malformed. */
 export function parseWindowTime(value: string | null | undefined): number | null {
@@ -92,8 +85,8 @@ export type NightAuditWindowState = {
   open: boolean;
   /** This caller may close now as far as the window is concerned. */
   allowsClose: boolean;
-  /** Owner closing while the window is closed. */
-  ownerBypass: boolean;
+  /** Closed window, but the caller holds night_audit.business_date.window_override. */
+  windowOverride: boolean;
   /** False when saved configuration cannot safely describe a close window. */
   configValid: boolean;
   message: string;
@@ -104,7 +97,8 @@ export function evaluateNightAuditWindow(input: {
   start: string | null | undefined;
   end: string | null | undefined;
   timezone: string;
-  role: string;
+  /** night_audit.business_date.window_override, resolved by the server. Owner holds it implicitly. */
+  canOverride: boolean;
   /** Passed by the persisted-config reader for invalid legacy values. */
   configValid?: boolean;
   now?: Date;
@@ -116,7 +110,7 @@ export function evaluateNightAuditWindow(input: {
   const configValid = input.configValid !== false && start !== end;
   const nowMinutes = propertyLocalMinutes(input.timezone, input.now);
   const open = configValid && isWithinNightAuditWindow(start, end, nowMinutes);
-  const bypass = canBypassNightAuditWindow(input.role);
+  const bypass = input.canOverride;
   return {
     start: hhmm(start),
     end: hhmm(end),
@@ -125,7 +119,7 @@ export function evaluateNightAuditWindow(input: {
     localTime: hhmm(nowMinutes),
     open,
     allowsClose: open || bypass,
-    ownerBypass: !open && bypass,
+    windowOverride: !open && bypass,
     configValid,
     message: configValid
       ? outsideWindowMessage(start, end)
@@ -166,7 +160,7 @@ export function nightAuditWindowConfigProblem(start: string, end: string): strin
   return null;
 }
 
-/** Run-summary audit fact written only when an owner closes outside the window. */
+/** Run-summary audit fact written only when an authorized user closes outside the window. */
 export type OutsideWindowClose = {
   outsideWindow: true;
   windowStart: string;
@@ -182,7 +176,7 @@ export function outsideWindowCloseRecord(
   actorMembershipId: string,
   requestedAt: string,
 ): OutsideWindowClose | null {
-  if (!state.ownerBypass) return null;
+  if (!state.windowOverride) return null;
   return {
     outsideWindow: true,
     windowStart: state.start,

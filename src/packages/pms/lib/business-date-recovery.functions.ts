@@ -1,11 +1,14 @@
 /**
- * Business Date recovery. adjust_business_date locks the property row and
- * re-checks the expected date, the active Night Audit run, and closed history.
- * It never touches night_audit_runs. The caller must hold night-audit recovery.
+ * Business Date recovery, separate from End of Day. adjust_business_date locks
+ * the property row and re-checks the expected date, the active Night Audit run,
+ * and closed history. A blocker-free open run on the old date is marked
+ * superseded (never deleted); closed runs are never changed. The caller must
+ * hold night_audit.business_date.recover.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { audit } from "@/core/lib/workforce.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { requirePmsActor } from "./pms-permissions.server";
 import {
@@ -73,6 +76,25 @@ export const adjustBusinessDate = createServerFn({ method: "POST" })
       changed_at: string;
       changed_by_membership_id: string;
     };
+    try {
+      await audit(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        actorUserId: (context as { userId: string }).userId,
+        targetUserId: null,
+        action: "business_date_recovered",
+        metadata: {
+          section: "night_audit",
+          oldBusinessDate: saved.old_business_date ? saved.old_business_date.slice(0, 10) : null,
+          newBusinessDate: saved.new_business_date.slice(0, 10),
+          membershipId: me.id,
+        },
+      });
+    } catch (auditError) {
+      console.error(
+        "[business-date-recovery] audit",
+        auditError instanceof Error ? auditError.message : auditError,
+      );
+    }
     return {
       ok: true,
       oldBusinessDate: saved.old_business_date ? saved.old_business_date.slice(0, 10) : null,

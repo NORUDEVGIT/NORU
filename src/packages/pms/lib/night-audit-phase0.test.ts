@@ -2,55 +2,37 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+import { NA1_STALE_BUSINESS_DATE } from "./na1.ts";
 import {
-  NA1_STALE_BUSINESS_DATE,
-  buildNa1Blockers,
-  canEnableConfirm,
-  closeBlockingExceptions,
-  emptyIntegrityCounts,
-  integrityBlockerCounts,
-  persistedNightAuditExceptions,
-  remainingBlockerCount,
-  type NaDerivedException,
-} from "./na1.ts";
+  DEFAULT_END_OF_DAY_POLICY,
+  RETIRED_CONDITION_CODES,
+  conditionFromIssue,
+  endOfDaySteps,
+  openBlockers,
+  persistedBlockerRows,
+  type SourceIssue,
+} from "./night-audit-steps.ts";
 
 const sql = readFileSync(
-  new URL(
-    "../../../../drizzle/migrations/0115_night_audit_phase0_close_guard.sql",
-    import.meta.url,
-  ),
+  new URL("../../../../drizzle/migrations/0115_night_audit_phase0_close_guard.sql", import.meta.url),
   "utf8",
 );
 const supabaseSql = readFileSync(
-  new URL(
-    "../../../../supabase/migrations/0115_night_audit_phase0_close_guard.sql",
-    import.meta.url,
-  ),
+  new URL("../../../../supabase/migrations/0115_night_audit_phase0_close_guard.sql", import.meta.url),
   "utf8",
 );
 const closeFn = readFileSync(new URL("./nightaudit.functions.ts", import.meta.url), "utf8");
 
-function board(partial: {
-  arrivalsPendingCount?: number;
-  overstayCount?: number;
-  unpaid?: number;
-  openCount?: number;
-  hkRooms?: number;
-  integrity?: Partial<ReturnType<typeof emptyIntegrityCounts>>;
-}) {
-  const integrity = { ...emptyIntegrityCounts(), ...partial.integrity };
-  return buildNa1Blockers({
-    arrivalsPendingCount: partial.arrivalsPendingCount ?? 0,
-    overstayCount: partial.overstayCount ?? 0,
-    unpaidFolios: { lane: "live", count: partial.unpaid ?? 0 },
-    openShift: { tillUsed: true, openCount: partial.openCount ?? 0 },
-    hkConflict: {
-      discrepancyLane: "live",
-      discrepancyCount: 0,
-      roomUnavailableCount: partial.hkRooms ?? 0,
-    },
-    integrity,
-  });
+function issue(code: string, severity: SourceIssue["severity"], referenceId = "ref-1"): SourceIssue {
+  return {
+    code,
+    severity,
+    title: code,
+    description: `${code} description`,
+    referenceType: "reservation",
+    referenceId,
+    route: "/restaurant/pms/front-office",
+  };
 }
 
 describe("Night Audit Phase 0 close contract", () => {
@@ -77,100 +59,51 @@ describe("Night Audit Phase 0 close contract", () => {
       NA1_STALE_BUSINESS_DATE,
       "This run is not the current business date. Refresh Night Audit and close the current date.",
     );
-    assert.doesNotMatch(
-      closeFn,
-      /evaluation\.exceptions\.some\(\(e\) => e\.severity === "blocking"\)/,
-    );
-    assert.match(closeFn, /remainingBlockerCount\(blockers\)/);
-    assert.match(closeFn, /persistedNightAuditExceptions/);
+    assert.match(closeFn, /openBlockers\(conditions\)/);
+    assert.match(closeFn, /persistedBlockerRows\(conditions\)/);
+    assert.doesNotMatch(closeFn, /remainingBlockerCount|persistedNightAuditExceptions|evaluateAudit/);
   });
 
-  it("blocks close for each integrity condition and shows that row", () => {
-    const cases = [
-      ["checked_in_without_room", { checkedInWithoutRoom: 2 }],
-      ["room_double_occupancy", { doubleOccupancy: 1 }],
-      ["closed_folio_nonzero_balance", { closedFolioNonzero: 1 }],
-      ["closed_folio_post_activity", { closedFolioPostActivity: 3 }],
-      ["duplicate_room_charge", { duplicateRoomCharge: 1 }],
-    ] as const;
-    for (const [id, integrity] of cases) {
-      const rows = board({ integrity });
-      const row = rows.find((item) => item.id === id);
-      assert.equal(row?.state, "block");
-      assert.ok((row?.clear.length ?? 0) > 0);
-      assert.equal(canEnableConfirm(rows), false);
-      const stored = closeBlockingExceptions(rows, []);
-      assert.equal(
-        stored.some((item) => item.exceptionType === id && item.severity === "blocking"),
-        true,
-      );
+  it("blocks close for each integrity condition and persists it as blocking", () => {
+    for (const code of [
+      "checked_in_without_room",
+      "room_double_occupancy",
+      "closed_folio_nonzero_balance",
+      "closed_folio_post_activity",
+      "duplicate_room_charge",
+    ]) {
+      const condition = conditionFromIssue(issue(code, "blocking"), DEFAULT_END_OF_DAY_POLICY);
+      assert.ok(condition, code);
+      assert.equal(condition.kind, "blocker", code);
+      assert.equal(openBlockers([condition]).length, 1, code);
+      const stored = persistedBlockerRows([condition]);
+      assert.equal(stored.length, 1, code);
+      assert.equal(stored[0]?.severity, "blocking", code);
+      const steps = endOfDaySteps({ runStatus: "open", conditions: [condition] });
+      assert.equal(steps.find((step) => step.id === condition.step)?.status, "blocked", code);
+      assert.equal(steps.find((step) => step.id === "business_date")?.status, "blocked", code);
     }
   });
 
-  it("does not let warnings or the unavailable no-show row block close", () => {
-    const rows = board({});
-    assert.equal(rows.find((row) => row.id === "cancel_noshow_pending")?.state, "unavailable");
-    assert.equal(canEnableConfirm(rows), true);
-    assert.equal(remainingBlockerCount(rows), 0);
-    const warnings: NaDerivedException[] = [
-      {
-        exceptionType: "dirty_room_without_task",
-        severity: "warning",
-        referenceType: "room",
-        referenceId: "room-1",
-        message: "Vacant and dirty.",
-      },
-      {
-        exceptionType: "pending_arrival",
-        severity: "warning",
-        referenceType: "reservation",
-        referenceId: "stay-1",
-        message: "Still pending.",
-      },
-    ];
-    const persisted = persistedNightAuditExceptions(rows, warnings);
-    assert.equal(persisted.some((row) => row.severity === "blocking"), false);
-    assert.equal(
-      persisted.some((row) => row.exceptionType === "dirty_room_without_task"),
-      true,
-    );
-    assert.equal(
-      persisted.some((row) => row.exceptionType === "pending_arrival"),
-      false,
-    );
+  it("never persists information and never blocks on it", () => {
+    const rows = [
+      conditionFromIssue(issue("dirty_room_without_task", "warning", "room-1"), DEFAULT_END_OF_DAY_POLICY),
+      conditionFromIssue(issue("departure_due_today", "warning", "stay-1"), DEFAULT_END_OF_DAY_POLICY),
+      conditionFromIssue(issue("open_folio_balance", "warning", "folio-1"), DEFAULT_END_OF_DAY_POLICY),
+    ].filter((row) => row != null);
+    assert.equal(rows.length, 3);
+    assert.ok(rows.every((row) => row.kind === "information"));
+    assert.equal(openBlockers(rows).length, 0);
+    assert.deepEqual(persistedBlockerRows(rows), []);
   });
 
-  it("stores pending arrivals as blocking when the arrivals row blocks", () => {
-    const rows = board({ arrivalsPendingCount: 1 });
-    const source: NaDerivedException[] = [
-      {
-        exceptionType: "pending_arrival",
-        severity: "warning",
-        referenceType: "reservation",
-        referenceId: "stay-1",
-        message: "Pending arrival.",
-      },
-    ];
-    const blocking = closeBlockingExceptions(rows, source);
-    assert.equal(blocking.length, 1);
-    assert.equal(blocking[0]?.exceptionType, "pending_arrival");
-    assert.equal(blocking[0]?.severity, "blocking");
-    assert.equal(blocking[0]?.referenceId, "stay-1");
-  });
-
-  it("counts integrity blockers from the audit evaluation", () => {
-    const counts = integrityBlockerCounts([
-      { exceptionType: "checked_in_without_room" },
-      { exceptionType: "checked_in_without_room" },
-      { exceptionType: "open_folio_balance" },
-      { exceptionType: "duplicate_room_charge" },
+  it("retires the board-era codes", () => {
+    assert.deepEqual([...RETIRED_CONDITION_CODES].sort(), [
+      "cancel_noshow_pending",
+      "pending_arrival",
+      "unpaid_folio",
     ]);
-    assert.equal(counts.checkedInWithoutRoom, 2);
-    assert.equal(counts.duplicateRoomCharge, 1);
-    assert.equal(counts.closedFolioNonzero, 0);
-    const rows = board({ integrity: counts });
-    assert.equal(rows.find((row) => row.id === "checked_in_without_room")?.count, 2);
-    assert.equal(rows.find((row) => row.id === "duplicate_room_charge")?.state, "block");
-    assert.equal(canEnableConfirm(rows), false);
+    const source = readFileSync(new URL("./nightaudit.server.ts", import.meta.url), "utf8");
+    assert.doesNotMatch(source, /unpaid_folio|NON_IGNORABLE_TYPES|evaluateAudit/);
   });
 });

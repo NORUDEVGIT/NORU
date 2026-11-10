@@ -148,7 +148,7 @@ export function guestAllocationCapabilities(input: {
   const open = input.folioStatus === "open";
   return {
     canView: view,
-    canAllocate: view && allocate && open,
+    canAllocate: view && allocate,
     canReverse: view && allocate && open,
     canPostPayment: (OPERATE_ROLES as readonly string[]).includes(input.role),
     canRefund: (MANAGE_ROLES as readonly string[]).includes(input.role),
@@ -186,7 +186,6 @@ export type GuestAllocationCheck = {
 export function reviewGuestAllocation(
   input: GuestAllocationCheck,
 ): { ok: true; available: number; outstanding: number } | { ok: false; code: string } {
-  if (input.folioStatus !== "open") return { ok: false, code: "FOLIO_CLOSED" };
   if (input.paymentType !== "payment" || input.paymentLedgerAmount >= 0) {
     return { ok: false, code: "ALLOCATION_NOT_A_GUEST_PAYMENT" };
   }

@@ -511,9 +511,77 @@ export async function loadNightAuditOperationalReconciliation(
     })),
   }));
 
+  // Step 2/3 counts and today's stay changes. Counts only: a failed read is
+  // shown as unavailable information and never decides close.
+  const dayActivity = await optionalSection(async () => {
+    const stays = await selectAll<{
+      id: string;
+      confirmation_number: string;
+      status: string;
+      arrival_date: string;
+      departure_date: string;
+    }>((from, to) =>
+      admin
+        .from("hotel_reservations")
+        .select("id, confirmation_number, status, arrival_date, departure_date")
+        .eq("restaurant_id", restaurantId)
+        .or(`arrival_date.eq.${businessDate},departure_date.eq.${businessDate}`)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    const holding = await selectAll<{
+      id: string;
+      confirmation_number: string;
+      status: string;
+      room_id: string;
+    }>((from, to) =>
+      admin
+        .from("hotel_reservations")
+        .select("id, confirmation_number, status, room_id")
+        .eq("restaurant_id", restaurantId)
+        .in("status", ["cancelled", "no_show"])
+        .not("room_id", "is", null)
+        .lte("arrival_date", businessDate)
+        .gt("departure_date", businessDate)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    const events = await selectAll<{ reservation_id: string; event_type: string }>((from, to) =>
+      admin
+        .from("hotel_reservation_history")
+        .select("id, reservation_id, event_type")
+        .eq("restaurant_id", restaurantId)
+        .in("event_type", ["stay_extended", "room_moved"])
+        .gte("created_at", bounds.startIso)
+        .lt("created_at", bounds.endIso)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+    return {
+      stays: stays.map((row) => ({
+        id: row.id,
+        confirmationNumber: row.confirmation_number,
+        status: row.status,
+        arrivalDate: row.arrival_date.slice(0, 10),
+        departureDate: row.departure_date.slice(0, 10),
+      })),
+      cancelledHolding: holding.map((row) => ({
+        id: row.id,
+        confirmationNumber: row.confirmation_number,
+        status: row.status,
+        roomId: row.room_id,
+      })),
+      extendedReservationIds: [
+        ...new Set(events.filter((row) => row.event_type === "stay_extended").map((row) => row.reservation_id)),
+      ],
+      roomMoves: events.filter((row) => row.event_type === "room_moved").length,
+    };
+  });
+
   return reconcileNightAuditOperations({
     businessDate,
     checkedAt,
+    dayActivity,
     reservations: reservations.map((row) => ({
       id: row.id,
       confirmationNumber: row.confirmation_number,

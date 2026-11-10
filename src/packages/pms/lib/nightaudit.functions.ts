@@ -1,57 +1,41 @@
 /**
- * Phase 6I — Night Audit & business date close server functions.
+ * Night Audit / End of Day server functions.
  *
  * Permissions gate each action. The business date always comes from the property row,
  * never from the browser; every id is revalidated against the property before
  * it is used. The close itself runs inside a locked SECURITY DEFINER function.
+ *
+ * End of Day is a control center: it reads source modules, classifies every
+ * finding as a blocker or information, persists blockers on the run, and closes
+ * the date through close_business_date. It never posts, checks in, checks out,
+ * settles, or changes housekeeping.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { callerMembership } from "@/core/lib/workforce.server";
+import { audit, callerMembership } from "@/core/lib/workforce.server";
 import { requirePmsPackage } from "./pms-package.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
-import { evaluateNa1Blockers } from "./na1.server";
 import {
-  NA1_STALE_BUSINESS_DATE,
-  canEnableConfirm,
-  integrityBlockerCounts,
-  nightAuditFeedCounts,
-  nextBusinessDate,
-  persistedNightAuditExceptions,
-  remainingBlockerCount,
-  snapshotBlockers,
-  workspaceStatus,
-  type Na1BlockerSnapshot,
-  type NaBlockerRow,
-  type NaDerivedException,
-  type NaFolioLane,
-  type NaLastClosed,
-  type NaWorkspaceStatus,
-} from "./na1";
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+} from "./pms-permissions.server";
+import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { NA1_STALE_BUSINESS_DATE, nextBusinessDate } from "./na1";
 import {
   FINANCIAL_UNAVAILABLE_MESSAGE,
-  financialAllowsClose,
-  financialIssuesToExceptions,
-  mergeAuditExceptions,
   presentNightAuditFinancials,
+  type DrawerRow,
   type NightAuditFinancialReconciliation,
-  type NightAuditFinancialStatus,
+  type TaxCurrencyRow,
 } from "./night-audit-financial";
 import { loadNightAuditFinancialReconciliation } from "./night-audit-financial.server";
 import {
   OPERATIONAL_UNAVAILABLE_MESSAGE,
-  nightAuditAllowsClose,
-  nightAuditOverallStatus,
-  operationalAllowsClose,
-  operationalIssuesToExceptions,
   presentNightAuditOperations,
-  withoutOperationalOwnedTypes,
+  type DayActivitySummary,
   type NightAuditOperationalReconciliation,
-  type NightAuditOperationalStatus,
-  type NightAuditOverallStatus,
 } from "./night-audit-operational";
 import { loadNightAuditOperationalReconciliation } from "./night-audit-operational.server";
 import { exceptionSyncKey, planExceptionSync } from "./night-audit-exceptions";
@@ -71,7 +55,6 @@ import {
   historySearchDates,
   presentExceptionMessage,
   presentRunSummary,
-  type ExceptionSource,
   type HistoryPageSize,
 } from "./night-audit-workflow";
 import type { OtbCaptureResult } from "./revenue/demand-snapshot";
@@ -84,19 +67,36 @@ import {
   type NightAuditWindowState,
   type OutsideWindowClose,
 } from "./night-audit-window";
+import { nightAuditError, type AreaCheck, type AuditFinance } from "./nightaudit.server";
 import {
-  NON_IGNORABLE_TYPES,
-  evaluateAudit,
-  nightAuditError,
-  type AreaCheck,
-  type AuditFinance,
-  type NoShowCandidate,
-  type OverstayStay,
-  type ShiftReconciliation,
-} from "./nightaudit.server";
+  END_OF_DAY_STEP_IDS,
+  closeBlockedCopy,
+  conditionFromIssue,
+  endOfDayAuditStatus,
+  endOfDayDomains,
+  endOfDayPolicyFromBlockers,
+  endOfDaySteps,
+  informationItems,
+  openBlockers,
+  persistedBlockerRows,
+  sortConditions,
+  unavailableSourceConditions,
+  type EndOfDayAuditStatus,
+  type EndOfDayCondition,
+  type EndOfDayDomainView,
+  type EndOfDayPolicy,
+  type EndOfDaySource,
+  type EndOfDayStepId,
+  type EndOfDayStepView,
+} from "./night-audit-steps";
+import { legacyAuditFinance, type DayFinance } from "./night-audit-day-finance";
+import { parseBusinessDateBlockers } from "./pms-property-setup-card1";
 
 const idSchema = z.string().uuid();
+const stepSchema = z.enum(END_OF_DAY_STEP_IDS as [EndOfDayStepId, ...EndOfDayStepId[]]);
+const NOTE_MAX = 500;
 
+/** A stored exception row as History shows it. */
 export interface AuditException {
   id: string;
   exceptionType: string;
@@ -107,18 +107,13 @@ export interface AuditException {
   status: "open" | "resolved" | "ignored";
   resolvedAt: string | null;
   resolutionNote: string | null;
-  canIgnore: boolean;
   /** Detected at. */
   createdAt: string | null;
-  /** Live owner-module link from the current reconciliation. Null on rows no longer derived. */
-  source: ExceptionSource | null;
-  /** The currently ACTIVE fiscal-only close exemption. The underlying source remains open. */
+  /** The ACTIVE fiscal-only close exemption. The underlying source remains open. */
   fiscalOverride: FiscalOverride | null;
   /** Every override event ever authorized for this exception row, oldest first. History only. */
   fiscalOverrideHistory: FiscalOverride[];
-  /** The currently ACTIVE warning review, if any. Null once invalidated or never reviewed. */
-  warningReview?: WarningReview | null;
-  /** Every review event ever authorized for this exact warning row. History only. */
+  /** Pre-redesign warning reviews for this row. History only; no new reviews are written. */
   warningReviewHistory?: WarningReview[];
 }
 
@@ -135,36 +130,36 @@ export interface NightAuditRunRow {
   summary: AuditSummary | null;
   notes?: string | null;
   otb?: NightAuditOtbState;
+  currentStep?: EndOfDayStepId | null;
+  progressUpdatedAt?: string | null;
 }
 
+/** What close wrote. Older summaries omit later fields; nothing is recomputed for History. */
 export interface AuditSummary {
-  finance: AuditFinance;
-  warnings: number;
-  blockingResolved: number;
-  inHouse: number;
-  /** Present on closes after NA-P1. Older summaries omit it; do not treat inHouse as overstays. */
+  finance?: AuditFinance;
+  /** Pre-redesign warning count. Always 0 on End of Day closes. */
+  warnings?: number;
+  blockingResolved?: number;
+  inHouse?: number;
   overstays?: number;
-  checks: AreaCheck[];
-  blockers?: Na1BlockerSnapshot[];
+  checks?: AreaCheck[];
   previousBusinessDate?: string;
   nextBusinessDate?: string;
-  /** Present on closes after NA-P2. Counts only — not transaction rows. */
   financialBlockerCount?: number;
   financialWarningCount?: number;
   openDrawerCount?: number;
   fiscalProblemCount?: number;
   fiscalOverrideCount?: number;
   taxByCurrency?: Array<{ currency: string; tax: number; serviceCharge: number }>;
-  /** Present on closes after NA-P3. Older summaries omit them. */
   operationalBlockerCount?: number;
   operationalWarningCount?: number;
   unresolvedArrivalCount?: number;
   overstayCount?: number;
   roomConflictCount?: number;
   overbookingIssueCount?: number;
-  /** Set only when an owner closed outside the configured Night Audit Window. */
+  /** Set only when an authorized user closed outside the configured Night Audit Window. */
   nightAuditWindow?: OutsideWindowClose | null;
-  /** Set only when Owner Business Date recovery safely supersedes an open run. */
+  /** Set only when Business Date Recovery safely supersedes an open run. */
   businessDateRecovery?: {
     superseded: true;
     adjustmentId: string;
@@ -174,44 +169,93 @@ export interface AuditSummary {
     supersededByMembershipId: string;
     supersededAt: string;
   };
+  /** Present on End of Day closes (nine-step workflow). */
+  endOfDay?: EndOfDaySummary;
 }
 
-export interface NightAuditState {
+export type EndOfDaySummary = {
+  version: 2;
+  steps: Array<{ id: EndOfDayStepId; status: string; blockerCount: number; informationCount: number }>;
+  /** Blocker rows detected on this run and cleared at source before close. */
+  blockersResolved: number;
+  informationCount: number;
+  policy: EndOfDayPolicy;
+  cashier: {
+    openShifts: number;
+    closedShifts: number;
+    expected: number | null;
+    counted: number | null;
+    variance: number | null;
+  };
+  dayFinance: DayFinance | null;
+  fiscal: { overrides: number; blockers: number };
+  groupBlockRelease?: "released" | "none" | "failed";
+};
+
+export type EndOfDayAccess = {
+  canStart: boolean;
+  canClose: boolean;
+  canOverrideWindow: boolean;
+  canAuthorizeFiscal: boolean;
+  canRetryOtb: boolean;
+  canRecover: boolean;
+  financialDetail: boolean;
+  operationalDetail: boolean;
+};
+
+export type EndOfDayLastClose = {
+  runId: string;
   businessDate: string;
+  nextBusinessDate: string;
+  startedAt: string;
+  startedBy: string | null;
+  closedAt: string | null;
+  closedBy: string | null;
+  summary: AuditSummary | null;
+  notes: string | null;
+  otb: NightAuditOtbState;
+  canRetryOtb: boolean;
+};
+
+/** Everything the End of Day workspace renders. One read; no run is created. */
+export type NightAuditWorkspaceData = {
+  businessDate: string;
+  nextBusinessDate: string;
+  persistedBusinessDate: string | null;
   currency: string;
   timezone: string;
-  run: NightAuditRunRow;
-  checks: AreaCheck[];
-  exceptions: AuditException[];
-  blockingCount: number;
-  warningCount: number;
-  noShows: NoShowCandidate[];
-  overstays: OverstayStay[];
-  shifts: ShiftReconciliation[];
-  /** Null for roles without NA-P2 financial detail. */
-  finance: AuditFinance | null;
-  canClose: boolean;
-  blockers: NaBlockerRow[];
-  workspaceStatus: NaWorkspaceStatus;
-  lastClosed: NaLastClosed | null;
-  lastClosedRunId: string | null;
-  /** The status closeBusinessDate also gates on. */
-  overallStatus: NightAuditOverallStatus;
-  financialStatus: NightAuditFinancialStatus;
-  operationalStatus: NightAuditOperationalStatus;
-  /** When this server recheck ran. */
   checkedAt: string;
-  persistedBusinessDate: string | null;
-  lastClosedOtb: NightAuditOtbState | null;
-  canRetryOtb: boolean;
-  /** Configured close window evaluated for this caller in the property timezone. */
-  nightAuditWindow: NightAuditWindowState;
-}
+  window: NightAuditWindowState;
+  policy: EndOfDayPolicy;
+  run: NightAuditRunRow | null;
+  auditStatus: EndOfDayAuditStatus;
+  evaluation: { failed: boolean; unavailable: EndOfDaySource[]; message: string | null };
+  steps: EndOfDayStepView[];
+  domains: EndOfDayDomainView[];
+  conditions: EndOfDayCondition[];
+  blockerCount: number;
+  informationCount: number;
+  dayActivity: DayActivitySummary;
+  inHouseCount: number | null;
+  folios: NightAuditFinancialReconciliation["folioSummary"] | null;
+  cashier: { access: "detail" | "summary"; shifts: DrawerRow[] } | null;
+  reconcile: {
+    access: "detail" | "summary";
+    dayFinance: DayFinance | null;
+    taxSummary: TaxCurrencyRow[];
+    fiscalConfigured: boolean;
+    fiscal: { registered: number; pending: number; problems: number; overridden: number };
+  } | null;
+  access: EndOfDayAccess;
+  lastClosed: EndOfDayLastClose | null;
+};
 
 /* ----------------------------------------------------------------- helpers */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadProperty(admin: any, restaurantId: string) {
+type Admin = any;
+
+async function loadProperty(admin: Admin, restaurantId: string) {
   const { data } = await admin
     .from("restaurants")
     .select("id, timezone, currency_code, business_date")
@@ -235,23 +279,28 @@ async function loadProperty(admin: any, restaurantId: string) {
   };
 }
 
-/** Configured Night Audit Window. An unreadable config uses the setup default, never "always open". */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loadNightAuditWindowConfig(admin: any, restaurantId: string) {
+/**
+ * Night Audit Window and the property End of Day policy. An unreadable config uses the
+ * setup default window (never "always open") and the default policy (open shifts block).
+ */
+async function loadEndOfDayConfig(admin: Admin, restaurantId: string) {
   const { data, error } = await admin
     .from("restaurants")
-    .select("business_date_config")
+    .select("business_date_config, business_date_blockers")
     .eq("id", restaurantId)
     .maybeSingle();
-  return nightAuditWindowConfig(
-    error ? null : (data as { business_date_config?: unknown } | null)?.business_date_config,
-  );
+  const row = error
+    ? null
+    : (data as { business_date_config?: unknown; business_date_blockers?: unknown } | null);
+  return {
+    window: nightAuditWindowConfig(row?.business_date_config),
+    policy: endOfDayPolicyFromBlockers(parseBusinessDateBlockers(row?.business_date_blockers)),
+  };
 }
 
-/** Same financial read the workspace shows. Failure stays unavailable and does not look ready. */
+/** Same financial read every step shows. Failure stays unavailable and never looks ready. */
 async function readFinancialReconciliation(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Admin,
   restaurantId: string,
   businessDate: string,
   timezone: string,
@@ -275,10 +324,9 @@ async function readFinancialReconciliation(
   }
 }
 
-/** Same operational read the Operations workspace shows. Failure stays unavailable. */
+/** Same operational read every step shows. Failure stays unavailable. */
 async function readOperationalReconciliation(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Admin,
   restaurantId: string,
   businessDate: string,
   timezone: string,
@@ -300,73 +348,91 @@ async function readOperationalReconciliation(
   }
 }
 
-/** NA-1 board rows, financial issues, and unit-level operational issues as one exception set. */
-function auditExceptionSet(
-  blockers: NaBlockerRow[],
-  evaluationExceptions: readonly NaDerivedException[],
-  financial: NightAuditFinancialReconciliation,
-  operational: NightAuditOperationalReconciliation,
-): NaDerivedException[] {
-  return mergeAuditExceptions(
-    mergeAuditExceptions(
-      withoutOperationalOwnedTypes(persistedNightAuditExceptions(blockers, evaluationExceptions)),
-      financialIssuesToExceptions(financial.issues),
-    ),
-    operationalIssuesToExceptions(operational.issues),
-  );
-}
+type Evaluation = {
+  financial: Awaited<ReturnType<typeof readFinancialReconciliation>>;
+  operational: Awaited<ReturnType<typeof readOperationalReconciliation>>;
+  unavailable: EndOfDaySource[];
+  /** Unredacted. Used for persistence and the close gate only. */
+  conditions: EndOfDayCondition[];
+};
 
-function liveExceptionSources(
+function conditionsFor(
   financial: NightAuditFinancialReconciliation | null,
   operational: NightAuditOperationalReconciliation | null,
-): Map<string, ExceptionSource> {
-  const sources = new Map<string, ExceptionSource>();
-  const add = (
-    issue: {
-      route: string;
-      search?: Record<string, string> | undefined;
-      confirmationNumber?: string | null;
-      reservationId?: string | null;
-      roomId?: string | null;
-    },
-    exception: NaDerivedException | undefined,
-  ) => {
-    if (!exception) return;
-    const extra: Record<string, string> = {};
-    if (issue.confirmationNumber) extra.q = issue.confirmationNumber;
-    if (issue.reservationId) extra.reservationId = issue.reservationId;
-    if (issue.roomId) extra.room = issue.roomId;
-
-    const mergedSearch = {
-      ...(issue.search ?? {}),
-      ...extra,
-    };
-
-    sources.set(exceptionSyncKey(exception.exceptionType, exception.referenceId), {
-      route: issue.route,
-      ...(Object.keys(mergedSearch).length > 0 ? { search: mergedSearch } : {}),
-    });
+  unavailable: readonly EndOfDaySource[],
+  policy: EndOfDayPolicy,
+): EndOfDayCondition[] {
+  const rows: EndOfDayCondition[] = [];
+  const seen = new Set<string>();
+  const push = (row: EndOfDayCondition | null) => {
+    if (!row || seen.has(row.key)) return;
+    seen.add(row.key);
+    rows.push(row);
   };
-  for (const issue of financial?.issues ?? []) add(issue, financialIssuesToExceptions([issue])[0]);
-  for (const issue of operational?.issues ?? [])
-    add(issue, operationalIssuesToExceptions([issue])[0]);
-  return sources;
+  for (const issue of operational?.issues ?? []) push(conditionFromIssue(issue, policy));
+  for (const issue of financial?.issues ?? []) push(conditionFromIssue(issue, policy));
+  for (const row of unavailableSourceConditions(unavailable)) push(row);
+  return rows;
 }
 
-/** A required board row that did not load. Designed unavailable rows do not count. */
-function boardUnavailable(blockers: readonly NaBlockerRow[]): boolean {
-  return remainingBlockerCount(blockers) === 0 && !canEnableConfirm(blockers);
+/** One evaluation for the workspace and the close gate. Reads only. */
+async function evaluateEndOfDay(
+  admin: Admin,
+  restaurantId: string,
+  businessDate: string,
+  property: { timezone: string; currency: string },
+  policy: EndOfDayPolicy,
+): Promise<Evaluation> {
+  const [financial, operational] = await Promise.all([
+    readFinancialReconciliation(admin, restaurantId, businessDate, property.timezone, property.currency),
+    readOperationalReconciliation(admin, restaurantId, businessDate, property.timezone),
+  ]);
+  const unavailable: EndOfDaySource[] = [
+    ...(operational.ok ? [] : (["operational"] as const)),
+    ...(financial.ok ? [] : (["financial"] as const)),
+  ];
+  return {
+    financial,
+    operational,
+    unavailable,
+    conditions: conditionsFor(
+      financial.ok ? financial.result : null,
+      operational.ok ? operational.result : null,
+      unavailable,
+      policy,
+    ),
+  };
 }
 
 /** Analytics follow-up after a completed close. Never throws. */
 async function captureOtbAfterClose(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabaseAdmin: any,
+  supabaseAdmin: Admin,
   restaurantId: string,
   asOfBusinessDate: string,
 ): Promise<OtbCaptureResult> {
   const { captureOtbSnapshotAfterClose } = await import("./revenue/demand-snapshot.server");
   return captureOtbSnapshotAfterClose(supabaseAdmin, restaurantId, asOfBusinessDate);
+}
+
+/** End of Day audit events reuse restaurant_staff_audit_log. A failed write never fails the action. */
+async function auditEndOfDay(
+  admin: Admin,
+  context: unknown,
+  restaurantId: string,
+  action: string,
+  metadata: Record<string, unknown>,
+) {
+  try {
+    await audit(admin, {
+      restaurantId,
+      actorUserId: (context as { userId: string }).userId,
+      targetUserId: null,
+      action,
+      metadata: { section: "night_audit", ...metadata },
+    });
+  } catch (error) {
+    console.error("[night-audit] audit", error instanceof Error ? error.message : error);
+  }
 }
 
 type ExceptionRow = {
@@ -398,10 +464,20 @@ type FiscalOverrideRow = {
 const FISCAL_OVERRIDE_COLUMNS =
   "id, exception_id, fiscal_status, fiscal_reference, reason, reason_category, overridden_by_membership_id, overridden_at, invalidated_at, invalidated_reason";
 
-/** Only the ACTIVE override per exception. This is what the close gate and current-state UI must use. */
+async function exceptionRowsForRun(admin: Admin, runId: string): Promise<ExceptionRow[]> {
+  return selectAll<ExceptionRow>((from, to) =>
+    admin
+      .from("night_audit_exceptions")
+      .select("*")
+      .eq("night_audit_run_id", runId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+}
+
+/** Only the ACTIVE override per exception. This is what the close gate and current-state UI use. */
 async function fiscalOverridesForRun(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Admin,
   restaurantId: string,
   runId: string,
 ): Promise<Map<string, FiscalOverrideRow>> {
@@ -421,8 +497,7 @@ async function fiscalOverridesForRun(
 
 /** Every override event ever authorized on this run, active or invalidated. History display only. */
 async function fiscalOverrideHistoryForRun(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Admin,
   restaurantId: string,
   runId: string,
 ): Promise<Map<string, FiscalOverrideRow[]>> {
@@ -447,9 +522,6 @@ async function fiscalOverrideHistoryForRun(
 type WarningReviewRow = {
   id: string;
   exception_id: string;
-  restaurant_id: string;
-  night_audit_run_id: string;
-  business_date: string;
   reviewed_by_membership_id: string;
   reviewed_at: string;
   review_note: string | null;
@@ -457,131 +529,51 @@ type WarningReviewRow = {
   invalidated_reason: string | null;
 };
 
-const WARNING_REVIEW_COLUMNS =
-  "id, exception_id, restaurant_id, night_audit_run_id, business_date, reviewed_by_membership_id, reviewed_at, review_note, invalidated_at, invalidated_reason";
-
-/** Only the ACTIVE warning review per exception. Used for current-state UI and close gate. */
-async function warningReviewsForRun(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
-  restaurantId: string,
-  runId: string,
-): Promise<Map<string, WarningReviewRow>> {
-  const rows = await selectAll<WarningReviewRow>((from, to) =>
-    admin
-      .from("night_audit_warning_reviews")
-      .select(WARNING_REVIEW_COLUMNS)
-      .eq("restaurant_id", restaurantId)
-      .eq("night_audit_run_id", runId)
-      .is("invalidated_at", null)
-      .order("reviewed_at", { ascending: true })
-      .range(from, to),
-  );
-  return new Map(rows.map((row) => [row.exception_id, row]));
-}
-
-/** Every warning review event ever authorized on this run, active or invalidated. History display only. */
+/** Pre-redesign warning reviews. Read for History only; the table is never written. */
 async function warningReviewHistoryForRun(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Admin,
   restaurantId: string,
   runId: string,
 ): Promise<Map<string, WarningReviewRow[]>> {
-  const rows = await selectAll<WarningReviewRow>((from, to) =>
-    admin
-      .from("night_audit_warning_reviews")
-      .select(WARNING_REVIEW_COLUMNS)
-      .eq("restaurant_id", restaurantId)
-      .eq("night_audit_run_id", runId)
-      .order("reviewed_at", { ascending: true })
-      .range(from, to),
-  );
-  const byException = new Map<string, WarningReviewRow[]>();
-  for (const row of rows) {
-    const list = byException.get(row.exception_id) ?? [];
-    list.push(row);
-    byException.set(row.exception_id, list);
-  }
-  return byException;
-}
-
-function effectiveFinancialStatus(
-  financial: NightAuditFinancialReconciliation,
-  exceptionRows: readonly ExceptionRow[],
-  overrides: ReadonlyMap<string, FiscalOverrideRow>,
-): NightAuditFinancialStatus {
-  const overridden = new Set(
-    exceptionRows
-      .filter((row) => overrides.has(row.id))
-      .map((row) => exceptionSyncKey(row.exception_type, row.reference_id)),
-  );
-  const remainingFinancialBlockers = financial.issues.some((issue) => {
-    if (issue.severity !== "blocking") return false;
-    const exception = financialIssuesToExceptions([issue])[0];
-    return (
-      !exception ||
-      !overridden.has(exceptionSyncKey(exception.exceptionType, exception.referenceId))
+  try {
+    const rows = await selectAll<WarningReviewRow>((from, to) =>
+      admin
+        .from("night_audit_warning_reviews")
+        .select(
+          "id, exception_id, reviewed_by_membership_id, reviewed_at, review_note, invalidated_at, invalidated_reason",
+        )
+        .eq("restaurant_id", restaurantId)
+        .eq("night_audit_run_id", runId)
+        .order("reviewed_at", { ascending: true })
+        .range(from, to),
     );
-  });
-  if (remainingFinancialBlockers) return "blocked";
-  return financial.summary.warningCount > 0 ? "warning" : "ready";
-}
-
-function presentFinancialWithFiscalOverrides(
-  financial: NightAuditFinancialReconciliation,
-  exceptionRows: readonly ExceptionRow[],
-  overrides: ReadonlyMap<string, FiscalOverrideRow>,
-  names: ReadonlyMap<string, string>,
-): NightAuditFinancialReconciliation {
-  const byKey = new Map(
-    exceptionRows.map((row) => [exceptionSyncKey(row.exception_type, row.reference_id), row]),
-  );
-  const overridesByFiscalReference = new Map<string, FiscalOverrideRow>();
-  for (const issue of financial.issues) {
-    const exception = financialIssuesToExceptions([issue])[0];
-    if (!exception) continue;
-    const persisted = byKey.get(exceptionSyncKey(exception.exceptionType, exception.referenceId));
-    const override = persisted ? overrides.get(persisted.id) : undefined;
-    if (override && exception.referenceId)
-      overridesByFiscalReference.set(exception.referenceId, override);
+    const byException = new Map<string, WarningReviewRow[]>();
+    for (const row of rows) {
+      const list = byException.get(row.exception_id) ?? [];
+      list.push(row);
+      byException.set(row.exception_id, list);
+    }
+    return byException;
+  } catch {
+    return new Map();
   }
-  const fiscalOverrideCount = overrides.size;
-  return {
-    ...financial,
-    status: effectiveFinancialStatus(financial, exceptionRows, overrides) as Exclude<
-      NightAuditFinancialStatus,
-      "unavailable"
-    >,
-    summary: {
-      ...financial.summary,
-      blockerCount: Math.max(0, financial.summary.blockerCount - fiscalOverrideCount),
-      fiscalOverrideCount,
-    },
-    fiscal: financial.fiscal.map((row) => {
-      const override = overridesByFiscalReference.get(row.id);
-      return {
-        ...row,
-        nightAuditOverride: override
-          ? {
-              reason: override.reason,
-              reasonCategory: override.reason_category,
-              overriddenBy: names.get(override.overridden_by_membership_id) ?? null,
-              overriddenAt: override.overridden_at,
-            }
-          : null,
-      };
-    }),
-  };
 }
 
+const RESOLVED_NOTE = "Cleared automatically — the underlying issue was fixed.";
+const LEGACY_INFORMATION_NOTE =
+  "No longer tracked — informational items do not block End of Day.";
+
+/**
+ * Persist this evaluation's blockers on the run. Information is never stored.
+ * A legacy open warning row resolves with a note; it is never deleted. A closed
+ * run's rows are frozen history and are not touched.
+ */
 async function syncRunExceptions(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Admin,
   restaurantId: string,
   runId: string,
-  derived: readonly NaDerivedException[],
+  conditions: readonly EndOfDayCondition[],
 ): Promise<void> {
-  // A closed run's exception history is frozen; a later recheck must not resolve or reopen it.
   const { data: current, error: currentError } = await admin
     .from("night_audit_runs")
     .select("status")
@@ -591,14 +583,7 @@ async function syncRunExceptions(
   if (currentError) throw currentError;
   if (!current || !canSyncRunExceptions((current as { status: string }).status)) return;
 
-  const existingRows = await selectAll<ExceptionRow>((from, to) =>
-    admin
-      .from("night_audit_exceptions")
-      .select("*")
-      .eq("night_audit_run_id", runId)
-      .order("id", { ascending: true })
-      .range(from, to),
-  );
+  const existingRows = await exceptionRowsForRun(admin, runId);
   const plan = planExceptionSync(
     existingRows.map((row) => ({
       id: row.id,
@@ -608,7 +593,7 @@ async function syncRunExceptions(
       message: row.message,
       status: row.status,
     })),
-    derived,
+    persistedBlockerRows(conditions),
   );
 
   if (plan.inserts.length > 0) {
@@ -623,7 +608,10 @@ async function syncRunExceptions(
         message: row.message,
       })),
     );
-    if (inserted.error) throw inserted.error;
+    // A concurrent recheck inserted the same row first: the next read sees it.
+    if (inserted.error && !/duplicate key/i.test(String(inserted.error.message))) {
+      throw inserted.error;
+    }
   }
 
   for (const row of plan.updates) {
@@ -639,48 +627,41 @@ async function syncRunExceptions(
   }
 
   if (plan.resolveIds.length > 0) {
-    const resolved = await admin
-      .from("night_audit_exceptions")
-      .update({
-        status: "resolved",
-        resolved_at: new Date().toISOString(),
-        resolution_note: "Cleared automatically — the underlying issue was fixed.",
-      })
-      .in("id", plan.resolveIds);
-    if (resolved.error) throw resolved.error;
+    const severityById = new Map(existingRows.map((row) => [row.id, row.severity]));
+    const now = new Date().toISOString();
+    for (const [severity, note] of [
+      ["blocking", RESOLVED_NOTE],
+      ["warning", LEGACY_INFORMATION_NOTE],
+    ] as const) {
+      const ids = plan.resolveIds.filter((id) => severityById.get(id) === severity);
+      if (ids.length === 0) continue;
+      const resolved = await admin
+        .from("night_audit_exceptions")
+        .update({ status: "resolved", resolved_at: now, resolution_note: note })
+        .in("id", ids);
+      if (resolved.error) throw resolved.error;
+    }
 
-    // The source condition is actually gone: any active fiscal override for
-    // these exact exceptions is invalidated. A later reopen of the same row
-    // starts with no active override and requires a fresh authorization.
-    // Scoped to these ids only — unrelated exceptions are never touched.
+    // The source condition is gone: an active fiscal override for these exact
+    // exceptions is invalidated. A later reopen needs a fresh authorization.
     const invalidated = await admin
       .from("night_audit_fiscal_overrides")
-      .update({
-        invalidated_at: new Date().toISOString(),
-        invalidated_reason: "Source fiscal condition resolved.",
-      })
+      .update({ invalidated_at: now, invalidated_reason: "Source fiscal condition resolved." })
       .in("exception_id", plan.resolveIds)
       .is("invalidated_at", null);
     if (invalidated.error) throw invalidated.error;
 
-    // The source condition is gone: active warning reviews are invalidated.
-    // If the warning recurs later, it starts unreviewed and requires fresh review.
+    // Legacy warning reviews on resolved rows are closed out the same way.
     const invalidatedReviews = await admin
       .from("night_audit_warning_reviews")
-      .update({
-        invalidated_at: new Date().toISOString(),
-        invalidated_reason: "Source warning condition resolved.",
-      })
+      .update({ invalidated_at: now, invalidated_reason: "Source warning condition resolved." })
       .in("exception_id", plan.resolveIds)
       .is("invalidated_at", null);
     if (invalidatedReviews.error) throw invalidatedReviews.error;
   }
 }
 
-function toFiscalOverride(
-  row: FiscalOverrideRow,
-  names: ReadonlyMap<string, string>,
-): FiscalOverride {
+function toFiscalOverride(row: FiscalOverrideRow, names: ReadonlyMap<string, string>): FiscalOverride {
   return {
     id: row.id,
     fiscalStatus: row.fiscal_status,
@@ -694,10 +675,7 @@ function toFiscalOverride(
   };
 }
 
-function toWarningReview(
-  row: WarningReviewRow,
-  names: ReadonlyMap<string, string>,
-): WarningReview {
+function toWarningReview(row: WarningReviewRow, names: ReadonlyMap<string, string>): WarningReview {
   const reviewerName = names.get(row.reviewed_by_membership_id) ?? null;
   return {
     id: row.id,
@@ -712,51 +690,42 @@ function toWarningReview(
   };
 }
 
-function toException(
-  row: ExceptionRow,
-  role: string,
-  sources: ReadonlyMap<string, ExceptionSource> = new Map(),
-  /** ACTIVE override only — never an invalidated one. */
-  overrides: ReadonlyMap<string, FiscalOverrideRow> = new Map(),
-  names: ReadonlyMap<string, string> = new Map(),
-  /** All override events (active + invalidated) for this exception. History screens only. */
-  history: ReadonlyMap<string, FiscalOverrideRow[]> = new Map(),
-  /** ACTIVE warning review only. */
-  warningReviews: ReadonlyMap<string, WarningReviewRow> = new Map(),
-  /** All warning reviews for this exception row. History screens only. */
-  warningReviewHistory: ReadonlyMap<string, WarningReviewRow[]> = new Map(),
-): AuditException {
-  const override = overrides.get(row.id);
-  const review = warningReviews.get(row.id);
-  return {
-    id: row.id,
-    exceptionType: row.exception_type,
-    severity: row.severity,
-    referenceType: row.reference_type,
-    referenceId: row.reference_id,
-    message: presentExceptionMessage(row.exception_type, row.message, role),
-    status: row.status,
-    resolvedAt: row.resolved_at,
-    resolutionNote: row.resolution_note,
-    canIgnore: row.severity === "warning" && !NON_IGNORABLE_TYPES.has(row.exception_type),
-    createdAt: row.created_at ?? null,
-    source:
-      row.status === "open"
-        ? (sources.get(exceptionSyncKey(row.exception_type, row.reference_id)) ?? null)
-        : null,
-    fiscalOverride: override ? toFiscalOverride(override, names) : null,
-    fiscalOverrideHistory: (history.get(row.id) ?? []).map((item) => toFiscalOverride(item, names)),
-    warningReview: review ? toWarningReview(review, names) : null,
-    warningReviewHistory: (warningReviewHistory.get(row.id) ?? []).map((item) =>
-      toWarningReview(item, names),
-    ),
-  };
+/** Attach persisted exception ids and active fiscal overrides to live blockers. */
+function attachPersisted(
+  conditions: readonly EndOfDayCondition[],
+  rows: readonly ExceptionRow[],
+  overrides: ReadonlyMap<string, FiscalOverrideRow>,
+  names: ReadonlyMap<string, string>,
+): EndOfDayCondition[] {
+  const byKey = new Map(
+    rows
+      .filter((row) => row.status === "open")
+      .map((row) => [exceptionSyncKey(row.exception_type, row.reference_id), row]),
+  );
+  return conditions.map((condition) => {
+    if (condition.kind !== "blocker") return condition;
+    const row = byKey.get(condition.key);
+    if (!row) return condition;
+    const override = overrides.get(row.id);
+    return {
+      ...condition,
+      exceptionId: row.id,
+      fiscalOverride:
+        override && condition.fiscalOverrideable
+          ? {
+              reason: override.reason,
+              reasonCategory: override.reason_category,
+              overriddenBy: names.get(override.overridden_by_membership_id) ?? null,
+              overriddenAt: override.overridden_at,
+            }
+          : null,
+    };
+  });
 }
 
 /** OTB rows captured as of each closed business date. A read failure is unknown, not missing. */
 async function otbStates(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: any,
+  admin: Admin,
   restaurantId: string,
   runs: ReadonlyArray<{ business_date: string; status: string }>,
 ): Promise<Map<string, NightAuditOtbState>> {
@@ -777,8 +746,7 @@ async function otbStates(
   return states;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function staffNames(admin: any, restaurantId: string, membershipIds: string[]) {
+async function staffNames(admin: Admin, restaurantId: string, membershipIds: string[]) {
   const names = new Map<string, string>();
   const ids = Array.from(new Set(membershipIds.filter(Boolean)));
   if (ids.length === 0) return names;
@@ -810,6 +778,10 @@ async function staffNames(admin: any, restaurantId: string, membershipIds: strin
   return names;
 }
 
+/**
+ * Effective grants for this caller. detailRole is a data-shaping label for the
+ * reconcilers' redaction (money, guest names); it never authorizes an action.
+ */
 async function nightAuditActorFlags(
   context: Parameters<typeof resolveEffectivePermissions>[0],
   restaurantId: string,
@@ -828,7 +800,9 @@ async function nightAuditActorFlags(
     canRun: has(PMS_PERMISSIONS.NIGHT_AUDIT_RUN),
     canException: has(PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT),
     canClose: has(PMS_PERMISSIONS.NIGHT_AUDIT_CLOSE_DATE),
-    folioLane: (financial ? "live" : "unavailable") as NaFolioLane,
+    canOverrideWindow: has(PMS_PERMISSIONS.NIGHT_AUDIT_WINDOW_OVERRIDE),
+    canAuthorizeFiscal: has(PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_AUTHORIZE),
+    canRecover: has(PMS_PERMISSIONS.NIGHT_AUDIT_RECOVER_DATE),
   };
 }
 
@@ -837,6 +811,41 @@ async function requireNightAuditView(
   restaurantId: string,
 ) {
   return requirePmsActor(context, restaurantId, PMS_PERMISSIONS.NIGHT_AUDIT_VIEW);
+}
+
+type LiveRunRecord = {
+  id: string;
+  business_date: string;
+  status: NightAuditRunRow["status"];
+  started_at: string;
+  closed_at: string | null;
+  started_by_membership_id: string | null;
+  closed_by_membership_id: string | null;
+  summary: unknown;
+  notes: string | null;
+  current_step?: string | null;
+  progress_updated_at?: string | null;
+};
+
+/** The live (non-superseded) run for one date, or null. Never creates one. */
+async function liveRunForDate(admin: Admin, restaurantId: string, businessDate: string) {
+  const { data, error } = await admin
+    .from("night_audit_runs")
+    .select("*")
+    .eq("restaurant_id", restaurantId)
+    .eq("business_date", businessDate)
+    .neq("status", "superseded")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw nightAuditError(error.message);
+  return (data as LiveRunRecord | null) ?? null;
+}
+
+function currentStepOf(value: unknown): EndOfDayStepId | null {
+  return typeof value === "string" && (END_OF_DAY_STEP_IDS as string[]).includes(value)
+    ? (value as EndOfDayStepId)
+    : null;
 }
 
 export const getPropertyBusinessDate = createServerFn({ method: "GET" })
@@ -849,290 +858,112 @@ export const getPropertyBusinessDate = createServerFn({ method: "GET" })
     return loadProperty(supabaseAdmin, data.restaurantId);
   });
 
-/* ------------------------------------------------------------------ access */
+/* --------------------------------------------------------------- workspace */
 
-export const getNightAuditAccess = createServerFn({ method: "GET" })
+/**
+ * The End of Day workspace. Viewing never creates a run. When a run exists and
+ * the caller may run End of Day, this evaluation also re-syncs the run's
+ * blockers (Recheck). Information is computed live and never stored.
+ */
+export const getNightAuditWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
-  .handler(async ({ data, context }) => {
-    const me = await requireNightAuditView(context as never, data.restaurantId);
-    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
-    return {
-      canManage: flags.canRun,
-      canConfirm: flags.canClose,
-      role: me.role,
-    };
-  });
-
-export const getNightAuditFinancials = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
-  .handler(async ({ data, context }): Promise<NightAuditFinancialReconciliation> => {
-    const me = await requireNightAuditView(context as never, data.restaurantId);
+  .handler(async ({ data, context }): Promise<NightAuditWorkspaceData> => {
+    await requireNightAuditView(context as never, data.restaurantId);
     const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
+    const config = await loadEndOfDayConfig(supabaseAdmin, data.restaurantId);
+    const checkedAt = new Date().toISOString();
+    const businessDate = property.businessDate;
+
+    let run = await liveRunForDate(supabaseAdmin, data.restaurantId, businessDate);
+
+    let evaluation: Evaluation | null = null;
+    let evaluationMessage: string | null = null;
     try {
-      const result = await loadNightAuditFinancialReconciliation(
+      evaluation = await evaluateEndOfDay(
         supabaseAdmin,
         data.restaurantId,
-        property.businessDate,
-        property.timezone,
-        property.currency,
-      );
-      const { data: runRow } = await supabaseAdmin
-        .from("night_audit_runs")
-        .select("id")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("business_date", property.businessDate)
-        .maybeSingle();
-      if (!runRow) return presentNightAuditFinancials(result, flags.detailRole);
-      const runId = (runRow as { id: string }).id;
-      const exceptionRows = await selectAll<ExceptionRow>((from, to) =>
-        supabaseAdmin
-          .from("night_audit_exceptions")
-          .select("*")
-          .eq("night_audit_run_id", runId)
-          .order("id", { ascending: true })
-          .range(from, to),
-      );
-      const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, runId);
-      const names = await staffNames(
-        supabaseAdmin,
-        data.restaurantId,
-        [...overrides.values()].map((override) => override.overridden_by_membership_id),
-      );
-      return presentNightAuditFinancials(
-        presentFinancialWithFiscalOverrides(result, exceptionRows, overrides, names),
-        flags.detailRole,
+        businessDate,
+        property,
+        config.policy,
       );
     } catch (error) {
-      throw nightAuditError(error instanceof Error ? error.message : FINANCIAL_UNAVAILABLE_MESSAGE);
+      evaluationMessage = error instanceof Error ? error.message : "End of Day could not be evaluated.";
     }
-  });
 
-export const getNightAuditOperations = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
-  .handler(async ({ data, context }): Promise<NightAuditOperationalReconciliation> => {
-    const me = await requireNightAuditView(context as never, data.restaurantId);
-    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const property = await loadProperty(supabaseAdmin, data.restaurantId);
-    try {
-      const result = await loadNightAuditOperationalReconciliation(
-        supabaseAdmin,
-        data.restaurantId,
-        property.businessDate,
-        property.timezone,
-      );
-      return presentNightAuditOperations(result, flags.detailRole);
-    } catch {
-      throw new Error(OPERATIONAL_UNAVAILABLE_MESSAGE);
-    }
-  });
-
-/* -------------------------------------------------------------- run / sync */
-
-export const runNightAudit = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
-  .handler(async ({ data, context }): Promise<NightAuditState> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.NIGHT_AUDIT_RUN);
-    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const property = await loadProperty(supabaseAdmin, data.restaurantId);
-    const folioLane = flags.folioLane;
-    const financialDetail = flags.financial;
-    const stayDetail = flags.operational;
-    const checkedAt = new Date().toISOString();
-
-    // One run per property/business date.
-    let { data: runRow } = await supabaseAdmin
-      .from("night_audit_runs")
-      .select("*")
-      .eq("restaurant_id", data.restaurantId)
-      .eq("business_date", property.businessDate)
-      .maybeSingle();
-
-    if (!runRow) {
-      const inserted = await supabaseAdmin
-        .from("night_audit_runs")
-        .insert({
-          restaurant_id: data.restaurantId,
-          business_date: property.businessDate,
-          status: "open",
-          started_by_membership_id: me.id,
-        })
-        .select("*")
-        .maybeSingle();
-      if (inserted.error && !/duplicate key/i.test(inserted.error.message)) {
-        throw nightAuditError(inserted.error.message);
+    let rows: ExceptionRow[] = [];
+    let overrides = new Map<string, FiscalOverrideRow>();
+    if (run && evaluation) {
+      const live = run.status === "open" || run.status === "ready";
+      // A failed source read never syncs, so a real blocker cannot auto-resolve.
+      if (live && flags.canRun && evaluation.unavailable.length === 0) {
+        try {
+          await syncRunExceptions(supabaseAdmin, data.restaurantId, run.id, evaluation.conditions);
+        } catch (error) {
+          evaluationMessage =
+            error instanceof Error ? error.message : "End of Day blockers could not be saved.";
+        }
       }
-      runRow =
-        inserted.data ??
-        (
-          await supabaseAdmin
-            .from("night_audit_runs")
-            .select("*")
-            .eq("restaurant_id", data.restaurantId)
-            .eq("business_date", property.businessDate)
-            .maybeSingle()
-        ).data;
+      rows = await exceptionRowsForRun(supabaseAdmin, run.id);
+      overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
     }
 
-    const run = runRow as {
-      id: string;
-      business_date: string;
-      status: "open" | "ready" | "closed" | "failed" | "superseded";
-      started_at: string;
-      closed_at: string | null;
-      started_by_membership_id: string | null;
-      closed_by_membership_id: string | null;
-      summary: unknown;
-    };
-
-    const evaluation = await evaluateAudit(
+    const overrideNames = await staffNames(
       supabaseAdmin,
       data.restaurantId,
-      property.businessDate,
-      property.currency,
-      property.timezone,
-    );
-    const blockers = await evaluateNa1Blockers(
-      supabaseAdmin,
-      data.restaurantId,
-      property.businessDate,
-      folioLane,
-      integrityBlockerCounts(evaluation.exceptions),
-      nightAuditFeedCounts(evaluation.exceptions),
+      [...overrides.values()].map((row) => row.overridden_by_membership_id),
     );
 
-    // A closed business date is immutable — report it, never re-derive it.
-    // Open runs persist the board plus the same financial and operational issues the workspace shows.
-    // A failed read does not sync, so a real blocker cannot be auto-resolved.
-    const financial = await readFinancialReconciliation(
-      supabaseAdmin,
-      data.restaurantId,
-      property.businessDate,
-      property.timezone,
-      property.currency,
-    );
-    const operational = await readOperationalReconciliation(
-      supabaseAdmin,
-      data.restaurantId,
-      property.businessDate,
-      property.timezone,
-    );
-    if ((run.status === "open" || run.status === "ready") && financial.ok && operational.ok) {
-      await syncRunExceptions(
-        supabaseAdmin,
-        data.restaurantId,
-        run.id,
-        auditExceptionSet(blockers, evaluation.exceptions, financial.result, operational.result),
-      );
-    }
+    // Display copy is shaped by the caller's grants; keys match the raw conditions.
+    const displayConditions = evaluation
+      ? sortConditions(
+          attachPersisted(
+            conditionsFor(
+              evaluation.financial.ok
+                ? presentNightAuditFinancials(evaluation.financial.result, flags.detailRole)
+                : null,
+              evaluation.operational.ok
+                ? presentNightAuditOperations(evaluation.operational.result, flags.detailRole)
+                : null,
+              evaluation.unavailable,
+              config.policy,
+            ),
+            rows,
+            overrides,
+            overrideNames,
+          ),
+        )
+      : unavailableSourceConditions(["operational", "financial"]);
+    const blockerCount = openBlockers(displayConditions).length;
 
-    const finalRows = await selectAll<ExceptionRow>((from, to) =>
-      supabaseAdmin
-        .from("night_audit_exceptions")
-        .select("*")
-        .eq("night_audit_run_id", run.id)
-        .order("id", { ascending: true })
-        .range(from, to),
-    );
-    const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
-    const warningReviews = await warningReviewsForRun(supabaseAdmin, data.restaurantId, run.id);
-    const warningReviewHistory = await warningReviewHistoryForRun(
-      supabaseAdmin,
-      data.restaurantId,
-      run.id,
-    );
-    const staffIds = [
-      ...[...overrides.values()].map((row) => row.overridden_by_membership_id),
-      ...[...warningReviews.values()].map((row) => row.reviewed_by_membership_id),
-    ];
-    const staffMemberNames = await staffNames(supabaseAdmin, data.restaurantId, staffIds);
-    const sources =
-      run.status === "open" || run.status === "ready"
-        ? liveExceptionSources(
-            financial.ok ? financial.result : null,
-            operational.ok ? operational.result : null,
-          )
-        : new Map<string, ExceptionSource>();
-    const exceptions = finalRows
-      .slice()
-      .sort((a, b) => a.severity.localeCompare(b.severity) || a.id.localeCompare(b.id))
-      .map((row) =>
-        toException(
-          row,
-          flags.detailRole,
-          sources,
-          overrides,
-          staffMemberNames,
-          new Map(),
-          warningReviews,
-          warningReviewHistory,
-        ),
-      );
-
-    const blockingCount = exceptions.filter(
-      (e) => e.severity === "blocking" && e.status === "open" && !e.fiscalOverride,
-    ).length;
-    const warningCount = exceptions.filter(
-      (e) => e.severity === "warning" && e.status === "open",
-    ).length;
-
-    const financialStatus: NightAuditFinancialStatus = financial.ok
-      ? effectiveFinancialStatus(financial.result, finalRows, overrides)
-      : "unavailable";
-    const operationalStatus: NightAuditOperationalStatus = operational.ok
-      ? operational.result.status
-      : "unavailable";
-    const overallStatus = nightAuditOverallStatus({
-      closed: run.status === "closed",
-      boardBlockers: remainingBlockerCount(blockers),
-      boardUnavailable: boardUnavailable(blockers),
-      openBlockingExceptions: blockingCount,
-      financial: financialStatus,
-      operational: operationalStatus,
-      warnings: warningCount,
-    });
-    if (run.status === "open" || run.status === "ready") {
-      const nextStatus =
-        nightAuditAllowsClose(overallStatus) &&
-        financialAllowsClose(financialStatus) &&
-        operationalAllowsClose(operationalStatus)
-          ? "ready"
-          : "open";
+    if (run && evaluation && flags.canRun && (run.status === "open" || run.status === "ready")) {
+      const nextStatus = blockerCount === 0 && evaluation.unavailable.length === 0 ? "ready" : "open";
       if (nextStatus !== run.status) {
         await supabaseAdmin
           .from("night_audit_runs")
           .update({ status: nextStatus })
-          .eq("id", run.id);
-        run.status = nextStatus;
+          .eq("id", run.id)
+          .in("status", ["open", "ready"]);
+        run = { ...run, status: nextStatus };
       }
     }
 
     const { data: lastClosedRow } = await supabaseAdmin
       .from("night_audit_runs")
-      .select("id, business_date, closed_at, closed_by_membership_id, summary")
+      .select(RUN_COLUMNS)
       .eq("restaurant_id", data.restaurantId)
       .eq("status", "closed")
       .order("business_date", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const lastClosedRaw = lastClosedRow as {
-      id: string;
-      business_date: string;
-      closed_at: string | null;
-      closed_by_membership_id: string | null;
-      summary: AuditSummary | null;
-    } | null;
+    const lastClosedRaw = (lastClosedRow as RunRecord | null) ?? null;
 
     const names = await staffNames(supabaseAdmin, data.restaurantId, [
-      run.started_by_membership_id ?? "",
-      run.closed_by_membership_id ?? "",
+      run?.started_by_membership_id ?? "",
+      run?.closed_by_membership_id ?? "",
+      lastClosedRaw?.started_by_membership_id ?? "",
       lastClosedRaw?.closed_by_membership_id ?? "",
     ]);
     const lastClosedOtb: NightAuditOtbState | null = lastClosedRaw
@@ -1142,83 +973,239 @@ export const runNightAudit = createServerFn({ method: "POST" })
           ])
         ).get(lastClosedRaw.business_date.slice(0, 10)) ?? "unknown")
       : null;
-
-    const lastClosed: NaLastClosed | null = lastClosedRaw
-      ? {
-          who: lastClosedRaw.closed_by_membership_id
-            ? (names.get(lastClosedRaw.closed_by_membership_id) ?? null)
-            : null,
-          when: lastClosedRaw.closed_at,
-          previousBusinessDate:
-            lastClosedRaw.summary?.previousBusinessDate ?? lastClosedRaw.business_date,
-          nextBusinessDate:
-            lastClosedRaw.summary?.nextBusinessDate ??
-            nextBusinessDate(lastClosedRaw.business_date),
-        }
+    const lastClosedSummary = lastClosedRaw
+      ? presentRunSummary((lastClosedRaw.summary as AuditSummary | null) ?? null, flags.detailRole)
       : null;
 
+    const financialResult = evaluation?.financial.ok
+      ? presentNightAuditFinancials(evaluation.financial.result, flags.detailRole)
+      : null;
+    const operationalResult = evaluation?.operational.ok ? evaluation.operational.result : null;
+    const runStatus = run?.status ?? null;
+    const fiscalRows = financialResult?.fiscal ?? [];
+
     return {
-      businessDate: property.businessDate,
+      businessDate,
+      nextBusinessDate: nextBusinessDate(businessDate),
+      persistedBusinessDate: property.persistedBusinessDate,
       currency: property.currency,
       timezone: property.timezone,
-      run: {
-        id: run.id,
-        businessDate: run.business_date,
-        status: run.status,
-        startedAt: run.started_at,
-        closedAt: run.closed_at,
-        startedBy: run.started_by_membership_id
-          ? (names.get(run.started_by_membership_id) ?? null)
-          : null,
-        closedBy: run.closed_by_membership_id
-          ? (names.get(run.closed_by_membership_id) ?? null)
-          : null,
-        summary: presentRunSummary((run.summary as AuditSummary | null) ?? null, flags.detailRole),
-      },
-      checks: presentRunSummary({ checks: evaluation.checks }, flags.detailRole)?.checks ?? [],
-      exceptions,
-      blockingCount,
-      warningCount,
-      noShows: stayDetail ? evaluation.noShows : [],
-      overstays: stayDetail ? evaluation.overstays : [],
-      shifts: financialDetail ? evaluation.shifts : [],
-      finance: financialDetail ? evaluation.finance : null,
-      canClose:
-        (run.status === "open" || run.status === "ready") && nightAuditAllowsClose(overallStatus),
-      blockers,
-      workspaceStatus: workspaceStatus({ closed: run.status === "closed", rows: blockers }),
-      lastClosed,
-      lastClosedRunId: lastClosedRaw?.id ?? null,
-      overallStatus,
-      financialStatus,
-      operationalStatus,
       checkedAt,
-      persistedBusinessDate: property.persistedBusinessDate,
-      lastClosedOtb,
-      canRetryOtb:
-        flags.canException &&
-        lastClosedRaw != null &&
-        lastClosedOtb === "not_captured" &&
-        canRetryOtbSnapshot({
-          runStatus: "closed",
-          runBusinessDate: lastClosedRaw.business_date.slice(0, 10),
-          persistedBusinessDate: property.persistedBusinessDate,
-        }),
-      nightAuditWindow: evaluateNightAuditWindow({
-        ...(await loadNightAuditWindowConfig(supabaseAdmin, data.restaurantId)),
+      window: evaluateNightAuditWindow({
+        ...config.window,
         timezone: property.timezone,
-        role: me.role,
+        canOverride: flags.canOverrideWindow,
       }),
+      policy: config.policy,
+      run: run
+        ? {
+            id: run.id,
+            businessDate: run.business_date,
+            status: run.status,
+            startedAt: run.started_at,
+            closedAt: run.closed_at,
+            startedBy: run.started_by_membership_id
+              ? (names.get(run.started_by_membership_id) ?? null)
+              : null,
+            closedBy: run.closed_by_membership_id
+              ? (names.get(run.closed_by_membership_id) ?? null)
+              : null,
+            summary: presentRunSummary((run.summary as AuditSummary | null) ?? null, flags.detailRole),
+            notes: run.notes ?? null,
+            currentStep: currentStepOf(run.current_step),
+            progressUpdatedAt: run.progress_updated_at ?? null,
+          }
+        : null,
+      auditStatus: endOfDayAuditStatus({
+        runStatus,
+        evaluationFailed: evaluation == null,
+        blockerCount,
+      }),
+      evaluation: {
+        failed: evaluation == null,
+        unavailable: evaluation?.unavailable ?? ["operational", "financial"],
+        message: evaluationMessage,
+      },
+      steps: endOfDaySteps({ runStatus, conditions: displayConditions }),
+      domains: endOfDayDomains(displayConditions),
+      conditions: displayConditions,
+      blockerCount,
+      informationCount: informationItems(displayConditions).length,
+      dayActivity: operationalResult?.dayActivity ?? { state: "unavailable" },
+      inHouseCount: operationalResult?.summary.inHouseCount ?? null,
+      folios: financialResult?.folioSummary ?? null,
+      cashier: financialResult ? { access: financialResult.access, shifts: financialResult.drawers } : null,
+      reconcile: financialResult
+        ? {
+            access: financialResult.access,
+            dayFinance: financialResult.dayFinance,
+            taxSummary: financialResult.taxSummary,
+            fiscalConfigured: financialResult.fiscalConfigured,
+            fiscal: {
+              registered: fiscalRows.filter((row) => row.status === "pass" || row.status === "info").length,
+              pending: fiscalRows.filter((row) => row.fiscalStatus === "PENDING").length,
+              problems: fiscalRows.filter((row) => row.status === "blocker").length,
+              overridden: displayConditions.filter((row) => row.fiscalOverride != null).length,
+            },
+          }
+        : null,
+      access: {
+        canStart: flags.canRun,
+        canClose: flags.canClose,
+        canOverrideWindow: flags.canOverrideWindow,
+        canAuthorizeFiscal: flags.canAuthorizeFiscal,
+        canRetryOtb: flags.canException,
+        canRecover: flags.canRecover,
+        financialDetail: flags.financial,
+        operationalDetail: flags.operational,
+      },
+      lastClosed: lastClosedRaw
+        ? {
+            runId: lastClosedRaw.id,
+            businessDate: lastClosedRaw.business_date.slice(0, 10),
+            nextBusinessDate:
+              lastClosedSummary?.nextBusinessDate ?? nextBusinessDate(lastClosedRaw.business_date.slice(0, 10)),
+            startedAt: lastClosedRaw.started_at,
+            startedBy: lastClosedRaw.started_by_membership_id
+              ? (names.get(lastClosedRaw.started_by_membership_id) ?? null)
+              : null,
+            closedAt: lastClosedRaw.closed_at,
+            closedBy: lastClosedRaw.closed_by_membership_id
+              ? (names.get(lastClosedRaw.closed_by_membership_id) ?? null)
+              : null,
+            summary: lastClosedSummary,
+            notes: lastClosedRaw.notes ?? null,
+            otb: lastClosedOtb ?? "unknown",
+            canRetryOtb:
+              flags.canException &&
+              lastClosedOtb === "not_captured" &&
+              canRetryOtbSnapshot({
+                runStatus: "closed",
+                runBusinessDate: lastClosedRaw.business_date.slice(0, 10),
+                persistedBusinessDate: property.persistedBusinessDate,
+              }),
+          }
+        : null,
     };
   });
 
-/* --------------------------------------------------------- exception admin */
+/* ------------------------------------------------------------ start/resume */
 
 /**
- * A deliberately narrow authorization: owner/manager may exempt one canonical
- * fiscal blocker from the close gate for this open business-date run. It never
- * updates the fiscal document, its exception severity/status, or a non-fiscal
- * finding.
+ * Start End of Day for the current business date, or resume the run that
+ * already exists. Concurrent starts converge on one run: the partial unique
+ * index allows one live run per date and a losing insert re-reads the winner.
+ */
+export const startNightAudit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { restaurantId: string; expectedBusinessDate?: string }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        expectedBusinessDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+      })
+      .parse(d),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<
+      { ok: true; runId: string; resumed: boolean } | { ok: false; message: string }
+    > => {
+      const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.NIGHT_AUDIT_RUN);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const property = await loadProperty(supabaseAdmin, data.restaurantId);
+      if (data.expectedBusinessDate && data.expectedBusinessDate !== property.businessDate) {
+        return { ok: false, message: NA1_STALE_BUSINESS_DATE };
+      }
+      const existing = await liveRunForDate(supabaseAdmin, data.restaurantId, property.businessDate);
+      if (existing) return { ok: true, runId: existing.id, resumed: true };
+
+      const now = new Date().toISOString();
+      const inserted = await supabaseAdmin
+        .from("night_audit_runs")
+        .insert({
+          restaurant_id: data.restaurantId,
+          business_date: property.businessDate,
+          status: "open",
+          started_by_membership_id: me.id,
+          current_step: "prepare",
+          progress_updated_at: now,
+        } as never)
+        .select("id")
+        .maybeSingle();
+      if (inserted.error) {
+        if (!/duplicate key/i.test(inserted.error.message)) {
+          return { ok: false, message: nightAuditError(inserted.error.message).message };
+        }
+        const winner = await liveRunForDate(supabaseAdmin, data.restaurantId, property.businessDate);
+        if (!winner) return { ok: false, message: "End of Day could not be started. Try again." };
+        return { ok: true, runId: winner.id, resumed: true };
+      }
+      const runId = (inserted.data as { id: string }).id;
+      await auditEndOfDay(supabaseAdmin, context, data.restaurantId, "night_audit_started", {
+        runId,
+        businessDate: property.businessDate,
+        membershipId: me.id,
+      });
+      return { ok: true, runId, resumed: false };
+    },
+  );
+
+/** Autosave the open step and the End of Day note. Never touches check results. */
+export const saveNightAuditProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { restaurantId: string; runId: string; currentStep?: string; notes?: string }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        runId: idSchema,
+        currentStep: stepSchema.optional(),
+        notes: z.string().max(NOTE_MAX).optional(),
+      })
+      .parse(d),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; savedAt: string } | { ok: false; message: string }> => {
+      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.NIGHT_AUDIT_RUN);
+      if (data.currentStep === undefined && data.notes === undefined) {
+        return { ok: true, savedAt: new Date().toISOString() };
+      }
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const savedAt = new Date().toISOString();
+      const patch: { progress_updated_at: string; current_step?: string; notes?: string | null } = {
+        progress_updated_at: savedAt,
+      };
+      if (data.currentStep !== undefined) patch.current_step = data.currentStep;
+      if (data.notes !== undefined) patch.notes = data.notes.trim() || null;
+      const { data: updated, error } = await supabaseAdmin
+        .from("night_audit_runs")
+        .update(patch as never)
+        .eq("id", data.runId)
+        .eq("restaurant_id", data.restaurantId)
+        .in("status", ["open", "ready"])
+        .select("id");
+      if (error) return { ok: false, message: nightAuditError(error.message).message };
+      if (!updated || updated.length === 0) {
+        return { ok: false, message: "This End of Day run is closed or no longer current." };
+      }
+      return { ok: true, savedAt };
+    },
+  );
+
+/* ----------------------------------------------------------- fiscal override */
+
+/**
+ * A deliberately narrow authorization: exempt one canonical fiscal blocker from
+ * the close gate for this open business-date run. It never updates the fiscal
+ * document, its exception severity/status, or a non-fiscal finding.
  */
 export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1297,8 +1284,7 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
     }
     const fiscalStatus = fiscalStatusForException(exception.exception_type);
     if (!fiscalStatus) return { ok: false, message: "This fiscal status is not overrideable." };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const inserted = await (supabaseAdmin as any).from("night_audit_fiscal_overrides").insert({
+    const inserted = await (supabaseAdmin as Admin).from("night_audit_fiscal_overrides").insert({
       restaurant_id: data.restaurantId,
       night_audit_run_id: runRow.id,
       exception_id: exception.id,
@@ -1314,222 +1300,49 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
       if (/duplicate key/i.test(inserted.error.message)) return { ok: true };
       return { ok: false, message: nightAuditError(inserted.error.message).message };
     }
-    return { ok: true };
-  });
-
-export const reviewWarning = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator(
-    (d: { restaurantId: string; exceptionId: string; note?: string }) =>
-      z
-        .object({
-          restaurantId: idSchema,
-          exceptionId: z.string().min(1).max(100),
-          note: z.string().max(500).optional(),
-        })
-        .parse(d),
-  )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<{ ok: true; alreadyReviewed?: boolean } | { ok: false; message: string }> => {
-      const me = await requirePmsActor(
-        context as never,
-        data.restaurantId,
-        PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT,
-      );
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.exceptionId);
-      let row: {
-        id: string;
-        exception_type: string;
-        severity: "warning" | "blocking";
-        status: "open" | "resolved" | "ignored";
-        night_audit_run_id: string;
-      } | null = null;
-
-      if (isUuid) {
-        const { data: directRow } = await supabaseAdmin
-          .from("night_audit_exceptions")
-          .select("id, exception_type, severity, status, night_audit_run_id")
-          .eq("id", data.exceptionId)
-          .eq("restaurant_id", data.restaurantId)
-          .maybeSingle();
-        if (directRow) {
-          row = directRow as typeof row;
-        }
-      }
-
-      if (!row && !isUuid) {
-        const split = data.exceptionId.indexOf(":");
-        const code = split > 0 ? data.exceptionId.slice(0, split) : "";
-        const reference = split > 0 ? data.exceptionId.slice(split + 1) : "";
-        const referenceIsUuid =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reference);
-        const { data: run } = await supabaseAdmin
-          .from("night_audit_runs")
-          .select("id")
-          .eq("restaurant_id", data.restaurantId)
-          .in("status", ["open", "ready"])
-          .order("business_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (run && code) {
-          let query = supabaseAdmin
-            .from("night_audit_exceptions")
-            .select("id, exception_type, severity, status, night_audit_run_id")
-            .eq("night_audit_run_id", run.id)
-            .eq("severity", "warning")
-            .eq("status", "open");
-          query = referenceIsUuid
-            ? query.eq("exception_type", code).eq("reference_id", reference)
-            : query.eq("exception_type", data.exceptionId).is("reference_id", null);
-          const { data: exactRows } = await query.limit(2);
-          if (exactRows && exactRows.length === 1) {
-            row = exactRows[0] as typeof row;
-          }
-        }
-      }
-
-      if (!row) return { ok: false, message: "Exception not found for this property." };
-      const exception = row;
-
-      if (exception.severity !== "warning") {
-        return {
-          ok: false,
-          message:
-            "Only warnings may be reviewed. Blockers must be resolved in source modules.",
-        };
-      }
-      if (exception.status !== "open") {
-        return { ok: false, message: "Only open warnings can be reviewed." };
-      }
-
-      const { data: run } = await supabaseAdmin
-        .from("night_audit_runs")
-        .select("id, status, business_date")
-        .eq("id", exception.night_audit_run_id)
-        .eq("restaurant_id", data.restaurantId)
-        .maybeSingle();
-      if (!run) return { ok: false, message: "Night Audit run not found for this property." };
-      const runRow = run as { id: string; status: string; business_date: string };
-      if (runRow.status === "closed") {
-        return { ok: false, message: "Closed Night Audit runs cannot be modified." };
-      }
-      if (runRow.status !== "open" && runRow.status !== "ready") {
-        return { ok: false, message: "Run is not open or ready for warning review." };
-      }
-
-      // Check if an active review already exists (idempotency)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: existingReview } = await (supabaseAdmin as any)
-        .from("night_audit_warning_reviews")
-        .select("id")
-        .eq("exception_id", exception.id)
-        .is("invalidated_at", null)
-        .maybeSingle();
-      if (existingReview) {
-        return { ok: true, alreadyReviewed: true };
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const inserted = await (supabaseAdmin as any).from("night_audit_warning_reviews").insert({
-        restaurant_id: data.restaurantId,
-        night_audit_run_id: runRow.id,
-        exception_id: exception.id,
-        business_date: runRow.business_date,
-        reviewed_by_membership_id: me.id,
-        review_note: (data.note ?? "").trim() || null,
-      });
-      if (inserted.error) {
-        if (/duplicate key/i.test(inserted.error.message)) return { ok: true, alreadyReviewed: true };
-        return { ok: false, message: nightAuditError(inserted.error.message).message };
-      }
-      return { ok: true };
-    },
-  );
-
-export const updateException = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator(
-    (d: {
-      restaurantId: string;
-      exceptionId: string;
-      action: "resolve" | "ignore";
-      note?: string;
-    }) =>
-      z
-        .object({
-          restaurantId: idSchema,
-          exceptionId: idSchema,
-          action: z.enum(["resolve", "ignore"]),
-          note: z.string().max(300).optional(),
-        })
-        .parse(d),
-  )
-  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    const me = await requirePmsActor(
-      context as never,
-      data.restaurantId,
-      PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT,
-    );
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const { data: row } = await supabaseAdmin
-      .from("night_audit_exceptions")
-      .select("id, exception_type, severity, status, night_audit_run_id")
-      .eq("id", data.exceptionId)
-      .eq("restaurant_id", data.restaurantId)
-      .maybeSingle();
-    if (!row) return { ok: false, message: "Exception not found for this property." };
-    const exception = row as {
-      exception_type: string;
-      severity: string;
-      status: string;
-      night_audit_run_id: string;
-    };
-
-    // No manual "resolved": rows resolve only when a recheck no longer derives them.
-    if (data.action === "resolve") {
-      return {
-        ok: false,
-        message:
-          "Exceptions clear automatically once the underlying record is corrected and Night Audit is rechecked.",
-      };
-    }
-    if (exception.severity === "blocking" || NON_IGNORABLE_TYPES.has(exception.exception_type)) {
-      return {
-        ok: false,
-        message: "This integrity exception can't be ignored — fix the underlying record.",
-      };
-    }
-    const { data: runRow } = await supabaseAdmin
-      .from("night_audit_runs")
-      .select("status")
-      .eq("id", exception.night_audit_run_id)
-      .eq("restaurant_id", data.restaurantId)
-      .maybeSingle();
-    if (!runRow || !canSyncRunExceptions((runRow as { status: string }).status)) {
-      return { ok: false, message: "This run is closed. Its exceptions are history." };
-    }
-
-    const { error } = await supabaseAdmin
-      .from("night_audit_exceptions")
-      .update({
-        status: "ignored",
-        resolved_by_membership_id: me.id,
-        resolved_at: new Date().toISOString(),
-        resolution_note: (data.note ?? "").trim() || null,
-      })
-      .eq("id", data.exceptionId)
-      .eq("restaurant_id", data.restaurantId);
-    if (error) return { ok: false, message: nightAuditError(error.message).message };
+    await auditEndOfDay(supabaseAdmin, context, data.restaurantId, "night_audit_fiscal_override_authorized", {
+      runId: runRow.id,
+      exceptionId: exception.id,
+      businessDate: runRow.business_date,
+      fiscalStatus,
+      reasonCategory: data.reasonCategory ?? null,
+      membershipId: me.id,
+    });
     return { ok: true };
   });
 
 /* -------------------------------------------------------------- day close */
+
+export const NIGHT_AUDIT_BLOCKED = "NIGHT_AUDIT_BLOCKED";
+
+type GroupRelease = "released" | "none" | "failed";
+
+export type CloseBusinessDateResult =
+  | {
+      ok: true;
+      runId: string;
+      businessDate: string;
+      nextBusinessDate: string;
+      alreadyClosed: boolean;
+      otbSnapshotStatus?: "captured" | "already_present" | "failed";
+      otbSnapshotError?: string | null;
+      /** From the persisted run. Never the current caller unless they won the close. */
+      closedAt: string | null;
+      closedBy: string | null;
+      closedByMembershipId: string | null;
+      /** False when this request did not close the run, or the note write failed after close. */
+      noteSaved: boolean;
+      groupBlockRelease: GroupRelease;
+    }
+  | {
+      ok: false;
+      message: string;
+      code?:
+        | typeof NIGHT_AUDIT_OUTSIDE_WINDOW
+        | typeof NIGHT_AUDIT_INVALID_WINDOW
+        | typeof NIGHT_AUDIT_BLOCKED;
+      blockerCount?: number;
+    };
 
 export const closeBusinessDate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1539,7 +1352,7 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         .object({
           restaurantId: idSchema,
           runId: idSchema,
-          notes: z.string().max(500).optional(),
+          notes: z.string().max(NOTE_MAX).optional(),
           expectedBusinessDate: z
             .string()
             .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -1547,376 +1360,304 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         })
         .parse(d),
   )
-  .handler(
-    async ({
-      data,
-      context,
-    }): Promise<
-      | {
-          ok: true;
-          businessDate: string;
-          nextBusinessDate: string;
-          alreadyClosed: boolean;
-          otbSnapshotStatus?: "captured" | "already_present" | "failed";
-          otbSnapshotError?: string | null;
-          /** From the persisted run. Never the current caller unless they won the close. */
-          closedAt: string | null;
-          closedBy: string | null;
-          closedByMembershipId: string | null;
-          financialStatus: NightAuditFinancialStatus | null;
-          operationalStatus: NightAuditOperationalStatus | null;
-          warningCount: number | null;
-          /** False when this request did not close the run, or the note write failed after close. */
-          noteSaved: boolean;
-        }
-      | {
-          ok: false;
-          message: string;
-          code?: typeof NIGHT_AUDIT_OUTSIDE_WINDOW | typeof NIGHT_AUDIT_INVALID_WINDOW;
-        }
-    > => {
-      const me = await requirePmsActor(
-        context as never,
-        data.restaurantId,
-        PMS_PERMISSIONS.NIGHT_AUDIT_CLOSE_DATE,
-      );
-      const flags = await nightAuditActorFlags(context as never, data.restaurantId);
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const property = await loadProperty(supabaseAdmin, data.restaurantId);
+  .handler(async ({ data, context }): Promise<CloseBusinessDateResult> => {
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.NIGHT_AUDIT_CLOSE_DATE,
+    );
+    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const property = await loadProperty(supabaseAdmin, data.restaurantId);
 
-      type RunCloseRow = PersistedCloseRow & {
-        id: string;
-        summary: (AuditSummary & { closeRequestId?: string }) | null;
-      };
-      const readRun = async (): Promise<RunCloseRow | null> => {
-        const { data: row } = await supabaseAdmin
-          .from("night_audit_runs")
-          .select("id, business_date, status, closed_at, closed_by_membership_id, summary")
-          .eq("id", data.runId)
-          .eq("restaurant_id", data.restaurantId)
-          .maybeSingle();
-        return (row as RunCloseRow | null) ?? null;
-      };
-
-      // Everything here comes from the persisted closed run, never from this request.
-      // OTB capture is insert-once, so a retry reuses the existing snapshot.
-      const alreadyClosedResult = async (closedRun: PersistedCloseRow) => {
-        const facts = persistedCloseFacts(closedRun);
-        const snapshot = await captureOtbAfterClose(
-          supabaseAdmin,
-          data.restaurantId,
-          closedRun.business_date,
-        );
-        const closer = facts.closedByMembershipId
-          ? ((await staffNames(supabaseAdmin, data.restaurantId, [facts.closedByMembershipId])).get(
-              facts.closedByMembershipId,
-            ) ?? null)
-          : null;
-        return {
-          ok: true as const,
-          businessDate: facts.businessDate,
-          nextBusinessDate: facts.nextBusinessDate,
-          alreadyClosed: true,
-          otbSnapshotStatus: snapshot.status,
-          otbSnapshotError: snapshot.error ?? null,
-          closedAt: facts.closedAt,
-          closedBy: closer,
-          closedByMembershipId: facts.closedByMembershipId,
-          financialStatus: null,
-          operationalStatus: null,
-          warningCount: facts.warningCount,
-          noteSaved: false,
-        };
-      };
-
-      // A request that lost a close race reports the winning close, not its own rejection.
-      const rejected = async (message: string) => {
-        const latest = await readRun();
-        if (latest?.status === "closed") return alreadyClosedResult(latest);
-        return { ok: false as const, message };
-      };
-
-      const run = await readRun();
-      if (!run) return { ok: false, message: "Night audit run not found for this property." };
-      const runDate = run.business_date.slice(0, 10);
-
-      // Duplicate request or refresh after close: report the stored close, never close twice.
-      if (run.status === "closed") return alreadyClosedResult(run);
-
-      if (data.expectedBusinessDate && data.expectedBusinessDate !== runDate) {
-        return rejected(NA1_STALE_BUSINESS_DATE);
-      }
-      if (property.persistedBusinessDate != null && property.persistedBusinessDate !== runDate) {
-        return rejected(NA1_STALE_BUSINESS_DATE);
-      }
-      if (run.status !== "open" && run.status !== "ready") {
-        return { ok: false, message: "This night audit run cannot be closed." };
-      }
-      const { data: laterClosed, error: laterClosedError } = await supabaseAdmin
+    type RunCloseRow = PersistedCloseRow & {
+      id: string;
+      summary: (AuditSummary & { closeRequestId?: string }) | null;
+    };
+    const readRun = async (): Promise<RunCloseRow | null> => {
+      const { data: row } = await supabaseAdmin
         .from("night_audit_runs")
-        .select("id")
+        .select("id, business_date, status, closed_at, closed_by_membership_id, summary")
+        .eq("id", data.runId)
         .eq("restaurant_id", data.restaurantId)
-        .eq("status", "closed")
-        .gt("business_date", runDate)
-        .limit(1);
-      if (laterClosedError) {
-        return rejected(
-          "Night Audit could not confirm this business date. Close stays unavailable.",
-        );
-      }
-      if ((laterClosed ?? []).length > 0) {
-        return rejected(NA1_STALE_BUSINESS_DATE);
-      }
+        .maybeSingle();
+      return (row as RunCloseRow | null) ?? null;
+    };
 
-      // Additional condition only: an owner bypasses the time, never a blocker or check below.
-      const closeWindow = evaluateNightAuditWindow({
-        ...(await loadNightAuditWindowConfig(supabaseAdmin, data.restaurantId)),
-        timezone: property.timezone,
-        role: me.role,
-      });
-      if (!closeWindow.allowsClose) {
-        return {
-          ok: false,
-          message: closeWindow.message,
-          code: closeWindow.configValid ? NIGHT_AUDIT_OUTSIDE_WINDOW : NIGHT_AUDIT_INVALID_WINDOW,
-        };
-      }
-
-      // Re-read the same financial reconciliation the workspace shows, then sync it
-      // before the close RPC. A failed read does not sync and does not advance the date.
-      const evaluation = await evaluateAudit(
-        supabaseAdmin,
-        data.restaurantId,
-        runDate,
-        property.currency,
-        property.timezone,
-      );
-      const blockers = await evaluateNa1Blockers(
-        supabaseAdmin,
-        data.restaurantId,
-        runDate,
-        flags.folioLane,
-        integrityBlockerCounts(evaluation.exceptions),
-        nightAuditFeedCounts(evaluation.exceptions),
-      );
-      const financial = await readFinancialReconciliation(
-        supabaseAdmin,
-        data.restaurantId,
-        runDate,
-        property.timezone,
-        property.currency,
-      );
-      if (!financial.ok) {
-        return rejected(FINANCIAL_UNAVAILABLE_MESSAGE);
-      }
-      const operational = await readOperationalReconciliation(
-        supabaseAdmin,
-        data.restaurantId,
-        runDate,
-        property.timezone,
-      );
-      if (!operational.ok) {
-        return rejected(OPERATIONAL_UNAVAILABLE_MESSAGE);
-      }
-      await syncRunExceptions(
-        supabaseAdmin,
-        data.restaurantId,
-        run.id,
-        auditExceptionSet(blockers, evaluation.exceptions, financial.result, operational.result),
-      );
-      const closeExceptionRows = await selectAll<ExceptionRow>((from, to) =>
-        supabaseAdmin
-          .from("night_audit_exceptions")
-          .select("*")
-          .eq("night_audit_run_id", run.id)
-          .order("id", { ascending: true })
-          .range(from, to),
-      );
-      const closeOverrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
-      const closeFinancialStatus = effectiveFinancialStatus(
-        financial.result,
-        closeExceptionRows,
-        closeOverrides,
-      );
-      if (
-        remainingBlockerCount(blockers) > 0 ||
-        !financialAllowsClose(closeFinancialStatus) ||
-        !operationalAllowsClose(operational.result.status)
-      ) {
-        return rejected(
-          "Live blockers are still open. Clear them in Front Office, Housekeeping, Room & Inventory, or Cashiering before closing.",
-        );
-      }
-
-      let openBlockingRows: Array<{ id: string }> = [];
+    // Expired group allotments release once the date is closed. Release only
+    // touches the remaining allotment of active blocks past cutoff, so a retry
+    // (double click, second browser, network replay) is a no-op.
+    const releaseGroupBlocks = async (runDate: string): Promise<GroupRelease> => {
       try {
-        openBlockingRows = await selectAll<{ id: string }>((from, to) =>
-          supabaseAdmin
-            .from("night_audit_exceptions")
-            .select("id")
-            .eq("night_audit_run_id", run.id)
-            .eq("severity", "blocking")
-            .eq("status", "open")
-            .order("id", { ascending: true })
-            .range(from, to),
+        const { releaseGroupBlocksPastCutoff } = await import("./groups.functions");
+        const result = await releaseGroupBlocksPastCutoff(supabaseAdmin, me.id, data.restaurantId, runDate);
+        return (result?.released ?? 0) > 0 ? "released" : "none";
+      } catch (error) {
+        console.error(
+          "[night-audit] group block release",
+          error instanceof Error ? error.message : error,
         );
-      } catch {
-        return rejected("Blocking exceptions could not be confirmed. Close stays unavailable.");
+        return "failed";
       }
-      const openBlocking = openBlockingRows.filter((row) => !closeOverrides.has(row.id));
-      if (openBlocking.length > 0) {
-        return rejected("Blocking exceptions are still open for this business date.");
-      }
-      const overallStatus = nightAuditOverallStatus({
-        closed: false,
-        boardBlockers: remainingBlockerCount(blockers),
-        boardUnavailable: boardUnavailable(blockers),
-        openBlockingExceptions: openBlocking.length,
-        financial: closeFinancialStatus,
-        operational: operational.result.status,
-        warnings: 0,
-      });
-      if (!nightAuditAllowsClose(overallStatus)) {
-        return rejected("A required Night Audit check is unavailable. Close stays blocked.");
-      }
+    };
 
-      // Check that all currently active warnings have been reviewed
-      const openWarningRows = closeExceptionRows.filter(
-        (row) => row.severity === "warning" && row.status === "open",
-      );
-      const activeWarningReviews = await warningReviewsForRun(
-        supabaseAdmin,
-        data.restaurantId,
-        run.id,
-      );
-      const unreviewedWarnings = openWarningRows.filter((row) => !activeWarningReviews.has(row.id));
-      if (unreviewedWarnings.length > 0) {
-        return {
-          ok: false,
-          message: `${unreviewedWarnings.length} warning${unreviewedWarnings.length === 1 ? "" : "s"} must be reviewed before closing.`,
-          code: "NIGHT_AUDIT_WARNINGS_UNREVIEWED",
-        };
-      }
-
-      let rows: Array<{ severity: string; status: string }> = [];
-      try {
-        rows = await selectAll<{ severity: string; status: string }>((from, to) =>
-          supabaseAdmin
-            .from("night_audit_exceptions")
-            .select("severity, status")
-            .eq("night_audit_run_id", run.id)
-            .order("id", { ascending: true })
-            .range(from, to),
-        );
-      } catch {
-        return rejected(
-          "Night Audit could not confirm this business date. Close stays unavailable.",
-        );
-      }
-
-      const rolledTo = nextBusinessDate(runDate);
-      const closeRequestId = crypto.randomUUID();
-      const summary = {
-        finance: evaluation.finance,
-        warnings: rows.filter((r) => r.severity === "warning").length,
-        reviewedWarnings: openWarningRows.length - unreviewedWarnings.length,
-        unreviewedWarnings: unreviewedWarnings.length,
-        blockingResolved: rows.filter((r) => r.severity === "blocking").length,
-        inHouse: evaluation.inHouseUnits,
-        overstays: evaluation.overstays.length,
-        checks: evaluation.checks,
-        blockers: snapshotBlockers(blockers),
-        previousBusinessDate: runDate,
-        nextBusinessDate: rolledTo,
-        financialBlockerCount: Math.max(
-          0,
-          financial.result.summary.blockerCount - closeOverrides.size,
-        ),
-        fiscalOverrideCount: closeOverrides.size,
-        financialWarningCount: financial.result.summary.warningCount,
-        openDrawerCount: financial.result.summary.openDrawerCount,
-        fiscalProblemCount: financial.result.summary.fiscalProblemCount,
-        taxByCurrency: financial.result.taxSummary.map((row) => ({
-          currency: row.currency,
-          tax: row.tax,
-          serviceCharge: row.serviceCharge,
-        })),
-        operationalBlockerCount: operational.result.summary.blockerCount,
-        operationalWarningCount: operational.result.summary.warningCount,
-        unresolvedArrivalCount: operational.result.summary.unresolvedArrivalCount,
-        overstayCount: operational.result.summary.overstayCount,
-        roomConflictCount: operational.result.summary.roomConflictCount,
-        overbookingIssueCount: operational.result.summary.overbookingIssueCount,
-        closeRequestId,
-        nightAuditWindow: outsideWindowCloseRecord(closeWindow, me.id, new Date().toISOString()),
-      };
-
-      const { releaseGroupBlocksPastCutoff } = await import("./groups.functions");
-      await releaseGroupBlocksPastCutoff(supabaseAdmin, me.id, data.restaurantId, runDate);
-
-      const { data: closedRow, error } = await supabaseAdmin.rpc("close_business_date", {
-        _restaurant_id: data.restaurantId,
-        _run_id: run.id,
-        _summary: summary as never,
-        _membership_id: me.id,
-      });
-      if (error) return { ok: false, message: nightAuditError(error.message).message };
-
-      // The RPC returns an already-closed run unchanged. Only the request whose
-      // summary was written closed it; any other request reports that close.
-      const persisted = (closedRow as RunCloseRow | null) ?? (await readRun());
-      if (!closedByThisRequest(persisted, closeRequestId)) {
-        if (persisted?.status === "closed") return alreadyClosedResult(persisted);
-        return {
-          ok: false,
-          message: "Night Audit could not confirm the close result. Refresh before trying again.",
-        };
-      }
-      const closed = persistedCloseFacts(persisted!);
-
-      // The note belongs to the winning close only. The filter on this request's id
-      // means a losing concurrent request can never write over it.
-      const note = (data.notes ?? "").trim();
-      let noteSaved = true;
-      if (note) {
-        const noted = await supabaseAdmin
-          .from("night_audit_runs")
-          .update({ notes: note })
-          .eq("id", run.id)
-          .eq("restaurant_id", data.restaurantId)
-          .eq("status", "closed")
-          .eq("summary->>closeRequestId", closeRequestId);
-        noteSaved = !noted.error;
-      }
-
-      // Analytics only. Never roll back a completed close if snapshot capture fails.
+    // Everything here comes from the persisted closed run, never from this request.
+    // OTB capture is insert-once, so a retry reuses the existing snapshot.
+    const alreadyClosedResult = async (closedRun: RunCloseRow): Promise<CloseBusinessDateResult> => {
+      const facts = persistedCloseFacts(closedRun);
+      const groupBlockRelease = await releaseGroupBlocks(closedRun.business_date.slice(0, 10));
       const snapshot = await captureOtbAfterClose(
         supabaseAdmin,
         data.restaurantId,
-        run.business_date,
+        closedRun.business_date,
       );
-      const closer = closed.closedByMembershipId
-        ? ((await staffNames(supabaseAdmin, data.restaurantId, [closed.closedByMembershipId])).get(
-            closed.closedByMembershipId,
+      const closer = facts.closedByMembershipId
+        ? ((await staffNames(supabaseAdmin, data.restaurantId, [facts.closedByMembershipId])).get(
+            facts.closedByMembershipId,
           ) ?? null)
         : null;
       return {
         ok: true,
-        businessDate: closed.businessDate,
-        nextBusinessDate: closed.nextBusinessDate,
-        alreadyClosed: false,
+        runId: closedRun.id,
+        businessDate: facts.businessDate,
+        nextBusinessDate: facts.nextBusinessDate,
+        alreadyClosed: true,
         otbSnapshotStatus: snapshot.status,
         otbSnapshotError: snapshot.error ?? null,
-        closedAt: closed.closedAt,
+        closedAt: facts.closedAt,
         closedBy: closer,
-        closedByMembershipId: closed.closedByMembershipId,
-        noteSaved,
-        financialStatus: financial.result.status,
-        operationalStatus: operational.result.status,
-        warningCount: rows.filter((r) => r.severity === "warning" && r.status === "open").length,
+        closedByMembershipId: facts.closedByMembershipId,
+        noteSaved: false,
+        groupBlockRelease,
       };
-    },
-  );
+    };
+
+    // A request that lost a close race reports the winning close, not its own rejection.
+    const rejected = async (
+      message: string,
+      extra: { code?: typeof NIGHT_AUDIT_BLOCKED; blockerCount?: number } = {},
+    ): Promise<CloseBusinessDateResult> => {
+      const latest = await readRun();
+      if (latest?.status === "closed") return alreadyClosedResult(latest);
+      return { ok: false, message, ...extra };
+    };
+
+    const run = await readRun();
+    if (!run) return { ok: false, message: "Night audit run not found for this property." };
+    const runDate = run.business_date.slice(0, 10);
+
+    // Duplicate request or refresh after close: report the stored close, never close twice.
+    if (run.status === "closed") return alreadyClosedResult(run);
+
+    if (data.expectedBusinessDate && data.expectedBusinessDate !== runDate) {
+      return rejected(NA1_STALE_BUSINESS_DATE);
+    }
+    if (property.persistedBusinessDate != null && property.persistedBusinessDate !== runDate) {
+      return rejected(NA1_STALE_BUSINESS_DATE);
+    }
+    if (run.status !== "open" && run.status !== "ready") {
+      return { ok: false, message: "This night audit run cannot be closed." };
+    }
+    const { data: laterClosed, error: laterClosedError } = await supabaseAdmin
+      .from("night_audit_runs")
+      .select("id")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("status", "closed")
+      .gt("business_date", runDate)
+      .limit(1);
+    if (laterClosedError) {
+      return rejected("Night Audit could not confirm this business date. Close stays unavailable.");
+    }
+    if ((laterClosed ?? []).length > 0) {
+      return rejected(NA1_STALE_BUSINESS_DATE);
+    }
+
+    // Additional condition only: the window override bypasses the time, never a blocker.
+    const config = await loadEndOfDayConfig(supabaseAdmin, data.restaurantId);
+    const closeWindow = evaluateNightAuditWindow({
+      ...config.window,
+      timezone: property.timezone,
+      canOverride: flags.canOverrideWindow,
+    });
+    if (!closeWindow.allowsClose) {
+      return {
+        ok: false,
+        message: closeWindow.message,
+        code: closeWindow.configValid ? NIGHT_AUDIT_OUTSIDE_WINDOW : NIGHT_AUDIT_INVALID_WINDOW,
+      };
+    }
+
+    // Re-evaluate every source now. A failed read does not sync and does not advance the date.
+    const evaluation = await evaluateEndOfDay(
+      supabaseAdmin,
+      data.restaurantId,
+      runDate,
+      property,
+      config.policy,
+    );
+    if (!evaluation.financial.ok) return rejected(FINANCIAL_UNAVAILABLE_MESSAGE);
+    if (!evaluation.operational.ok) return rejected(OPERATIONAL_UNAVAILABLE_MESSAGE);
+    const financial = evaluation.financial.result;
+    const operational = evaluation.operational.result;
+
+    try {
+      await syncRunExceptions(supabaseAdmin, data.restaurantId, run.id, evaluation.conditions);
+    } catch {
+      return rejected("End of Day blockers could not be saved. Close stays unavailable.");
+    }
+    let closeRows: ExceptionRow[];
+    let closeOverrides: Map<string, FiscalOverrideRow>;
+    try {
+      closeRows = await exceptionRowsForRun(supabaseAdmin, run.id);
+      closeOverrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, run.id);
+    } catch {
+      return rejected("Blocking exceptions could not be confirmed. Close stays unavailable.");
+    }
+    const conditions = attachPersisted(evaluation.conditions, closeRows, closeOverrides, new Map());
+    const liveBlockers = openBlockers(conditions);
+    // The RPC repeats this on the stored rows; checking both keeps the screen honest.
+    const storedBlockers = closeRows.filter(
+      (row) => row.severity === "blocking" && row.status === "open" && !closeOverrides.has(row.id),
+    );
+    const blockerCount = Math.max(liveBlockers.length, storedBlockers.length);
+    if (blockerCount > 0) {
+      return rejected(closeBlockedCopy(blockerCount), { code: NIGHT_AUDIT_BLOCKED, blockerCount });
+    }
+
+    const steps = endOfDaySteps({ runStatus: "ready", conditions });
+    const hotelShifts = financial.drawers;
+    const closedShifts = hotelShifts.filter((row) => row.state === "closed");
+    const sum = (values: Array<number | null>) =>
+      values.every((value) => value == null)
+        ? null
+        : Math.round(values.reduce<number>((total, value) => total + (value ?? 0), 0) * 100) / 100;
+    const rolledTo = nextBusinessDate(runDate);
+    const closeRequestId = crypto.randomUUID();
+    const summary: AuditSummary & { closeRequestId: string } = {
+      ...(financial.dayFinance ? { finance: legacyAuditFinance(financial.dayFinance) } : {}),
+      warnings: 0,
+      blockingResolved: closeRows.filter((row) => row.severity === "blocking").length,
+      inHouse: operational.summary.inHouseCount,
+      overstays: operational.summary.overstayCount,
+      checks: [],
+      previousBusinessDate: runDate,
+      nextBusinessDate: rolledTo,
+      financialBlockerCount: 0,
+      fiscalOverrideCount: closeOverrides.size,
+      financialWarningCount: 0,
+      openDrawerCount: financial.summary.openDrawerCount,
+      fiscalProblemCount: financial.summary.fiscalProblemCount,
+      taxByCurrency: financial.taxSummary.map((row) => ({
+        currency: row.currency,
+        tax: row.tax,
+        serviceCharge: row.serviceCharge,
+      })),
+      operationalBlockerCount: 0,
+      operationalWarningCount: 0,
+      unresolvedArrivalCount: operational.summary.unresolvedArrivalCount,
+      overstayCount: operational.summary.overstayCount,
+      roomConflictCount: operational.summary.roomConflictCount,
+      overbookingIssueCount: operational.summary.overbookingIssueCount,
+      endOfDay: {
+        version: 2,
+        steps: steps
+          .filter((step) => step.id !== "finalize")
+          .map((step) => ({
+            id: step.id,
+            status: step.id === "business_date" ? "completed" : step.status,
+            blockerCount: step.blockerCount,
+            informationCount: step.informationCount,
+          })),
+        blockersResolved: closeRows.filter((row) => row.severity === "blocking" && row.status === "resolved")
+          .length,
+        informationCount: informationItems(conditions).length,
+        policy: config.policy,
+        cashier: {
+          openShifts: hotelShifts.filter((row) => row.state === "open").length,
+          closedShifts: closedShifts.length,
+          expected: sum(closedShifts.map((row) => row.expectedCash)),
+          counted: sum(closedShifts.map((row) => row.closingCount)),
+          variance: sum(closedShifts.map((row) => row.variance)),
+        },
+        dayFinance: financial.dayFinance,
+        fiscal: {
+          overrides: closeOverrides.size,
+          blockers: conditions.filter((row) => row.kind === "blocker" && row.code.startsWith("fiscal_")).length,
+        },
+      },
+      closeRequestId,
+      nightAuditWindow: outsideWindowCloseRecord(closeWindow, me.id, new Date().toISOString()),
+    };
+
+    const { data: closedRow, error } = await supabaseAdmin.rpc("close_business_date", {
+      _restaurant_id: data.restaurantId,
+      _run_id: run.id,
+      _summary: summary as never,
+      _membership_id: me.id,
+    });
+    if (error) return { ok: false, message: nightAuditError(error.message).message };
+
+    // The RPC returns an already-closed run unchanged. Only the request whose
+    // summary was written closed it; any other request reports that close.
+    const persisted = (closedRow as RunCloseRow | null) ?? (await readRun());
+    if (!closedByThisRequest(persisted, closeRequestId)) {
+      if (persisted?.status === "closed") return alreadyClosedResult(persisted);
+      return {
+        ok: false,
+        message: "Night Audit could not confirm the close result. Refresh before trying again.",
+      };
+    }
+    const closed = persistedCloseFacts(persisted!);
+
+    // The note belongs to the winning close only. The filter on this request's id
+    // means a losing concurrent request can never write over it.
+    const note = (data.notes ?? "").trim();
+    let noteSaved = true;
+    if (note) {
+      const noted = await supabaseAdmin
+        .from("night_audit_runs")
+        .update({ notes: note })
+        .eq("id", run.id)
+        .eq("restaurant_id", data.restaurantId)
+        .eq("status", "closed")
+        .eq("summary->>closeRequestId", closeRequestId);
+      noteSaved = !noted.error;
+    }
+
+    const groupBlockRelease = await releaseGroupBlocks(runDate);
+
+    // Analytics only. Never roll back a completed close if snapshot capture fails.
+    const snapshot = await captureOtbAfterClose(supabaseAdmin, data.restaurantId, run.business_date);
+    await auditEndOfDay(supabaseAdmin, context, data.restaurantId, "night_audit_business_date_closed", {
+      runId: run.id,
+      previousBusinessDate: runDate,
+      nextBusinessDate: closed.nextBusinessDate,
+      membershipId: me.id,
+      outsideWindow: summary.nightAuditWindow != null,
+      fiscalOverrides: closeOverrides.size,
+      groupBlockRelease,
+      otbSnapshotStatus: snapshot.status,
+    });
+    const closer = closed.closedByMembershipId
+      ? ((await staffNames(supabaseAdmin, data.restaurantId, [closed.closedByMembershipId])).get(
+          closed.closedByMembershipId,
+        ) ?? null)
+      : null;
+    return {
+      ok: true,
+      runId: run.id,
+      businessDate: closed.businessDate,
+      nextBusinessDate: closed.nextBusinessDate,
+      alreadyClosed: false,
+      otbSnapshotStatus: snapshot.status,
+      otbSnapshotError: snapshot.error ?? null,
+      closedAt: closed.closedAt,
+      closedBy: closer,
+      closedByMembershipId: closed.closedByMembershipId,
+      noteSaved,
+      groupBlockRelease,
+    };
+  });
 
 /* ------------------------------------------------------------ OTB recovery */
 
@@ -1938,7 +1679,7 @@ export const retryNightAuditOtbSnapshot = createServerFn({ method: "POST" })
       | { ok: true; status: "captured" | "already_present" | "failed"; error: string | null }
       | { ok: false; message: string }
     > => {
-      await requirePmsActor(
+      const me = await requirePmsActor(
         context as never,
         data.restaurantId,
         PMS_PERMISSIONS.NIGHT_AUDIT_EXCEPTION_EDIT,
@@ -1971,6 +1712,12 @@ export const retryNightAuditOtbSnapshot = createServerFn({ method: "POST" })
         data.restaurantId,
         run.business_date,
       );
+      await auditEndOfDay(supabaseAdmin, context, data.restaurantId, "night_audit_otb_retried", {
+        runId: run.id,
+        businessDate: run.business_date.slice(0, 10),
+        status: snapshot.status,
+        membershipId: me.id,
+      });
       return { ok: true, status: snapshot.status, error: snapshot.error ?? null };
     },
   );
@@ -1981,7 +1728,7 @@ export const listNightAuditRuns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<NightAuditRunRow[]> => {
-    const me = await requireNightAuditView(context as never, data.restaurantId);
+    await requireNightAuditView(context as never, data.restaurantId);
     const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows } = await supabaseAdmin
@@ -2014,7 +1761,7 @@ type RunRecord = {
   notes?: string | null;
 };
 
-/** Stored run as one role may see it. The summary is what close wrote; it is never recomputed. */
+/** Stored run as one caller may see it. The summary is what close wrote; it is never recomputed. */
 function toRunRow(
   r: RunRecord,
   names: ReadonlyMap<string, string>,
@@ -2077,7 +1824,7 @@ export const listNightAuditHistory = createServerFn({ method: "GET" })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<NightAuditHistoryPage> => {
-    const me = await requireNightAuditView(context as never, data.restaurantId);
+    await requireNightAuditView(context as never, data.restaurantId);
     const flags = await nightAuditActorFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const pageSize = (data.pageSize ?? 25) as HistoryPageSize;
@@ -2182,8 +1929,8 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
       exceptions: AuditException[];
       currency: string;
     } | null> => {
-      const me = await requireNightAuditView(context as never, data.restaurantId);
-    const flags = await nightAuditActorFlags(context as never, data.restaurantId);
+      await requireNightAuditView(context as never, data.restaurantId);
+      const flags = await nightAuditActorFlags(context as never, data.restaurantId);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const property = await loadProperty(supabaseAdmin, data.restaurantId);
       const { data: row, error: runError } = await supabaseAdmin
@@ -2218,28 +1965,32 @@ export const getNightAuditRun = createServerFn({ method: "GET" })
           : undefined;
       const overrides = await fiscalOverridesForRun(supabaseAdmin, data.restaurantId, r.id);
       const history = await fiscalOverrideHistoryForRun(supabaseAdmin, data.restaurantId, r.id);
-      const warningReviews = await warningReviewsForRun(supabaseAdmin, data.restaurantId, r.id);
-      const warningHistory = await warningReviewHistoryForRun(
-        supabaseAdmin,
-        data.restaurantId,
-        r.id,
-      );
+      const reviews = await warningReviewHistoryForRun(supabaseAdmin, data.restaurantId, r.id);
       const staffIds = [
         ...[...history.values()].flat().map((override) => override.overridden_by_membership_id),
-        ...[...warningHistory.values()].flat().map((rev) => rev.reviewed_by_membership_id),
+        ...[...reviews.values()].flat().map((review) => review.reviewed_by_membership_id),
       ];
-      const overrideNames = await staffNames(supabaseAdmin, data.restaurantId, staffIds);
+      const otherNames = await staffNames(supabaseAdmin, data.restaurantId, staffIds);
       return {
         currency: property.currency,
         run: toRunRow(r, names, flags.detailRole, otb),
         exceptions: exRows.map((ex) => {
-          const item = toException(ex, flags.detailRole, new Map(), overrides, overrideNames, history);
-          const review = warningReviews.get(ex.id);
-          item.warningReview = review ? toWarningReview(review, overrideNames) : null;
-          item.warningReviewHistory = (warningHistory.get(ex.id) ?? []).map((rev) =>
-            toWarningReview(rev, overrideNames),
-          );
-          return item;
+          const override = overrides.get(ex.id);
+          return {
+            id: ex.id,
+            exceptionType: ex.exception_type,
+            severity: ex.severity,
+            referenceType: ex.reference_type,
+            referenceId: ex.reference_id,
+            message: presentExceptionMessage(ex.exception_type, ex.message, flags.detailRole),
+            status: ex.status,
+            resolvedAt: ex.resolved_at,
+            resolutionNote: ex.resolution_note,
+            createdAt: ex.created_at ?? null,
+            fiscalOverride: override ? toFiscalOverride(override, otherNames) : null,
+            fiscalOverrideHistory: (history.get(ex.id) ?? []).map((item) => toFiscalOverride(item, otherNames)),
+            warningReviewHistory: (reviews.get(ex.id) ?? []).map((item) => toWarningReview(item, otherNames)),
+          };
         }),
       };
     },

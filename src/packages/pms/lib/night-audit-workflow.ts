@@ -6,13 +6,11 @@
  * summaries stored at close. Nothing here recalculates financial or
  * operational reconciliation, and nothing here writes.
  */
-import { localDateInZone } from "../../../shared/lib/property-time.ts";
 import { nextBusinessDate } from "./na1.ts";
 import { canViewNightAuditFinancialDetail } from "./night-audit-financial.ts";
 import {
   NIGHT_AUDIT_OPERATIONAL_DETAIL_ROLES,
   operationalCategoryForException,
-  type NightAuditOverallStatus,
 } from "./night-audit-operational.ts";
 
 /* ------------------------------------------------------------ exceptions */
@@ -62,6 +60,7 @@ export const EXCEPTION_CATEGORY_LABEL: Record<ExceptionCategory, string> = {
 };
 
 const FINANCIAL_CODE_CATEGORY: Readonly<Record<string, ExceptionCategory>> = {
+  // Retired code: no longer emitted, mapped so older History rows stay readable.
   unpaid_folio: "folios",
   open_folio_balance: "folios",
   closed_folio_nonzero_balance: "folios",
@@ -85,7 +84,7 @@ const FINANCIAL_CODE_CATEGORY: Readonly<Record<string, ExceptionCategory>> = {
   service_snapshot_mismatch: "tax",
 };
 
-/** Older evaluateAudit warnings that are stay facts, not money. */
+/** Stored legacy board rows that are stay facts, not money. */
 const BOARD_OPERATIONS_CATEGORY: Readonly<Record<string, ExceptionCategory>> = {
   cancelled_holding_room: "rooms",
   invalid_stay_dates: "arrivals",
@@ -301,12 +300,6 @@ export function isActiveWarningReview(review: { invalidatedAt?: string | null })
   return !review.invalidatedAt;
 }
 
-export function isReviewableWarning(
-  row: Pick<WorkflowException, "severity" | "status">,
-): boolean {
-  return row.severity === "warning" && row.status === "open";
-}
-
 export type WorkflowException = {
   id: string;
   exceptionType: string;
@@ -327,269 +320,9 @@ export type WorkflowException = {
   warningReviewHistory?: WarningReview[];
 };
 
-export type ExceptionFilter = {
-  status: "all" | ExceptionStatus;
-  severity: "all" | "blocking" | "warning";
-  domain: "all" | ExceptionDomain;
-  category: "all" | ExceptionCategory;
-  search: string;
-  reviewState?: "all" | "unreviewed" | "reviewed";
-};
-
-export const DEFAULT_EXCEPTION_FILTER: ExceptionFilter = {
-  status: "open",
-  severity: "all",
-  domain: "all",
-  category: "all",
-  search: "",
-  reviewState: "all",
-};
-
-/** Entry filter for a Control Center or Run & Close link into Exceptions. */
-export function exceptionFilterForFocus(focus: string | undefined): ExceptionFilter {
-  if (focus === "blockers") return { ...DEFAULT_EXCEPTION_FILTER, severity: "blocking" };
-  if (focus === "warnings") return { ...DEFAULT_EXCEPTION_FILTER, severity: "warning" };
-  if (focus === "unreviewed")
-    return { ...DEFAULT_EXCEPTION_FILTER, severity: "warning", reviewState: "unreviewed" };
-  if (focus === "reviewed")
-    return { ...DEFAULT_EXCEPTION_FILTER, severity: "warning", reviewState: "reviewed" };
-  if (focus === "financial" || focus === "operations")
-    return { ...DEFAULT_EXCEPTION_FILTER, domain: focus };
-  return DEFAULT_EXCEPTION_FILTER;
-}
-
-export function filterExceptions<T extends WorkflowException>(
-  rows: readonly T[],
-  filter: ExceptionFilter,
-): T[] {
-  const needle = filter.search.trim().toLowerCase();
-  return rows
-    .filter((row) => {
-      if (filter.status !== "all" && row.status !== filter.status) return false;
-      if (filter.severity !== "all" && row.severity !== filter.severity) return false;
-      const meta = exceptionMeta(row.exceptionType);
-      if (filter.domain !== "all" && meta.domain !== filter.domain) return false;
-      if (filter.category !== "all" && meta.category !== filter.category) return false;
-      if (filter.reviewState && filter.reviewState !== "all") {
-        const isReviewed = row.warningReview != null && isActiveWarningReview(row.warningReview);
-        if (filter.reviewState === "reviewed" && !isReviewed) return false;
-        if (filter.reviewState === "unreviewed" && (row.severity !== "warning" || isReviewed))
-          return false;
-      }
-      if (!needle) return true;
-      return `${meta.title} ${meta.categoryLabel} ${row.message} ${row.referenceId ?? ""}`
-        .toLowerCase()
-        .includes(needle);
-    })
-    .sort(
-      (a, b) =>
-        Number(a.status !== "open") - Number(b.status !== "open") ||
-        Number(a.severity !== "blocking") - Number(b.severity !== "blocking") ||
-        a.exceptionType.localeCompare(b.exceptionType) ||
-        a.id.localeCompare(b.id),
-    );
-}
-
-export function exceptionCounts(rows: readonly WorkflowException[]): {
-  blocking: number;
-  warnings: number;
-  open: number;
-  resolved: number;
-  fiscalOverrides: number;
-} {
-  const open = rows.filter((row) => row.status === "open");
-  return {
-    blocking: open.filter((row) => row.severity === "blocking" && !row.fiscalOverride).length,
-    warnings: open.filter((row) => row.severity === "warning").length,
-    open: open.length,
-    resolved: rows.filter((row) => row.status === "resolved").length,
-    fiscalOverrides: open.filter((row) => row.fiscalOverride != null).length,
-  };
-}
-
-export function warningReviewCounts(rows: readonly WorkflowException[]): {
-  reviewedWarnings: number;
-  unreviewedWarnings: number;
-} {
-  const open = rows.filter((row) => row.status === "open");
-  const warnings = open.filter((row) => row.severity === "warning");
-  const reviewedWarnings = warnings.filter(
-    (row) => row.warningReview != null && isActiveWarningReview(row.warningReview),
-  ).length;
-  const unreviewedWarnings = warnings.length - reviewedWarnings;
-  return { reviewedWarnings, unreviewedWarnings };
-}
-
-/** Property-local calendar date for a review instant. */
-export function reviewCalendarDate(reviewedAt: string, timezone: string): string | null {
-  const parsed = new Date(reviewedAt);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return localDateInZone(timezone, parsed);
-}
-
-/**
- * Reviewed warnings for the Review step.
- * Today is the business date or the property's current calendar date.
- * All time is every active review on this run, with no date cut.
- */
-export function filterReviewedWarnings<
-  T extends {
-    severity: string;
-    status: string;
-    warningReview?: WarningReview | null;
-  },
->(
-  rows: readonly T[],
-  filter: "today" | "all",
-  businessDate: string,
-  timezone: string,
-  now: Date = new Date(),
-): T[] {
-  const reviewed = rows.filter(
-    (row) =>
-      row.severity === "warning" &&
-      row.status === "open" &&
-      row.warningReview != null &&
-      isActiveWarningReview(row.warningReview),
-  );
-  if (filter === "all") return reviewed;
-  const auditDate = businessDate.slice(0, 10);
-  const today = localDateInZone(timezone, now);
-  return reviewed.filter((row) => {
-    const reviewedAt = row.warningReview?.reviewedAt;
-    if (!reviewedAt) return false;
-    const reviewedDate = reviewCalendarDate(reviewedAt, timezone);
-    return reviewedDate === auditDate || reviewedDate === today;
-  });
-}
-
-/** Hard blockers never take a manual status. Owner modules fix the source. */
-export function exceptionAllowsManualStatus(row: Pick<WorkflowException, "severity">): boolean {
-  return row.severity !== "blocking";
-}
-
 /** A closed run's exceptions are history. Only an open or ready run is synced. */
 export function canSyncRunExceptions(runStatus: string): boolean {
   return runStatus === "open" || runStatus === "ready";
-}
-
-/* ------------------------------------------------------------- readiness */
-
-export const OVERALL_STATUS_LABEL: Record<NightAuditOverallStatus, string> = {
-  closed: "CLOSED",
-  blocked: "BLOCKED",
-  unavailable: "UNAVAILABLE",
-  warning: "WARNING",
-  ready: "READY",
-};
-
-export type DomainStatus = "ready" | "warning" | "blocked" | "unavailable" | "loading";
-
-export function domainStatusLabel(status: DomainStatus): string {
-  return status === "loading" ? "Checking…" : status.toUpperCase();
-}
-
-/** If the Financial or Operations read fails on this screen, Overall is Unavailable until a recheck succeeds. */
-export function effectiveOverallStatus(input: {
-  server: NightAuditOverallStatus | null;
-  financial: DomainStatus;
-  operational: DomainStatus;
-}): NightAuditOverallStatus | null {
-  if (input.server === "closed") return "closed";
-  if (input.financial === "unavailable" || input.operational === "unavailable")
-    return "unavailable";
-  return input.server;
-}
-
-export type ControlPrimaryAction =
-  | { kind: "review-blocker"; label: "Review First Blocker" }
-  | { kind: "review-close"; label: "Review & Close" }
-  | { kind: "run-close"; label: "Run & Close" }
-  | { kind: "retry"; label: "Retry Checks" }
-  | { kind: "view-run"; label: "View Run" };
-
-export function controlPrimaryAction(status: NightAuditOverallStatus): ControlPrimaryAction {
-  if (status === "closed") return { kind: "view-run", label: "View Run" };
-  if (status === "blocked") return { kind: "review-blocker", label: "Review First Blocker" };
-  if (status === "unavailable") return { kind: "retry", label: "Retry Checks" };
-  if (status === "warning") return { kind: "review-close", label: "Review & Close" };
-  return { kind: "run-close", label: "Run & Close" };
-}
-
-export type NightAuditRunState =
-  "Not Started" | "In Progress" | "Ready" | "Blocked" | "Closed" | "Superseded";
-
-/** Stored run status plus the current server readiness. No step engine. */
-export function nightAuditRunState(input: {
-  runStatus: "open" | "ready" | "closed" | "failed" | "superseded" | null;
-  overall: NightAuditOverallStatus | null;
-}): NightAuditRunState {
-  if (!input.runStatus) return "Not Started";
-  if (input.runStatus === "closed") return "Closed";
-  if (input.runStatus === "superseded") return "Superseded";
-  if (input.overall === "blocked") return "Blocked";
-  if (input.overall === "ready" || input.overall === "warning") return "Ready";
-  return "In Progress";
-}
-
-export type CloseGateInput = {
-  overall: NightAuditOverallStatus | null;
-  financial: DomainStatus;
-  operational: DomainStatus;
-  openBlockingExceptions: number;
-  boardBlockers: number;
-  canClose: boolean;
-  busy: boolean;
-  runStatus: "open" | "ready" | "closed" | "failed" | "superseded";
-  rechecked: boolean;
-  phone?: boolean;
-  /** Night Audit Window for this caller. Omitted while the run loads. */
-  window?: { allowsClose: boolean; message: string } | null;
-  unreviewedWarnings?: number;
-};
-
-export type CloseGate = { enabled: boolean; reason: string };
-
-/**
- * The Close Business Date button. Warnings never hold it once reviewed. The server repeats
- * every check before close_business_date, so this only avoids a doomed click.
- */
-export function closeGate(input: CloseGateInput): CloseGate {
-  const hold = (reason: string): CloseGate => ({ enabled: false, reason });
-  if (input.runStatus === "closed" || input.overall === "closed")
-    return hold("This business date is closed.");
-  if (input.runStatus !== "open" && input.runStatus !== "ready")
-    return hold("This run cannot be closed.");
-  if (!input.canClose) return hold("Only an owner or manager can close the business date.");
-  if (input.phone) return hold("Use desktop to close");
-  if (input.busy) return hold("Closing…");
-  if (input.window && !input.window.allowsClose) return hold(input.window.message);
-  if (input.financial === "loading" || input.operational === "loading" || input.overall == null) {
-    return hold("Checks are still running.");
-  }
-  if (input.financial === "unavailable")
-    return hold("Financial reconciliation is unavailable. Close stays blocked.");
-  if (input.operational === "unavailable")
-    return hold("Operational reconciliation is unavailable. Close stays blocked.");
-  if (input.financial === "blocked")
-    return hold("Financial blockers must be cleared in the owner module.");
-  if (input.operational === "blocked")
-    return hold("Operational blockers must be cleared in the owner module.");
-  if (input.boardBlockers > 0) return hold("Live blockers are still open.");
-  if (input.openBlockingExceptions > 0)
-    return hold("Blocking exceptions are still open for this business date.");
-  if (input.overall === "unavailable")
-    return hold("A required Night Audit check is unavailable. Close stays blocked.");
-  if (input.overall === "blocked") return hold("Blockers are still open.");
-  if (input.unreviewedWarnings != null && input.unreviewedWarnings > 0)
-    return hold(
-      `${input.unreviewedWarnings} warning${input.unreviewedWarnings === 1 ? "" : "s"} must be reviewed before closing.`,
-    );
-  if (!input.rechecked) return hold("Run Final Recheck before closing.");
-  return {
-    enabled: true,
-    reason: input.overall === "warning" ? "Ready · warnings do not block close" : "Ready to close",
-  };
 }
 
 export const CLOSE_CONFIRM_COPY =
@@ -652,7 +385,7 @@ export function otbStatusLabel(status: OtbStatus | null | undefined): string {
 }
 
 export type CloseResultView = {
-  title: "Night Audit Complete" | typeof ALREADY_CLOSED_TITLE;
+  title: "End of Day Complete" | typeof ALREADY_CLOSED_TITLE;
   closedBusinessDate: string;
   newBusinessDate: string;
   alreadyClosed: boolean;
@@ -669,7 +402,7 @@ export function closeResultView(result: {
 }): CloseResultView {
   const otbFailed = result.otbSnapshotStatus === "failed";
   return {
-    title: result.alreadyClosed ? ALREADY_CLOSED_TITLE : "Night Audit Complete",
+    title: result.alreadyClosed ? ALREADY_CLOSED_TITLE : "End of Day Complete",
     closedBusinessDate: result.businessDate,
     newBusinessDate: result.nextBusinessDate,
     alreadyClosed: result.alreadyClosed,
@@ -728,9 +461,9 @@ export function historyFiltersActive(filter: HistoryFilter): boolean {
 }
 
 export function historyStatusLabel(status: string): string {
-  if (status === "open") return "Open";
-  if (status === "ready") return "Ready";
-  if (status === "closed") return "Closed";
+  if (status === "open") return "In Progress";
+  if (status === "ready") return "Ready to Close";
+  if (status === "closed") return "Completed";
   if (status === "failed") return "Failed";
   if (status === "superseded") return "Superseded";
   return status ? humanize(status) : "—";
@@ -836,6 +569,21 @@ export function presentRunSummary<T extends object>(summary: T | null, role: str
   const copy = { ...(summary as Record<string, unknown>) };
   delete copy["finance"];
   delete copy["taxByCurrency"];
+  const endOfDay = copy["endOfDay"];
+  if (endOfDay && typeof endOfDay === "object") {
+    const eod = { ...(endOfDay as Record<string, unknown>) };
+    delete eod["dayFinance"];
+    const cashier = eod["cashier"];
+    if (cashier && typeof cashier === "object") {
+      eod["cashier"] = {
+        ...(cashier as Record<string, unknown>),
+        expected: null,
+        counted: null,
+        variance: null,
+      };
+    }
+    copy["endOfDay"] = eod;
+  }
   const checks = copy["checks"];
   if (Array.isArray(checks)) {
     copy["checks"] = (checks as Array<{ area?: string }>).filter(

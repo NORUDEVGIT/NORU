@@ -6,27 +6,11 @@ import { fileURLToPath } from "node:url";
 
 import { FO_PRIMARY_TITLE } from "./front-office-shell.ts";
 import {
-  NA1_BLOCKER_IDS,
-  NA1_CONFIRM_LABEL,
-  NA1_CONFIRM_ROLES,
-  NA1_FO_TITLE_LOCK,
-  NA1_HAS_IGNORE,
-  NA1_HAS_MARK_NO_SHOW,
-  NA1_HAS_REVERSE,
-  NA1_HAS_WAIVE,
-  NA1_PHONE_CLOSE_COPY,
-  NA1_TITLE,
-  PHASE_6I_EXTRAS_NOT_NA1,
-  buildNa1Blockers,
-  canConfirmNightAudit,
-  canEnableConfirm,
-  emptyIntegrityCounts,
-  liveCountFromSnapshot,
+  NIGHT_AUDIT_OTB_FAILED_NOTICE,
+  formatNa1Date,
   nextBusinessDate,
-  remainingBlockerCount,
-  snapshotBlockers,
-  workspaceStatus,
-  type NaBlockerRow,
+  nightAuditOtbNotice,
+  summaryRoomUnitCount,
 } from "./na1.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,194 +19,64 @@ function readRel(rel: string): string {
   return readFileSync(join(here, rel), "utf8");
 }
 
-function clearBoard(): NaBlockerRow[] {
-  return buildNa1Blockers({
-    arrivalsPendingCount: 0,
-    overstayCount: 0,
-    unpaidFolios: { lane: "live", count: 0 },
-    openShift: { tillUsed: true, openCount: 0 },
-    hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
-    integrity: emptyIntegrityCounts(),
-  });
-}
-
-describe("NA-1 role gate", () => {
-  it("lets owner and manager Confirm; receptionist cannot", () => {
-    assert.deepEqual([...NA1_CONFIRM_ROLES], ["owner", "manager"]);
-    assert.equal(canConfirmNightAudit("owner"), true);
-    assert.equal(canConfirmNightAudit("manager"), true);
-    assert.equal(canConfirmNightAudit("receptionist"), false);
-    assert.equal(canConfirmNightAudit("cashier"), false);
-    assert.equal(canConfirmNightAudit("accountant"), false);
-    assert.equal(canConfirmNightAudit("housekeeper"), false);
-    assert.equal(canConfirmNightAudit("housekeeping_supervisor"), false);
-  });
-});
-
-describe("NA-1 confirm enablement", () => {
-  it("disables Confirm when any applicable Live blocker is Block", () => {
-    const blocked = buildNa1Blockers({
-      arrivalsPendingCount: 2,
-      overstayCount: 0,
-      unpaidFolios: { lane: "live", count: 0 },
-      openShift: { tillUsed: true, openCount: 0 },
-      hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
-      integrity: emptyIntegrityCounts(),
-    });
-    assert.equal(blocked.find((row) => row.id === "arrivals_pending")?.state, "block");
-    assert.equal(remainingBlockerCount(blocked), 1);
-    assert.equal(canEnableConfirm(blocked), false);
-    assert.equal(workspaceStatus({ closed: false, rows: blocked }), "blocked");
-  });
-
-  it("enables Confirm when all applicable rows are Pass or N/A", () => {
-    const clear = clearBoard();
-    assert.equal(canEnableConfirm(clear), true);
-    assert.equal(remainingBlockerCount(clear), 0);
-    assert.equal(workspaceStatus({ closed: false, rows: clear }), "open");
-
-    const tillUnused = buildNa1Blockers({
-      arrivalsPendingCount: 0,
-      overstayCount: 0,
-      unpaidFolios: { lane: "live", count: 0 },
-      openShift: { tillUsed: false, openCount: 0 },
-      hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
-      integrity: emptyIntegrityCounts(),
-    });
-    assert.equal(tillUnused.find((row) => row.id === "open_shift")?.state, "na");
-    assert.equal(canEnableConfirm(tillUnused), true);
-  });
-
-  it("does not treat Unavailable rows as remaining blockers or as a fake Pass", () => {
-    const rows = buildNa1Blockers({
-      arrivalsPendingCount: 0,
-      overstayCount: 0,
-      unpaidFolios: { lane: "unavailable", count: 99 },
-      openShift: { tillUsed: false, openCount: 0 },
-      hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
-      integrity: emptyIntegrityCounts(),
-    });
-    const unpaid = rows.find((row) => row.id === "unpaid_folios");
-    const cancel = rows.find((row) => row.id === "cancel_noshow_pending");
-    const hk = rows.find((row) => row.id === "hk_conflict");
-    assert.equal(unpaid?.state, "unavailable");
-    assert.equal(unpaid?.count, null);
-    assert.equal(cancel?.state, "unavailable");
-    assert.equal(cancel?.count, null);
-    assert.equal(hk?.state, "pass");
-    assert.equal(hk?.count, 0);
-    assert.equal(remainingBlockerCount(rows), 0);
-    assert.equal(canEnableConfirm(rows), true);
-    assert.notEqual(unpaid?.state, "pass");
-    assert.notEqual(cancel?.state, "pass");
-  });
-});
-
-describe("NA-1 date roll", () => {
+describe("Night Audit date roll", () => {
   it("rolls the business date by one calendar day", () => {
     assert.equal(nextBusinessDate("2026-09-12"), "2026-09-13");
     assert.equal(nextBusinessDate("2026-12-31"), "2027-01-01");
     assert.equal(nextBusinessDate("2026-02-28"), "2026-03-01");
   });
-});
 
-describe("NA-1 unavailable honesty", () => {
-  it("keeps cancel_noshow_pending Unavailable and never invents Early/Late or Phase 6I extras as Pass", () => {
-    const rows = clearBoard();
-    assert.deepEqual(
-      rows.map((row) => row.id),
-      [...NA1_BLOCKER_IDS],
-    );
-    assert.equal(rows.find((row) => row.id === "cancel_noshow_pending")?.state, "unavailable");
-    assert.equal(
-      rows.some((row) => (PHASE_6I_EXTRAS_NOT_NA1 as readonly string[]).includes(row.id)),
-      false,
-    );
-    assert.equal(NA1_BLOCKER_IDS.includes("early_arrival" as never), false);
-    assert.equal(NA1_BLOCKER_IDS.includes("late_arrival" as never), false);
-    assert.equal(NA1_BLOCKER_IDS.includes("dirty_room_without_task" as never), false);
+  it("formats dates without shifting the calendar day", () => {
+    assert.equal(formatNa1Date("2026-11-08"), "8 Nov 2026");
+    assert.equal(formatNa1Date("bad"), "bad");
+  });
 
-    const snap = snapshotBlockers(rows);
-    assert.equal(liveCountFromSnapshot(snap, "cancel_noshow_pending"), null);
-    assert.equal(liveCountFromSnapshot(snap, "arrivals_pending"), 0);
+  it("trusts a stored in-house count only when overstays were stored separately", () => {
+    assert.equal(summaryRoomUnitCount({ inHouse: 7, overstays: 1 }), 7);
+    assert.equal(summaryRoomUnitCount({ inHouse: 7 }), null);
+    assert.equal(summaryRoomUnitCount(null), null);
+  });
+
+  it("reports an OTB failure as information after a successful close", () => {
+    assert.equal(nightAuditOtbNotice("failed"), NIGHT_AUDIT_OTB_FAILED_NOTICE);
+    assert.equal(nightAuditOtbNotice("captured"), null);
+    assert.equal(nightAuditOtbNotice("already_present"), null);
   });
 });
 
-describe("NA-1 waive off", () => {
-  it("has no waive, ignore, reverse or in-workspace mark-no-show control", () => {
-    assert.equal(NA1_HAS_WAIVE, false);
-    assert.equal(NA1_HAS_IGNORE, false);
-    assert.equal(NA1_HAS_REVERSE, false);
-    assert.equal(NA1_HAS_MARK_NO_SHOW, false);
-
-    const contract = readRel("./na1.ts");
-    assert.doesNotMatch(contract, /action:\s*"ignore"|updateException|markNoShow/);
-
+describe("Night Audit module locks", () => {
+  it("has no waive, ignore, reverse, or in-workspace no-show control", () => {
     const workspace = readRel("../components/workspaces/night-audit-workspace.tsx");
-    const desk = readRel("../components/nightaudit/night-audit-desk.tsx");
-    assert.doesNotMatch(workspace, /updateException/);
-    assert.doesNotMatch(workspace, /markNoShow/);
-    assert.doesNotMatch(workspace, /RevenuePanel/);
-    assert.doesNotMatch(workspace, /ChecklistPanel/);
-    assert.doesNotMatch(workspace, /night-audit-panels/);
-    assert.doesNotMatch(desk, />Ignore</);
-    assert.doesNotMatch(desk, /updateException/);
-    assert.match(workspace, /getNightAuditRun/);
-    assert.match(workspace, /runNightAudit/);
-    assert.match(desk, /NaClosePanel/);
-    assert.match(desk, /NaCloseSummary/);
-    assert.match(workspace, /NightAuditChrome/);
-
-    const panels = readRel("../components/nightaudit/na1-panels.tsx");
-    assert.equal(NA1_PHONE_CLOSE_COPY, "Use desktop to close");
-    assert.equal(NA1_CONFIRM_LABEL, "Close Business Date");
-    assert.match(panels, /NA1_PHONE_CLOSE_COPY/);
-    assert.match(panels, /NA1_CONFIRM_LABEL/);
-    assert.doesNotMatch(panels, />Ignore</);
-    assert.doesNotMatch(panels, /RevenuePanel/);
+    const steps = readRel("../components/nightaudit/end-of-day-steps.tsx");
+    const parts = readRel("../components/nightaudit/end-of-day-parts.tsx");
+    for (const source of [workspace, steps, parts]) {
+      assert.doesNotMatch(source, /updateException|markNoShow|reviewWarning|>Ignore<|Waive/);
+    }
   });
-});
 
-describe("NA-1 FO-FS0 title lock", () => {
-  it("keeps Room Rack + Calendar on FO and titles this module Night Audit", () => {
+  it("keeps Room Rack + Calendar on FO and the module titled Night Audit", () => {
     assert.equal(FO_PRIMARY_TITLE, "Room Rack + Calendar");
-    assert.equal(NA1_FO_TITLE_LOCK, "Room Rack + Calendar");
-    assert.equal(NA1_TITLE, "Night Audit");
-
-    const foShell = readRel("./front-office-shell.ts");
-    assert.match(foShell, /export const FO_PRIMARY_TITLE = "Room Rack \+ Calendar"/);
-
     const modules = readRel("./pms-modules.ts");
     assert.match(modules, /key: "night-audit"/);
     assert.match(modules, /title: "Night Audit"/);
-
     const chrome = readRel("../components/nightaudit/night-audit-chrome.tsx");
     assert.match(chrome, /activeModule="Night Audit"/);
-    assert.match(chrome, /NIGHT_AUDIT_DESK_TITLE/);
     assert.doesNotMatch(chrome, /FO Exceptions/);
   });
-});
 
-describe("NA-1 reuse locks", () => {
-  it("reuses close_business_date and does not add a migration or night_auditor", () => {
+  it("reuses close_business_date and the existing permission", () => {
     const fns = readRel("./nightaudit.functions.ts");
     assert.match(fns, /rpc\("close_business_date"/);
     assert.match(fns, /NIGHT_AUDIT_CLOSE_DATE/);
-    assert.match(fns, /evaluateNa1Blockers/);
     assert.doesNotMatch(fns, /night_auditor/);
     assert.doesNotMatch(fns, /CREATE OR REPLACE FUNCTION public\.close_business_date/);
-
-    const server = readRel("./na1.server.ts");
-    assert.doesNotMatch(server, /create table/i);
-    assert.doesNotMatch(server, /apply_migration/);
-    assert.doesNotMatch(server, /early_arrival|late_arrival/);
+    assert.doesNotMatch(fns, /evaluateNa1Blockers|na1\.server/);
   });
 
   it("keys FO chrome off the persisted property business date", () => {
     const hook = readRel("./use-property-business-date.ts");
     assert.match(hook, /getPropertyBusinessDate/);
     assert.match(hook, /propertyToday/);
-
     const fo = readRel("../components/workspaces/front-office-workspace.tsx");
     assert.match(fo, /usePropertyBusinessDate/);
     assert.doesNotMatch(fo, /const today = propertyToday\(timezone\)/);

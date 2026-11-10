@@ -1,58 +1,53 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
   NIGHT_AUDIT_TABS,
   nightAuditSearch,
   paginateRows,
+  resolveNightAuditStep,
   resolveNightAuditTab,
 } from "./night-audit-shell.ts";
 
-const desk = readFileSync(
-  new URL("../components/nightaudit/night-audit-desk.tsx", import.meta.url),
-  "utf8",
-);
-const workspace = readFileSync(
-  new URL("../components/workspaces/night-audit-workspace.tsx", import.meta.url),
-  "utf8",
-);
-const route = readFileSync(
-  new URL("../../../routes/restaurant/pms/night-audit.tsx", import.meta.url),
-  "utf8",
-);
-const legacyIndex = readFileSync(
-  new URL("../../../routes/restaurant/cashiering/night-audit/index.tsx", import.meta.url),
-  "utf8",
-);
-const legacyRun = readFileSync(
-  new URL("../../../routes/restaurant/cashiering/night-audit/$runId.tsx", import.meta.url),
-  "utf8",
-);
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+const workspace = read("../components/workspaces/night-audit-workspace.tsx");
+const chrome = read("../components/nightaudit/night-audit-chrome.tsx");
+const route = read("../../../routes/restaurant/pms/night-audit.tsx");
+const legacyIndex = read("../../../routes/restaurant/cashiering/night-audit/index.tsx");
+const legacyRun = read("../../../routes/restaurant/cashiering/night-audit/$runId.tsx");
 
-describe("Night Audit Phase 1 shell", () => {
-  it("keeps the Night Audit route and the financial navigation", () => {
+describe("End of Day shell", () => {
+  it("has two modes and resolves retired tab ids to the current End of Day", () => {
     assert.deepEqual(
       NIGHT_AUDIT_TABS.map((tab) => tab.label),
-      ["Control Center", "Financial", "Operations", "Exceptions", "Run & Close", "History"],
+      ["Current End of Day", "History"],
     );
-    assert.equal(resolveNightAuditTab(undefined), "control");
+    assert.equal(resolveNightAuditTab(undefined), "current");
+    assert.equal(resolveNightAuditTab("history"), "history");
     assert.equal(resolveNightAuditTab("summary"), "history");
-    assert.equal(resolveNightAuditTab("reconciliation"), "financial");
-    assert.equal(resolveNightAuditTab("pre-audit"), "operations");
-    assert.equal(resolveNightAuditTab("not-a-tab"), "control");
-    assert.deepEqual(nightAuditSearch("history", "run-1"), { tab: "history", run: "run-1" });
-    assert.deepEqual(nightAuditSearch("financial", null, "blockers"), { tab: "financial", focus: "blockers" });
-    assert.deepEqual(nightAuditSearch("control", "run-1"), { tab: "control" });
+    for (const retired of ["control", "financial", "operations", "exceptions", "close", "nope"]) {
+      assert.equal(resolveNightAuditTab(retired), "current");
+    }
+    assert.equal(resolveNightAuditStep("cashier"), "cashier");
+    assert.equal(resolveNightAuditStep("review"), null);
+    assert.deepEqual(nightAuditSearch("history", { run: "run-1" }), { tab: "history", run: "run-1" });
+    assert.deepEqual(nightAuditSearch("current", { step: "folios" }), { tab: "current", step: "folios" });
+    assert.deepEqual(nightAuditSearch("current", { run: "run-1" }), { tab: "current" });
+  });
+
+  it("keeps the canonical route and the legacy redirects", () => {
     assert.match(route, /\/restaurant\/pms\/night-audit/);
     assert.match(route, /hidePackageRail/);
+    assert.match(route, /search\["step"\]/);
+    assert.doesNotMatch(route, /focus/);
     assert.match(legacyIndex, /to: "\/restaurant\/pms\/night-audit"/);
     assert.match(legacyRun, /tab: "history"/);
     assert.match(legacyRun, /run: params.runId/);
     assert.doesNotMatch(legacyRun, /getNightAuditRun/);
   });
 
-  it("pages history without inventing rows", () => {
+  it("pages rows without inventing any", () => {
     const page = paginateRows(["a", "b", "c"], 1);
     assert.equal(page.pages, 1);
     assert.deepEqual(page.rows, ["a", "b", "c"]);
@@ -61,18 +56,23 @@ describe("Night Audit Phase 1 shell", () => {
     assert.deepEqual(long.rows, [10, 11]);
   });
 
-  it("does not mount legacy panels, retry, or fake ledgers", () => {
-    assert.match(workspace, /getNightAuditRun/);
-    assert.match(workspace, /runNightAudit/);
+  it("mounts the nine-step workspace, not the retired desk and panels", () => {
+    assert.match(workspace, /getNightAuditWorkspace/);
+    assert.match(workspace, /startNightAudit/);
+    assert.match(workspace, /saveNightAuditProgress/);
     assert.match(workspace, /closeBusinessDate/);
-    assert.doesNotMatch(workspace, /updateException/);
-    assert.doesNotMatch(desk, /ChecklistPanel|ExceptionsPanel|NoShowPanel|RevenuePanel/);
-    assert.doesNotMatch(desk, /Run pre-audit|Retry Fiscal|Ignore|Waive|Mark resolved/i);
-    assert.doesNotMatch(desk, /recharts|ResponsiveContainer/);
-    assert.match(desk, /night-audit-operations-tab/);
-    assert.match(desk, /night-audit-operations-kpis/);
-    assert.doesNotMatch(desk, /night-audit-operations-next/);
-    assert.match(desk, /night-audit-financial-kpis/);
-    assert.match(desk, /getNightAuditRun|runDetail/);
+    assert.match(workspace, /StepRail/);
+    assert.match(workspace, /EndOfDayStepPanel/);
+    assert.doesNotMatch(workspace, /runNightAudit|reviewWarning|updateException|getNightAuditFinancials|getNightAuditOperations/);
+    assert.doesNotMatch(chrome, /className="hidden"/);
+    for (const removed of [
+      "night-audit-desk.tsx",
+      "night-audit-exception-queue.tsx",
+      "night-audit-financial-panel.tsx",
+      "night-audit-operational-panel.tsx",
+      "na1-panels.tsx",
+    ]) {
+      assert.equal(existsSync(new URL(`../components/nightaudit/${removed}`, import.meta.url)), false, removed);
+    }
   });
 });

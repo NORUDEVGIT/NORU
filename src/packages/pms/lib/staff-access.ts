@@ -341,8 +341,8 @@ export const STAFF_ACCESS_MODULES: readonly StaffAccessModule[] = [
         id: "audit-operations",
         label: "Audit Operations",
         permissions: [
-          item(P.NIGHT_AUDIT_RUN, "Run / Recheck", "Run or recheck the night audit."),
-          item(P.NIGHT_AUDIT_EXCEPTION_EDIT, "Exceptions", "Work night-audit exceptions."),
+          item(P.NIGHT_AUDIT_RUN, "Start / Recheck End of Day", "Start, resume, and recheck End of Day."),
+          item(P.NIGHT_AUDIT_EXCEPTION_EDIT, "Retry OTB Snapshot", "Retry the post-close OTB snapshot."),
         ],
       },
       {
@@ -352,6 +352,11 @@ export const STAFF_ACCESS_MODULES: readonly StaffAccessModule[] = [
           item(P.NIGHT_AUDIT_CLOSE_DATE, "Close Business Date", "Close the property business date."),
           item(P.NIGHT_AUDIT_FISCAL_AUTHORIZE, "Fiscal Override", "Authorize a fiscal close override."),
           item(P.NIGHT_AUDIT_RECOVER_DATE, "Business Date Recovery", "Recover a business date."),
+          item(
+            P.NIGHT_AUDIT_WINDOW_OVERRIDE,
+            "Close Outside Window",
+            "Close the business date outside the Night Audit Window.",
+          ),
         ],
       },
     ],

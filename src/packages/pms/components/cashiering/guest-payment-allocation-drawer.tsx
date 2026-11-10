@@ -874,7 +874,7 @@ export function GuestPaymentAllocationDrawer({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] sm:max-w-4xl overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
+      <DialogContent className="z-[70] max-h-[92vh] sm:max-w-4xl overflow-hidden p-0 rounded-2xl border border-[#E8E1D7] bg-[#FAF8F5] shadow-2xl flex flex-col">
         {/* Header */}
         <DialogHeader className="shrink-0 border-b border-[#E8E1D7] bg-white px-6 py-4">
           <div className="flex items-center gap-3.5">

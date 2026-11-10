@@ -45,6 +45,11 @@ import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { BUSINESS_DATE_NORMAL_COPY } from "@/packages/pms/lib/business-date-recovery";
 import { nightAuditWindowConfigProblem } from "@/packages/pms/lib/night-audit-window";
 import {
+  OPEN_SHIFT_POLICY_LABEL,
+  endOfDayPolicyFromBlockers,
+  withOpenShiftPolicy,
+} from "@/packages/pms/lib/night-audit-steps";
+import {
   PropertySetupField,
   PropertySetupFormGrid,
   PropertySetupFormItem,
@@ -1637,6 +1642,30 @@ export function CheckinStep({
                 {nightAuditWindowProblem}
               </p>
             ) : null}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <ControlledSelectField
+                id="card1-eod-open-shifts"
+                label="Open cashier shifts before End of Day"
+                value={endOfDayPolicyFromBlockers(draft.businessDateBlockers).openCashierShifts}
+                options={[
+                  { value: "block", label: OPEN_SHIFT_POLICY_LABEL.block },
+                  { value: "do_not_block", label: OPEN_SHIFT_POLICY_LABEL.do_not_block },
+                ]}
+                disabled={!canEdit}
+                onChange={(next) =>
+                  setDraft((p) => ({
+                    ...p,
+                    businessDateBlockers: withOpenShiftPolicy(
+                      p.businessDateBlockers,
+                      next === "do_not_block" ? "do_not_block" : "block",
+                    ),
+                  }))
+                }
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              System integrity checks always block End of Day and cannot be turned off.
+            </p>
           </div>
         </div>
       </Panel>

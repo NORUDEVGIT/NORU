@@ -398,10 +398,17 @@ export async function loadNightAuditFinancialReconciliation(
     membership_id: string;
     status: "open" | "closed";
     opened_at: string;
+    closed_at?: string | null;
+    opening?: number | string | null;
+    cash_in?: number | string | null;
+    cash_out?: number | string | null;
+    hotel_cash?: number | string | null;
     expected?: number | string | null;
     closing_count?: number | string | null;
     variance?: number | string | null;
   }>;
+  const optionalNum = (value: number | string | null | undefined) =>
+    value == null ? null : num(value);
 
   const cashierNames = new Map<string, string>();
   try {
@@ -597,6 +604,7 @@ export async function loadNightAuditFinancialReconciliation(
       folioId,
       accountId,
       invoiceId,
+      registrationId: row.id,
     });
   }
   const pushMissing = (document: FiscalDocumentFact, at: string | null) => {
@@ -735,6 +743,7 @@ export async function loadNightAuditFinancialReconciliation(
     businessDate,
     timezone,
     checkedAt,
+    currency,
     folios: folios.map((folio) => {
       const reservation = folio.reservation_id ? reservationById.get(folio.reservation_id) : undefined;
       return {
@@ -757,6 +766,10 @@ export async function loadNightAuditFinancialReconciliation(
         postedAt: txn.posted_at,
         referenceType: txn.reference_type,
         referenceId: txn.reference_id,
+        transactionType: txn.transaction_type,
+        category: txn.category,
+        paymentMethod: txn.payment_method,
+        onAuditDate: onAuditDate(txn.posted_at),
       })),
     missingFolios: reservations
       .filter(
@@ -854,18 +867,27 @@ export async function loadNightAuditFinancialReconciliation(
         amount: num(txn.amount),
         accountId: txn.financial_account_id,
       })),
-    drawers: shiftRows.map((shift) => ({
-      id: shift.id,
-      cashier: cashierNames.get(shift.membership_id) ?? "Cashier",
-      shift: shift.id.slice(0, 8),
-      openedAt: shift.opened_at,
-      expectedCash: num(shift.expected),
-      closingCount: shift.closing_count == null ? null : num(shift.closing_count),
-      variance: shift.variance == null ? null : num(shift.variance),
-      state: shift.status,
-      scope: "hotel" as const,
-      currency,
-    })),
+    // Every open shift, plus shifts closed during this business date. Older closed
+    // shifts belong to the day they closed on.
+    drawers: shiftRows
+      .filter((shift) => shift.status === "open" || onAuditDate(shift.closed_at))
+      .map((shift) => ({
+        id: shift.id,
+        cashier: cashierNames.get(shift.membership_id) ?? "Cashier",
+        shift: shift.id.slice(0, 8),
+        openedAt: shift.opened_at,
+        closedAt: shift.closed_at ?? null,
+        opening: optionalNum(shift.opening),
+        cashIn: optionalNum(shift.cash_in),
+        cashOut: optionalNum(shift.cash_out),
+        hotelCash: optionalNum(shift.hotel_cash),
+        expectedCash: num(shift.expected),
+        closingCount: shift.closing_count == null ? null : num(shift.closing_count),
+        variance: shift.variance == null ? null : num(shift.variance),
+        state: shift.status,
+        scope: "hotel" as const,
+        currency,
+      })),
     integrationEnabled,
     fiscalDocuments,
     taxLines: transactions
