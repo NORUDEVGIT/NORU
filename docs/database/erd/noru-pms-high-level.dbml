@@ -1,0 +1,400 @@
+// NORU PMS — High-Level Domain ERD (NORU-DB-ARCH-03)
+// Source: live Supabase FK metadata (project qcwptraosaudcbjasmul), 2026-11-10.
+// Scope: the 22 approved anchor tables only; ~5–10 representative columns each.
+//
+// DBML limitations / conventions used in this file:
+// 1. Tenant-scoped composite FKs, e.g. FOREIGN KEY (guest_id, restaurant_id)
+//    REFERENCES guest_profiles (id, restaurant_id), are written as single-column refs
+//    on the business column (guest_id > guest_profiles.id). The constraint name is in
+//    the ref comment.
+// 2. hotel_reservation_rooms.room_id and hotel_reservations.room_id use a 3-column FK
+//    (room_id, restaurant_id, room_type_id) → hotel_rooms (id, restaurant_id, room_type_id),
+//    so the assigned room must belong to the booked room type. DBML shows it on room_id only.
+// 3. Partial unique indexes ("max one open per …") cannot be expressed in DBML refs;
+//    they are recorded as column notes and in noru-pms-high-level-notes.md.
+// 4. CHECK constraints (folio_transactions_target_check XOR) are notes only.
+// 5. The inventory_items ↔ purchase_orders many-to-many uses the DBML `<>` shorthand.
+//    The deployed bridge is purchase_order_items (not an anchor), which has 2 FKs.
+// 6. Tenant FKs (restaurant_id → restaurants.id) exist on all 21 child anchors. Only the
+//    domain-root ones are declared as Refs; others are marked in the column note.
+// 7. Header-copy FKs on hotel_reservations (room_type_id, room_id, rate_plan_id) are
+//    deployed but intentionally not declared as Refs (unit table is the source of truth).
+
+Project noru_pms_high_level {
+  database_type: 'PostgreSQL'
+  Note: 'NORU PMS high-level domain ERD: 22 anchors, FK-backed relationships only.'
+}
+
+// ───────────── PROPERTY / STAFF ─────────────
+TableGroup property_staff {
+  restaurants
+  restaurant_users
+  staff_shifts
+}
+
+Table restaurants [note: 'Property (Tenant). Owner: Property Core. Scope: SHARED.'] {
+  id uuid [pk]
+  name text [not null]
+  slug text [not null]
+  timezone text [not null]
+  currency_code text [not null]
+  business_date date [note: 'current hotel business date']
+  active boolean [not null]
+  approved boolean [not null]
+}
+
+Table restaurant_users [note: 'Staff Membership (staff identity). Owner: HR / Staff. Scope: SHARED.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  user_id uuid [not null, note: 'auth user']
+  role text [not null]
+  hotel_role_id uuid
+  active boolean [not null]
+}
+
+Table staff_shifts [note: 'Staff Rota Shift. Owner: HR / Staff. Scope: SHARED.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  staff_membership_id uuid [not null]
+  shift_date date [not null]
+  start_time time [not null]
+  end_time time [not null]
+  status text [not null]
+}
+
+// ───────────── GUESTS ─────────────
+TableGroup guests {
+  guest_profiles
+  guest_account_masters
+}
+
+Table guest_profiles [note: 'Guest Profile (PMS guest identity). Owner: Guest Profile. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  profile_number text
+  first_name text [not null]
+  last_name text
+  email text
+  guest_status text [not null]
+  vip_status boolean [not null]
+  blacklisted boolean [not null]
+}
+
+Table guest_account_masters [note: 'Company / Group / Travel Agent master. Owner: Guest Profile. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  primary_contact_guest_id uuid
+  account_type text [not null, note: 'company | group | travel_agent']
+  name text [not null]
+  code text
+  tax_id text
+  account_status text [not null]
+  credit_account_enabled boolean [not null]
+}
+
+// ───────────── RESERVATIONS ─────────────
+TableGroup reservations {
+  hotel_reservations
+  hotel_reservation_rooms
+}
+
+Table hotel_reservations [note: 'Reservation Header — booking aggregate. Owner: Reservations. Scope: PMS. status and room_subtotal are derived from units.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  guest_id uuid [not null]
+  booker_guest_id uuid
+  company_master_id uuid
+  group_account_master_id uuid
+  travel_agent_master_id uuid
+  confirmation_number text [not null]
+  arrival_date date [not null]
+  departure_date date [not null]
+  status text [not null, note: 'derived by rollup_hotel_reservation_status']
+  source text [not null]
+  room_subtotal numeric(12,2) [note: 'derived by sync_reservation_room_total']
+  room_type_id uuid [not null, note: 'header copy; FK deployed, not drawn']
+  room_id uuid [note: 'header copy (first unit); FK deployed, not drawn']
+  rate_plan_id uuid [note: 'header copy; FK deployed, not drawn']
+}
+
+Table hotel_reservation_rooms [note: 'Stay Unit — lifecycle source. Owner: Reservations. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  reservation_id uuid [not null]
+  unit_sequence integer [not null, note: 'unique per reservation']
+  room_type_id uuid [not null]
+  room_id uuid [note: 'null until assigned; must match room_type_id']
+  rate_plan_id uuid
+  arrival_date date [not null]
+  departure_date date [not null]
+  status text [not null, note: 'lifecycle source of truth']
+  room_subtotal numeric(12,2)
+}
+
+// ───────────── ROOMS / OPERATIONS ─────────────
+TableGroup rooms_operations {
+  room_types
+  hotel_rooms
+  housekeeping_tasks
+  night_audit_runs
+}
+
+Table room_types [note: 'Room Type. Owner: Rooms & Inventory. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  code text [not null]
+  name text [not null]
+  max_occupancy integer [not null]
+  base_nightly_rate numeric(12,2)
+  sellable boolean [not null]
+  active boolean [not null]
+}
+
+Table hotel_rooms [note: 'Physical Room. Owner: Rooms & Inventory. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  room_type_id uuid [not null]
+  room_number text [not null]
+  floor text
+  status text [not null]
+  housekeeping_status text [not null]
+  maintenance_status text [not null]
+  sellable boolean [not null]
+}
+
+Table housekeeping_tasks [note: 'Housekeeping Task. Owner: Housekeeping. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  room_id uuid [not null, note: 'partial unique: max one open task (pending/assigned/in_progress) per room']
+  assigned_membership_id uuid
+  task_type text [not null]
+  status text [not null]
+  priority text [not null]
+  completed_at timestamptz
+}
+
+Table night_audit_runs [note: 'Night Audit Run per business date. Owner: Night Audit. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  business_date date [not null]
+  status text [not null]
+  current_step text
+  started_by_membership_id uuid
+  closed_by_membership_id uuid
+  closed_at timestamptz
+}
+
+// ───────────── CASHIERING / FINANCE ─────────────
+TableGroup cashiering_finance {
+  guest_folios
+  folio_transactions
+  financial_accounts
+  hotel_cashier_shifts
+}
+
+Table guest_folios [note: 'Guest Folio. Owner: Cashiering. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  guest_id uuid [not null]
+  reservation_id uuid [note: 'partial unique: max one folio per reservation']
+  folio_number text [not null, note: 'unique per property']
+  status text [not null]
+  currency text [not null]
+  opened_at timestamptz [not null]
+  closed_at timestamptz
+}
+
+Table folio_transactions [note: 'Ledger Line — single PMS ledger for folios and AR accounts. Owner: Cashiering. Scope: PMS. CHECK folio_transactions_target_check: exactly one of folio_id / financial_account_id.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  folio_id uuid [note: 'XOR financial_account_id']
+  financial_account_id uuid [note: 'XOR folio_id']
+  reservation_room_id uuid
+  hotel_cashier_shift_id uuid
+  posted_by_membership_id uuid
+  transaction_type text [not null]
+  category text [not null]
+  amount numeric(12,2) [not null]
+  posted_at timestamptz [not null]
+}
+
+Table financial_accounts [note: 'AR / Master Billing Account. Owner: Cashiering. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  master_id uuid [not null, unique, note: 'unique (restaurant_id, master_id)']
+  account_number text [not null]
+  account_kind text [not null]
+  currency text [not null]
+  status text [not null]
+  opened_at timestamptz [not null]
+}
+
+Table hotel_cashier_shifts [note: 'Cashier Drawer Shift (PMS only; not pos/RMS cashier shifts). Owner: Cashiering. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  membership_id uuid [not null, note: 'partial unique: max one open shift per cashier']
+  status text [not null]
+  opening_cash numeric(12,2) [not null]
+  closing_count numeric(12,2)
+  opened_at timestamptz [not null]
+  closed_at timestamptz
+}
+
+// ───────────── RATES / TAX ─────────────
+TableGroup rates_tax {
+  hotel_rate_plans
+  pms_taxes
+}
+
+Table hotel_rate_plans [note: 'Rate Plan. Owner: Rate & Revenue. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  room_type_id uuid [not null]
+  code text [not null]
+  name text [not null]
+  currency text [not null]
+  base_rate numeric(12,2) [not null]
+  valid_from date
+  valid_to date
+  active boolean [not null]
+}
+
+Table pms_taxes [note: 'PMS Tax Definition (sole tax catalogue). Owner: Taxes & Fees. Scope: PMS. Linked to the folio domain only through non-anchor bridges and folio_transactions.tax_snapshot (JSON).'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  code text [not null]
+  name text [not null]
+  charge_type text [not null]
+  amount numeric [not null]
+  basis text [not null]
+  applicability_scope text [not null]
+  active boolean [not null]
+}
+
+// ───────────── INVOICING / FISCAL ─────────────
+TableGroup invoicing_fiscal {
+  guest_folio_invoices
+  fiscal_registrations
+}
+
+Table guest_folio_invoices [note: 'Issued Guest Invoice (immutable snapshot). Owner: Fiscal / Invoicing. Scope: PMS.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  folio_id uuid [not null, note: 'partial unique only when coverage_scope = legacy_folio']
+  issued_number text [not null, note: 'unique per property']
+  sequence_number integer [not null]
+  coverage_scope text [not null, note: 'legacy_folio | charge_groups']
+  issued_at timestamptz [not null]
+  snapshot jsonb [not null]
+}
+
+Table fiscal_registrations [note: 'Fiscal Registration outbox (IRN/RRN). Owner: Fiscal / Invoicing. Scope: PMS. source_type/source_id is polymorphic with no FK; not drawn.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  source_type text [not null, note: 'guest_invoice | account_invoice | credit_note | debit_note | guest_allocation | account_allocation | withholding']
+  source_id uuid [not null, note: 'polymorphic, no FK']
+  fiscal_document_type text [not null]
+  trnx_id text [not null]
+  status text [not null]
+  external_irn text
+  registered_at timestamptz
+}
+
+// ───────────── DISTRIBUTION ─────────────
+TableGroup distribution {
+  distribution_channels
+}
+
+Table distribution_channels [note: 'Distribution Channel. Owner: Distribution. Scope: PMS. No deployed FK to reservations.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  channel_type text [not null]
+  code text [not null]
+  name text [not null]
+  status text [not null]
+  mapping_status text [not null]
+  sync_active boolean [not null]
+}
+
+// ───────────── INVENTORY / PROCUREMENT ─────────────
+TableGroup inventory_procurement {
+  inventory_items
+  purchase_orders
+}
+
+Table inventory_items [note: 'Stock Item. Owner: Inventory / Procurement. Scope: SHARED. 0 rows (not yet used).'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  name text [not null]
+  inventory_type text [not null]
+  current_quantity numeric(14,3) [not null]
+  minimum_stock_level numeric(14,3) [not null]
+  unit_cost numeric(12,2)
+  active boolean [not null]
+}
+
+Table purchase_orders [note: 'Purchase Order. Owner: Inventory / Procurement. Scope: SHARED. 0 rows (not yet used).'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  supplier_id uuid [not null, note: 'FK to restaurant_suppliers (non-anchor)']
+  po_number text [not null]
+  status text [not null]
+  order_date date [not null]
+  total numeric(14,2) [not null]
+}
+
+// ═════════════ RELATIONSHIPS ═════════════
+// Tenant roots (restaurant_id → restaurants)
+Ref: restaurant_users.restaurant_id > restaurants.id [delete: cascade] // restaurant_users_restaurant_id_fkey
+Ref: guest_profiles.restaurant_id > restaurants.id [delete: cascade] // guest_profiles_restaurant_id_fkey
+Ref: guest_account_masters.restaurant_id > restaurants.id [delete: cascade] // guest_account_masters_restaurant_id_fkey
+Ref: room_types.restaurant_id > restaurants.id [delete: cascade] // room_types_restaurant_id_fkey
+Ref: night_audit_runs.restaurant_id > restaurants.id [delete: cascade] // night_audit_runs_restaurant_id_fkey
+Ref: pms_taxes.restaurant_id > restaurants.id [delete: cascade] // pms_taxes_restaurant_id_fkey
+Ref: distribution_channels.restaurant_id > restaurants.id [delete: cascade] // distribution_channels_restaurant_id_fkey
+Ref: fiscal_registrations.restaurant_id > restaurants.id [delete: cascade] // fiscal_registrations_restaurant_id_fkey
+Ref: inventory_items.restaurant_id > restaurants.id [delete: cascade] // inventory_items_restaurant_id_fkey
+Ref: purchase_orders.restaurant_id > restaurants.id [delete: cascade] // purchase_orders_restaurant_id_fkey
+
+// Guests → Reservations
+Ref: hotel_reservations.guest_id > guest_profiles.id // hotel_reservations_guest_same_property
+Ref: hotel_reservations.company_master_id > guest_account_masters.id // hotel_reservations_company_master_same_property
+Ref: hotel_reservations.group_account_master_id > guest_account_masters.id // hotel_reservations_group_account_master_same_property
+Ref: hotel_reservations.travel_agent_master_id > guest_account_masters.id // hotel_reservations_travel_agent_master_same_property
+Ref: guest_account_masters.primary_contact_guest_id > guest_profiles.id [delete: set null] // guest_account_masters_primary_contact_guest_fk
+
+// Reservation → Stay units → Rooms / Room types / Rate plans
+Ref: hotel_reservation_rooms.reservation_id > hotel_reservations.id [delete: cascade] // hotel_reservation_rooms_reservation_same_property
+Ref: hotel_reservation_rooms.room_type_id > room_types.id // hotel_reservation_rooms_type_same_property
+Ref: hotel_reservation_rooms.room_id > hotel_rooms.id // hotel_reservation_rooms_room_same_type (3-col)
+Ref: hotel_reservation_rooms.rate_plan_id > hotel_rate_plans.id // hotel_reservation_rooms_rate_plan_same_property
+Ref: hotel_rooms.room_type_id > room_types.id // hotel_rooms_type_same_property
+Ref: hotel_rate_plans.room_type_id > room_types.id // hotel_rate_plans_type_same_property
+
+// Rooms → Operations
+Ref: housekeeping_tasks.room_id > hotel_rooms.id // housekeeping_tasks_room_same_property
+
+// Reservation / Guest → Folio → Ledger
+Ref: guest_folios.reservation_id - hotel_reservations.id // guest_folios_reservation_same_property (+ partial unique guest_folios_one_per_reservation)
+Ref: guest_folios.guest_id > guest_profiles.id // guest_folios_guest_same_property
+Ref: folio_transactions.folio_id > guest_folios.id // folio_transactions_folio_same_property
+Ref: folio_transactions.financial_account_id > financial_accounts.id // folio_transactions_account_same_property
+Ref: folio_transactions.reservation_room_id > hotel_reservation_rooms.id // folio_transactions_room_unit_same_property
+Ref: folio_transactions.hotel_cashier_shift_id > hotel_cashier_shifts.id // folio_transactions_hotel_shift_same_property
+Ref: financial_accounts.master_id - guest_account_masters.id // financial_accounts_master_same_property (+ unique financial_accounts_one_per_master)
+
+// Folio → Invoice
+Ref: guest_folio_invoices.folio_id > guest_folios.id [delete: cascade] // guest_folio_invoices_folio_fk
+
+// Staff → Operations
+Ref: staff_shifts.staff_membership_id > restaurant_users.id [delete: cascade] // staff_shifts_staff_membership_id_fkey
+Ref: hotel_cashier_shifts.membership_id > restaurant_users.id // hotel_cashier_shifts_membership_same_property
+Ref: housekeeping_tasks.assigned_membership_id > restaurant_users.id // housekeeping_tasks_assigned_membership_id_fkey
+Ref: folio_transactions.posted_by_membership_id > restaurant_users.id // folio_transactions_posted_by_membership_id_fkey
+Ref: night_audit_runs.started_by_membership_id > restaurant_users.id [delete: set null] // night_audit_runs_started_by_membership_id_fkey
+Ref: night_audit_runs.closed_by_membership_id > restaurant_users.id [delete: set null] // night_audit_runs_closed_by_membership_id_fkey
+
+// Inventory → Procurement (N:M; deployed bridge purchase_order_items:
+//   purchase_order_items_inventory_item_id_fkey ON DELETE RESTRICT,
+//   purchase_order_items_purchase_order_id_fkey ON DELETE CASCADE)
+Ref: inventory_items.id <> purchase_orders.id

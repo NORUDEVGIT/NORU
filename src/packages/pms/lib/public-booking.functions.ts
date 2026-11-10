@@ -11,6 +11,7 @@ import {
   type StayProperty,
   type StayPropertyStatus,
 } from "./public-booking.server";
+import { cancelDirectBookingUnits, type CancelRpcClient } from "./direct-booking-cancel";
 import { signRoomImages } from "./rooms.server";
 import { parseSnapshot, rateError, toQuote, type StayQuote } from "./rates.server";
 import { nightsBetween, propertyToday } from "./reservation-dates";
@@ -462,12 +463,14 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
       }
 
       const db = await admin();
-      const { error } = await db
-        .from("hotel_reservations")
-        .update({ status: "cancelled", cancellation_reason: "Cancelled by the guest online." })
-        .eq("id", found.row.id)
-        .eq("restaurant_id", found.property.id);
-      if (error) return { ok: false, message: "We couldn't cancel that booking. Please contact the property." };
+      // Room units own stay status; the header is rolled up inside this one
+      // transaction. The unit RPC also writes the reservation history event.
+      const cancelled = await cancelDirectBookingUnits(
+        db as unknown as CancelRpcClient,
+        found.property.id,
+        found.row.id,
+      );
+      if (!cancelled.ok) return { ok: false, message: cancelled.message };
 
       const actor = await db
         .from("restaurant_memberships")
@@ -482,16 +485,6 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
         found.property.id,
         found.row.id,
       );
-
-      await db.from("hotel_reservation_history").insert({
-        restaurant_id: found.property.id,
-        reservation_id: found.row.id,
-        event_type: "cancelled",
-        previous_values: { status: found.row.status } as never,
-        new_values: { status: "cancelled" } as never,
-        notes: "Cancelled by the guest through direct booking.",
-        actor_membership_id: null,
-      });
 
       await logDistribution({
         restaurantId: found.property.id,
