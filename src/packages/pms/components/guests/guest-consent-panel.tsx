@@ -26,11 +26,13 @@ export function GuestConsentPanel({
   guestId,
   consent,
   onSaved,
+  canEdit = true,
 }: {
   restaurantId: string;
   guestId: string;
   consent: GuestConsent;
   onSaved: () => void;
+  canEdit?: boolean;
 }) {
   const { dateTime } = useRestaurantTime();
   const save = useServerFn(saveGuestConsent);
@@ -83,6 +85,7 @@ export function GuestConsentPanel({
           }
           dateTime={dateTime}
           onChange={setDataProcessing}
+          disabled={!canEdit}
         />
         <ConsentField
           id="consent-marketing"
@@ -92,13 +95,16 @@ export function GuestConsentPanel({
           guidance={consent.defaults ? (consent.defaults.marketing ? "granted" : "refused") : null}
           dateTime={dateTime}
           onChange={setMarketing}
+          disabled={!canEdit}
         />
       </div>
-      <div className="mt-4 flex justify-end">
-        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-          {mutation.isPending ? "Saving…" : "Save consent"}
-        </Button>
-      </div>
+      {canEdit ? (
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save consent"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -111,6 +117,7 @@ function ConsentField({
   guidance,
   dateTime,
   onChange,
+  disabled = false,
 }: {
   id: string;
   label: string;
@@ -119,12 +126,17 @@ function ConsentField({
   guidance: GuestConsentState | null;
   dateTime: (value: string) => string;
   onChange: (value: GuestConsentState) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <Select value={value} onValueChange={(next) => onChange(next as GuestConsentState)}>
-        <SelectTrigger id={id}>
+      <Select
+        value={value}
+        onValueChange={(next) => onChange(next as GuestConsentState)}
+        disabled={disabled}
+      >
+        <SelectTrigger id={id} disabled={disabled}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

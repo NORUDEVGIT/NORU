@@ -223,7 +223,7 @@ describe("guest payment allocation", () => {
     assert.equal(reviewGuestAllocation({ ...base, hasInvoiceTotal: false }).ok, false);
     assert.equal(reviewGuestAllocation({ ...base, invoiceCurrency: "USD" }).ok, false);
     assert.equal(reviewGuestAllocation({ ...base, paymentType: "deposit" }).ok, false);
-    assert.equal(reviewGuestAllocation({ ...base, folioStatus: "closed" }).ok, false);
+    assert.equal(reviewGuestAllocation({ ...base, folioStatus: "closed" }).ok, true);
     assert.equal(guestInvoiceOriginalAmount({ totals: { invoiceTotal: null } }), null);
   });
 
@@ -250,7 +250,7 @@ describe("guest payment allocation", () => {
     assert.equal(cashier.canPostPayment, true);
     const closed = guestAllocationCapabilities({ role: "owner", folioStatus: "closed" });
     assert.equal(closed.canView, true);
-    assert.equal(closed.canAllocate, false);
+    assert.equal(closed.canAllocate, true);
     assert.equal(closed.canReverse, false);
   });
 
@@ -265,6 +265,25 @@ describe("guest payment allocation", () => {
     const invoiceLock = apply.indexOf("ORDER BY inv_lock.id");
     assert.ok(folioLock < paymentLock && paymentLock < invoiceLock);
     assert.match(apply, /FOLIO_CLOSED/);
+    const closedFolio = readFileSync(
+      new URL(
+        "../../../../supabase/migrations/0204_closed_folio_invoice_allocation.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const closedFolioDrizzle = readFileSync(
+      new URL(
+        "../../../../drizzle/migrations/0204_closed_folio_invoice_allocation.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    assert.equal(closedFolio, closedFolioDrizzle);
+    assert.match(closedFolio, /apply_guest_payment_invoice_allocations/);
+    assert.match(closedFolio, /apply_guest_deposit_invoice_allocations/);
+    assert.doesNotMatch(closedFolio, /FOLIO_CLOSED/);
+    assert.doesNotMatch(closedFolio, /INSERT INTO public\.folio_transactions/);
     assert.match(apply, /LEGACY_INVOICE_ALLOCATION_UNSUPPORTED/);
     assert.match(apply, /ALLOCATION_FOLIO_MISMATCH/);
     assert.match(apply, /ALLOCATION_CURRENCY_MISMATCH/);

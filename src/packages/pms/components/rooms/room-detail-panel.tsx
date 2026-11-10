@@ -29,6 +29,7 @@ export function RoomDetailPanel({
   block,
   events,
   canManageRestrictions,
+  canBlockEdit = false,
   onClose,
   onInspect,
   onOpenBlocks,
@@ -40,6 +41,7 @@ export function RoomDetailPanel({
   block?: RoomBoardBlockRow | undefined;
   events: RoomInventoryEvent[];
   canManageRestrictions: boolean;
+  canBlockEdit?: boolean;
   onClose?: () => void;
   onInspect: () => void;
   onOpenBlocks: () => void;
@@ -183,6 +185,7 @@ export function RoomDetailPanel({
 
             <DetailSection title="Actions">
               <div className="grid grid-cols-2 gap-2">
+                {canBlockEdit ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -191,6 +194,7 @@ export function RoomDetailPanel({
                 >
                   <LockKeyhole className="mr-2 size-4" /> Block Room
                 </Button>
+                ) : null}
                 <ActionWithPermission
                   allowed={canManageRestrictions}
                   label="Set OOS / OOO"

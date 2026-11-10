@@ -104,7 +104,13 @@ import { HK_HREF, INVENTORY_HREF } from "@/packages/pms/lib/front-office-room-op
 import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 
 type Props = { restaurantId: string; today: string };
-type CleaningProps = Props & { scope: HousekeepingScope; membershipId: string };
+type HousekeepingTaskGrants = {
+  canCreateTask: boolean;
+  canEditTask: boolean;
+  canCancelTask: boolean;
+};
+type CleaningProps = Props &
+  HousekeepingTaskGrants & { scope: HousekeepingScope; membershipId: string };
 
 function useInvalidateHousekeeping(restaurantId: string) {
   const qc = useQueryClient();
@@ -550,7 +556,15 @@ export function NewTaskDialog({
 
 /* ----------------------------------------------------------- cleaning board */
 
-export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: CleaningProps) {
+export function CleaningBoardTab({
+  restaurantId,
+  today,
+  scope,
+  membershipId,
+  canCreateTask,
+  canEditTask,
+  canCancelTask,
+}: CleaningProps) {
   const fetchTasks = useServerFn(listHousekeepingTasks);
   const fetchStaff = useServerFn(listHousekeepingStaff);
   const fetchRack = useServerFn(listRoomRack);
@@ -638,14 +652,21 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
   function taskActions(t: (typeof all)[number], large: boolean) {
     if (t.status === "completed" || t.status === "cancelled") return null;
     const cls = large ? HK_FIELD_ACTION_CLASS : undefined;
+    const hasAction =
+      (isSupervisor && canEditTask) ||
+      (canEditTask && (isSupervisor || own(t.assignedMembershipId))) ||
+      (isSupervisor && canCancelTask);
+    if (!hasAction) return null;
     return (
       <HkFieldActions>
-        {isSupervisor ? (
+        {isSupervisor && canEditTask ? (
           <Button size={large ? "default" : "sm"} className={cls} variant="outline" onClick={() => setAssignTask(t.id)}>
             Assign
           </Button>
         ) : null}
-        {t.status !== "in_progress" && (isSupervisor || own(t.assignedMembershipId)) ? (
+        {canEditTask &&
+        t.status !== "in_progress" &&
+        (isSupervisor || own(t.assignedMembershipId)) ? (
           <Button
             size={large ? "default" : "sm"}
             className={cls}
@@ -655,7 +676,7 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
             Start
           </Button>
         ) : null}
-        {isSupervisor || own(t.assignedMembershipId) ? (
+        {canEditTask && (isSupervisor || own(t.assignedMembershipId)) ? (
           <Button
             size={large ? "default" : "sm"}
             className={cls}
@@ -665,7 +686,7 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
             Complete
           </Button>
         ) : null}
-        {isSupervisor ? (
+        {isSupervisor && canCancelTask ? (
           <Button
             size={large ? "default" : "sm"}
             className={cls}
@@ -695,7 +716,7 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
       <HkShellSlot name="view">
         <HkViewSwitcher value={viewMode} onChange={setViewMode} testId="hk-cleaning-view-switcher" />
       </HkShellSlot>
-      {isSupervisor ? (
+      {isSupervisor && canCreateTask ? (
         <HkShellSlot name="cta">
           <Button
             className={HK_SHELL_PRIMARY_BUTTON}
@@ -884,7 +905,11 @@ export function CleaningBoardTab({ restaurantId, today, scope, membershipId }: C
 
 /* -------------------------------------------------------------- inspections */
 
-export function InspectionsTab({ restaurantId, today }: Props) {
+export function InspectionsTab({
+  restaurantId,
+  today,
+  canInspect = false,
+}: Props & { canInspect?: boolean }) {
   const fetchRack = useServerFn(listRoomRack);
   const fetchInspections = useServerFn(listInspections);
   const inspectFn = useServerFn(inspectRoom);
@@ -981,18 +1006,23 @@ export function InspectionsTab({ restaurantId, today }: Props) {
                 {r.readyReason ? (
                   <p className="text-xs text-muted-foreground">{r.readyReason}</p>
                 ) : null}
-                <HkFieldActions>
-                  <Button className={HK_FIELD_ACTION_CLASS} onClick={() => setTarget({ room: r, result: "passed" })}>
-                    Pass
-                  </Button>
-                  <Button
-                    className={HK_FIELD_ACTION_CLASS}
-                    variant="outline"
-                    onClick={() => setTarget({ room: r, result: "failed" })}
-                  >
-                    Fail
-                  </Button>
-                </HkFieldActions>
+                {canInspect ? (
+                  <HkFieldActions>
+                    <Button
+                      className={HK_FIELD_ACTION_CLASS}
+                      onClick={() => setTarget({ room: r, result: "passed" })}
+                    >
+                      Pass
+                    </Button>
+                    <Button
+                      className={HK_FIELD_ACTION_CLASS}
+                      variant="outline"
+                      onClick={() => setTarget({ room: r, result: "failed" })}
+                    >
+                      Fail
+                    </Button>
+                  </HkFieldActions>
+                ) : null}
               </div>
             ))}
           </div>
@@ -1086,7 +1116,7 @@ export function InspectionsTab({ restaurantId, today }: Props) {
 
 /* ------------------------------------------------------------- restrictions */
 
-export function RestrictionsTab({ restaurantId }: Props) {
+export function RestrictionsTab({ restaurantId, canRestrict = false }: Props & { canRestrict?: boolean }) {
   const fetchRack = useServerFn(listRoomRack);
   const setFn = useServerFn(setRoomRestriction);
   const loadSet4 = useServerFn(getPmsSet4Snapshot);
@@ -1142,6 +1172,7 @@ export function RestrictionsTab({ restaurantId }: Props) {
             {r.restrictionExpectedReturn ? (
               <p className="text-xs text-muted-foreground">Return {r.restrictionExpectedReturn}</p>
             ) : null}
+            {canRestrict ? (
             <HkFieldActions>
               <Button
                 className={HK_FIELD_ACTION_CLASS}
@@ -1154,6 +1185,7 @@ export function RestrictionsTab({ restaurantId }: Props) {
                 {r.restriction === "available" ? "Restrict" : "Release"}
               </Button>
             </HkFieldActions>
+            ) : null}
           </HkFieldCard>
         ))}
       </HkFieldStack>
@@ -1178,28 +1210,32 @@ export function RestrictionsTab({ restaurantId }: Props) {
                 <td className="p-3 text-muted-foreground">{r.restrictionReason ?? "—"}</td>
                 <td className="p-3">{r.restrictionExpectedReturn ?? "—"}</td>
                 <td className="p-3 text-right">
-                  {r.restriction === "available" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setTarget(r);
-                        setStatus("out_of_order");
-                      }}
-                    >
-                      Restrict
-                    </Button>
+                  {canRestrict ? (
+                    r.restriction === "available" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setTarget(r);
+                          setStatus("out_of_order");
+                        }}
+                      >
+                        Restrict
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setTarget(r);
+                          setStatus("available");
+                        }}
+                      >
+                        Release
+                      </Button>
+                    )
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setTarget(r);
-                        setStatus("available");
-                      }}
-                    >
-                      Release
-                    </Button>
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </td>
               </tr>
@@ -1557,7 +1593,12 @@ export const DiscrepanciesTab = ExceptionsTab;
 
 /* -------------------------------------------------------------- maintenance */
 
-export function MaintenanceTab({ restaurantId, today }: Props) {
+export function MaintenanceTab({
+  restaurantId,
+  today,
+  canCreateMaintenance = false,
+  canEditMaintenance = false,
+}: Props & { canCreateMaintenance?: boolean; canEditMaintenance?: boolean }) {
   const fetchRack = useServerFn(listRoomRack);
   const fetchList = useServerFn(listMaintenanceRequests);
   const createFn = useServerFn(createMaintenanceRequest);
@@ -1655,18 +1696,20 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
           testId="hk-maintenance-search"
         />
       </HkShellSlot>
-      <HkShellSlot name="cta">
-        <Button
-          className={HK_SHELL_PRIMARY_BUTTON}
-          onClick={() => {
-            setRoomId("");
-            setDescription("");
-            setOpen(true);
-          }}
-        >
-          Create Work Order
-        </Button>
-      </HkShellSlot>
+      {canCreateMaintenance ? (
+        <HkShellSlot name="cta">
+          <Button
+            className={HK_SHELL_PRIMARY_BUTTON}
+            onClick={() => {
+              setRoomId("");
+              setDescription("");
+              setOpen(true);
+            }}
+          >
+            Create Work Order
+          </Button>
+        </HkShellSlot>
+      ) : null}
 
       <HkFieldStack testId="hk-maintenance-field-worklist">
         {rows.length === 0 ? (
@@ -1680,7 +1723,7 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
               </div>
               <p className="text-sm">{m.description}</p>
               <p className="text-xs capitalize text-muted-foreground">{m.status.replace("_", " ")}</p>
-              {m.status !== "resolved" ? (
+              {canEditMaintenance && m.status !== "resolved" ? (
                 <HkFieldActions>
                   {m.status === "open" ? (
                     <Button
@@ -1810,29 +1853,31 @@ export function MaintenanceTab({ restaurantId, today }: Props) {
                   <Textarea value={workNotes} onChange={(e) => setWorkNotes(e.target.value)} rows={2} />
                 </div>
               ) : null}
-              <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap">
-                {selected.status === "open" ? (
-                  <Button
-                    className={HK_FIELD_ACTION_CLASS}
-                    variant="outline"
-                    onClick={() =>
-                      update.mutate({ requestId: selected.id, status: "in_progress", notes: workNotes })
-                    }
-                  >
-                    Start work
-                  </Button>
-                ) : null}
-                {selected.status !== "resolved" ? (
-                  <Button
-                    className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c]")}
-                    onClick={() =>
-                      update.mutate({ requestId: selected.id, status: "resolved", notes: workNotes })
-                    }
-                  >
-                    Complete work
-                  </Button>
-                ) : null}
-              </div>
+              {canEditMaintenance ? (
+                <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap">
+                  {selected.status === "open" ? (
+                    <Button
+                      className={HK_FIELD_ACTION_CLASS}
+                      variant="outline"
+                      onClick={() =>
+                        update.mutate({ requestId: selected.id, status: "in_progress", notes: workNotes })
+                      }
+                    >
+                      Start work
+                    </Button>
+                  ) : null}
+                  {selected.status !== "resolved" ? (
+                    <Button
+                      className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c]")}
+                      onClick={() =>
+                        update.mutate({ requestId: selected.id, status: "resolved", notes: workNotes })
+                      }
+                    >
+                      Complete work
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
         </aside>
         ) : null}

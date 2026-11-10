@@ -576,8 +576,6 @@ export function guestCreateFieldIssues(
   }
   const emergencyError = validateEmergencyContacts(draft.emergencyContacts);
   if (emergencyError) issues.push({ key: "emergency", message: emergencyError, step: "additional" });
-  const restrictionError = validateRestrictionReason(draft.restricted, draft.blacklisted, draft.restrictionReason);
-  if (restrictionError) issues.push({ key: "restrictionReason", message: restrictionError, step: "additional" });
   if (options.dataProcessingRequired && draft.dataProcessingConsent !== "granted") {
     issues.push({
       key: "dataProcessing",

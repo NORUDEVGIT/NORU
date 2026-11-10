@@ -225,6 +225,14 @@ export function HousekeepingWorkspace({
   }
 
   const props = { restaurantId, today };
+  const hkGrants = {
+    canCreateTask: accessQuery.data.canCreateTask,
+    canEditTask: accessQuery.data.canEditTask,
+    canCancelTask: accessQuery.data.canCancelTask,
+    canInspect: accessQuery.data.canInspect,
+    canCreateMaintenance: accessQuery.data.canCreateMaintenance,
+    canEditMaintenance: accessQuery.data.canEditMaintenance,
+  };
   const visible = visibleHkAreas(scope);
   const burgerArea: HkAreaId = area === "restrictions" ? "board" : area;
 
@@ -312,20 +320,34 @@ export function HousekeepingWorkspace({
             {area === "board" ? (
               <HousekeepingBoardTab
                 {...props}
+                {...hkGrants}
                 scope={scope}
                 membershipId={accessQuery.data.membershipId}
                 openRoomId={initialRoomId}
               />
             ) : null}
             {area === "cleaning" ? (
-              <CleaningBoardTab {...props} scope={scope} membershipId={accessQuery.data.membershipId} />
+              <CleaningBoardTab
+                {...props}
+                {...hkGrants}
+                scope={scope}
+                membershipId={accessQuery.data.membershipId}
+              />
             ) : null}
-            {area === "inspections" ? <InspectionsTab {...props} /> : null}
+            {area === "inspections" ? <InspectionsTab {...props} canInspect={hkGrants.canInspect} /> : null}
             {area === "requests" ? <HousekeepingRequestsTab {...props} /> : null}
-            {area === "maintenance" ? <MaintenanceTab {...props} /> : null}
+            {area === "maintenance" ? (
+              <MaintenanceTab
+                {...props}
+                canCreateMaintenance={hkGrants.canCreateMaintenance}
+                canEditMaintenance={hkGrants.canEditMaintenance}
+              />
+            ) : null}
             {area === "exceptions" ? <ExceptionsTab {...props} /> : null}
             {area === "history" ? <HousekeepingHistoryTab {...props} /> : null}
-            {area === "restrictions" ? <RestrictionsTab {...props} /> : null}
+            {area === "restrictions" ? (
+              <RestrictionsTab {...props} canRestrict={accessQuery.data.canRestrict} />
+            ) : null}
           </main>
         </div>
       </HousekeepingShellProvider>

@@ -98,10 +98,28 @@ export function isCheckOutEligible(status: ReservationStatus): boolean {
   return status === "checked_in";
 }
 
+function guestStayActionGrants(access: GuestStayAccess) {
+  return {
+    view: access.canViewReservation ?? access.reservation,
+    edit: access.canEditReservation ?? access.reservation,
+    checkIn: access.canCheckIn ?? access.frontOffice,
+    checkOut: access.canCheckOut ?? access.frontOffice,
+    cancel: access.canCancel ?? access.frontOffice,
+    folio: access.folio,
+    create: access.canCreateReservation ?? access.reservation,
+  };
+}
+
+export function canCreateGuestStayReservation(access: GuestStayAccess): boolean {
+  return guestStayActionGrants(access).create;
+}
+
 export function bookingRowActions(
   stay: GuestStay | null,
   access: GuestStayAccess,
 ): BookingRowActions {
+  const grants = guestStayActionGrants(access);
+
   if (!stay) {
     return {
       view: "hidden",
@@ -109,32 +127,32 @@ export function bookingRowActions(
       checkIn: "hidden",
       checkOut: "hidden",
       cancel: "hidden",
-      folio: access.folio ? "disabled" : "hidden",
+      folio: grants.folio ? "disabled" : "hidden",
     };
   }
 
-  const view: QuickActionState = access.reservation ? "enabled" : "hidden";
-  const modify: QuickActionState = access.reservation
+  const view: QuickActionState = grants.view ? "enabled" : "hidden";
+  const modify: QuickActionState = grants.edit
     ? isModifiableBooking(stay.status)
       ? "enabled"
       : "hidden"
     : "hidden";
-  const checkIn: QuickActionState = access.frontOffice
+  const checkIn: QuickActionState = grants.checkIn
     ? isCheckInEligible(stay.status)
       ? "enabled"
       : "hidden"
     : "hidden";
-  const checkOut: QuickActionState = access.frontOffice
+  const checkOut: QuickActionState = grants.checkOut
     ? isCheckOutEligible(stay.status)
       ? "enabled"
       : "hidden"
     : "hidden";
-  const cancel: QuickActionState = access.frontOffice
+  const cancel: QuickActionState = grants.cancel
     ? isCancellableBooking(stay.status)
       ? "enabled"
       : "hidden"
     : "hidden";
-  const folio: QuickActionState = access.folio
+  const folio: QuickActionState = grants.folio
     ? stay.folioId && stay.folioNumber
       ? "enabled"
       : "disabled"

@@ -2733,9 +2733,9 @@ function AdditionalStep({
         </div>
       </section>
 
-      {/* Notes & Restrictions */}
+      {/* Notes */}
       <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-        <h2 className="font-display text-base font-semibold text-[#251605]">Notes & Restrictions</h2>
+        <h2 className="font-display text-base font-semibold text-[#251605]">Notes</h2>
         <div className="mt-3 space-y-3">
           <Field label="Profile Notes">
             <Textarea
@@ -2753,32 +2753,6 @@ function AdditionalStep({
               className={MODAL_TEXTAREA_CLASS}
             />
           </Field>
-          <div className="flex flex-wrap items-center gap-6 pt-1">
-            <label className="flex items-center gap-2 text-xs font-medium text-[#251605]">
-              <Checkbox
-                checked={draft.restricted}
-                onCheckedChange={(checked) => set("restricted", Boolean(checked))}
-              />
-              <span>Restricted Profile</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs font-medium text-[#251605]">
-              <Checkbox
-                checked={draft.blacklisted}
-                onCheckedChange={(checked) => set("blacklisted", Boolean(checked))}
-              />
-              <span>Blacklisted</span>
-            </label>
-          </div>
-          {(draft.restricted || draft.blacklisted) ? (
-            <Field label="Restriction Reason" error={fieldError("restrictionReason", "additional")}>
-              <Textarea
-                rows={2}
-                value={draft.restrictionReason}
-                onChange={(event) => set("restrictionReason", event.target.value)}
-                className={MODAL_TEXTAREA_CLASS}
-              />
-            </Field>
-          ) : null}
         </div>
       </section>
     </div>
@@ -2904,8 +2878,6 @@ function ReviewStep({
                 ? `${draft.emergencyContacts.filter((c) => c.name.trim()).length} contact(s)`
                 : null,
               draft.notes ? "Notes recorded" : null,
-              draft.restricted ? "Restricted" : null,
-              draft.blacklisted ? "Blacklisted" : null,
             ]
               .filter(Boolean)
               .join(" · ") || "No additional contacts or notes recorded",

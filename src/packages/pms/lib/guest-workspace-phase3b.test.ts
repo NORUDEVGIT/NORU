@@ -198,20 +198,19 @@ describe("NORU PMS — Guest Profile Phase 3B — Modernize Individual Detail Vi
     assert.match(privacyCode, /Section 1/);
   });
 
-  it("26. data export preserved", () => {
-    assert.match(privacyCode, /exportMutation/);
-    assert.match(privacyCode, /Export Held Data/);
+  it("26. JSON export removed from privacy administration", () => {
+    assert.doesNotMatch(privacyCode, /exportMutation/);
+    assert.doesNotMatch(privacyCode, /Export Held Data/);
   });
 
-  it("27. anonymise preserved with destructive confirmation dialog", () => {
-    assert.match(privacyCode, /anonymiseMutation/);
-    assert.match(privacyCode, /AlertDialog/);
-    assert.match(privacyCode, /Confirm Profile Anonymisation/);
+  it("27. anonymise removed from privacy administration", () => {
+    assert.doesNotMatch(privacyCode, /anonymiseMutation/);
+    assert.doesNotMatch(privacyCode, /Confirm Profile Anonymisation/);
   });
 
-  it("28. unmerge candidates preserved", () => {
-    assert.match(privacyCode, /unmergeCandidates/);
-    assert.match(privacyCode, /unmergeMutation/);
+  it("28. unmerge removed from privacy administration", () => {
+    assert.doesNotMatch(privacyCode, /unmergeCandidates/);
+    assert.doesNotMatch(privacyCode, /unmergeMutation/);
   });
 
   it("29. privacy audit dense layout", () => {

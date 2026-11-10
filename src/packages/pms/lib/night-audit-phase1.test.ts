@@ -4,18 +4,15 @@ import { describe, it } from "node:test";
 
 import { belongsToBusinessDate, propertyDayBounds } from "./cashiering-control.ts";
 import { classifyIssuedGuestInvoice } from "./cashiering-guest-allocation.ts";
-import {
-  buildNa1Blockers,
-  canEnableConfirm,
-  closeBlockingExceptions,
-  emptyIntegrityCounts,
-  nightAuditFeedCounts,
-  nightAuditOtbNotice,
-  summaryRoomUnitCount,
-  warningExceptionsForRun,
-  NIGHT_AUDIT_OTB_FAILED_NOTICE,
-} from "./na1.ts";
+import { nightAuditOtbNotice, summaryRoomUnitCount, NIGHT_AUDIT_OTB_FAILED_NOTICE } from "./na1.ts";
 import { planExceptionSync } from "./night-audit-exceptions.ts";
+import {
+  DEFAULT_END_OF_DAY_POLICY,
+  conditionFromIssue,
+  openBlockers,
+  persistedBlockerRows,
+  unavailableSourceConditions,
+} from "./night-audit-steps.ts";
 import { selectAll } from "./night-audit-read.ts";
 import {
   housekeepingNightAuditExceptions,
@@ -29,8 +26,9 @@ import { resolvePropertyBusinessDate } from "./reservation-workspace/business-da
 
 const read = (name: string) => readFileSync(new URL(name, import.meta.url), "utf8");
 const server = read("./nightaudit.server.ts");
+const financialServer = read("./night-audit-financial.server.ts");
+const operationalServer = read("./night-audit-operational.server.ts");
 const functions = read("./nightaudit.functions.ts");
-const na1Server = read("./na1.server.ts");
 const card1 = read("./pms-property-setup-card1.functions.ts");
 const reservations = read("./reservations.functions.ts");
 const workspace = read("../components/workspaces/night-audit-workspace.tsx");
@@ -41,18 +39,6 @@ const rules = read("../components/rooms/room-inventory-rules.tsx");
 const sql = read("../../../../supabase/migrations/0115_night_audit_phase0_close_guard.sql");
 
 const ADDIS = "Africa/Addis_Ababa";
-
-function clearBoard() {
-  return buildNa1Blockers({
-    businessDate: "2026-10-21",
-    arrivalsPendingCount: 0,
-    overstayCount: 0,
-    unpaidFolios: { lane: "live", count: 0 },
-    openShift: { tillUsed: true, openCount: 0 },
-    hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
-    integrity: emptyIntegrityCounts(),
-  });
-}
 
 function invoice(partial: {
   id?: string;
@@ -97,18 +83,19 @@ describe("NA-P1 date and ownership", () => {
   });
 
   it("does not read dayBoundary or automatic rollover; only the close gate reads the audit window", () => {
-    for (const source of [server, functions, na1Server]) {
+    for (const source of [server, financialServer, operationalServer, functions]) {
       assert.doesNotMatch(source, /dayBoundary/);
       assert.doesNotMatch(source, /automaticRollover/);
       assert.doesNotMatch(source, /approvalRequired/);
       assert.doesNotMatch(source, /lockDuringAudit/);
     }
-    assert.doesNotMatch(server, /nightAuditWindow/);
-    assert.doesNotMatch(na1Server, /nightAuditWindow/);
+    assert.doesNotMatch(financialServer, /nightAuditWindow/);
+    assert.doesNotMatch(operationalServer, /nightAuditWindow/);
     assert.match(functions, /nightAuditWindowConfig\(/);
-    assert.match(server, /propertyDayBounds\(businessDate, timezone\)/);
-    assert.match(server, /belongsToBusinessDate\(t\.posted_at, businessDate, timezone\)/);
-    assert.doesNotMatch(server, /\$\{businessDate\}T00:00:00/);
+    assert.match(financialServer, /propertyDayBounds\(businessDate, timezone\)/);
+    assert.match(financialServer, /belongsToBusinessDate\(iso!, businessDate, timezone\)/);
+    assert.match(operationalServer, /propertyDayBounds\(businessDate, timezone\)/);
+    assert.doesNotMatch(financialServer, /\$\{businessDate\}T00:00:00/);
   });
 
   it("lets only close_business_date advance the business date", () => {
@@ -244,14 +231,20 @@ describe("NA-P1 settlement", () => {
     });
     assert.equal(closed.exceptions[0]?.exceptionType, "closed_folio_nonzero_balance");
     assert.equal(closed.exceptions[0]?.severity, "blocking");
-    const warnings = warningExceptionsForRun(open.exceptions);
-    assert.equal(warnings[0]?.severity, "warning");
-    assert.equal(
-      closeBlockingExceptions(clearBoard(), warnings).some(
-        (row) => row.exceptionType === "open_folio_balance",
-      ),
-      false,
+    const openBalance = conditionFromIssue(
+      {
+        code: "open_folio_balance",
+        severity: "warning",
+        title: "Open folio balance",
+        description: "Balance 4,500.",
+        referenceType: "folio",
+        referenceId: "folio-1",
+        route: "/restaurant/pms/cashiering/folios/folio-1",
+      },
+      DEFAULT_END_OF_DAY_POLICY,
     );
+    assert.equal(openBalance?.kind, "information");
+    assert.deepEqual(persistedBlockerRows(openBalance ? [openBalance] : []), []);
   });
 
   it("blocks settlement contradictions, over-allocation, and orphan allocations", () => {
@@ -469,9 +462,8 @@ describe("NA-P1 summary, close, and completeness", () => {
   it("keeps in-house and overstay counts separate, including old summaries", () => {
     assert.equal(summaryRoomUnitCount({ inHouse: 12, overstays: 2 }), 12);
     assert.equal(summaryRoomUnitCount({ inHouse: 2 }), null);
-    assert.match(functions, /inHouse: evaluation\.inHouseUnits/);
-    assert.match(functions, /overstays: evaluation\.overstays\.length/);
-    assert.match(server, /inHouseUnits: stayRooms\.length/);
+    assert.match(functions, /inHouse: operational\.summary\.inHouseCount/);
+    assert.match(functions, /overstays: operational\.summary\.overstayCount/);
   });
 
   it("reports OTB failure without treating the close as failed", () => {
@@ -479,7 +471,7 @@ describe("NA-P1 summary, close, and completeness", () => {
     assert.equal(nightAuditOtbNotice("captured"), null);
     assert.equal(nightAuditOtbNotice("already_present"), null);
     assert.match(workspace, /nightAuditOtbNotice\(result\.otbSnapshotStatus\)/);
-    assert.match(workspace, /queryFn: \(\) => run\(\{ data: \{ restaurantId \} \}\)/);
+    assert.match(workspace, /queryFn: \(\) => fetchWorkspace\(\{ data: \{ restaurantId \} \}\)/);
     const rpcAt = functions.indexOf('rpc("close_business_date"');
     const otbAt = functions.indexOf("captureOtbAfterClose", rpcAt);
     assert.ok(rpcAt > 0 && otbAt > rpcAt);
@@ -487,52 +479,23 @@ describe("NA-P1 summary, close, and completeness", () => {
   });
 
   it("stamps front-office links with the audit business date", () => {
-    const rows = buildNa1Blockers({
-      businessDate: "2026-10-21",
-      arrivalsPendingCount: 1,
-      overstayCount: 0,
-      unpaidFolios: { lane: "live", count: 0 },
-      openShift: { tillUsed: false, openCount: 0 },
-      hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
-      integrity: emptyIntegrityCounts(),
-    });
-    const link = rows.find((row) => row.id === "arrivals_pending")?.clear[0];
-    assert.equal(link?.search?.date, "2026-10-21");
+    const operational = read("./night-audit-operational.ts");
+    assert.match(operational, /return \{ tab, date: businessDate \};/);
+    assert.match(operational, /search: foSearch\("departures", businessDate\)/);
   });
 
-  it("does not turn a failed housekeeping read or a short page into a pass", async () => {
-    const failed = buildNa1Blockers({
-      arrivalsPendingCount: 0,
-      overstayCount: 0,
-      unpaidFolios: { lane: "unavailable", count: 0 },
-      openShift: { tillUsed: false, openCount: 0 },
-      hkConflict: { discrepancyLane: "unavailable", discrepancyCount: 0, roomUnavailableCount: 0 },
-      integrity: emptyIntegrityCounts(),
-    });
-    assert.equal(failed.find((row) => row.id === "hk_conflict")?.state, "unavailable");
-    assert.equal(canEnableConfirm(failed), false);
-    assert.equal(canEnableConfirm(clearBoard()), true);
+  it("does not turn a failed source read or a short page into a pass", async () => {
+    const failed = unavailableSourceConditions(["operational", "financial"]);
+    assert.ok(failed.length > 0);
+    assert.equal(openBlockers(failed).length, failed.length);
+    assert.ok(failed.every((row) => row.kind === "blocker" && !row.fiscalOverrideable));
+    assert.equal(openBlockers([]).length, 0);
     await assert.rejects(() => selectAll(async () => ({ data: null, error: { message: "db down" } })));
     const many = await selectAll<number>(async (from) => {
       if (from >= 2000) return { data: [], error: null };
       return { data: Array.from({ length: 1000 }, (_, index) => from + index), error: null };
     });
     assert.equal(many.length, 2000);
-    const blockers = Array.from({ length: 1001 }, () => ({
-      exceptionType: "folio_invoice_contradiction",
-    }));
-    assert.equal(nightAuditFeedCounts(blockers).settlementBlockers, 1001);
-    assert.equal(nightAuditFeedCounts(blockers.slice(0, 25)).settlementBlockers, 25);
-    const board = buildNa1Blockers({
-      arrivalsPendingCount: 1842,
-      overstayCount: 0,
-      unpaidFolios: { lane: "live", count: nightAuditFeedCounts(blockers).settlementBlockers },
-      openShift: { tillUsed: true, openCount: 0 },
-      hkConflict: { discrepancyLane: "live", discrepancyCount: 0, roomUnavailableCount: 0 },
-      integrity: emptyIntegrityCounts(),
-    });
-    assert.equal(board.find((row) => row.id === "arrivals_pending")?.count, 1842);
-    assert.equal(board.find((row) => row.id === "unpaid_folios")?.count, 1001);
   });
 
   it("inserts, resolves, reopens, and does not duplicate exceptions", () => {
@@ -565,8 +528,6 @@ describe("NA-P1 summary, close, and completeness", () => {
     assert.equal(reopened.updates[0]?.reopen, true);
     const ignored = planExceptionSync([{ ...stored, status: "ignored" }], derived);
     assert.equal(ignored.updates[0]?.reopen, true);
-    assert.match(functions, /This integrity exception can't be ignored/);
-    assert.match(na1Server, /if \(drawerResult\.error\) throw new Error/);
-    assert.match(server, /if \(shiftResult\.error\) throw new Error/);
+    assert.match(financialServer, /if \(shiftResult\.error\) throw new Error/);
   });
 });

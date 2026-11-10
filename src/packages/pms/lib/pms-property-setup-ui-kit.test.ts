@@ -23,6 +23,7 @@ import {
   acceptShortDescriptionInput,
   isShortDescriptionOverLimit,
   propertySetupStatusesPercent,
+  PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX,
   PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX,
 } from "./pms-property-setup-ui.ts";
 
@@ -287,25 +288,28 @@ describe("Property Setup Phase A UI kit", () => {
     assert.doesNotMatch(kit, /activatePmsSet1/);
   });
 
-  it("gates short description on 80 characters without truncating legacy values and keeps rail percent on step statuses", () => {
-    const eighty = "a".repeat(PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX);
-    const legacy = "a".repeat(120);
-    assert.equal(isShortDescriptionOverLimit(eighty), false);
-    assert.equal(isShortDescriptionOverLimit(legacy), true);
-    assert.equal(acceptShortDescriptionInput(legacy, legacy), legacy);
-    assert.equal(acceptShortDescriptionInput(legacy, `${legacy}x`), legacy);
-    assert.equal(acceptShortDescriptionInput(legacy, legacy.slice(0, 90)), legacy.slice(0, 90));
-    assert.equal(acceptShortDescriptionInput(eighty, `${eighty}x`), eighty);
+  it("allows long short descriptions up to the storage safeguard and keeps rail percent on step statuses", () => {
+    const eighty = "a".repeat(80);
+    const hundredTwenty = "a".repeat(120);
     const chars = "a".repeat(500);
-    assert.equal(acceptShortDescriptionInput(chars, `${chars}b`), chars);
+    const maxSafe = "a".repeat(PROPERTY_SETUP_SHORT_DESCRIPTION_STORAGE_MAX);
+    assert.equal(isShortDescriptionOverLimit(eighty), false);
+    assert.equal(isShortDescriptionOverLimit(hundredTwenty), false);
+    assert.equal(isShortDescriptionOverLimit(chars), false);
+    assert.equal(isShortDescriptionOverLimit(maxSafe), false);
+    assert.equal(isShortDescriptionOverLimit(`${maxSafe}x`), true);
+    assert.equal(acceptShortDescriptionInput(eighty, `${eighty} and more`), `${eighty} and more`);
+    assert.equal(acceptShortDescriptionInput(hundredTwenty, `${hundredTwenty} and more`), `${hundredTwenty} and more`);
+    assert.equal(acceptShortDescriptionInput(chars, `${chars}b`), `${chars}b`);
+    assert.equal(acceptShortDescriptionInput(maxSafe, `${maxSafe}x`), maxSafe);
     assert.equal(acceptShortDescriptionInput("hello world", "hello"), "hello");
     assert.match(card1Steps, /acceptShortDescriptionInput/);
-    assert.match(card1Steps, /PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX/);
-    assert.match(card1Steps, /card1-short-description-counter/);
+    assert.doesNotMatch(card1Steps, /card1-short-description-counter/);
     assert.match(card1Steps, /SocialPlatformSelect/);
     assert.match(card1Steps, /CARD1_SOCIAL_PLATFORMS/);
-    assert.match(card1Steps, /card1-independent/);
-    assert.match(card1Steps, /card1-public/);
+    assert.doesNotMatch(card1Steps, /id="card1-independent"/);
+    assert.doesNotMatch(card1Steps, /id="card1-public"/);
+    assert.match(card1Steps, /card1-time-format/);
     assert.match(card1Steps, /PropertySetupFormItem span=\{3\}/);
     assert.doesNotMatch(card1Steps, /span=\{2\}/);
     assert.doesNotMatch(card1Steps, /Current Settings Summary/);

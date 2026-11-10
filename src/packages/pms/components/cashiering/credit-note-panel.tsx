@@ -26,6 +26,9 @@ import {
   type CashieringDocumentProperty,
 } from "@/packages/pms/lib/cashiering-document-property";
 import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-invoices.functions";
+import { cashieringInvoiceAccess } from "@/packages/pms/lib/cashiering-invoice-access";
+import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white";
 const HEAD =
@@ -35,7 +38,6 @@ export function CreditNoteSection({
   restaurantId,
   guestInvoiceId,
   accountInvoiceId,
-  canManage,
   money,
   dateTime,
   onIssued,
@@ -43,12 +45,23 @@ export function CreditNoteSection({
   restaurantId: string;
   guestInvoiceId?: string;
   accountInvoiceId?: string;
-  canManage: boolean;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   onIssued?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const permissions = usePmsPermissions(restaurantId);
+  const invoiceAccess = useMemo(
+    () =>
+      cashieringInvoiceAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
+  const fiscal = useMemo(
+    () => fiscalDeskAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
+  const canEditDraft = invoiceAccess.canEdit;
+  const canAuthorize = invoiceAccess.canAuthorize;
   const fetchBoard = useServerFn(getInvoiceCreditBoard);
   const previewNote = useServerFn(previewInvoiceCreditNote);
   const createDraft = useServerFn(createInvoiceCreditNoteDraft);
@@ -201,8 +214,6 @@ export function CreditNoteSection({
   }
   if (!board) return null;
   const viewed = board.notes.find((note) => note.id === viewNoteId) ?? null;
-  const manageable = canManage && board.canManage;
-
   return (
     <section className="mt-4 space-y-3" data-testid="invoice-credit-notes">
       <div className={cn(CARD, "px-4 py-3")}>
@@ -217,7 +228,7 @@ export function CreditNoteSection({
               {board.creditState} · Remaining {money(board.remaining)}
             </p>
           </div>
-          {manageable && !editing ? (
+          {canEditDraft && !editing ? (
             <div className="flex gap-2">
               {board.draft ? (
                 <>
@@ -255,12 +266,12 @@ export function CreditNoteSection({
             </div>
           ) : null}
         </div>
-        {!manageable ? (
+        {!canEditDraft ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            Create credit note is available to the owner or manager.
+            Draft credit notes require Invoice Edit permission in Staff &amp; Access.
           </p>
         ) : null}
-        {manageable && !editing && board.groups.length === 0 ? (
+        {canEditDraft && !editing && board.groups.length === 0 ? (
           <p className="mt-2 text-xs text-muted-foreground">
             This invoice has no charge groups that can be credited.
           </p>
@@ -274,7 +285,7 @@ export function CreditNoteSection({
         </p>
       ) : null}
 
-      {editing && (board.draft || manageable) ? (
+      {editing && (board.draft || canEditDraft) ? (
         <div className={cn(CARD, "overflow-hidden")}>
           <div className="border-b border-[#E8E1D7] px-4 py-3">
             <h3 className="font-display text-lg">Create credit note</h3>
@@ -430,7 +441,12 @@ export function CreditNoteSection({
             <Button
               size="sm"
               className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
-              disabled={issueMut.isPending || items.length === 0 || reason.trim().length === 0}
+              disabled={
+                !canAuthorize ||
+                issueMut.isPending ||
+                items.length === 0 ||
+                reason.trim().length === 0
+              }
               onClick={() => issueMut.mutate()}
               data-testid="issue-credit-note"
             >
@@ -479,7 +495,7 @@ export function CreditNoteSection({
                     >
                       {viewNoteId === note.id ? "Collapse" : "View"}
                     </Button>
-                    {manageable ? (
+                    {canAuthorize ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -516,8 +532,8 @@ export function CreditNoteSection({
               <CreditNoteFiscalSection
                 restaurantId={restaurantId}
                 creditNoteId={viewed.id}
-                canRegister={canManage}
-                canInspect={canManage}
+                canRegister={fiscal.canRegister}
+                canInspect={fiscal.canInspect}
                 money={money}
               />
             ) : null}
@@ -525,8 +541,8 @@ export function CreditNoteSection({
               <CompanyCreditNoteFiscalSection
                 restaurantId={restaurantId}
                 creditNoteId={viewed.id}
-                canRegister={canManage}
-                canInspect={canManage}
+                canRegister={fiscal.canRegister}
+                canInspect={fiscal.canInspect}
                 money={money}
               />
             ) : null}

@@ -22,7 +22,6 @@ import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dia
 import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-profile-shell-slots";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
-import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
 import { GuestRestrictionBadges, StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
@@ -70,8 +69,10 @@ import {
   type GuestProfile,
 } from "@/packages/pms/lib/guests.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { pmsPropertyOwnerRole } from "@/packages/pms/lib/pms-client-access";
 import { useRestaurantTime } from "@/core/state/property-format";
 import { cn } from "@/shared/lib/utils";
+import { toast } from "sonner";
 
 const ALL = "all";
 
@@ -164,7 +165,6 @@ export function GuestDirectoryWorkspace({
 
   const [formOpen, setFormOpen] = useState(false);
   const [editGuest, setEditGuest] = useState<GuestProfile | null>(null);
-  const [mergeOpen, setMergeOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
 
   function updateDirectoryUrl(updates: Partial<GuestProfileSearch>) {
@@ -187,7 +187,13 @@ export function GuestDirectoryWorkspace({
     retry: false,
   });
 
-  const canManage = accessQuery.data?.canManage ?? false;
+  const ownerBypass =
+    pmsPropertyOwnerRole(membership.role) || Boolean(accessQuery.data?.isOwner);
+  const canManage = ownerBypass || (accessQuery.data?.canManage ?? false);
+  const canEdit = ownerBypass || (accessQuery.data?.canEdit ?? false);
+  const canActivate = ownerBypass || (accessQuery.data?.canActivate ?? false);
+  const canPrintExport = ownerBypass || (accessQuery.data?.canPrintExport ?? false);
+  const canCreateReservation = accessQuery.data?.canCreateReservation ?? false;
   const offset = page * pageSize;
 
   const statsQuery = useQuery({
@@ -276,12 +282,23 @@ export function GuestDirectoryWorkspace({
     return [...values].sort();
   }, [pageData?.items]);
 
-  if (accessQuery.isLoading) {
+  if (accessQuery.isLoading && !ownerBypass) {
     return (
       <div className="space-y-4" data-testid="guest-profile-directory">
         <Skeleton className="h-16 w-full rounded-xl" />
         <Skeleton className="h-20 w-full rounded-xl" />
         <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (accessQuery.isError && !ownerBypass) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6" data-testid="guest-profile-directory">
+        <h1 className="font-display text-2xl">Guest Profile</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Guest access could not be loaded. Refresh the page and try again.
+        </p>
       </div>
     );
   }
@@ -305,6 +322,10 @@ export function GuestDirectoryWorkspace({
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   function runExport() {
+    if (!canPrintExport) {
+      toast.error("You don't have permission to export guest lists.");
+      return;
+    }
     const rows = selected.length > 0 ? guests.filter((guest) => selected.includes(guest.id)) : guests;
     const header = [
       "Profile No.",
@@ -520,25 +541,27 @@ export function GuestDirectoryWorkspace({
         <>
           <GuestProfileShellSlot name="search">{searchField}</GuestProfileShellSlot>
           <GuestProfileShellSlot name="filter">{guestFilterMenu}</GuestProfileShellSlot>
-          <GuestProfileShellSlot name="export">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className={cn(SHELL_ICON_BUTTON, "relative")}
-              onClick={runExport}
-              aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              data-testid="guest-profile-export"
-            >
-              <Download className="size-4" />
-              {selected.length > 0 ? (
-                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                  {selected.length}
-                </span>
-              ) : null}
-            </Button>
-          </GuestProfileShellSlot>
+          {canPrintExport ? (
+            <GuestProfileShellSlot name="export">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(SHELL_ICON_BUTTON, "relative")}
+                onClick={runExport}
+                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                data-testid="guest-profile-export"
+              >
+                <Download className="size-4" />
+                {selected.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
+                    {selected.length}
+                  </span>
+                ) : null}
+              </Button>
+            </GuestProfileShellSlot>
+          ) : null}
         </>
       ) : (
       <div className="flex flex-wrap items-center gap-2.5">
@@ -817,45 +840,46 @@ export function GuestDirectoryWorkspace({
                           <DropdownMenuItem onSelect={() => openGuest(g.id)}>
                             Open Full Profile
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              void navigate({
-                                to: "/restaurant/pms/reservations",
-                                search: { create: "new", guestId: g.id },
-                              });
-                            }}
-                          >
-                            New Reservation
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              void fetchGuest({ data: { restaurantId, guestId: g.id } }).then(
-                                (res) => {
-                                  if (res?.guest) {
-                                    setEditGuest(res.guest);
-                                    setFormOpen(true);
-                                  }
-                                },
-                              );
-                            }}
-                          >
-                            Edit Guest
-                          </DropdownMenuItem>
-                          {selected.length === 2 && selected.includes(g.id) ? (
-                            <DropdownMenuItem onSelect={() => setMergeOpen(true)}>
-                              Merge Selected (2)
+                          {canCreateReservation ? (
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                void navigate({
+                                  to: "/restaurant/pms/reservations",
+                                  search: { create: "new", guestId: g.id },
+                                });
+                              }}
+                            >
+                              New Reservation
                             </DropdownMenuItem>
                           ) : null}
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              statusMutation.mutate({
-                                guestId: g.id,
-                                status: g.guestStatus === "active" ? "inactive" : "active",
-                              });
-                            }}
-                          >
-                            {g.guestStatus === "active" ? "Deactivate" : "Activate"}
-                          </DropdownMenuItem>
+                          {canEdit ? (
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                void fetchGuest({ data: { restaurantId, guestId: g.id } }).then(
+                                  (res) => {
+                                    if (res?.guest) {
+                                      setEditGuest(res.guest);
+                                      setFormOpen(true);
+                                    }
+                                  },
+                                );
+                              }}
+                            >
+                              Edit Guest
+                            </DropdownMenuItem>
+                          ) : null}
+                          {canActivate ? (
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                statusMutation.mutate({
+                                  guestId: g.id,
+                                  status: g.guestStatus === "active" ? "inactive" : "active",
+                                });
+                              }}
+                            >
+                              {g.guestStatus === "active" ? "Deactivate" : "Activate"}
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
@@ -967,17 +991,6 @@ export function GuestDirectoryWorkspace({
         onOpenExisting={openGuest}
       />
 
-      <GuestMergeDialog
-        restaurantId={restaurantId}
-        open={mergeOpen}
-        onOpenChange={setMergeOpen}
-        initialSurvivorId={selected[0]}
-        initialRetiredId={selected[1]}
-        onMerged={(id) => {
-          refresh();
-          openGuest(id);
-        }}
-      />
     </div>
   );
 }

@@ -207,7 +207,7 @@ describe("Phase 2 — Truthful UI & Density Polish", () => {
     assert.match(dirWorkspace, /displayProfileNumber/);
     assert.match(dirWorkspace, /GuestListingNewGuestMenu/);
     assert.match(dirWorkspace, /GuestFormDialog/);
-    assert.match(dirWorkspace, /GuestMergeDialog/);
+    assert.doesNotMatch(dirWorkspace, /GuestMergeDialog/);
     assert.match(dirWorkspace, /onOpenExisting=\{openGuest\}/);
     assert.match(dirWorkspace, /guestProfileSearch\(\{ card: returnCard, type: "individual" \}\)/);
   });
@@ -271,10 +271,10 @@ describe("Phase 2 — Guest Quick View Drawer", () => {
 describe("Phase 2 — Filter, Sort & Interaction Mechanics", () => {
   it("F1: Sort options include last updated, name, status, and last stay", () => {
     const dirWorkspace = readRel("../components/workspaces/guest-directory-workspace.tsx");
-    assert.match(dirWorkspace, /value="updated_at"/);
-    assert.match(dirWorkspace, /value="name"/);
-    assert.match(dirWorkspace, /value="status"/);
-    assert.match(dirWorkspace, /value="last_stay"/);
+    assert.match(dirWorkspace, /\["updated_at", "Last updated"\]/);
+    assert.match(dirWorkspace, /\["name", "Name"\]/);
+    assert.match(dirWorkspace, /\["status", "Status"\]/);
+    assert.match(dirWorkspace, /lastStayAvailable \? \[\["last_stay", "Last stay"\]/);
   });
 
   it("F2: Last stay preset filters cover all, never, 30d, 90d, 1y", () => {
@@ -304,7 +304,7 @@ describe("Phase 2 — Filter, Sort & Interaction Mechanics", () => {
 
   it("F6: Nationality dropdown dynamically populates from available guests", () => {
     const dirWorkspace = readRel("../components/workspaces/guest-directory-workspace.tsx");
-    assert.match(dirWorkspace, /data-testid="guest-nationality-filter"/);
+    assert.match(dirWorkspace, /label="Nationality"/);
     assert.match(dirWorkspace, /nationalities\.map/);
   });
 

@@ -178,7 +178,9 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(steps, /card1-full-address/);
     assert.match(steps, /readOnly/);
     assert.match(steps, /card1-business-date-current/);
-    assert.match(steps, /CURRENT STATE/);
+    assert.match(steps, /System & Property Information/);
+    assert.match(steps, /card1-system-date/);
+    assert.match(steps, /card1-local-time/);
     assert.doesNotMatch(steps, /name="fullAddress"/);
     assert.doesNotMatch(steps, /name="businessDate"/);
     assert.doesNotMatch(steps, /setDraft\(\(p\) => \(\{ \.\.\.p, fullAddress/);
@@ -249,12 +251,15 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal(hasVatCertificate([{ name: "tin.pdf", kind: "tin" }]), false);
     assert.deepEqual(card1TaxWarnings(emptyCard1Draft({ vatRegistered: false })), []);
     assert.ok(
-      card1TaxWarnings(emptyCard1Draft({ vatRegistered: true }))[0]?.includes("VAT certificate"),
+      card1TaxWarnings(emptyCard1Draft({ vatRegistered: true })).some((w) =>
+        w.includes("VAT certificate"),
+      ),
     );
     assert.deepEqual(
       card1TaxWarnings(
         emptyCard1Draft({
           vatRegistered: true,
+          vatNumber: "123456789",
           taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
         }),
       ),
@@ -436,22 +441,19 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
       "not_started",
     );
 
-    assert.match(hub, /PROPERTY_SETUP_CARDS.map/);
-    assert.match(hub, /Coming soon/);
     assert.match(hub, /PmsPropertySetupCard1Section/);
     assert.match(hub, /PmsPropertySetupCard2Section/);
     assert.match(hub, /PmsPropertySetupCard3Section/);
-    assert.match(hub, /Complete \/ In Progress \/ Not Started|propertySetupStatusLabel/);
+    assert.match(
+      hub,
+      /Complete \/ In Progress \/ Not Started|propertySetupStatusLabel|settingsDashboardStatusLabel/,
+    );
     assert.doesNotMatch(hub, /FO-CHROME1/);
     assert.doesNotMatch(hub, /overbooking/i);
     assert.doesNotMatch(hub, /Agreement/);
     assert.ok(!SET1_COMING_SOON.some((card) => card.title === CARD1_TITLE));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "structure"));
     assert.deepEqual(SET1_COMING_SOON, []);
-
-    const comingSoon = hub.slice(hub.indexOf("SET1_COMING_SOON.map"));
-    assert.match(comingSoon, /Coming soon/);
-    assert.doesNotMatch(comingSoon, /Configure/);
   });
 
   it("uses full-screen chrome and keeps the old Settings sidebar out of Card 1", () => {
@@ -467,7 +469,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(ui, /setup-kit/);
     assert.match(ui, /PropertySetupWorkspaceShell/);
     assert.match(ui, /CARD1_SIDEBAR_OUT/);
-    assert.match(hub, /contentClassName=\{workspaceOpen \? "p-0" : undefined\}/);
+    assert.match(hub, /contentClassName="p-0"/);
     assert.doesNotMatch(ui, /Foundation badge|SET1_FOUNDATION_CHIP/);
     assert.match(settings, /hidePackageRail/);
     assert.match(settings, /isCard1WorkspaceHash/);
@@ -528,8 +530,9 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(steps, /BrandImageField/);
     assert.match(steps, /createPropertyBrandImageUpload/);
     assert.match(steps, /card1-short-description/);
-    assert.match(steps, /card1-independent/);
-    assert.match(steps, /card1-public/);
+    assert.doesNotMatch(steps, /id="card1-independent"/);
+    assert.doesNotMatch(steps, /id="card1-public"/);
+    assert.match(steps, /card1-time-format/);
     assert.match(steps, /PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS/);
     assert.match(ui, /isShortDescriptionOverLimit\(draft.shortDescription\)/);
     assert.doesNotMatch(steps, /Current Settings Summary/);
@@ -783,7 +786,8 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
           checkOutTime: "11:00",
           businessDateConfig: {
             ...emptyCard1Draft().businessDateConfig,
-            manualRolloverRoles: [],
+            nightAuditWindowStart: "00:00",
+            nightAuditWindowEnd: "00:00",
           },
         }),
       ),
@@ -821,6 +825,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
         emptyCard1Draft({
           legalName: "Harbour House PLC",
           vatRegistered: true,
+          vatNumber: "123456789",
           taxUploadRefs: [{ name: "vat.pdf", kind: "vat_certificate" }],
         }),
       ),

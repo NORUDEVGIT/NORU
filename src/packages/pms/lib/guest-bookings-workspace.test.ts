@@ -126,6 +126,24 @@ describe("Guest bookings workspace helpers", () => {
     assert.equal(hidden.cancel, "hidden");
   });
 
+  it("row actions respect granular grants when front-office view is off", () => {
+    const viewOnly: GuestStayAccess = {
+      reservation: true,
+      frontOffice: false,
+      folio: false,
+      canViewReservation: true,
+      canEditReservation: false,
+      canCheckIn: false,
+      canCheckOut: false,
+      canCancel: false,
+    };
+    const actions = bookingRowActions(upcoming, viewOnly);
+    assert.equal(actions.view, "enabled");
+    assert.equal(actions.modify, "hidden");
+    assert.equal(actions.checkIn, "hidden");
+    assert.equal(actions.cancel, "hidden");
+  });
+
   it("prints and exports one CSV row per reservation id", () => {
     const csv = guestBookingsCsv([inHouse, upcoming]);
     assert.match(csv, /^id,confirmation/);

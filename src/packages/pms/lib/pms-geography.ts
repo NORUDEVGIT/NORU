@@ -467,15 +467,52 @@ export function clearDependentGeography<T extends {
   };
 }
 
-export function isValidLatitude(value: string): boolean {
-  if (!value.trim()) return true;
-  const n = Number(value);
+const SIGNED_DECIMAL_REGEX = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
+
+export function resolveRegionForCountryChange(
+  newCountry: string,
+  currentRegion?: string | null,
+  oldCountry?: string | null,
+): string {
+  const newCode = countryCodeFromInput(newCountry);
+  const oldCode = oldCountry ? countryCodeFromInput(oldCountry) : "";
+  const trimmed = (currentRegion ?? "").trim();
+
+  if (newCode === "ET") {
+    if (trimmed && isRegionValidForCountry("Ethiopia", trimmed)) {
+      return trimmed;
+    }
+    return "Addis Ababa";
+  }
+
+  if (oldCode && oldCode !== newCode) {
+    return "";
+  }
+
+  if (hasRegionCatalogue(newCountry)) {
+    return isRegionValidForCountry(newCountry, trimmed) ? trimmed : "";
+  }
+
+  return oldCountry && oldCode !== newCode ? "" : trimmed;
+}
+
+export function isValidLatitude(value: unknown): boolean {
+  if (value == null) return true;
+  const str = typeof value === "string" ? value : String(value);
+  const trimmed = str.trim();
+  if (!trimmed) return true;
+  if (!SIGNED_DECIMAL_REGEX.test(trimmed)) return false;
+  const n = Number(trimmed);
   return Number.isFinite(n) && n >= -90 && n <= 90;
 }
 
-export function isValidLongitude(value: string): boolean {
-  if (!value.trim()) return true;
-  const n = Number(value);
+export function isValidLongitude(value: unknown): boolean {
+  if (value == null) return true;
+  const str = typeof value === "string" ? value : String(value);
+  const trimmed = str.trim();
+  if (!trimmed) return true;
+  if (!SIGNED_DECIMAL_REGEX.test(trimmed)) return false;
+  const n = Number(trimmed);
   return Number.isFinite(n) && n >= -180 && n <= 180;
 }
 

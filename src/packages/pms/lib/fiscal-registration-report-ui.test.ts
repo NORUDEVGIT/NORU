@@ -34,6 +34,7 @@ describe("Fiscal registration report screen", () => {
     assert.equal(reportByCode("fiscal-registration")?.status, "LIVE");
     assert.match(workspace, /FiscalRegistrationReportScreen/);
     assert.match(screen, /getFiscalRegistrationReport/);
+    assert.match(screen, /fiscalDeskAccess/);
     assert.match(workspace, /view\.report === "fiscal-registration"/);
     assert.doesNotMatch(screen, /exceljs|jspdf|text\/csv/i);
   });
@@ -103,8 +104,10 @@ describe("Fiscal registration report screen", () => {
   it("keeps loading, empty, error, and no-access distinct", () => {
     assert.equal(FISCAL_EMPTY_TITLE, "No fiscal registrations");
     assert.match(FISCAL_EMPTY_BODY, /No fiscal registrations match/);
-    assert.match(screen, /query\.isPending \? "loading"/);
-    assert.match(screen, /failure === "access" \? "no-access"/);
+    assert.match(screen, /query\.isPending/);
+    assert.match(screen, /clientDenied/);
+    assert.match(screen, /failure === "access"/);
+    assert.match(screen, /"no-access"/);
     assert.match(screen, /fiscal-empty/);
     assert.equal(
       fiscalReportFailure(new Error("You don't have access to Cashiering for this property.")),

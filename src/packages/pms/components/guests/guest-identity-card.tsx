@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 
 import { GuestRestrictionBadges } from "@/packages/pms/components/guests/guest-bits";
+import { useOptionalGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
 import {
   IDENTITY_UPLOAD_ACCEPT,
   IDENTITY_UPLOAD_MAX_BYTES,
@@ -169,6 +170,9 @@ export function GuestIdentityCard({
   guest: GuestProfile;
 }) {
   const queryClient = useQueryClient();
+  const profileActions = useOptionalGuestProfileActions();
+  const canEdit = profileActions?.canEdit ?? false;
+  const canPrintExport = profileActions?.canPrintExport ?? false;
   const { dateTime, timezone } = useRestaurantTime();
   const today = propertyToday(timezone);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -234,6 +238,10 @@ export function GuestIdentityCard({
   }
 
   function startCreate() {
+    if (!canEdit) {
+      toast.error("You don't have permission to edit guest profiles.");
+      return;
+    }
     setViewDialogOpen(false);
     setMode("create");
     setConfirmDelete(false);
@@ -245,6 +253,10 @@ export function GuestIdentityCard({
   }
 
   async function startEdit(document: GuestDocument) {
+    if (!canEdit) {
+      toast.error("You don't have permission to edit guest profiles.");
+      return;
+    }
     setViewDialogOpen(false);
     setMode("edit");
     setConfirmDelete(false);
@@ -493,6 +505,10 @@ export function GuestIdentityCard({
   }
 
   function printSelected() {
+    if (!canPrintExport) {
+      toast.error("You don't have permission to print guest documents.");
+      return;
+    }
     if (!selected) {
       toast.error("Select a document to print.");
       return;
@@ -562,6 +578,7 @@ export function GuestIdentityCard({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2" data-testid="guest-identity-quick-actions">
+          {canEdit ? (
           <Button
             type="button"
             size="sm"
@@ -571,6 +588,7 @@ export function GuestIdentityCard({
           >
             <Upload className="mr-1.5 size-3.5" /> Upload New Document
           </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -580,6 +598,7 @@ export function GuestIdentityCard({
           >
             <FileText className="mr-1.5 size-3.5 text-[#8A641A]" /> View All Documents
           </Button>
+          {canPrintExport ? (
           <Button
             type="button"
             size="sm"
@@ -590,6 +609,8 @@ export function GuestIdentityCard({
           >
             <Printer className="mr-1.5 size-3.5 text-[#8A641A]" /> Print Selected
           </Button>
+          ) : null}
+          {canEdit ? (
           <Button
             type="button"
             size="sm"
@@ -600,6 +621,7 @@ export function GuestIdentityCard({
           >
             <Trash2 className="mr-1.5 size-3.5" /> Delete Document
           </Button>
+          ) : null}
         </div>
         {creatableTypes.length === 0 ? (
           <p className="mt-3 text-xs text-[#756A5B]">

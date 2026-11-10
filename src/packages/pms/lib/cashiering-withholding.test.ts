@@ -32,7 +32,7 @@ const balance = read(
 );
 const credit = read("../../../../drizzle/migrations/0141_cashiering_cross_ledger_transfer.sql");
 const drawer = read("../../../../drizzle/migrations/0114_cashiering_phase6_hotel_drawer.sql");
-const night = read("./nightaudit.server.ts");
+const night = read("./night-audit-financial.server.ts");
 
 const target = {
   invoiceAccountId: "fa-1",

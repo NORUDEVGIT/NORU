@@ -126,7 +126,7 @@ export function CommercialOverviewView({
   ratePlans: RevenueRatePlan[];
   onNavigateView: (view: RevenueWorkspaceView) => void;
 }) {
-  const canManage = access.canViewCommercial;
+  const canManage = access.canApprove;
   const fetchOverview = useServerFn(getCommercialOverviewWorkspace);
   const query = useQuery({
     queryKey: [

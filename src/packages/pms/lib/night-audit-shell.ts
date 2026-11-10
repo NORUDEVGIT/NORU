@@ -1,52 +1,36 @@
-/** Night Audit shell. Tabs navigate. They do not post, allocate, or close a drawer. */
+/** Night Audit shell. Two modes: the current End of Day, and History. Navigation only. */
+import { isEndOfDayStepId, type EndOfDayStepId } from "./night-audit-steps.ts";
 
 export const NIGHT_AUDIT_TABS = [
-  { id: "control", label: "Control Center" },
-  { id: "financial", label: "Financial" },
-  { id: "operations", label: "Operations" },
-  { id: "exceptions", label: "Exceptions" },
-  { id: "close", label: "Run & Close" },
+  { id: "current", label: "Current End of Day" },
   { id: "history", label: "History" },
 ] as const;
 
 export type NightAuditTabId = (typeof NIGHT_AUDIT_TABS)[number]["id"];
 
-export const NIGHT_AUDIT_DESK_EYEBROW = "Operations";
-export const NIGHT_AUDIT_DESK_TITLE = "Night Audit Control";
-
-export const NIGHT_AUDIT_TAB_COPY: Record<NightAuditTabId, string> = {
-  control: "",
-  financial: "",
-  operations: "",
-  exceptions: "",
-  close: "",
-  history: "",
-};
+export const NIGHT_AUDIT_DESK_EYEBROW = "Night Audit";
+export const NIGHT_AUDIT_DESK_TITLE = "End of Day";
 
 export const NIGHT_AUDIT_PAGE_SIZE = 10;
 
-const TAB_ALIASES: Record<string, NightAuditTabId> = {
-  summary: "history",
-  blockers: "control",
-  reconciliation: "financial",
-  "pre-audit": "operations",
-  run: "close",
-};
-
+/** Retired tab ids from older links resolve to the current End of Day. */
 export function resolveNightAuditTab(value: string | undefined | null): NightAuditTabId {
-  if (!value) return "control";
-  if (NIGHT_AUDIT_TABS.some((tab) => tab.id === value)) return value as NightAuditTabId;
-  return TAB_ALIASES[value] ?? "control";
+  if (value === "history" || value === "summary") return "history";
+  return "current";
 }
+
+export function resolveNightAuditStep(value: string | undefined | null): EndOfDayStepId | null {
+  return value && isEndOfDayStepId(value) ? value : null;
+}
+
+export type NightAuditSearch = { tab: NightAuditTabId; run?: string; step?: EndOfDayStepId };
 
 export function nightAuditSearch(
   tab: NightAuditTabId,
-  run?: string | null,
-  focus?: string | null,
-): { tab: NightAuditTabId; run?: string; focus?: string } {
-  if (tab === "history" && run) return { tab, run };
-  if ((tab === "financial" || tab === "operations" || tab === "exceptions") && focus) return { tab, focus };
-  return { tab };
+  options: { run?: string | null; step?: EndOfDayStepId | null } = {},
+): NightAuditSearch {
+  if (tab === "history") return options.run ? { tab, run: options.run } : { tab };
+  return options.step ? { tab, step: options.step } : { tab };
 }
 
 export function paginateRows<T>(rows: readonly T[], page: number): {

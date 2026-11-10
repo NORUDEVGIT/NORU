@@ -62,7 +62,7 @@ export function PromotionsView({
   onContextChange?: ((patch: Partial<RevenueContext>) => void) | undefined;
   onNavigateView?: ((view: RevenueWorkspaceView) => void) | undefined;
 }) {
-  const canManage = access.canViewCommercial;
+  const canManage = access.canApprove;
   const fetchPromotions = useServerFn(getPromotionsWorkspace);
   const query = useQuery({
     queryKey: [

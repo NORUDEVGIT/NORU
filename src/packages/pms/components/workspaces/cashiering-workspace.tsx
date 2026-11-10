@@ -348,6 +348,7 @@ export function CashieringWorkspace({
                 adjustment: accessQuery.data.canAdjustment,
                 close: accessQuery.data.canClose,
                 transfer: accessQuery.data.canTransfer,
+                writeOff: accessQuery.data.canWriteOff,
               }}
               membershipId={accessQuery.data.membershipId}
               role={accessQuery.data.role}

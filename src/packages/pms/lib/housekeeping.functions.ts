@@ -92,6 +92,13 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD dat
 
 export interface HousekeepingAccess {
   canManage: boolean;
+  canCreateTask: boolean;
+  canEditTask: boolean;
+  canCancelTask: boolean;
+  canInspect: boolean;
+  canCreateMaintenance: boolean;
+  canEditMaintenance: boolean;
+  canRestrict: boolean;
   scope: HousekeepingScope;
   role: string;
   membershipId: string;
@@ -544,13 +551,24 @@ export const getHousekeepingAccess = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<HousekeepingAccess> => {
     const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_VIEW);
-    const canManage = await hasPmsPermission(
-      context as never,
-      data.restaurantId,
-      PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT,
-    );
+    const allow = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+      hasPmsPermission(context as never, data.restaurantId, code);
+    const canCreateTask = await allow(PMS_PERMISSIONS.HOUSEKEEPING_TASK_CREATE);
+    const canEditTask = await allow(PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT);
+    const canCancelTask = await allow(PMS_PERMISSIONS.HOUSEKEEPING_TASK_CANCEL);
+    const canInspect = await allow(PMS_PERMISSIONS.HOUSEKEEPING_INSPECTION_EDIT);
+    const canCreateMaintenance = await allow(PMS_PERMISSIONS.MAINTENANCE_CREATE);
+    const canEditMaintenance = await allow(PMS_PERMISSIONS.MAINTENANCE_EDIT);
+    const canRestrict = await allow(PMS_PERMISSIONS.ROOM_RESTRICTION_EDIT);
     return {
-      canManage,
+      canManage: canEditTask,
+      canCreateTask,
+      canEditTask,
+      canCancelTask,
+      canInspect,
+      canCreateMaintenance,
+      canEditMaintenance,
+      canRestrict,
       scope: resolveHousekeepingDataScope(me.role),
       role: me.role,
       membershipId: me.id,

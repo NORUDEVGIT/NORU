@@ -80,12 +80,16 @@ export function RoomsDashboardTab({
   restaurantId,
   commandSearch = "",
   canConfigure = false,
+  canBlockEdit = false,
+  canManageRestrictions = false,
   onInspectAssignment,
   onOpenBlocks,
 }: {
   restaurantId: string;
   commandSearch?: string;
   canConfigure?: boolean;
+  canBlockEdit?: boolean;
+  canManageRestrictions?: boolean;
   onInspectAssignment?: (room: Pick<HotelRoom, "id" | "roomTypeId">) => void;
   onOpenBlocks?: (
     room: Pick<HotelRoom, "id" | "roomTypeId" | "roomNumber" | "roomTypeName">,
@@ -343,7 +347,8 @@ export function RoomsDashboardTab({
       occupancy={occupancyByRoom.get(selectedRoom.id)}
       block={blockByRoom.get(selectedRoom.id)}
       events={eventsQuery.data ?? []}
-      canManageRestrictions={canConfigure}
+      canManageRestrictions={canManageRestrictions}
+      canBlockEdit={canBlockEdit}
       onClose={() => setSelectedRoomId(null)}
       onInspect={() => onInspectAssignment?.(selectedRoom)}
       onOpenBlocks={() => onOpenBlocks?.(selectedRoom)}

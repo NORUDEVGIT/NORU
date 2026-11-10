@@ -1142,7 +1142,8 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
       depositAllocations: allocations,
       depositSummary: depositSummaryFromLines(depositLines),
       paymentAllocationNets,
-      canAllocateInvoices: folio.status === "open" && access.canAllocate,
+      // Linking money already on the folio stays available after the folio is closed.
+      canAllocateInvoices: access.canAllocate,
       chargeGroups: groupChargeRows(folio.transactions),
       recentPayments: recentPayments(folio.transactions, 3),
       transferCounterparts: counterparts,

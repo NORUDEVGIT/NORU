@@ -11,6 +11,7 @@ export const REVENUE_OPERATE_ROLES = ["owner", "manager"] as const;
 export type RevenueAccess = {
   canView: boolean;
   canViewRates: boolean;
+  canConfigureRates: boolean;
   canEditDailyRates: boolean;
   canViewRestrictions: boolean;
   canApplyRestrictions: boolean;
@@ -35,6 +36,7 @@ export function deniedRevenueAccess(): RevenueAccess {
   return {
     canView: false,
     canViewRates: false,
+    canConfigureRates: false,
     canEditDailyRates: false,
     canViewRestrictions: false,
     canApplyRestrictions: false,
@@ -62,6 +64,7 @@ export function resolveRevenueAccess(
   return {
     canView: true,
     canViewRates: true,
+    canConfigureRates: true,
     canEditDailyRates: true,
     canViewRestrictions: true,
     canApplyRestrictions: true,

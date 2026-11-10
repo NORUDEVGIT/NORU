@@ -120,7 +120,7 @@ export function paymentFace(ledgerAmount: number): number {
 }
 
 /**
- * Folio ledger findings. An open balance is a warning. A closed non-zero balance,
+ * Folio ledger findings. An open balance is informational. A closed non-zero balance,
  * a posting after close, and a duplicate room charge are blockers.
  * Invoice settlement is a separate check and is not recalculated here.
  */
@@ -198,10 +198,12 @@ export function folioLedgerExceptions(input: {
     }
   }
 
+  // An in-house priced stay without a folio cannot be charged tonight: integrity.
+  // A departed stay without one is older data and stays informational.
   for (const stay of input.missingFolios) {
     exceptions.push({
       exceptionType: "missing_folio",
-      severity: "warning",
+      severity: stay.status === "checked_in" ? "blocking" : "warning",
       referenceType: "reservation",
       referenceId: stay.id,
       message: `${stay.confirmationNumber} is priced and ${stay.status.replaceAll("_", " ")} but has no folio.`,

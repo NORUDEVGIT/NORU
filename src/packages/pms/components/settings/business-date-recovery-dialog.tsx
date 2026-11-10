@@ -27,7 +27,7 @@ import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { PROPERTY_BUSINESS_DATE_KEY } from "@/packages/pms/lib/use-property-business-date";
 
-/** Shown when the caller has night_audit.business_date.recover. Owner bypass is in the permission snapshot. */
+/** Shown when the caller has night_audit.business_date.recover. Owner holds it implicitly. */
 export function BusinessDateRecoveryControl({
   restaurantId,
   currentBusinessDate,
@@ -68,7 +68,7 @@ export function BusinessDateRecoveryControl({
   );
 }
 
-function BusinessDateRecoveryDialog({
+export function BusinessDateRecoveryDialog({
   restaurantId,
   currentBusinessDate,
   onClose,
@@ -132,7 +132,7 @@ function BusinessDateRecoveryDialog({
         <DialogHeader>
           <DialogTitle>Adjust Business Date</DialogTitle>
           <DialogDescription>
-            Owner setup and recovery only. Night Audit normally advances the date.
+            Authorized setup and recovery only. End of Day normally advances the date.
           </DialogDescription>
         </DialogHeader>
 

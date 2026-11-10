@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { planExceptionSync, type ExceptionSyncExisting } from "./night-audit-exceptions.ts";
@@ -15,46 +15,50 @@ import {
   isFiscalOverrideableException,
   persistedCloseFacts,
   type PersistedCloseRow,
-  DEFAULT_EXCEPTION_FILTER,
   DEFAULT_HISTORY_FILTER,
   HISTORY_PAGE_SIZES,
   HISTORY_STATUSES,
   CLOSE_CONFIRM_COPY,
-  OVERALL_STATUS_LABEL,
   canRetryOtbSnapshot,
   canSyncRunExceptions,
   canViewNightAuditOperationalDetail,
-  closeGate,
   closeResultView,
   closeTargetDates,
-  controlPrimaryAction,
-  effectiveOverallStatus,
-  exceptionAllowsManualStatus,
-  exceptionCounts,
   exceptionDefaultSource,
-  exceptionFilterForFocus,
   exceptionMeta,
   exceptionStatusLabel,
-  filterExceptions,
   formatSummaryCount,
   historyFiltersActive,
   historyRange,
   historySearchDates,
   historyStatusLabel,
   nightAuditReportLinks,
-  nightAuditRunState,
   otbStatusLabel,
   parseHistoryPageSize,
   presentExceptionMessage,
   presentRunSummary,
   summaryCount,
-  type CloseGateInput,
   type WorkflowException,
 } from "./night-audit-workflow.ts";
-import { nightAuditAllowsClose, nightAuditOverallStatus } from "./night-audit-operational.ts";
 import { canViewNightAuditFinancialDetail } from "./night-audit-financial.ts";
-import { NA1_CONFIRM_LABEL, canConfirmNightAudit, nightAuditOtbNotice } from "./na1.ts";
+import { nightAuditOtbNotice } from "./na1.ts";
 import { NIGHT_AUDIT_TABS, nightAuditSearch, resolveNightAuditTab } from "./night-audit-shell.ts";
+import {
+  AUDIT_STATUS_LABEL,
+  DEFAULT_END_OF_DAY_POLICY,
+  END_OF_DAY_STEPS,
+  UNAUTHORIZED_RESOLVE_COPY,
+  closeBlockedCopy,
+  conditionFromIssue,
+  endOfDayAuditStatus,
+  endOfDaySteps,
+  firstBlockedStep,
+  informationItems,
+  openBlockers,
+  persistedBlockerRows,
+  unavailableSourceConditions,
+  type EndOfDayCondition,
+} from "./night-audit-steps.ts";
 import { parseReportsRouteSearch } from "./reports-shell.ts";
 
 const DATE = "2026-10-21";
@@ -64,11 +68,15 @@ const NOW = "2026-10-21T23:42:00.000Z";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const functions = read("./nightaudit.functions.ts");
 const workflow = read("./night-audit-workflow.ts");
-const desk = read("../components/nightaudit/night-audit-desk.tsx");
-const queue = read("../components/nightaudit/night-audit-exception-queue.tsx");
+const steps = read("../components/nightaudit/end-of-day-steps.tsx");
+const parts = read("../components/nightaudit/end-of-day-parts.tsx");
+const closeSummary = read("../components/nightaudit/night-audit-close-summary.tsx");
 const history = read("../components/nightaudit/night-audit-history.tsx");
-const closePanel = read("../components/nightaudit/na1-panels.tsx");
 const workspace = read("../components/workspaces/night-audit-workspace.tsx");
+const nightAuditUi = readdirSync(new URL("../components/nightaudit/", import.meta.url))
+  .filter((name) => name.endsWith(".tsx"))
+  .map((name) => read(`../components/nightaudit/${name}`))
+  .join("\n");
 const migration = readFileSync(
   "supabase/migrations/0115_night_audit_phase0_close_guard.sql",
   "utf8",
@@ -118,64 +126,48 @@ function existing(input: Partial<ExceptionSyncExisting> = {}): ExceptionSyncExis
   };
 }
 
-const READY_GATE: CloseGateInput = {
-  overall: "ready",
-  financial: "ready",
-  operational: "ready",
-  openBlockingExceptions: 0,
-  boardBlockers: 0,
-  canClose: true,
-  busy: false,
-  runStatus: "open",
-  rechecked: true,
-};
+function condition(
+  code: string,
+  severity: "blocking" | "warning" = "blocking",
+  patch: Partial<EndOfDayCondition> = {},
+): EndOfDayCondition {
+  seq += 1;
+  const row = conditionFromIssue(
+    {
+      code,
+      severity,
+      title: code,
+      description: `${code} detail`,
+      referenceType: "reference",
+      referenceId: `ref-${seq}`,
+      route: "",
+    },
+    DEFAULT_END_OF_DAY_POLICY,
+  );
+  assert.ok(row, code);
+  return { ...row, ...patch };
+}
 
 /* ---------------------------------------------------------------- 1–10 */
 
-describe("NA-P4 exceptions", () => {
-  it("1. a financial blocker is visible in the unified queue", () => {
-    const rows = [ex({ exceptionType: "allocation_exceeds_source", severity: "blocking" })];
-    const visible = filterExceptions(rows, DEFAULT_EXCEPTION_FILTER);
-    assert.equal(visible.length, 1);
-    const meta = exceptionMeta(visible[0]!.exceptionType);
-    assert.equal(meta.domain, "financial");
-    assert.equal(meta.categoryLabel, "Payments");
-    assert.equal(exceptionCounts(rows).blocking, 1);
+describe("NA-P4 blockers", () => {
+  it("1–2. financial and operational integrity findings are blockers on their own step", () => {
+    const allocation = condition("allocation_exceeds_source");
+    assert.equal(allocation.kind, "blocker");
+    assert.equal(allocation.step, "reconcile");
+    assert.equal(exceptionMeta("allocation_exceeds_source").domain, "financial");
+    const overstay = condition("overstay");
+    assert.equal(overstay.kind, "blocker");
+    assert.equal(overstay.step, "departures");
+    assert.equal(exceptionMeta("overstay").domain, "operations");
   });
 
-  it("2. an operational blocker is visible in the unified queue", () => {
-    const rows = [
-      ex({ exceptionType: "overstay", severity: "blocking", referenceType: "room_unit" }),
-    ];
-    const meta = exceptionMeta(rows[0]!.exceptionType);
-    assert.equal(meta.domain, "operations");
-    assert.equal(meta.category, "departures");
-    assert.equal(
-      filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, domain: "operations" }).length,
-      1,
-    );
-    assert.equal(
-      filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, domain: "financial" }).length,
-      0,
-    );
-  });
-
-  it("3. a warning is visible and counted separately", () => {
-    const rows = [
-      ex({ severity: "warning" }),
-      ex({ exceptionType: "overstay", severity: "blocking" }),
-    ];
-    assert.deepEqual(exceptionCounts(rows), {
-      blocking: 1,
-      warnings: 1,
-      open: 2,
-      resolved: 0,
-      fiscalOverrides: 0,
-    });
-    assert.equal(
-      filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, severity: "warning" }).length,
-      1,
-    );
+  it("3. a former warning is information, never a blocker, and never stored", () => {
+    const info = condition("open_folio_balance", "warning");
+    assert.equal(info.kind, "information");
+    assert.deepEqual(informationItems([info]).length, 1);
+    assert.equal(openBlockers([info]).length, 0);
+    assert.deepEqual(persistedBlockerRows([info]), []);
   });
 
   it("4. a fixed source auto-resolves on recheck", () => {
@@ -184,11 +176,12 @@ describe("NA-P4 exceptions", () => {
     assert.equal(plan.inserts.length, 0);
     assert.match(
       functions,
-      /resolution_note: "Cleared automatically — the underlying issue was fixed\."/,
+      /const RESOLVED_NOTE = "Cleared automatically — the underlying issue was fixed\.";/,
     );
+    assert.match(functions, /\["blocking", RESOLVED_NOTE\]/);
   });
 
-  it("5. a returning condition reopens the same row (blocker and warning)", () => {
+  it("5. a returning blocker reopens the same row", () => {
     const derived = [
       {
         exceptionType: "overstay",
@@ -204,12 +197,6 @@ describe("NA-P4 exceptions", () => {
       blocker.updates.map((u) => [u.id, u.reopen]),
       [["row-1", true]],
     );
-
-    const warning = planExceptionSync(
-      [existing({ exceptionType: "pending_arrival", severity: "warning", status: "resolved" })],
-      [{ ...derived[0]!, exceptionType: "pending_arrival", severity: "warning" }],
-    );
-    assert.equal(warning.updates[0]?.reopen, true);
     assert.match(functions, /status: "open", resolved_at: null, resolution_note: null/);
   });
 
@@ -227,29 +214,29 @@ describe("NA-P4 exceptions", () => {
     assert.deepEqual(plan, { inserts: [], updates: [], resolveIds: [] });
   });
 
-  it("7. a blocker cannot be ignored or manually resolved", () => {
-    assert.equal(exceptionAllowsManualStatus({ severity: "blocking" }), false);
-    const body = handler("updateException");
-    assert.match(body, /data\.action === "resolve"/);
-    assert.match(body, /This integrity exception can't be ignored/);
-    assert.match(body, /exception\.severity === "blocking"/);
-    for (const source of [desk, queue, history, workspace]) {
+  it("7. a blocker cannot be ignored, reviewed, or manually resolved", () => {
+    assert.doesNotMatch(functions, /export const (updateException|reviewWarning|runNightAudit) =/);
+    for (const source of [steps, parts, history, workspace]) {
       assert.doesNotMatch(
         source,
-        /updateException|Mark Fixed|Mark Resolved|Force Pass|Ignore Blocker|>Ignore</i,
+        /updateException|reviewWarning|Mark Fixed|Mark Resolved|Force Pass|Ignore Blocker|>Ignore</i,
       );
     }
   });
 
-  it("8. resolved rows are retained in run history", () => {
-    const rows = [ex({ status: "resolved", resolvedAt: "2026-10-21T20:00:00.000Z" }), ex()];
-    assert.equal(filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, status: "all" }).length, 2);
-    assert.equal(exceptionCounts(rows).resolved, 1);
+  it("8. resolved and legacy rows are retained in run history", () => {
     assert.doesNotMatch(functions, /\.from\("night_audit_exceptions"\)\s*\.delete\(/);
-    assert.match(history, /resolved during run/);
+    assert.doesNotMatch(functions, /\.from\("night_audit_warning_reviews"\)\s*\.(delete|insert)\(/);
+    assert.match(
+      functions,
+      /\.from\("night_audit_warning_reviews"\)\s*\.update\(\{ invalidated_at: now/,
+    );
+    assert.match(functions, /No longer tracked — informational items do not block End of Day\./);
+    assert.match(history, /row\.resolutionNote/);
+    assert.match(history, /Legacy reviewed item/);
   });
 
-  it("9. a closed run's exceptions never reopen from a later business date", () => {
+  it("9. a closed run's blockers never reopen from a later business date", () => {
     assert.equal(canSyncRunExceptions("closed"), false);
     assert.equal(canSyncRunExceptions("failed"), false);
     assert.equal(canSyncRunExceptions("open"), true);
@@ -258,61 +245,9 @@ describe("NA-P4 exceptions", () => {
       functions,
       /if \(!current \|\| !canSyncRunExceptions\(\(current as \{ status: string \}\)\.status\)\) return;/,
     );
-    assert.match(handler("updateException"), /This run is closed\. Its exceptions are history\./);
   });
 
-  it("10. filters: status, severity, domain, category, search", () => {
-    const rows = [
-      ex({ exceptionType: "open_cashier_shift", severity: "blocking", message: "Drawer A open" }),
-      ex({ exceptionType: "pending_arrival", severity: "warning", message: "Abebe arriving" }),
-      ex({ exceptionType: "fiscal_unregistered", severity: "warning", status: "resolved" }),
-    ];
-    assert.equal(filterExceptions(rows, DEFAULT_EXCEPTION_FILTER).length, 2);
-    assert.equal(
-      filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, status: "resolved" }).length,
-      1,
-    );
-    assert.equal(
-      filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, category: "drawers" }).length,
-      1,
-    );
-    assert.equal(
-      filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, status: "all", category: "fiscal" })
-        .length,
-      1,
-    );
-    assert.equal(
-      filterExceptions(rows, { ...DEFAULT_EXCEPTION_FILTER, search: "abebe" }).length,
-      1,
-    );
-    assert.equal(filterExceptions(rows, DEFAULT_EXCEPTION_FILTER)[0]?.severity, "blocking");
-    assert.deepEqual(exceptionFilterForFocus("blockers"), {
-      ...DEFAULT_EXCEPTION_FILTER,
-      severity: "blocking",
-    });
-    for (const label of [
-      'aria-label="Status"',
-      'aria-label="Severity"',
-      'aria-label="Domain"',
-      'aria-label="Category"',
-      'aria-label="Search exceptions"',
-    ]) {
-      assert.ok(queue.includes(label), label);
-    }
-    for (const column of [
-      "Severity",
-      "Category",
-      "Issue",
-      "Source",
-      "Reference",
-      "Status",
-      "Opened",
-      "Last checked",
-      "Resolved at",
-    ]) {
-      assert.ok(queue.includes(`>${column}</th>`), column);
-    }
-    assert.match(queue, /Open Source/);
+  it("10. stored rows keep their labels and source routes", () => {
     assert.equal(exceptionStatusLabel("ignored"), "Ignored (legacy)");
     assert.deepEqual(exceptionDefaultSource("open_cashier_shift", DATE), {
       route: "/restaurant/pms/cashiering",
@@ -323,173 +258,146 @@ describe("NA-P4 exceptions", () => {
 
 /* --------------------------------------------------------------- 11–20 */
 
-const overall = (input: Partial<Parameters<typeof nightAuditOverallStatus>[0]>) =>
-  nightAuditOverallStatus({
-    closed: false,
-    boardBlockers: 0,
-    boardUnavailable: false,
-    openBlockingExceptions: 0,
-    financial: "ready",
-    operational: "ready",
-    warnings: 0,
-    ...input,
+describe("NA-P4 End of Day workflow", () => {
+  it("11. nine steps in the fixed order", () => {
+    assert.deepEqual(
+      END_OF_DAY_STEPS.map((step) => step.title),
+      [
+        "Prepare End of Day",
+        "Arrival not checked in",
+        "Departures",
+        "In-House Guests",
+        "Open Folios",
+        "Cashier Closure",
+        "Reconcile Transactions & Revenue",
+        "Update Business Date",
+        "Finalize & Reports",
+      ],
+    );
   });
 
-describe("NA-P4 Control Center", () => {
-  it("11. ready → Run & Close", () => {
-    const status = overall({});
-    assert.equal(status, "ready");
-    assert.equal(controlPrimaryAction(status).label, "Run & Close");
-    assert.equal(nightAuditRunState({ runStatus: "open", overall: status }), "Ready");
-  });
-
-  it("12. warning → Review & Close", () => {
-    const status = overall({ warnings: 2 });
-    assert.equal(status, "warning");
-    assert.equal(controlPrimaryAction(status).label, "Review & Close");
-    assert.equal(nightAuditAllowsClose(status), true);
-  });
-
-  it("13. blocked financial → Review First Blocker", () => {
-    const status = overall({ financial: "blocked" });
-    assert.equal(status, "blocked");
-    assert.equal(controlPrimaryAction(status).label, "Review First Blocker");
-    assert.equal(nightAuditRunState({ runStatus: "open", overall: status }), "Blocked");
+  it("12. viewing never creates a run; Start creates or resumes one", () => {
+    const view = handler("getNightAuditWorkspace");
+    assert.doesNotMatch(view, /from\("night_audit_runs"\)\s*\.insert/);
+    const start = handler("startNightAudit");
     assert.match(
-      desk,
-      /financialSummary\.status === "blocked"\) return onOpenFinancial\?\.\("blockers"\)/,
+      start,
+      /if \(existing\) return \{ ok: true, runId: existing\.id, resumed: true \};/,
     );
+    assert.match(start, /from\("night_audit_runs"\)\s*\.insert/);
+    assert.match(start, /duplicate key/);
+    assert.match(start, /"night_audit_started"/);
   });
 
-  it("14. blocked operations → Review First Blocker opens Operations", () => {
-    assert.equal(overall({ operational: "blocked" }), "blocked");
+  it("13. audit status follows the run and the blockers", () => {
+    const status = (
+      runStatus: Parameters<typeof endOfDayAuditStatus>[0]["runStatus"],
+      blockerCount = 0,
+      evaluationFailed = false,
+    ) => endOfDayAuditStatus({ runStatus, blockerCount, evaluationFailed });
+    assert.equal(status(null), "not_started");
+    assert.equal(status("superseded"), "not_started");
+    assert.equal(status("open", 2), "blocked");
+    assert.equal(status("open", 0), "ready_to_close");
+    assert.equal(status("open", 0, true), "failed");
+    assert.equal(status("closed", 5), "completed");
+    assert.deepEqual(Object.values(AUDIT_STATUS_LABEL), [
+      "Not Started",
+      "In Progress",
+      "Blocked",
+      "Ready to Close",
+      "Completed",
+      "Failed",
+    ]);
+  });
+
+  it("14. a step is Blocked only by its own blockers; information never blocks", () => {
+    const view = endOfDaySteps({
+      runStatus: "open",
+      conditions: [condition("overstay"), condition("open_folio_balance", "warning")],
+    });
+    const byId = new Map(view.map((step) => [step.id, step]));
+    assert.equal(byId.get("departures")?.status, "blocked");
+    assert.equal(byId.get("folios")?.status, "completed");
+    assert.equal(byId.get("folios")?.informationCount, 1);
+    assert.equal(byId.get("business_date")?.status, "blocked");
+    assert.equal(byId.get("finalize")?.status, "not_started");
+    assert.equal(firstBlockedStep(view), "departures");
+  });
+
+  it("15–16. a failed source read blocks and is never shown as passed", () => {
+    const failed = unavailableSourceConditions(["financial"]);
+    const view = endOfDaySteps({ runStatus: "open", conditions: failed });
+    assert.ok(view.some((step) => step.status === "blocked"));
+    const affected = view.filter((step) =>
+      step.checks.some((check) => check.id === "source_available"),
+    );
+    assert.ok(affected.length > 0);
+    assert.ok(affected.flatMap((step) => step.checks).every((check) => check.status === "blocked"));
+    assert.deepEqual(persistedBlockerRows(failed), []);
     assert.match(
-      desk,
-      /operationalSummary\.status === "blocked"\) return onOpenOperations\?\.\("blockers"\)/,
+      handler("getNightAuditWorkspace"),
+      /unavailableSourceConditions\(\["operational", "financial"\]\)/,
     );
   });
 
-  it("15. unavailable financial → Overall Unavailable and Retry Checks", () => {
-    assert.equal(overall({ financial: "unavailable" }), "unavailable");
+  it("17. no yellow warning badges anywhere in End of Day", () => {
+    assert.doesNotMatch(nightAuditUi + workspace, /amber-|yellow-|WarningSummary|warning-badge/);
+  });
+
+  it("18. Recheck refetches the workspace and never writes from the client", () => {
+    assert.match(workspace, /workspaceQuery\.isFetching \? "Checking…" : "Recheck"/);
+    assert.doesNotMatch(workspace, /supabase\.from\(/);
+  });
+
+  it("19. unauthorized staff see who must resolve a blocker, not a dead button", () => {
     assert.equal(
-      effectiveOverallStatus({ server: "ready", financial: "unavailable", operational: "ready" }),
-      "unavailable",
+      UNAUTHORIZED_RESOLVE_COPY,
+      "This issue must be resolved by an authorized staff member.",
     );
-    assert.equal(controlPrimaryAction("unavailable").label, "Retry Checks");
-  });
-
-  it("16. unavailable operations → Overall Unavailable", () => {
-    assert.equal(overall({ operational: "unavailable" }), "unavailable");
-    assert.equal(
-      effectiveOverallStatus({ server: "warning", financial: "ready", operational: "unavailable" }),
-      "unavailable",
-    );
-    assert.equal(
-      effectiveOverallStatus({ server: "closed", financial: "unavailable", operational: "ready" }),
-      "closed",
-    );
-    assert.equal(
-      effectiveOverallStatus({ server: "warning", financial: "loading", operational: "ready" }),
-      "warning",
-    );
-  });
-
-  it("17. Control Center counts come from the same Financial and Operations reads", () => {
-    assert.match(workspace, /blockerCount: financialQuery\.data\.summary\.blockerCount/);
-    assert.match(workspace, /operationsQuery\.data\.summary\.blockerCount/);
-    assert.match(workspace, /openDrawerCount: financialQuery\.data\.summary\.openDrawerCount/);
-    for (const label of [
-      "Financial blockers",
-      "Financial warnings",
-      "Operational blockers",
-      "Operational warnings",
-      "Open exceptions",
-      "Open drawers",
-    ]) {
-      assert.ok(desk.includes(label), label);
-    }
-    assert.match(desk, /data-testid="night-audit-financial-kpis"/);
-    assert.match(desk, /data-testid="night-audit-operations-kpis"/);
-    assert.doesNotMatch(desk, /NaClosePanel[\s\S]{0,40}tab === "control"/);
-  });
-
-  it("18. Refresh rechecks every loader and never writes from the client", () => {
-    assert.match(
-      workspace,
-      /auditQuery\.refetch\(\),\s*financialQuery\.refetch\(\),\s*operationsQuery\.refetch\(\)/,
-    );
-    assert.match(desk, /onClick=\{onRecheck\}/);
-    assert.match(desk, /primary\.kind === "retry"\) return onRecheck\(\)/);
-  });
-
-  it("19. last close is displayed from the stored close", () => {
-    assert.match(desk, /<NaCloseSummary lastClosed=\{lastClosed\} \/>/);
-    assert.match(closePanel, /Last successful Night Audit/);
-    assert.match(functions, /lastClosedRunId: lastClosedRaw\?\.id \?\? null/);
+    assert.match(parts, /\{UNAUTHORIZED_RESOLVE_COPY\}/);
+    assert.match(parts, /permissions\.canAny\(action\.permissions\)/);
+    assert.match(steps, /Closing the business date must be done by an authorized staff member\./);
   });
 
   it("20. current business date stays distinct from last close", () => {
-    assert.match(desk, /formatNa1Date\(businessDate\)/);
-    assert.match(
-      functions,
-      /previousBusinessDate:\s*lastClosedRaw\.summary\?\.previousBusinessDate \?\? lastClosedRaw\.business_date/,
-    );
+    assert.match(functions, /lastClosed: lastClosedRaw/);
+    assert.match(steps, /formatNa1Date\(data\.nextBusinessDate\)/);
     assert.deepEqual(closeTargetDates(DATE), { current: DATE, next: NEXT });
   });
 });
 
 /* --------------------------------------------------------------- 21–35 */
 
-describe("NA-P4 Run & Close", () => {
-  it("21. warning-only allows close", () => {
-    const gate = closeGate({
-      ...READY_GATE,
-      overall: "warning",
-      financial: "warning",
-      operational: "warning",
-    });
-    assert.equal(gate.enabled, true);
-    assert.match(gate.reason, /warnings do not block/);
-  });
-
-  it("22. a financial blocker prevents close", () => {
+describe("NA-P4 Update Business Date", () => {
+  it("21. information alone allows close", () => {
+    const conditions = [
+      condition("open_folio_balance", "warning"),
+      condition("pending_rate_approval", "warning"),
+    ];
+    assert.equal(openBlockers(conditions).length, 0);
     assert.equal(
-      closeGate({ ...READY_GATE, overall: "blocked", financial: "blocked" }).enabled,
-      false,
+      endOfDayAuditStatus({ runStatus: "open", blockerCount: 0, evaluationFailed: false }),
+      "ready_to_close",
     );
   });
 
-  it("23. an operational blocker prevents close", () => {
-    assert.equal(
-      closeGate({ ...READY_GATE, overall: "blocked", operational: "blocked" }).enabled,
-      false,
-    );
-    assert.equal(closeGate({ ...READY_GATE, openBlockingExceptions: 1 }).enabled, false);
-    assert.equal(closeGate({ ...READY_GATE, boardBlockers: 1 }).enabled, false);
+  it("22–24. any blocker or unavailable source prevents close", () => {
+    assert.equal(openBlockers([condition("allocation_exceeds_source")]).length, 1);
+    assert.equal(openBlockers([condition("room_double_occupancy")]).length, 1);
+    assert.ok(openBlockers(unavailableSourceConditions(["operational"])).length > 0);
+    assert.equal(closeBlockedCopy(1), "Resolve 1 blocker before closing the business date.");
+    assert.equal(closeBlockedCopy(3), "Resolve 3 blockers before closing the business date.");
   });
 
-  it("24. unavailable prevents close", () => {
-    assert.equal(closeGate({ ...READY_GATE, financial: "unavailable" }).enabled, false);
-    assert.equal(closeGate({ ...READY_GATE, operational: "unavailable" }).enabled, false);
-    assert.equal(closeGate({ ...READY_GATE, overall: "unavailable" }).enabled, false);
-    assert.equal(closeGate({ ...READY_GATE, financial: "loading" }).enabled, false);
-    assert.equal(
-      closeGate({ ...READY_GATE, rechecked: false }).reason,
-      "Run Final Recheck before closing.",
-    );
-  });
-
-  it("25. the server rechecks Financial, Operations and exceptions before the RPC", () => {
+  it("25. the server re-evaluates, syncs, and counts live and stored blockers before the RPC", () => {
     const body = handler("closeBusinessDate");
-    const rpc = body.indexOf('rpc("close_business_date"');
     const order = [
-      body.indexOf("readFinancialReconciliation("),
-      body.indexOf("readOperationalReconciliation("),
+      body.indexOf("evaluateEndOfDay("),
       body.indexOf("await syncRunExceptions("),
-      body.indexOf("remainingBlockerCount(blockers) > 0"),
-      body.indexOf('.eq("severity", "blocking")'),
-      body.indexOf("nightAuditAllowsClose(overallStatus)"),
-      rpc,
+      body.indexOf("openBlockers(conditions)"),
+      body.indexOf('row.severity === "blocking" && row.status === "open"'),
+      body.indexOf('rpc("close_business_date"'),
     ];
     for (let i = 1; i < order.length; i += 1)
       assert.ok(order[i - 1]! >= 0 && order[i - 1]! < order[i]!, `step ${i}`);
@@ -497,30 +405,37 @@ describe("NA-P4 Run & Close", () => {
 
   it("26. a blocker appearing between page load and click rejects the close", () => {
     const body = handler("closeBusinessDate");
-    assert.match(body, /!financialAllowsClose\(closeFinancialStatus\)/);
-    assert.match(body, /!operationalAllowsClose\(operational\.result\.status\)/);
-    assert.match(body, /Blocking exceptions are still open for this business date\./);
+    assert.match(
+      body,
+      /if \(!evaluation\.financial\.ok\) return rejected\(FINANCIAL_UNAVAILABLE_MESSAGE\);/,
+    );
+    assert.match(
+      body,
+      /if \(!evaluation\.operational\.ok\) return rejected\(OPERATIONAL_UNAVAILABLE_MESSAGE\);/,
+    );
+    assert.match(
+      body,
+      /return rejected\(closeBlockedCopy\(blockerCount\), \{ code: NIGHT_AUDIT_BLOCKED, blockerCount \}\);/,
+    );
     assert.match(migration, /BLOCKING_EXCEPTIONS_OPEN/);
   });
 
-  it("27–30. owner and manager may close; receptionist and cashier may not", () => {
-    assert.equal(canConfirmNightAudit("owner"), true);
-    assert.equal(canConfirmNightAudit("manager"), true);
-    assert.equal(canConfirmNightAudit("receptionist"), false);
-    assert.equal(canConfirmNightAudit("cashier"), false);
-    assert.equal(closeGate({ ...READY_GATE, canClose: false }).enabled, false);
+  it("27–30. close, run, and OTB retry keep their night_audit permissions", () => {
+    assert.match(handler("closeBusinessDate"), /requirePmsActor\([\s\S]*NIGHT_AUDIT_CLOSE_DATE/);
+    assert.match(handler("startNightAudit"), /requirePmsActor\([\s\S]*NIGHT_AUDIT_RUN/);
     assert.match(
-      handler("closeBusinessDate"),
-      /requirePmsActor\([\s\S]*NIGHT_AUDIT_CLOSE_DATE/,
+      handler("retryNightAuditOtbSnapshot"),
+      /requirePmsActor\([\s\S]*NIGHT_AUDIT_EXCEPTION_EDIT/,
     );
-    assert.match(handler("retryNightAuditOtbSnapshot"), /requirePmsActor\([\s\S]*NIGHT_AUDIT_EXCEPTION_EDIT/);
+    assert.match(steps, /data-testid="end-of-day-close-unauthorized"/);
   });
 
   it("31. a double click advances once", () => {
-    assert.match(closePanel, /if \(submitted\.current \|\| busy \|\| !gate\.enabled\) return;/);
-    assert.match(workspace, /if \(closing\.current \|\| closeMutation\.isPending\) return;/);
+    assert.match(
+      workspace,
+      /if \(closing\.current \|\| closeMutation\.isPending \|\| !data\.run\) return;/,
+    );
     assert.match(migration, /FOR UPDATE/);
-    assert.equal(closeGate({ ...READY_GATE, busy: true }).enabled, false);
   });
 
   it("32. an already-closed run is idempotent", () => {
@@ -528,7 +443,6 @@ describe("NA-P4 Run & Close", () => {
     assert.match(body, /if \(run\.status === "closed"\) return alreadyClosedResult\(run\);/);
     assert.match(body, /const alreadyClosedResult = async[\s\S]*?alreadyClosed: true/);
     assert.match(migration, /IF _run\.status = 'closed' THEN\s*RETURN _run;/);
-    assert.equal(closeGate({ ...READY_GATE, runStatus: "closed" }).enabled, false);
   });
 
   it("33. a stale business date is rejected", () => {
@@ -539,22 +453,31 @@ describe("NA-P4 Run & Close", () => {
     assert.match(migration, /STALE_BUSINESS_DATE/);
   });
 
-  it("34. the audit note persists on the winning close and never bypasses checks", () => {
+  it("34. the note persists on the winning close and never bypasses checks", () => {
     const body = handler("closeBusinessDate");
     const note = body.indexOf(".update({ notes: note })");
-    assert.ok(note > body.indexOf("nightAuditAllowsClose(overallStatus)"));
+    assert.ok(note > body.indexOf("openBlockers(conditions)"));
     assert.ok(note > body.indexOf("closedByThisRequest(persisted, closeRequestId)"));
     assert.equal((body.match(/\.update\(\{ notes: note \}\)/g) ?? []).length, 1);
     assert.match(functions, /summary, notes"/);
   });
 
-  it("35. the next business date is shown correctly", () => {
+  it("35. the next business date is shown and the close cannot be reversed here", () => {
     assert.deepEqual(closeTargetDates("2026-12-31"), { current: "2026-12-31", next: "2027-01-01" });
     assert.match(migration, /SET business_date = _run\.business_date \+ 1/);
-    assert.match(closePanel, /Next business date/);
-    assert.equal(NA1_CONFIRM_LABEL, "Close Business Date");
+    assert.match(steps, /New business date/);
+    assert.match(steps, /\{CLOSE_CONFIRM_COPY\}/);
     assert.match(CLOSE_CONFIRM_COPY, /This action cannot be reversed from Night Audit\./);
-    assert.doesNotMatch(closePanel + desk, /Close & Override|Open Next Business Date/);
+    assert.doesNotMatch(steps + workspace, /Close & Override|Open Next Business Date/);
+  });
+
+  it("releases group blocks only after the winning close", () => {
+    const body = handler("closeBusinessDate");
+    const rpc = body.indexOf('rpc("close_business_date"');
+    const release = body.indexOf("releaseGroupBlocks(runDate)", rpc);
+    assert.ok(rpc > 0 && release > rpc);
+    assert.equal(body.slice(0, rpc).includes("releaseGroupBlocks(runDate)"), false);
+    assert.match(body, /"night_audit_business_date_closed"/);
   });
 });
 
@@ -565,7 +488,7 @@ describe("NA-P4 OTB", () => {
 
   it("36. close + OTB success", () => {
     const view = closeResultView({ ...base, otbSnapshotStatus: "captured" });
-    assert.equal(view.title, "Night Audit Complete");
+    assert.equal(view.title, "End of Day Complete");
     assert.equal(view.otb, "Captured");
     assert.equal(view.otbFailed, false);
     assert.equal(otbStatusLabel("already_present"), "Captured");
@@ -579,7 +502,7 @@ describe("NA-P4 OTB", () => {
     assert.equal(view.otbNotice, "Business date advanced successfully. OTB snapshot failed.");
     assert.ok(nightAuditOtbNotice("failed"));
     assert.match(workspace, /nightAuditOtbNotice\(result\.otbSnapshotStatus\)/);
-    assert.match(closePanel, /data-testid="night-audit-close-result-otb"/);
+    assert.match(steps, /data-testid="end-of-day-otb-retry"/);
     const body = handler("closeBusinessDate");
     assert.match(body, /Never roll back a completed close/);
     const after = body.slice(body.indexOf('rpc("close_business_date"'));
@@ -631,8 +554,9 @@ describe("NA-P4 History", () => {
       body,
       /\.from\("night_audit_runs"\)\s*\.select\(RUN_COLUMNS, \{ count: "exact" \}\)/,
     );
-    assert.equal(historyStatusLabel("closed"), "Closed");
-    assert.equal(historyStatusLabel("open"), "Open");
+    assert.equal(historyStatusLabel("closed"), "Completed");
+    assert.equal(historyStatusLabel("open"), "In Progress");
+    assert.equal(historyStatusLabel("ready"), "Ready to Close");
   });
 
   it("43–44. terminal failed and superseded runs render safely and remain filterable", () => {
@@ -671,7 +595,10 @@ describe("NA-P4 History", () => {
     assert.equal(summaryCount(old, "financialBlockerCount"), null);
     assert.equal(formatSummaryCount(summaryCount(old, "financialBlockerCount")), "Not captured");
     assert.equal(summaryCount(null, "warnings"), null);
-    assert.match(history, /typeof value === "number" \? String\(value\) : "—"/);
+    assert.match(
+      closeSummary,
+      /formatSummaryCount\(summaryCount\(summary, "fiscalOverrideCount"\)\)/,
+    );
   });
 
   it("48–49. financial and operational counts come from the stored summary", () => {
@@ -683,8 +610,8 @@ describe("NA-P4 History", () => {
     };
     assert.equal(summaryCount(stored, "financialWarningCount"), 3);
     assert.equal(summaryCount(stored, "operationalWarningCount"), 2);
-    assert.match(history, /run\.summary\?\.financialBlockerCount/);
-    assert.match(history, /run\.summary\?\.operationalBlockerCount/);
+    assert.match(closeSummary, /typeof summary\.financialBlockerCount === "number"/);
+    assert.match(closeSummary, /typeof summary\.operationalBlockerCount === "number"/);
   });
 
   it("50–52. closer, closed_at in property time, and note", () => {
@@ -695,7 +622,7 @@ describe("NA-P4 History", () => {
     assert.match(history, /run\.closedAt \? dateTime\(run\.closedAt\)/);
     assert.match(workspace, /const \{ dateTime, time \} = useRestaurantTime\(\)/);
     assert.match(functions, /notes: r\.notes \?\? null/);
-    assert.match(history, /Audit note/);
+    assert.match(history, /End of Day note/);
   });
 
   it("53. exception history comes only from persisted rows", () => {
@@ -703,7 +630,7 @@ describe("NA-P4 History", () => {
     assert.match(detail, /Persisted rows only/);
     assert.doesNotMatch(
       detail,
-      /evaluateAudit|readFinancialReconciliation|readOperationalReconciliation|syncRunExceptions/,
+      /evaluateEndOfDay|readFinancialReconciliation|readOperationalReconciliation|syncRunExceptions/,
     );
   });
 
@@ -827,17 +754,19 @@ describe("NA-P4 redaction", () => {
   it("65. unauthorized responses carry no payment data", () => {
     assert.match(
       functions,
-      /message: presentExceptionMessage\(row\.exception_type, row\.message, role\)/,
+      /message: presentExceptionMessage\(ex\.exception_type, ex\.message, flags\.detailRole\)/,
     );
     assert.match(
       functions,
       /summary: presentRunSummary\(\(r\.summary as AuditSummary \| null\) \?\? null, role\)/,
     );
-    assert.match(functions, /finance: financialDetail \? evaluation\.finance : null/);
-    assert.match(functions, /shifts: financialDetail \? evaluation\.shifts : \[\]/);
     assert.match(
-      handler("getNightAuditRun"),
-      /toException\(ex, flags\.detailRole, new Map\(\), overrides, overrideNames, history\)/,
+      functions,
+      /presentNightAuditFinancials\(evaluation\.financial\.result, flags\.detailRole\)/,
+    );
+    assert.match(
+      functions,
+      /presentNightAuditOperations\(evaluation\.operational\.result, flags\.detailRole\)/,
     );
     assert.match(handler("listNightAuditRuns"), /toRunRow\(r, names, flags\.detailRole\)/);
   });
@@ -917,7 +846,7 @@ describe("NA-P4 concurrent close", () => {
     assert.equal(house.db.run.notes, "Quiet night");
     assert.equal(
       closeResultView({ ...first, otbSnapshotStatus: first.otb }).title,
-      "Night Audit Complete",
+      "End of Day Complete",
     );
   });
 
@@ -929,7 +858,7 @@ describe("NA-P4 concurrent close", () => {
     const view = closeResultView({ ...second, otbSnapshotStatus: second.otb });
     assert.equal(view.title, ALREADY_CLOSED_TITLE);
     assert.equal(ALREADY_CLOSED_COPY, "This business date was already closed.");
-    assert.match(closePanel, /\{ALREADY_CLOSED_COPY\}/);
+    assert.match(workspace, /toast\.info\(ALREADY_CLOSED_COPY\)/);
   });
 
   it("3. the second close does not advance the business date", () => {
@@ -1010,11 +939,8 @@ describe("NA-P4 concurrent close", () => {
   });
 
   it("9. refresh after an already-closed response shows the persisted closed run", () => {
-    assert.match(
-      workspace,
-      /if \(result\.alreadyClosed\) \{\s*setCloseNotice\(otbNotice\);\s*toast\.info\(ALREADY_CLOSED_COPY\);/,
-    );
-    assert.match(workspace, /refreshAfterClose\(\);\s*\},\s*onError/);
+    assert.match(workspace, /if \(result\.alreadyClosed\) toast\.info\(ALREADY_CLOSED_COPY\);/);
+    assert.match(workspace, /const refreshAll = \(\) => \{/);
     assert.match(
       functions,
       /\.eq\("status", "closed"\)\s*\.order\("business_date", \{ ascending: false \}\)/,
@@ -1022,7 +948,7 @@ describe("NA-P4 concurrent close", () => {
     assert.match(handler("getNightAuditRun"), /\.select\(RUN_COLUMNS\)/);
     assert.match(
       body,
-      /const rejected = async \(message: string\) => \{\s*const latest = await readRun\(\);\s*if \(latest\?\.status === "closed"\) return alreadyClosedResult\(latest\);/,
+      /const rejected = async \([\s\S]*?\): Promise<CloseBusinessDateResult> => \{\s*const latest = await readRun\(\);\s*if \(latest\?\.status === "closed"\) return alreadyClosedResult\(latest\);/,
     );
     assert.match(body, /return rejected\(NA1_STALE_BUSINESS_DATE\)/);
   });
@@ -1063,11 +989,11 @@ describe("NA-P4 fiscal close override", () => {
     assert.ok(
       !(FISCAL_OVERRIDEABLE_EXCEPTION_TYPES as readonly string[]).includes("fiscal_unrecognized"),
     );
-    assert.match(queue, /Authorize Fiscal Close Override/);
-    assert.match(queue, /canAuthorizeFiscalOverride\(canFiscalOverride, row\)/);
+    assert.match(parts, /Authorize fiscal close override/);
+    assert.match(parts, /condition\.fiscalOverrideable &&\s*fiscal\.canAuthorize/);
     assert.match(authorize, /NIGHT_AUDIT_FISCAL_AUTHORIZE/);
-    assert.doesNotMatch(queue, /role === "owner" \|\| role === "manager"/);
-    assert.doesNotMatch(queue, /Override Blocker/);
+    assert.doesNotMatch(parts, /role === "owner" \|\| role === "manager"/);
+    assert.doesNotMatch(parts, /Override Blocker/);
   });
 
   it("6–10. canonical fiscal blockers require a reason and stop blocking only after authorization", () => {
@@ -1093,22 +1019,23 @@ describe("NA-P4 fiscal close override", () => {
         },
       },
     ];
-    assert.equal(exceptionCounts(overridden).blocking, 0);
-    assert.equal(exceptionCounts(overridden).fiscalOverrides, 1);
     assert.equal(overridden[0]!.fiscalOverride?.fiscalStatus, "FAILED");
-    assert.match(functions, /effectiveFinancialStatus/);
-    assert.match(functions, /!financialAllowsClose\(closeFinancialStatus\)/);
+    const blocker = condition("fiscal_failed");
+    assert.equal(blocker.kind, "blocker");
+    assert.equal(blocker.fiscalOverrideable, true);
+    assert.equal(openBlockers([blocker]).length, 1);
+    assert.equal(
+      openBlockers([{ ...blocker, fiscalOverride: overridden[0]!.fiscalOverride as never }]).length,
+      0,
+    );
+    assert.match(handler("closeBusinessDate"), /!closeOverrides\.has\(row\.id\)/);
   });
 
   it("11–14. override stays visible in Exceptions, Financial, Run/Close, and History", () => {
-    assert.match(queue, /data-testid="night-audit-fiscal-override"/);
-    assert.match(queue, /Fiscal status remains \{row\.fiscalOverride\.fiscalStatus\}/);
-    assert.match(
-      read("../components/nightaudit/night-audit-financial-panel.tsx"),
-      /Night Audit Override/,
-    );
-    assert.match(desk, /Fiscal overrides/);
-    assert.match(history, /Fiscal Override/);
+    assert.match(parts, /data-testid="end-of-day-fiscal-override"/);
+    assert.match(parts, /condition\.fiscalOverride \?/);
+    assert.match(closeSummary, /Fiscal overrides/);
+    assert.match(history, /data-testid="night-audit-fiscal-override"/);
   });
 
   it("15–20. no other blocker and no unavailable read can be overridden", () => {
@@ -1142,9 +1069,7 @@ describe("NA-P4 fiscal close override", () => {
 
   it("24–27. close still rechecks and never writes or retries fiscal documents", () => {
     const close = handler("closeBusinessDate");
-    assert.ok(
-      close.indexOf("readFinancialReconciliation(") < close.indexOf('rpc("close_business_date"'),
-    );
+    assert.ok(close.indexOf("evaluateEndOfDay(") < close.indexOf('rpc("close_business_date"'));
     assert.match(close, /await syncRunExceptions/);
     assert.match(close, /fiscalOverridesForRun/);
     assert.doesNotMatch(authorize + close, /fiscal.*retry|registerFiscal|fiscal.*update/i);
@@ -1359,7 +1284,9 @@ describe("NA-P4 fiscal override lifecycle", () => {
     });
 
     // 21. fiscal_unrecognized remains a blocker
-    assert.equal(exceptionCounts([unrecognized]).blocking, 1);
+    assert.equal(unrecognized.severity, "blocking");
+    assert.equal(condition("fiscal_unrecognized").kind, "blocker");
+    assert.equal(condition("fiscal_unrecognized").fiscalOverrideable, false);
 
     // 22–23. Owner/Manager do not get the override action for it
     assert.equal(isFiscalOverrideableException(unrecognized), false);
@@ -1380,7 +1307,7 @@ describe("NA-P4 fiscal override lifecycle", () => {
     );
 
     // 26. it still prevents close (no override can exempt it)
-    assert.equal(exceptionCounts([unrecognized]).blocking, 1);
+    assert.equal(openBlockers([condition("fiscal_unrecognized")]).length, 1);
   });
 
   it("27–33. non-fiscal, security, and concurrency guarantees are unchanged", () => {
@@ -1401,10 +1328,9 @@ describe("NA-P4 fiscal override lifecycle", () => {
     // 31. historical invalidated overrides remain visible in History
     assert.match(history, /fiscalOverrideHistory/);
     assert.match(history, /invalidatedAt/);
-    assert.match(history, /Invalidated:/);
+    assert.match(history, /Invalidated \{dateTime\(override\.invalidatedAt\)\}/);
 
-    // 32. current-state UI (Exceptions/Financial/Control Center) reads only the active override
-    assert.match(functions, /ACTIVE override only — never an invalidated one\./);
+    // 32. the current End of Day reads only the active override
     assert.match(functions, /\.is\("invalidated_at", null\)/);
 
     // 33. concurrent override attempts leave exactly one active override
@@ -1418,17 +1344,26 @@ describe("NA-P4 fiscal override lifecycle", () => {
 });
 
 describe("NA-P4 navigation", () => {
-  it("final top-level workspaces and legacy aliases", () => {
+  it("two tabs and legacy aliases", () => {
     assert.deepEqual(
       NIGHT_AUDIT_TABS.map((tab) => tab.label),
-      ["Control Center", "Financial", "Operations", "Exceptions", "Run & Close", "History"],
+      ["Current End of Day", "History"],
     );
-    assert.equal(resolveNightAuditTab("pre-audit"), "operations");
-    assert.equal(resolveNightAuditTab("reconciliation"), "financial");
-    assert.deepEqual(nightAuditSearch("exceptions", null, "blockers"), {
-      tab: "exceptions",
-      focus: "blockers",
+    for (const legacy of [
+      "control",
+      "financial",
+      "operations",
+      "exceptions",
+      "close",
+      "pre-audit",
+    ]) {
+      assert.equal(resolveNightAuditTab(legacy), "current", legacy);
+    }
+    assert.equal(resolveNightAuditTab("summary"), "history");
+    assert.equal(resolveNightAuditTab("history"), "history");
+    assert.deepEqual(nightAuditSearch("current", { step: "cashier" }), {
+      tab: "current",
+      step: "cashier",
     });
-    assert.equal(OVERALL_STATUS_LABEL.unavailable, "UNAVAILABLE");
   });
 });

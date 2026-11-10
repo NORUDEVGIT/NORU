@@ -2,7 +2,10 @@ import { useEffect, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 
 import type { PmsPermissionCode } from "@/packages/pms/lib/pms-permissions";
-import { getFirstAccessiblePmsRoute } from "@/packages/pms/lib/pms-client-access";
+import {
+  getFirstAccessiblePmsRoute,
+  pmsPropertyOwnerRole,
+} from "@/packages/pms/lib/pms-client-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 /**
@@ -12,12 +15,15 @@ import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
  */
 export function PmsRouteGate({
   restaurantId,
+  membershipRole,
   allow,
   allowAny,
   fallback = "denied",
   children,
 }: {
   restaurantId: string;
+  /** When set, property owners bypass the gate even if the permission snapshot is still loading. */
+  membershipRole?: string | undefined;
   allow?: PmsPermissionCode;
   allowAny?: readonly PmsPermissionCode[];
   fallback?: "denied" | "first-module";
@@ -26,13 +32,16 @@ export function PmsRouteGate({
   const access = usePmsPermissions(restaurantId);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const allowed = access.isLoading || access.isError
-    ? false
-    : allowAny
-      ? access.canAny(allowAny)
-      : allow
-        ? access.can(allow)
-        : false;
+  const ownerBypass = pmsPropertyOwnerRole(membershipRole) || access.isOwner;
+  const granted =
+    !access.isLoading && !access.isError
+      ? allowAny
+        ? access.canAny(allowAny)
+        : allow
+          ? access.can(allow)
+          : false
+      : false;
+  const allowed = ownerBypass || granted;
   const next =
     !access.isLoading && !access.isError && !allowed && fallback === "first-module"
       ? getFirstAccessiblePmsRoute(
@@ -46,10 +55,10 @@ export function PmsRouteGate({
     void navigate({ to: next, replace: true });
   }, [navigate, next, pathname]);
 
-  if (access.isLoading) {
+  if (access.isLoading && !ownerBypass) {
     return <p className="p-6 text-sm text-muted-foreground">Checking access…</p>;
   }
-  if (access.isError) {
+  if (access.isError && !ownerBypass) {
     return (
       <PmsAccessDenied
         title="Access could not be checked"

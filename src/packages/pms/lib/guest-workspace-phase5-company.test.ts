@@ -1038,11 +1038,12 @@ describe("Phase 5.1: Activity & Administration Normalization", () => {
     assert.match(adm, /GuestPrivacyAdministrationView/);
   });
 
-  it("privacy administration component provides privacy, export, and anonymization controls", () => {
+  it("privacy administration component provides consent and audit only", () => {
     const privacy = readRel("../components/guests/guest-privacy-administration-view.tsx");
-    assert.match(privacy, /exportGuestAccount/);
-    assert.match(privacy, /anonymiseGuestAccount/);
     assert.match(privacy, /GuestConsentPanel/);
+    assert.match(privacy, /listGuestPrivacyAudit|listGuestAccountPrivacyAudit/);
+    assert.doesNotMatch(privacy, /exportGuestAccount/);
+    assert.doesNotMatch(privacy, /anonymiseGuestAccount/);
   });
 });
 

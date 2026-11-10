@@ -50,8 +50,8 @@ export const NIGHT_AUDIT_OPERATIONAL_ROOM_ROLES = ["housekeeping", "housekeeper"
 
 /**
  * Exception types the operational reconciler owns. When the operational read
- * succeeds, these replace the older reservation-level rows from evaluateAudit
- * so one unit-level row is stored per finding.
+ * succeeds, these replace older stored reservation-level rows so one
+ * unit-level row is stored per finding.
  */
 export const NIGHT_AUDIT_OPERATIONAL_OWNED_TYPES = new Set([
   "arrival_not_processed",
@@ -75,7 +75,6 @@ export const NIGHT_AUDIT_OPERATIONAL_BLOCKER_CODES = [
   "occupied_restricted_room",
   "occupied_maintenance_unavailable",
   "hk_conflict",
-  "overbooking_unapproved",
 ] as const;
 
 /** Every code this module emits, by category. Exceptions use it to label stored rows. */
@@ -111,6 +110,9 @@ export const NIGHT_AUDIT_OPERATIONAL_CODE_CATEGORY: Readonly<Record<string, Nigh
   missing_nightly_snapshot: "revenue",
   revenue_unavailable: "revenue",
   service_entitlement_pending: "services",
+  invalid_stay_dates: "rooms",
+  cancelled_holding_room: "rooms",
+  room_moved_today: "rooms",
 };
 
 /** Stored exception type to its operational category, or null for financial and board rows. */
@@ -231,9 +233,27 @@ export type OptionalSection<T> =
   | { state: "not_configured" }
   | { state: "unavailable"; message?: string };
 
+export type DayActivityFacts = {
+  /** Reservations arriving or departing on the business date, any status. */
+  stays: readonly {
+    id: string;
+    confirmationNumber: string;
+    status: string;
+    arrivalDate: string;
+    departureDate: string;
+  }[];
+  /** Cancelled or no-show stays overlapping the date that still carry a room. */
+  cancelledHolding: readonly { id: string; confirmationNumber: string; status: string; roomId: string }[];
+  /** Reservations with a stay_extended event during the business date. */
+  extendedReservationIds: readonly string[];
+  roomMoves: number;
+};
+
 export type NightAuditOperationalFacts = {
   businessDate: string;
   checkedAt: string;
+  /** Optional: counts for Steps 2–4. Absent or unavailable never changes close. */
+  dayActivity?: OptionalSection<DayActivityFacts>;
   reservations: readonly OperationalReservationFact[];
   /** Null when the unit table cannot be read. Header stays then apply. */
   units: readonly OperationalUnitFact[] | null;
@@ -445,8 +465,18 @@ export type NightAuditOperationalReconciliation = {
     chargeLinkage: "not_tracked";
   };
   noShowWorkflow: "not_tracked";
+  dayActivity: DayActivitySummary;
   issues: NightAuditOperationalIssue[];
 };
+
+export type DayActivitySummary =
+  | {
+      state: "ok";
+      arrivals: { expected: number; checkedIn: number; cancelled: number; noShow: number; pending: number };
+      departures: { scheduled: number; checkedOut: number; stillInHouse: number; extended: number };
+      roomMoves: number;
+    }
+  | { state: "unavailable" };
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -626,12 +656,12 @@ export function reconcileNightAuditOperations(
       category: "arrivals",
       severity: "blocking",
       title: "Unresolved arrival",
-      description: `${stayLabel(slice)} was due ${slice.arrivalDate} and is still ${slice.status}. Check in, cancel, or record a no-show in Front Office.`,
+      description: `${stayLabel(slice)} was due ${slice.arrivalDate} and is still ${slice.status}. Check in, cancel, or mark no-show.`,
       ...ref,
       route: FRONT_OFFICE,
       search,
       ownerModule: "Front Office",
-      recommendedAction: "Check in, cancel, or record a no-show in Front Office.",
+      recommendedAction: "Check in, cancel, or mark no-show.",
       sourceStatus: slice.status,
       dueDate: slice.arrivalDate,
       roomId: slice.roomId,
@@ -660,6 +690,29 @@ export function reconcileNightAuditOperations(
     });
   }
   arrivals.sort((a, b) => a.arrivalDate.localeCompare(b.arrivalDate) || naturalCompare(a.roomNumber, b.roomNumber));
+
+  /* ------------------------------------------------------ stay integrity */
+
+  for (const reservation of facts.reservations) {
+    if (!isActiveStatus(reservation.status)) continue;
+    if (reservation.departureDate > reservation.arrivalDate) continue;
+    add({
+      code: "invalid_stay_dates",
+      category: "rooms",
+      severity: "blocking",
+      title: "Stay has invalid dates",
+      description: `${reservation.confirmationNumber} departs ${reservation.departureDate}, which is not after its arrival ${reservation.arrivalDate}. Correct the stay dates in the reservation.`,
+      referenceType: "reservation",
+      referenceId: reservation.id,
+      route: `/restaurant/pms/reservations/${reservation.id}`,
+      ownerModule: "Reservations",
+      recommendedAction: "Correct the stay dates in the reservation.",
+      sourceStatus: reservation.status,
+      reservationId: reservation.id,
+      confirmationNumber: reservation.confirmationNumber,
+      guestName: reservation.guestName,
+    });
+  }
 
   /* ------------------------------------------------- departures / in-house */
 
@@ -1031,7 +1084,7 @@ export function reconcileNightAuditOperations(
           title = excess > 0 ? "Tomorrow is over the overbooking limit" : "Tomorrow has unapproved overbooking";
         } else if (excess > 0) {
           code = "overbooking_unapproved";
-          severity = "blocking";
+          severity = "warning";
           title = "Tonight is over the overbooking limit";
         } else {
           code = "overbooking_within_allowance";
@@ -1392,6 +1445,69 @@ export function reconcileNightAuditOperations(
     }
   }
 
+  /* ---------------------------------------------------------- day activity */
+
+  let dayActivity: DayActivitySummary = { state: "unavailable" };
+  if (facts.dayActivity?.state === "ok") {
+    const activity = facts.dayActivity;
+    const arriving = activity.stays.filter((stay) => stay.arrivalDate === businessDate);
+    const departing = activity.stays.filter(
+      (stay) => stay.departureDate === businessDate && stay.status !== "cancelled" && stay.status !== "no_show",
+    );
+    dayActivity = {
+      state: "ok",
+      arrivals: {
+        expected: arriving.length,
+        checkedIn: arriving.filter((stay) => stay.status === "checked_in" || stay.status === "checked_out").length,
+        cancelled: arriving.filter((stay) => stay.status === "cancelled").length,
+        noShow: arriving.filter((stay) => stay.status === "no_show").length,
+        pending: arriving.filter((stay) => stay.status === "pending" || stay.status === "confirmed").length,
+      },
+      departures: {
+        scheduled: departing.length,
+        checkedOut: departing.filter((stay) => stay.status === "checked_out").length,
+        stillInHouse: departing.filter((stay) => stay.status === "checked_in").length,
+        extended: activity.extendedReservationIds.length,
+      },
+      roomMoves: activity.roomMoves,
+    };
+    for (const stay of activity.cancelledHolding) {
+      const room = roomById.get(stay.roomId);
+      add({
+        code: "cancelled_holding_room",
+        category: "rooms",
+        severity: "info",
+        title: "Cancelled stay still has a room assigned",
+        description: `${stay.confirmationNumber} is ${stay.status.replaceAll("_", " ")} but still shows room ${room?.roomNumber ?? "assigned"}. It does not block End of Day.`,
+        referenceType: "reservation",
+        referenceId: stay.id,
+        route: `/restaurant/pms/reservations/${stay.id}`,
+        ownerModule: "Reservations",
+        recommendedAction: "Release the room assignment in the reservation if it is no longer needed.",
+        sourceStatus: stay.status,
+        roomId: stay.roomId,
+        roomNumber: room?.roomNumber ?? null,
+        reservationId: stay.id,
+        confirmationNumber: stay.confirmationNumber,
+      });
+    }
+    if (activity.roomMoves > 0) {
+      add({
+        code: "room_moved_today",
+        category: "rooms",
+        severity: "info",
+        title: "Room moves today",
+        description: `${activity.roomMoves} room move${activity.roomMoves === 1 ? "" : "s"} recorded on ${businessDate}.`,
+        referenceType: "business_date",
+        referenceId: `room_moves:${businessDate}`,
+        route: FRONT_OFFICE,
+        search: foSearch("inhouse", businessDate),
+        ownerModule: "Front Office",
+        recommendedAction: "No action needed from End of Day.",
+      });
+    }
+  }
+
   /* -------------------------------------------------------------- summary */
 
   const sorted = sortOperationalIssues(issues);
@@ -1457,6 +1573,7 @@ export function reconcileNightAuditOperations(
     revenueReadiness: revenueRows,
     serviceOperations: { rows: serviceRows, pendingCount: serviceRows.length, chargeLinkage: "not_tracked" },
     noShowWorkflow: "not_tracked",
+    dayActivity,
     issues: sorted,
   };
 }

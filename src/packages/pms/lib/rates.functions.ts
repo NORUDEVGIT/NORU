@@ -109,18 +109,35 @@ export type { StayQuote } from "./rates.server";
 
 /* ------------------------------------------------------------------ access */
 
+export interface RatesAccess {
+  role: string;
+  canManage: boolean;
+  canConfigure: boolean;
+  canActivate: boolean;
+  canEditCalendar: boolean;
+  canConfigureRestrictions: boolean;
+}
+
 export const getRatesAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }): Promise<RatesAccess> => {
     const me = await callerMembership(context as never, data.restaurantId);
     const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
-    const canManage =
-      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_CONFIGURE) ||
-      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE) ||
-      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_RESTRICTION_CONFIGURE) ||
-      hasEffectivePermission(resolved, PMS_PERMISSIONS.RATES_ACTIVATE);
-    return { role: me.role, canManage };
+    const has = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
+      hasEffectivePermission(resolved, code);
+    const canConfigure = has(PMS_PERMISSIONS.RATES_CONFIGURE);
+    const canActivate = has(PMS_PERMISSIONS.RATES_ACTIVATE);
+    const canEditCalendar = has(PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE);
+    const canConfigureRestrictions = has(PMS_PERMISSIONS.RATES_RESTRICTION_CONFIGURE);
+    return {
+      role: me.role,
+      canConfigure,
+      canActivate,
+      canEditCalendar,
+      canConfigureRestrictions,
+      canManage: canConfigure || canActivate || canEditCalendar || canConfigureRestrictions,
+    };
   });
 
 /* -------------------------------------------------------------- categories */

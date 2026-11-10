@@ -549,6 +549,8 @@ export const getRoomsAccess = createServerFn({ method: "POST" })
       role: me.role,
       canManage: hasEffectivePermission(resolved, PMS_PERMISSIONS.ROOM_INVENTORY_VIEW),
       canConfigure: hasEffectivePermission(resolved, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE),
+      canBlockEdit: hasEffectivePermission(resolved, PMS_PERMISSIONS.ROOM_BLOCK_EDIT),
+      canRestrictionEdit: hasEffectivePermission(resolved, PMS_PERMISSIONS.ROOM_RESTRICTION_EDIT),
     };
   });
 

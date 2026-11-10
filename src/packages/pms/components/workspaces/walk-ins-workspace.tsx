@@ -27,7 +27,8 @@ import {
   type FoWalkInDeskRow,
   type FoWalkInQuickView,
 } from "@/packages/pms/lib/fo-walkin.functions";
-import { getBookingsAccess } from "@/packages/pms/lib/reservations.functions";
+import { frontOfficeDeskAccess } from "@/packages/pms/lib/front-office-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { GUEST_PROFILE_DETAIL_PATH } from "@/packages/pms/lib/guest-profile-wave1";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useMoney, useRestaurantTimezone } from "@/core/state/property-format";
@@ -70,20 +71,17 @@ export function WalkInsWorkspace({
   const [datesStay, setDatesStay] = useState<FoWalkInDeskRow["stay"] | null>(null);
   const [cancelStay, setCancelStay] = useState<FoWalkInDeskRow["stay"] | null>(null);
 
-  const fetchAccess = useServerFn(getBookingsAccess);
-  const fetchDesk = useServerFn(listFrontOfficeWalkInsDesk);
-
-  const accessQuery = useQuery({
-    queryKey: ["bookings-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
+  const permissions = usePmsPermissions(restaurantId);
+  const foAccess = frontOfficeDeskAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
   });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const fetchDesk = useServerFn(listFrontOfficeWalkInsDesk);
 
   const deskQuery = useQuery({
     queryKey: ["front-office", "walkins-desk", restaurantId, today],
     queryFn: () => fetchDesk({ data: { restaurantId, date: today } }),
-    enabled: canManage,
+    enabled: foAccess.canViewDesk && !permissions.isLoading,
     retry: false,
   });
 
@@ -147,9 +145,11 @@ export function WalkInsWorkspace({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" onClick={onCreateWalkIn}>
-          Walk-in
-        </Button>
+        {foAccess.canWalkIn ? (
+          <Button type="button" onClick={onCreateWalkIn}>
+            Walk-in
+          </Button>
+        ) : null}
         <Input
           className="w-56"
           placeholder="Search guest, confirmation, room"
@@ -170,8 +170,10 @@ export function WalkInsWorkspace({
         </Select>
       </div>
 
-      {!canManage && accessQuery.isSuccess ? (
-        <p className="text-sm text-muted-foreground">You do not have permission to manage walk-ins.</p>
+      {permissions.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading walk-ins…</p>
+      ) : !foAccess.canViewDesk ? (
+        <p className="text-sm text-muted-foreground">You do not have permission to view walk-ins.</p>
       ) : deskQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading walk-ins…</p>
       ) : deskQuery.isError ? (

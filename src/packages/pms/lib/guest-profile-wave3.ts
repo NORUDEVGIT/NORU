@@ -83,9 +83,18 @@ export type GuestStay = {
 };
 
 export type GuestStayAccess = {
+  /** Aggregate — reservation view (overview cards, folio totals). */
   reservation: boolean;
+  /** Aggregate — front-office desk visibility. */
   frontOffice: boolean;
+  /** Aggregate — cashiering / folio visibility. */
   folio: boolean;
+  canViewReservation?: boolean;
+  canEditReservation?: boolean;
+  canCreateReservation?: boolean;
+  canCheckIn?: boolean;
+  canCheckOut?: boolean;
+  canCancel?: boolean;
 };
 
 export type QuickActionState = "enabled" | "disabled" | "hidden";

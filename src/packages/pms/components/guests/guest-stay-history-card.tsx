@@ -66,6 +66,7 @@ export function GuestStayHistoryCard({
   const fetchStays = useServerFn(listGuestStays);
   const fetchDetail = useServerFn(getGuestBookingDetail);
   const profileActions = useOptionalGuestProfileActions();
+  const canPrintExport = profileActions?.canPrintExport ?? false;
   const today = propertyToday(timezone);
   const [filters, setFilters] = useState<GuestBookingFilters>({
     search: "",
@@ -111,10 +112,12 @@ export function GuestStayHistoryCard({
   });
 
   function printHistory() {
+    if (!canPrintExport) return;
     window.print();
   }
 
   function exportCsv() {
+    if (!canPrintExport) return;
     const csv = guestBookingsCsv(filtered);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -404,7 +407,7 @@ export function GuestStayHistoryCard({
               <Button
                 variant="outline"
                 onClick={() => profileActions?.openNote()}
-                disabled={!profileActions?.canManage}
+                disabled={!profileActions?.canEdit}
               >
                 <StickyNote className="mr-2 size-4" />
                 Add Note
@@ -464,12 +467,16 @@ export function GuestStayHistoryCard({
               <Button asChild variant="outline">
                 <Link to="/restaurant/pms/guest-services">Guest Services</Link>
               </Button>
-              <Button variant="outline" onClick={printHistory} data-testid="guest-bookings-print">
-                Print Stay/Booking History
-              </Button>
-              <Button variant="outline" onClick={exportCsv} data-testid="guest-bookings-export">
-                Export CSV
-              </Button>
+              {canPrintExport ? (
+                <Button variant="outline" onClick={printHistory} data-testid="guest-bookings-print">
+                  Print Stay/Booking History
+                </Button>
+              ) : null}
+              {canPrintExport ? (
+                <Button variant="outline" onClick={exportCsv} data-testid="guest-bookings-export">
+                  Export CSV
+                </Button>
+              ) : null}
               <Button variant="outline" onClick={onOpenFinancial} disabled={!onOpenFinancial}>
                 View Financial Summary
               </Button>

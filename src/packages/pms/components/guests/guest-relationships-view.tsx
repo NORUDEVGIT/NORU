@@ -42,6 +42,7 @@ import {
 } from "@/packages/pms/lib/guest-accounts.functions";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { cn } from "@/shared/lib/utils";
+import { useOptionalGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -83,6 +84,8 @@ export function GuestRelationshipsView({
   accountType?: GuestAccountType | undefined;
 }) {
   const queryClient = useQueryClient();
+  const profileActions = useOptionalGuestProfileActions();
+  const canEditLinks = guestId ? (profileActions?.canEdit ?? false) : true;
   const fetchLinks = useServerFn(listGuestAccountLinks);
   const fetchAccounts = useServerFn(listGuestAccounts);
   const submitLink = useServerFn(linkGuestAccount);
@@ -237,18 +240,20 @@ export function GuestRelationshipsView({
           </div>
         </div>
 
-        <Button
-          size="sm"
-          onClick={() => {
-            setSearch("");
-            setTargetId("");
-            setDrawerOpen(true);
-          }}
-          className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
-          data-testid="guest-relationships-link-button"
-        >
-          <Plus className="mr-1.5 size-3.5" /> + Link Relationship
-        </Button>
+        {canEditLinks ? (
+          <Button
+            size="sm"
+            onClick={() => {
+              setSearch("");
+              setTargetId("");
+              setDrawerOpen(true);
+            }}
+            className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
+            data-testid="guest-relationships-link-button"
+          >
+            <Plus className="mr-1.5 size-3.5" /> + Link Relationship
+          </Button>
+        ) : null}
       </div>
 
       {/* Dense Relationships Table */}
@@ -402,14 +407,18 @@ export function GuestRelationshipsView({
 
                       {/* Actions */}
                       <td className="px-3.5 py-2.5 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setUnlinkLinkId(link.id)}
-                          className="h-7 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                        >
-                          <Trash2 className="mr-1 size-3" /> Unlink
-                        </Button>
+                        {canEditLinks ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setUnlinkLinkId(link.id)}
+                            className="h-7 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                          >
+                            <Trash2 className="mr-1 size-3" /> Unlink
+                          </Button>
+                        ) : (
+                          <span className="text-[#A69B8D]">—</span>
+                        )}
                       </td>
                     </tr>
                   );

@@ -35,7 +35,7 @@ export function GuestStayActions({
   const actions = bookingRowActions(stay, access);
   const buttonSize = size === "sm" ? "sm" : "default";
   const showView = actions.view !== "hidden" && !omitView;
-  const showModify = actions.modify !== "hidden" && presentation !== "menu";
+  const showModify = actions.modify !== "hidden";
   const showCheckIn = actions.checkIn !== "hidden";
   const showCheckOut = actions.checkOut !== "hidden";
   const showCancel = actions.cancel !== "hidden";
@@ -61,6 +61,30 @@ export function GuestStayActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
+            {showView ? (
+              <DropdownMenuItem asChild>
+                <Link
+                  to="/restaurant/pms/reservations/$reservationId"
+                  params={{ reservationId: stay.id }}
+                  data-testid="guest-stay-action-reservation"
+                  title={reservationHref(stay.id)}
+                >
+                  View reservation
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {showModify ? (
+              <DropdownMenuItem asChild>
+                <Link
+                  to="/restaurant/pms/reservations/$reservationId"
+                  params={{ reservationId: stay.id }}
+                  data-testid="guest-stay-action-modify"
+                  title={reservationHref(stay.id)}
+                >
+                  Modify reservation
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
             {showCheckIn ? (
               <DropdownMenuItem asChild>
                 <Link

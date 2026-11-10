@@ -1,19 +1,19 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
 import { GuestFormIdentityUpload } from "@/packages/pms/components/guests/guest-form-identity-upload";
-import { GuestMergeDialog } from "@/packages/pms/components/guests/guest-merge-dialog";
 import { GuestPrintProfile } from "@/packages/pms/components/guests/guest-print-profile";
-import { canStartReservationForRole } from "@/packages/pms/lib/guest-profile-overview";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
 import {
   addGuestNote,
+  getGuestsAccess,
   setGuestStatus,
   type GuestProfile,
 } from "@/packages/pms/lib/guests.functions";
+import { pmsPropertyOwnerRole } from "@/packages/pms/lib/pms-client-access";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -27,12 +27,16 @@ import { Textarea } from "@/shared/components/ui/textarea";
 type GuestProfileActionsValue = {
   restaurantId: string;
   guest: GuestProfile;
+  /** @deprecated Use canView — kept for callers that still read canManage */
   canManage: boolean;
+  canView: boolean;
+  canEdit: boolean;
   canCreateReservation: boolean;
+  canActivate: boolean;
+  canPrintExport: boolean;
   openEdit: () => void;
   openNote: () => void;
   openUpload: () => void;
-  openMerge: () => void;
   printProfile: () => void;
   toggleStatus: () => void;
   openLoyalty: () => void;
@@ -65,30 +69,42 @@ export function GuestProfileActionsProvider({
   onOpenStaysPage,
   onOpenReservationsPage,
   onOpenIdentityPage,
-  onMerged,
   children,
 }: {
   restaurantId: string;
   guest: GuestProfile;
-  membershipRole: string;
+  membershipRole?: string | undefined;
   onOpenLoyalty: () => void;
   onOpenNotesPage: () => void;
   onOpenStaysPage: () => void;
   onOpenReservationsPage: () => void;
   onOpenIdentityPage: () => void;
-  onMerged: () => void;
+  onMerged?: () => void;
   children: ReactNode;
 }) {
   const queryClient = useQueryClient();
   const changeStatus = useServerFn(setGuestStatus);
   const addNote = useServerFn(addGuestNote);
+  const fetchAccess = useServerFn(getGuestsAccess);
   const [editOpen, setEditOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
-  const [mergeOpen, setMergeOpen] = useState(false);
-  const [mergeRetiredId, setMergeRetiredId] = useState<string | undefined>();
   const [uploadOpen, setUploadOpen] = useState(false);
-  const canManage = canStartReservationForRole(membershipRole);
+
+  const accessQuery = useQuery({
+    queryKey: ["guests-access", restaurantId],
+    queryFn: () => fetchAccess({ data: { restaurantId } }),
+    staleTime: 60_000,
+  });
+
+  const ownerBypass =
+    pmsPropertyOwnerRole(membershipRole) || Boolean(accessQuery.data?.isOwner);
+  const canView = ownerBypass || (accessQuery.data?.canManage ?? false);
+  const canEdit = ownerBypass || (accessQuery.data?.canEdit ?? false);
+  const canActivate = ownerBypass || (accessQuery.data?.canActivate ?? false);
+  const canPrintExport = ownerBypass || (accessQuery.data?.canPrintExport ?? false);
+  const canCreateReservation =
+    ownerBypass || (accessQuery.data?.canCreateReservation ?? false);
 
   function refresh() {
     invalidateGuestWorkspaceQueries(queryClient, restaurantId);
@@ -123,18 +139,47 @@ export function GuestProfileActionsProvider({
     () => ({
       restaurantId,
       guest,
-      canManage,
-      canCreateReservation: canManage,
-      openEdit: () => setEditOpen(true),
-      openNote: () => setNoteOpen(true),
-      openUpload: () => setUploadOpen(true),
-      openMerge: () => {
-        setMergeRetiredId(undefined);
-        setMergeOpen(true);
+      canManage: canView,
+      canView,
+      canEdit,
+      canCreateReservation,
+      canActivate,
+      canPrintExport,
+      openEdit: () => {
+        if (!canEdit) {
+          toast.error("You don't have permission to edit guest profiles.");
+          return;
+        }
+        setEditOpen(true);
       },
-      printProfile: () => window.print(),
-      toggleStatus: () =>
-        statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active"),
+      openNote: () => {
+        if (!canEdit) {
+          toast.error("You don't have permission to edit guest profiles.");
+          return;
+        }
+        setNoteOpen(true);
+      },
+      openUpload: () => {
+        if (!canEdit) {
+          toast.error("You don't have permission to edit guest profiles.");
+          return;
+        }
+        setUploadOpen(true);
+      },
+      printProfile: () => {
+        if (!canPrintExport) {
+          toast.error("You don't have permission to print or export guest lists.");
+          return;
+        }
+        window.print();
+      },
+      toggleStatus: () => {
+        if (!canActivate) {
+          toast.error("You don't have permission to change guest profile status.");
+          return;
+        }
+        statusMutation.mutate(guest.guestStatus === "active" ? "inactive" : "active");
+      },
       openLoyalty: onOpenLoyalty,
       openNotesPage: onOpenNotesPage,
       openStaysPage: onOpenStaysPage,
@@ -142,7 +187,11 @@ export function GuestProfileActionsProvider({
       openIdentityPage: onOpenIdentityPage,
     }),
     [
-      canManage,
+      canActivate,
+      canCreateReservation,
+      canEdit,
+      canPrintExport,
+      canView,
       guest,
       onOpenIdentityPage,
       onOpenLoyalty,
@@ -157,53 +206,43 @@ export function GuestProfileActionsProvider({
   return (
     <GuestProfileActionsContext.Provider value={value}>
       {children}
-      <GuestPrintProfile guest={guest} />
-      <GuestFormDialog
-        restaurantId={restaurantId}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        guest={guest}
-        onSaved={refresh}
-        onMergeRequested={(duplicateId) => {
-          setMergeRetiredId(duplicateId);
-          setMergeOpen(true);
-        }}
-      />
-      <GuestMergeDialog
-        restaurantId={restaurantId}
-        open={mergeOpen}
-        onOpenChange={setMergeOpen}
-        initialSurvivorId={guest.id}
-        initialRetiredId={mergeRetiredId}
-        onMerged={onMerged}
-      />
-      <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add note</DialogTitle>
-          </DialogHeader>
-          <Textarea rows={4} value={note} onChange={(event) => setNote(event.target.value)} />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNoteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => noteMutation.mutate()}
-              disabled={noteMutation.isPending || note.trim() === ""}
-            >
-              Save note
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Upload document</DialogTitle>
-          </DialogHeader>
-          <GuestFormIdentityUpload restaurantId={restaurantId} guestId={guest.id} />
-        </DialogContent>
-      </Dialog>
+      {canPrintExport ? <GuestPrintProfile guest={guest} /> : null}
+      {canEdit ? (
+        <GuestFormDialog
+          restaurantId={restaurantId}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          guest={guest}
+          onSaved={refresh}
+        />
+      ) : null}
+      {canEdit ? (
+        <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add note</DialogTitle>
+            </DialogHeader>
+            <Textarea rows={4} value={note} onChange={(event) => setNote(event.target.value)} />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNoteOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => noteMutation.mutate()} disabled={noteMutation.isPending || note.trim() === ""}>
+                Save note
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+      {canEdit ? (
+        <GuestFormIdentityUpload
+          restaurantId={restaurantId}
+          guestId={guest.id}
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          onSaved={refresh}
+        />
+      ) : null}
     </GuestProfileActionsContext.Provider>
   );
 }

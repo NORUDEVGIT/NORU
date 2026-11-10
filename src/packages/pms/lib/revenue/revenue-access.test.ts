@@ -32,6 +32,7 @@ describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
       const access = resolveRevenueAccess(role);
       assert.equal(access.canView, true);
       assert.equal(access.canViewRates, true);
+      assert.equal(access.canConfigureRates, true);
       assert.equal(access.canEditDailyRates, true);
       assert.equal(access.canViewRestrictions, true);
       assert.equal(access.canApplyRestrictions, true);
@@ -99,6 +100,13 @@ describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
     assert.match(workspace, /access=\{access!\}/);
     assert.match(drawer, /canEdit=\{access.canEditDailyRates\}/);
     assert.match(workspace, /canApplyRestrictions=\{access\?\.canApplyRestrictions === true\}/);
+    const commercial = readRel("../../components/rates/promotions/promotions-view.tsx");
+    const competitor = readRel("../../components/rates/competitor-setup/competitor-setup-view.tsx");
+    assert.match(commercial, /access\.canApprove/);
+    assert.doesNotMatch(commercial, /canManage = access\.canViewCommercial/);
+    assert.match(competitor, /access\.canConfigureRates/);
+    assert.match(readRel("./revenue-access.server.ts"), /canConfigureRates: has\(PMS_PERMISSIONS\.RATES_CONFIGURE\)/);
+    assert.match(workspace, /access\.canEditDailyRates &&/);
     assert.doesNotMatch(workspace, /membership\.role === "owner"/);
     assert.match(tabs, /disabled=\{mutation\.isPending \|\| !canEditDailyRates\}/);
     assert.match(tabs, /disabled=\{mutation\.isPending \|\| !canApplyRestrictions\}/);

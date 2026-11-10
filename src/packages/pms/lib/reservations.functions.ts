@@ -14,6 +14,7 @@ import {
   RESERVATION_STATUSES,
   assertBookingStatusTransition,
   assertStayDates,
+  assertArrivalAfterOpeningDate,
   blankToNull,
   nightsBetween,
   recordReservationEvent,
@@ -29,6 +30,7 @@ import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { buildStayAmendmentResult, type StayAmendmentResult } from "./reservation-stay-amendment";
 import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
+import { assertGuestProfilesActiveForBooking } from "./guests.server";
 
 async function assertExplicitOverbookingAllowed(
   db: {
@@ -547,6 +549,13 @@ export const getRoomTypeAvailability = createServerFn({ method: "POST" })
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
+    const { data: propRow } = await context.supabase
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(arrival, (propRow as { opening_date?: string | null } | null)?.opening_date);
+
     const { data: types, error } = await context.supabase
       .from("room_types")
       .select("id, code, name, max_occupancy, adult_capacity, child_capacity")
@@ -615,6 +624,13 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<AssignableRoom[]> => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+
+    const { data: propRow } = await context.supabase
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(arrival, (propRow as { opening_date?: string | null } | null)?.opening_date);
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -724,6 +740,13 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<CheckInRoomCandidate[]> => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+
+    const { data: propRow } = await context.supabase
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(arrival, (propRow as { opening_date?: string | null } | null)?.opening_date);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: rooms, error } = await supabaseAdmin
@@ -1785,6 +1808,19 @@ export const createReservation = createServerFn({ method: "POST" })
       if (depositShape) throw new Error(depositShape);
       const { arrival, departure } = assertStayDates(data.arrival, data.departure);
 
+    const { data: propRow } = await context.supabase
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(arrival, (propRow as { opening_date?: string | null } | null)?.opening_date);
+
+      await assertGuestProfilesActiveForBooking(context.supabase, data.restaurantId, [
+        data.guestId,
+        ...(data.bookerGuestId ? [data.bookerGuestId] : []),
+        ...(data.roomGuestAssignments?.map((assignment) => assignment.guestId) ?? []),
+      ]);
+
       const { data: roomType, error: occupancyError } = await context.supabase
         .from("room_types")
         .select("max_occupancy")
@@ -2298,14 +2334,16 @@ async function applyUnitScopedReservationEdit(input: {
   if (datesChanging && (scope.status === "pending" || scope.status === "confirmed")) {
     const propertyRead = await db
       .from("restaurants")
-      .select("timezone, business_date")
+      .select("timezone, business_date, opening_date")
       .eq("id", input.restaurantId)
       .maybeSingle();
     if (propertyRead.error) throw new Error(propertyRead.error.message);
     const property = propertyRead.data as {
       business_date?: string | null;
       timezone?: string | null;
+      opening_date?: string | null;
     } | null;
+    assertArrivalAfterOpeningDate(arrival, property?.opening_date);
     const persistedBusinessDate = property?.business_date
       ? String(property.business_date).slice(0, 10)
       : null;
@@ -2570,6 +2608,13 @@ export const amendReservation = createServerFn({ method: "POST" })
         });
       }
       const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+
+    const { data: propRow } = await context.supabase
+      .from("restaurants")
+      .select("opening_date")
+      .eq("id", data.restaurantId)
+      .maybeSingle();
+    assertArrivalAfterOpeningDate(arrival, (propRow as { opening_date?: string | null } | null)?.opening_date);
       const { data: existing, error: readError } = await supabaseAdmin
         .from("hotel_reservations")
         .select(
@@ -2580,6 +2625,10 @@ export const amendReservation = createServerFn({ method: "POST" })
         .maybeSingle();
       if (readError) throw new Error(readError.message);
       if (!existing) throw new Error("Reservation not found for this property.");
+
+      if (data.guestId !== existing.guest_id) {
+        await assertGuestProfilesActiveForBooking(context.supabase, data.restaurantId, [data.guestId]);
+      }
 
       const stayRow = existing as {
         status?: string;

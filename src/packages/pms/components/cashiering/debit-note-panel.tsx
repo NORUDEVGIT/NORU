@@ -29,6 +29,9 @@ import {
   type CashieringDocumentProperty,
 } from "@/packages/pms/lib/cashiering-document-property";
 import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-invoices.functions";
+import { cashieringInvoiceAccess } from "@/packages/pms/lib/cashiering-invoice-access";
+import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-sm";
 const HEAD =
@@ -46,7 +49,6 @@ export function DebitNoteSection({
   restaurantId,
   guestInvoiceId,
   accountInvoiceId,
-  canManage,
   money,
   dateTime,
   onIssued,
@@ -55,13 +57,24 @@ export function DebitNoteSection({
   restaurantId: string;
   guestInvoiceId?: string;
   accountInvoiceId?: string;
-  canManage: boolean;
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   onIssued?: () => void;
   onPostCharge?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const permissions = usePmsPermissions(restaurantId);
+  const invoiceAccess = useMemo(
+    () =>
+      cashieringInvoiceAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
+  const fiscal = useMemo(
+    () => fiscalDeskAccess({ isOwner: permissions.isOwner, codes: permissions.permissions }),
+    [permissions.isOwner, permissions.permissions],
+  );
+  const canEditDraft = invoiceAccess.canEdit;
+  const canAuthorize = invoiceAccess.canAuthorize;
   const fetchBoard = useServerFn(getInvoiceDebitBoard);
   const previewNote = useServerFn(previewInvoiceDebitNote);
   const createDraft = useServerFn(createInvoiceDebitNoteDraft);
@@ -198,7 +211,6 @@ export function DebitNoteSection({
   }
   if (!board) return null;
   const viewed = board.notes.find((note) => note.id === viewNoteId) ?? null;
-  const manageable = canManage && board.canManage;
   const departments = [
     ...new Set(board.eligibleGroups.map((group) => group.departmentName).filter(Boolean)),
   ] as string[];
@@ -233,7 +245,7 @@ export function DebitNoteSection({
               not changed.
             </p>
           </div>
-          {manageable && !editing ? (
+          {canEditDraft && !editing ? (
             <div className="flex gap-2">
               {board.draft ? (
                 <>
@@ -271,9 +283,9 @@ export function DebitNoteSection({
             </div>
           ) : null}
         </div>
-        {!manageable ? (
+        {!canEditDraft ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            Create debit note is available to the owner or manager.
+            Draft debit notes require Invoice Edit permission in Staff &amp; Access.
           </p>
         ) : null}
       </div>
@@ -285,7 +297,7 @@ export function DebitNoteSection({
         </p>
       ) : null}
 
-      {editing && manageable ? (
+      {editing && (board.draft || canEditDraft) ? (
         <div className={cn(CARD, "overflow-hidden")}>
           <div className="border-b border-[#E8E1D7] px-4 py-3">
             <h3 className="font-display text-lg">Create Debit Note</h3>
@@ -486,6 +498,7 @@ export function DebitNoteSection({
               size="sm"
               className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
               disabled={
+                !canAuthorize ||
                 issueMut.isPending ||
                 sourceIds.length === 0 ||
                 reason.trim().length === 0 ||
@@ -539,7 +552,7 @@ export function DebitNoteSection({
                     >
                       {viewNoteId === note.id ? "Collapse" : "View"}
                     </Button>
-                    {manageable ? (
+                    {canAuthorize ? (
                       <Button
                         size="sm"
                         variant="outline"
@@ -576,8 +589,8 @@ export function DebitNoteSection({
               <DebitNoteFiscalSection
                 restaurantId={restaurantId}
                 debitNoteId={viewed.id}
-                canRegister={manageable}
-                canInspect={manageable}
+                canRegister={fiscal.canRegister}
+                canInspect={fiscal.canInspect}
                 money={money}
               />
             ) : null}
@@ -585,8 +598,8 @@ export function DebitNoteSection({
               <CompanyDebitNoteFiscalSection
                 restaurantId={restaurantId}
                 debitNoteId={viewed.id}
-                canRegister={manageable}
-                canInspect={manageable}
+                canRegister={fiscal.canRegister}
+                canInspect={fiscal.canInspect}
                 money={money}
               />
             ) : null}

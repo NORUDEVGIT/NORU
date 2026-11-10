@@ -182,16 +182,14 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(form, /findGuestDuplicates/);
   });
 
-  it("AC-CR1-4 Restricted/blacklisted warn-first; staff can continue; no hard block", () => {
+  it("AC-CR1-4 Inactive guests cannot be selected for new reservations", () => {
     const guest = readRel("../components/bookings/create-reservation-guest.tsx");
-    const page = readRel("../components/bookings/create-reservation-page.tsx") + readRel("../../../routes/restaurant/bookings/new.tsx");
-    const bits = readRel("../components/guests/guest-bits.tsx");
-    assert.match(guest, /GuestRestrictionWarn/);
-    assert.match(bits, /guestRestrictionWarning/);
-    assert.match(page, /canSubmitCreateReservation/);
-    assert.match(page, /hasGuest: !!guest/);
-    assert.doesNotMatch(page, /blacklisted|restricted.*canSubmit|canSubmit.*restricted/i);
-    assert.doesNotMatch(guest, /hard block|cannot continue|create blocked/i);
+    const functions = readRel("./reservations.functions.ts");
+    const server = readRel("./guests.server.ts");
+    assert.match(guest, /guestStatus !== "active"/);
+    assert.match(guest, /inactive\. Reactivate it before booking/);
+    assert.match(functions, /assertGuestProfilesActiveForBooking/);
+    assert.match(server, /assertGuestProfilesActiveForBooking/);
   });
 
   it("AC-CR1-5 Creating a guest does not navigate to the guest directory", () => {

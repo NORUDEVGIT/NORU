@@ -29,13 +29,15 @@ import {
   listingTypeInactive,
   sectionToAccountType,
 } from "@/packages/pms/lib/guest-profile-listing";
-import { getGuestDirectoryStats, getGuestWorkspaceStats, getGuestsAccess } from "@/packages/pms/lib/guests.functions";
+import { getGuestDirectoryStats, getGuestWorkspaceStats } from "@/packages/pms/lib/guests.functions";
+import { getGuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { pmsPropertyOwnerRole } from "@/packages/pms/lib/pms-client-access";
 
 export function GuestListingWorkspace({
   membership,
@@ -62,7 +64,7 @@ export function GuestListingWorkspace({
   const navigate = useNavigate();
   const section = guestListingSection(listingType);
   const accountType = sectionToAccountType(section);
-  const fetchAccess = useServerFn(getGuestsAccess);
+  const fetchAccess = useServerFn(getGuestWorkspaceAccess);
   const fetchStats = useServerFn(getGuestWorkspaceStats);
   const fetchDirectoryStats = useServerFn(getGuestDirectoryStats);
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
@@ -87,23 +89,32 @@ export function GuestListingWorkspace({
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
-  const canManage = accessQuery.data?.canManage ?? false;
+  const ownerBypass =
+    pmsPropertyOwnerRole(membership.role) || Boolean(accessQuery.data?.isOwner);
+  const canView = ownerBypass || (accessQuery.data?.canView ?? false);
+  const canViewProfiles = ownerBypass || (accessQuery.data?.canViewProfiles ?? false);
+  const canViewAccounts = ownerBypass || (accessQuery.data?.canViewAccounts ?? false);
+  const commercialSection = Boolean(accountType);
+  const canViewSection = commercialSection ? canViewAccounts : canViewProfiles;
+  const navSections = GUEST_WORKSPACE_SECTIONS.filter((item) =>
+    item.accountType ? canViewAccounts : canViewProfiles,
+  );
   const statsQuery = useQuery({
     queryKey: ["guest-workspace-stats", restaurantId],
     queryFn: () => fetchStats({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: canView,
     retry: false,
   });
   const directoryStatsQuery = useQuery({
     queryKey: ["guest-directory-stats", restaurantId],
     queryFn: () => fetchDirectoryStats({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: canViewProfiles,
     staleTime: 60_000,
   });
   const configQuery = useQuery({
     queryKey: ["guest-workspace-config", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: canView,
     retry: false,
   });
 
@@ -125,9 +136,19 @@ export function GuestListingWorkspace({
     });
   }
 
-  if (accessQuery.isLoading)
+  if (accessQuery.isLoading && !ownerBypass)
     return <p className="text-sm text-muted-foreground">Loading guests…</p>;
-  if (!canManage) {
+  if (accessQuery.isError && !ownerBypass) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6" data-testid="guest-profile-shell">
+        <h2 className="font-display text-xl">Access could not be checked</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Guest permissions did not load. Refresh the page and try again.
+        </p>
+      </div>
+    );
+  }
+  if (!canView) {
     return (
       <div
         className="rounded-2xl border border-border bg-card p-6"
@@ -135,7 +156,23 @@ export function GuestListingWorkspace({
       >
         <h2 className="font-display text-xl">Access Restricted</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          You don't have permission to open guest profiles for this property.
+          You don&apos;t have permission to open the guest workspace for this property.
+        </p>
+      </div>
+    );
+  }
+
+  if (!canViewSection) {
+    return (
+      <div
+        className="rounded-2xl border border-border bg-card p-6"
+        data-testid="guest-profile-shell"
+      >
+        <h2 className="font-display text-xl">Access Restricted</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {commercialSection
+            ? "You don't have permission to view commercial accounts for this property."
+            : "You don't have permission to view guest profiles for this property."}
         </p>
       </div>
     );
@@ -156,48 +193,56 @@ export function GuestListingWorkspace({
           aria-label="Guest profile KPIs"
           data-testid="guest-workspace-kpis"
         >
-          <GuestKpiCard
-            label="Total Guests"
-            value={guestStats?.totalGuests}
-            loading={kpiLoading}
-            icon={<Users className="size-4" />}
-            tone="bg-[#F4E9D0] text-[#8A641A]"
-          />
-          <GuestKpiCard
-            label="Active Guests"
-            value={guestStats?.activeGuests}
-            loading={kpiLoading}
-            icon={<UserCheck className="size-4" />}
-            tone="bg-emerald-50 text-emerald-700"
-          />
-          <GuestKpiCard
-            label="VIP Guests"
-            value={guestStats?.vipGuests}
-            loading={kpiLoading}
-            icon={<Crown className="size-4" />}
-            tone="bg-amber-50 text-amber-700"
-          />
-          <GuestKpiCard
-            label="Returning Guests"
-            value={guestStats?.returningGuests}
-            loading={kpiLoading}
-            icon={<RotateCcw className="size-4" />}
-            tone="bg-blue-50 text-blue-700"
-          />
-          <GuestKpiCard
-            label="Companies"
-            value={stats?.companies}
-            loading={kpiLoading}
-            icon={<Building2 className="size-4" />}
-            tone="bg-stone-100 text-stone-700"
-          />
-          <GuestKpiCard
-            label="Travel Agencies"
-            value={stats?.travelAgents}
-            loading={kpiLoading}
-            icon={<Plane className="size-4" />}
-            tone="bg-indigo-50 text-indigo-700"
-          />
+          {canViewProfiles ? (
+            <>
+              <GuestKpiCard
+                label="Total Guests"
+                value={guestStats?.totalGuests}
+                loading={kpiLoading}
+                icon={<Users className="size-4" />}
+                tone="bg-[#F4E9D0] text-[#8A641A]"
+              />
+              <GuestKpiCard
+                label="Active Guests"
+                value={guestStats?.activeGuests}
+                loading={kpiLoading}
+                icon={<UserCheck className="size-4" />}
+                tone="bg-emerald-50 text-emerald-700"
+              />
+              <GuestKpiCard
+                label="VIP Guests"
+                value={guestStats?.vipGuests}
+                loading={kpiLoading}
+                icon={<Crown className="size-4" />}
+                tone="bg-amber-50 text-amber-700"
+              />
+              <GuestKpiCard
+                label="Returning Guests"
+                value={guestStats?.returningGuests}
+                loading={kpiLoading}
+                icon={<RotateCcw className="size-4" />}
+                tone="bg-blue-50 text-blue-700"
+              />
+            </>
+          ) : null}
+          {canViewAccounts ? (
+            <>
+              <GuestKpiCard
+                label="Companies"
+                value={stats?.companies}
+                loading={kpiLoading}
+                icon={<Building2 className="size-4" />}
+                tone="bg-stone-100 text-stone-700"
+              />
+              <GuestKpiCard
+                label="Travel Agencies"
+                value={stats?.travelAgents}
+                loading={kpiLoading}
+                icon={<Plane className="size-4" />}
+                tone="bg-indigo-50 text-indigo-700"
+              />
+            </>
+          ) : null}
         </section>
 
         <section
@@ -209,6 +254,7 @@ export function GuestListingWorkspace({
             active={activeSection}
             toolbarSlot={toolbarSlot}
             onSelect={selectSection}
+            sections={navSections}
           />
           <div ref={setSearchSlot} className="min-w-0 flex-1 overflow-hidden" />
           <div className="relative z-10 flex shrink-0 items-center gap-1.5">
@@ -316,10 +362,12 @@ function GuestProfileBurger({
   active,
   toolbarSlot,
   onSelect,
+  sections = GUEST_WORKSPACE_SECTIONS,
 }: {
   active: GuestWorkspaceSectionId;
   toolbarSlot: HTMLElement | null;
   onSelect: (section: GuestWorkspaceSectionId) => void;
+  sections?: typeof GUEST_WORKSPACE_SECTIONS;
 }) {
   const [open, setOpen] = useState(false);
   const trigger = (
@@ -357,7 +405,7 @@ function GuestProfileBurger({
             Guest Profile
           </p>
           <div className="flex flex-col gap-0.5">
-            {GUEST_WORKSPACE_SECTIONS.map((item) => {
+            {sections.map((item) => {
               const Icon = GUEST_BURGER_ICONS[item.id];
               const isActive = item.id === active;
               return (

@@ -107,6 +107,18 @@ export function assertStayDates(
   return { arrival, departure };
 }
 
+export function assertArrivalAfterOpeningDate(
+  arrival: string,
+  openingDate: string | null | undefined,
+): void {
+  if (!openingDate) return;
+  const trimmed = openingDate.trim();
+  if (!trimmed) return;
+  if (arrival < trimmed) {
+    throw new Error(`Arrival date cannot be before the property opening date (${trimmed}).`);
+  }
+}
+
 const DB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_DATES: "Departure must be after arrival.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",

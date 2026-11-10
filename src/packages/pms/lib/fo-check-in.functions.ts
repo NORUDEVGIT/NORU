@@ -1163,6 +1163,19 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
 
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+      const { data: propRow } = await supabaseAdmin
+        .from("restaurants")
+        .select("opening_date, business_date")
+        .eq("id", data.restaurantId)
+        .maybeSingle();
+      if (propRow?.opening_date) {
+        const opening = propRow.opening_date.trim();
+        const bDate = (propRow.business_date ? String(propRow.business_date).slice(0, 10) : "") || target.arrivalDate;
+        if (opening && (bDate < opening || target.arrivalDate < opening)) {
+          throw new Error(`Check-in is not allowed before the property opening date (${opening}).`);
+        }
+      }
+
       const { error } = await supabaseAdmin.rpc("check_in_hotel_reservation", {
         _restaurant_id: data.restaurantId,
         _reservation_id: data.reservationId,

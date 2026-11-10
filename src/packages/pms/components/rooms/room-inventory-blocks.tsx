@@ -124,7 +124,7 @@ function overlaps(block: OperationalInventoryBlock, fromDate: string, toDate: st
 function friendlyError(error: unknown): string {
   const message = error instanceof Error ? error.message : "The block action failed.";
   if (/permission|access|manager|owner|authorized/i.test(message)) {
-    return "Owner or manager access is required for this block action.";
+    return "Block edit permission is required for this action.";
   }
   if (/capacity|available|inventory/i.test(message)) {
     return `Inventory validation failed: ${message}`;
@@ -161,9 +161,11 @@ export type RoomBlockCreatePrefill = {
 export function RoomInventoryBlocksView({
   restaurantId,
   createPrefill = null,
+  canBlockEdit = false,
 }: {
   restaurantId: string;
   createPrefill?: RoomBlockCreatePrefill | null;
+  canBlockEdit?: boolean;
 }) {
   const loadBusinessDate = useServerFn(getPropertyBusinessDate);
   const loadBlocks = useServerFn(listOperationalBlocks);
@@ -599,6 +601,7 @@ export function RoomInventoryBlocksView({
           testId="blocks-refresh"
         />
       </RoomShellSlot>
+      {canBlockEdit ? (
       <RoomShellSlot name="cta">
         <Button
           type="button"
@@ -610,6 +613,7 @@ export function RoomInventoryBlocksView({
           New Block
         </Button>
       </RoomShellSlot>
+      ) : null}
       <RoomSummaryChips
         items={[
           { label: "Active", value: activeBlocks.length, tone: "success" },
@@ -625,7 +629,7 @@ export function RoomInventoryBlocksView({
         <InventoryState
           state="error"
           title="Blocks are unavailable for your role"
-          description="Listing and mutating operational blocks requires owner or manager access. Availability, Calendar, and Room Board remain available."
+          description="Block edit permission is required to list and change operational blocks. Availability, Calendar, and Room Board remain available."
           onRetry={() => blocksQuery.refetch()}
         />
       ) : filteredBlocks.length === 0 ? (
@@ -683,6 +687,7 @@ export function RoomInventoryBlocksView({
                     roomType={typeById.get(block.roomTypeId) ?? null}
                     selected={selectedIds.has(block.id)}
                     pending={mutation.isPending}
+                    canMutate={canBlockEdit}
                     onSelected={(checked) => {
                       const next = new Set(selectedIds);
                       if (checked) next.add(block.id);
@@ -980,6 +985,7 @@ function BlockTableRow({
   roomType,
   selected,
   pending,
+  canMutate,
   onSelected,
   onDetails,
   onActivate,
@@ -992,6 +998,7 @@ function BlockTableRow({
   roomType: RoomType | null;
   selected: boolean;
   pending: boolean;
+  canMutate: boolean;
   onSelected: (checked: boolean) => void;
   onDetails: () => void;
   onActivate: () => void;
@@ -1075,25 +1082,28 @@ function BlockTableRow({
               <Eye className="mr-2 size-3.5" />
               View Details
             </DropdownMenuItem>
-            {(block.status === "draft" ||
+            {canMutate &&
+            (block.status === "draft" ||
               block.status === "pending_approval" ||
-              block.status === "active") && <DropdownMenuSeparator />}
-            {block.status === "draft" ? (
+              block.status === "active") ? (
+              <DropdownMenuSeparator />
+            ) : null}
+            {canMutate && block.status === "draft" ? (
               <DropdownMenuItem disabled={pending} onSelect={onActivate}>
                 Activate
               </DropdownMenuItem>
             ) : null}
-            {block.status === "pending_approval" ? (
+            {canMutate && block.status === "pending_approval" ? (
               <DropdownMenuItem disabled={pending} onSelect={onApprove}>
                 Approve
               </DropdownMenuItem>
             ) : null}
-            {block.status === "active" ? (
+            {canMutate && block.status === "active" ? (
               <DropdownMenuItem disabled={pending} onSelect={onRelease}>
                 Release
               </DropdownMenuItem>
             ) : null}
-            {block.status === "draft" || block.status === "pending_approval" ? (
+            {canMutate && (block.status === "draft" || block.status === "pending_approval") ? (
               <DropdownMenuItem
                 disabled={pending}
                 className="text-destructive focus:text-destructive"

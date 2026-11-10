@@ -1408,12 +1408,9 @@ function AdditionalStep({
         </Button>
       </section>
       <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Notes & Restrictions</h2>
+        <h2 className="font-display text-lg">Notes</h2>
         <Field label="Profile Notes"><Textarea value={draft.notes} onChange={(event) => set("notes", event.target.value)} /></Field>
         <Field label="Staged note"><Textarea value={draft.stagedNote} onChange={(event) => set("stagedNote", event.target.value)} /></Field>
-        <label className="mt-3 flex items-center gap-2 text-sm"><Checkbox checked={draft.restricted} onCheckedChange={(checked) => set("restricted", Boolean(checked))} /> Restricted</label>
-        <label className="flex items-center gap-2 text-sm"><Checkbox checked={draft.blacklisted} onCheckedChange={(checked) => set("blacklisted", Boolean(checked))} /> Blacklisted</label>
-        <Field label="Restriction reason" error={fieldError("restrictionReason", "additional")}><Textarea value={draft.restrictionReason} onChange={(event) => set("restrictionReason", event.target.value)} /></Field>
       </section>
       <section className="rounded-2xl border border-border bg-card p-4">
         <h2 className="font-display text-lg">Privacy & Consent</h2>

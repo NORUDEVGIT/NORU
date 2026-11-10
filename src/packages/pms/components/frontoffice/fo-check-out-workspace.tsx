@@ -498,7 +498,7 @@ export function FoCheckOutWorkspace({
     <Dialog open={open} onOpenChange={(next) => (!next ? requestClose() : undefined)}>
       <DialogContent
         data-testid="fo-check-out-workspace"
-        className="flex max-h-[92vh] w-[calc(100%-2rem)] max-w-[920px] flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-[920px] [&>button:last-child]:text-[#F3E9D8]"
+        className="z-[70] flex max-h-[92vh] w-[calc(100%-2rem)] max-w-[920px] flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-[920px] [&>button:last-child]:text-[#F3E9D8]"
       >
         <header className={cn(HEADER_BG, "shrink-0 px-4 py-2 pr-12 text-[#F3E9D8]")}>
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">

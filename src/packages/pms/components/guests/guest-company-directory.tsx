@@ -50,6 +50,7 @@ import {
 } from "@/packages/pms/lib/guest-companies.functions";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import { displayProfileNumber } from "@/packages/pms/lib/guest-profile-listing";
+import { guestAccountAccess } from "@/packages/pms/lib/guest-account-access";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { GUEST_ACCOUNT_STATUSES } from "@/packages/pms/lib/guest-profile-wave4";
@@ -158,11 +159,17 @@ export function GuestCompanyDirectory({
   }, [debouncedSearch, status, typeId, country, credit, createdFrom, createdTo, pageSize]);
 
   const permissions = usePmsPermissions(restaurantId);
-  const canManage = permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+  const accountAccess = guestAccountAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
+  });
+  const canPrintExport =
+    !permissions.isLoading &&
+    (permissions.isOwner || permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_PRINT));
   const configQuery = useQuery({
     queryKey: ["company-business-workspace", restaurantId],
     queryFn: () => fetchConfig({ data: { restaurantId } }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     retry: false,
   });
   const offset = page * pageSize;
@@ -181,7 +188,7 @@ export function GuestCompanyDirectory({
   const listQuery = useQuery({
     queryKey: ["company-workspace", filters],
     queryFn: () => fetchList({ data: filters }),
-    enabled: canManage,
+    enabled: accountAccess.canView && !permissions.isLoading,
     retry: false,
   });
 
@@ -245,6 +252,10 @@ export function GuestCompanyDirectory({
   });
 
   async function runExport(ids?: string[]) {
+    if (!canPrintExport) {
+      toast.error("You don't have permission to export company lists.");
+      return;
+    }
     try {
       const result = await exportCsv({ data: { ...filters, ids, offset: 0, limit: 200 } });
       const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
@@ -332,7 +343,7 @@ export function GuestCompanyDirectory({
     );
   }
 
-  if (!canManage) {
+  if (!accountAccess.canView) {
     return (
       <div
         className="rounded-2xl border border-border bg-card p-6"
@@ -445,25 +456,27 @@ export function GuestCompanyDirectory({
         <>
           <GuestProfileShellSlot name="search">{companySearchField}</GuestProfileShellSlot>
           <GuestProfileShellSlot name="filter">{companyFilterMenu}</GuestProfileShellSlot>
-          <GuestProfileShellSlot name="export">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className={cn(SHELL_ICON_BUTTON, "relative")}
-              onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
-              aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-              data-testid="companies-export"
-            >
-              <Download className="size-4" />
-              {selected.length > 0 ? (
-                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                  {selected.length}
-                </span>
-              ) : null}
-            </Button>
-          </GuestProfileShellSlot>
+          {canPrintExport ? (
+            <GuestProfileShellSlot name="export">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(SHELL_ICON_BUTTON, "relative")}
+                onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
+                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                data-testid="companies-export"
+              >
+                <Download className="size-4" />
+                {selected.length > 0 ? (
+                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
+                    {selected.length}
+                  </span>
+                ) : null}
+              </Button>
+            </GuestProfileShellSlot>
+          ) : null}
         </>
       ) : null}
       {embedded ? null : (
@@ -474,20 +487,28 @@ export function GuestCompanyDirectory({
           <p className="mt-0.5 text-xs text-[#756A5B]">{COMPANIES_COPY}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canPrintExport ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
+              className="h-8 gap-1.5 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm text-xs font-medium"
+              data-testid="companies-export"
+            >
+              <Download className="size-3.5 text-[#8A641A]" />
+              {selected.length > 0 ? `Export (${selected.length})` : "Export"}
+            </Button>
+          ) : null}
           <Button
-            variant="outline"
             size="sm"
-            onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
-            className="h-8 gap-1.5 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm text-xs font-medium"
-            data-testid="companies-export"
-          >
-            <Download className="size-3.5 text-[#8A641A]" />
-            {selected.length > 0 ? `Export (${selected.length})` : "Export"}
-          </Button>
-          <Button
-            size="sm"
-            disabled={!createGate.ok}
-            title={createGate.ok ? undefined : createGate.message}
+            disabled={!createGate.ok || !accountAccess.canCreate}
+            title={
+              !accountAccess.canCreate
+                ? "You don't have permission to register companies."
+                : createGate.ok
+                  ? undefined
+                  : createGate.message
+            }
             onClick={() =>
               void navigate({
                 to: GUEST_PROFILE_DIRECTORY_PATH,
@@ -799,6 +820,8 @@ export function GuestCompanyDirectory({
                   key={row.id}
                   row={row}
                   checked={selected.includes(row.id)}
+                  canEdit={accountAccess.canEdit}
+                  canActivate={accountAccess.canActivate}
                   onCheck={(checked) =>
                     setSelected((current) =>
                       checked ? [...current, row.id] : current.filter((id) => id !== row.id),
@@ -911,6 +934,8 @@ export function GuestCompanyDirectory({
 function CompanyRow({
   row,
   checked,
+  canEdit,
+  canActivate,
   onCheck,
   onView,
   onLinkGuest,
@@ -921,6 +946,8 @@ function CompanyRow({
 }: {
   row: CompanyWorkspaceRow;
   checked: boolean;
+  canEdit: boolean;
+  canActivate: boolean;
   onCheck: (checked: boolean) => void;
   onView: () => void;
   onLinkGuest: () => void;
@@ -1018,35 +1045,41 @@ function CompanyRow({
               <ExternalLink className="mr-1.5 size-3.5 text-[#8A641A]" />
               View Full Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onLinkGuest} className="cursor-pointer" data-testid="company-action-link-guest">
-              <UserCheck className="mr-1.5 size-3.5 text-[#8A641A]" />
-              Link Guest
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
-              <Pencil className="mr-1.5 size-3.5 text-[#8A641A]" />
-              Edit Company
-            </DropdownMenuItem>
-            {row.creditAccountAllowed ? (
+            {canEdit ? (
+              <DropdownMenuItem onClick={onLinkGuest} className="cursor-pointer" data-testid="company-action-link-guest">
+                <UserCheck className="mr-1.5 size-3.5 text-[#8A641A]" />
+                Link Guest
+              </DropdownMenuItem>
+            ) : null}
+            {canEdit ? (
+              <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
+                <Pencil className="mr-1.5 size-3.5 text-[#8A641A]" />
+                Edit Company
+              </DropdownMenuItem>
+            ) : null}
+            {canEdit && row.creditAccountAllowed ? (
               <DropdownMenuItem onClick={onCredit} className="cursor-pointer">
                 <CreditCard className="mr-1.5 size-3.5 text-[#8A641A]" />
                 Manage Credit Account
               </DropdownMenuItem>
             ) : null}
-            {row.accountStatus !== "active" ? (
-              <DropdownMenuItem
-                onClick={() => onStatus("active")}
-                className="cursor-pointer text-emerald-700"
-              >
-                Activate Account
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem
-                onClick={() => onStatus("inactive")}
-                className="cursor-pointer text-rose-700"
-              >
-                Deactivate Account
-              </DropdownMenuItem>
-            )}
+            {canActivate ? (
+              row.accountStatus !== "active" ? (
+                <DropdownMenuItem
+                  onClick={() => onStatus("active")}
+                  className="cursor-pointer text-emerald-700"
+                >
+                  Activate Account
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={() => onStatus("inactive")}
+                  className="cursor-pointer text-rose-700"
+                >
+                  Deactivate Account
+                </DropdownMenuItem>
+              )
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </td>

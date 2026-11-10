@@ -218,7 +218,7 @@ export function GuestIndividualDetailWorkspace({
           <GuestPersonalContactView
             restaurantId={restaurantId}
             guest={guest}
-            onEdit={actions?.openEdit}
+            onEdit={actions?.canEdit ? actions.openEdit : undefined}
           />
         )}
 
@@ -232,6 +232,7 @@ export function GuestIndividualDetailWorkspace({
             guestId={guest.id}
             guest={guest}
             preferences={preferences}
+            canManage={actions?.canEdit ?? false}
             onSaved={() => {
               void queryClient.invalidateQueries({
                 queryKey: ["guest", restaurantId, guest.id],

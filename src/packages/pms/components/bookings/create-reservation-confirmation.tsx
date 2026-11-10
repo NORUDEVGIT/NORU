@@ -13,6 +13,7 @@ export function CreateReservationConfirmation({
   onReturnToDesk,
   onCreateAnother,
   returnToLabel,
+  canPrint = true,
 }: {
   view: CreatedReservationConfirmation;
   onOpenReservation?: ((reservationId: string) => void) | undefined;
@@ -20,6 +21,7 @@ export function CreateReservationConfirmation({
   onReturnToDesk?: (() => void) | undefined;
   onCreateAnother?: (() => void) | undefined;
   returnToLabel?: string | undefined;
+  canPrint?: boolean;
 }) {
   return (
     <section
@@ -197,9 +199,11 @@ export function CreateReservationConfirmation({
             Continue to Check-In
           </Button>
         ) : null}
-        <Button type="button" data-testid="create-reservation-print" onClick={() => window.print()}>
-          {CREATE_RESERVATION_PRINT_LABEL} Confirmation
-        </Button>
+        {canPrint ? (
+          <Button type="button" data-testid="create-reservation-print" onClick={() => window.print()}>
+            {CREATE_RESERVATION_PRINT_LABEL} Confirmation
+          </Button>
+        ) : null}
         {onOpenReservation ? (
           <Button
             type="button"

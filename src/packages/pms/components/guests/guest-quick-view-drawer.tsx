@@ -140,6 +140,7 @@ export function GuestQuickViewDrawer({
   const links = linksQuery.data ?? [];
   const docs = docsQuery.data?.documents ?? [];
   const canEdit = accessQuery.data?.canEdit ?? false;
+  const canCreateReservation = accessQuery.data?.canCreateReservation ?? false;
   const hasLegacyDoc = Boolean(guest?.idDocumentNumber || guest?.idDocumentType);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -256,7 +257,7 @@ export function GuestQuickViewDrawer({
                   >
                     Open Full Profile
                   </DropdownMenuItem>
-                  {onEditGuest && previewId ? (
+                  {canEdit && onEditGuest && previewId ? (
                     <DropdownMenuItem
                       onSelect={() => onEditGuest(previewId)}
                       data-testid="guest-quick-view-edit"
@@ -264,12 +265,14 @@ export function GuestQuickViewDrawer({
                       Edit Guest
                     </DropdownMenuItem>
                   ) : null}
-                  <DropdownMenuItem
-                    onSelect={openNewReservation}
-                    data-testid="guest-quick-view-new-res"
-                  >
-                    New Reservation
-                  </DropdownMenuItem>
+                  {canCreateReservation ? (
+                    <DropdownMenuItem
+                      onSelect={openNewReservation}
+                      data-testid="guest-quick-view-new-res"
+                    >
+                      New Reservation
+                    </DropdownMenuItem>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
               <button

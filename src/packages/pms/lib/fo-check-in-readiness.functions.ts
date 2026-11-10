@@ -150,7 +150,7 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
     const { data: property } = await supabaseAdmin
       .from("restaurants")
       .select(
-        "timezone, business_date, check_in_time, early_checkin_allowed, early_checkin_needs_approval",
+        "timezone, business_date, check_in_time, early_checkin_allowed, early_checkin_needs_approval, opening_date",
       )
       .eq("id", data.restaurantId)
       .maybeSingle();
@@ -296,6 +296,9 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
       earlyArrival: timing === "early",
       earlyCheckInAllowed: property?.early_checkin_allowed ?? null,
       earlyCheckInNeedsApproval: property?.early_checkin_needs_approval ?? null,
+      openingDate: (property as { opening_date?: string | null } | null)?.opening_date ?? null,
+      arrivalDate: target.arrivalDate,
+      today,
     };
     return evaluateCheckInReadiness(facts);
   });

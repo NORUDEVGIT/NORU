@@ -98,8 +98,8 @@ function source(patch: Partial<NightAuditFinancialFacts["sources"][number]> = {}
 const financial = readFileSync(new URL("./night-audit-financial.ts", import.meta.url), "utf8");
 const server = readFileSync(new URL("./night-audit-financial.server.ts", import.meta.url), "utf8");
 const functions = readFileSync(new URL("./nightaudit.functions.ts", import.meta.url), "utf8");
-const panel = readFileSync(new URL("../components/nightaudit/night-audit-financial-panel.tsx", import.meta.url), "utf8");
-const desk = readFileSync(new URL("../components/nightaudit/night-audit-desk.tsx", import.meta.url), "utf8");
+const steps = readFileSync(new URL("../components/nightaudit/end-of-day-steps.tsx", import.meta.url), "utf8");
+const parts = readFileSync(new URL("../components/nightaudit/end-of-day-parts.tsx", import.meta.url), "utf8");
 const workspace = readFileSync(new URL("../components/workspaces/night-audit-workspace.tsx", import.meta.url), "utf8");
 
 describe("guest folios", () => {
@@ -149,14 +149,21 @@ describe("guest folios", () => {
     assert.equal(result.issues.some((row) => row.code === "duplicate_room_charge" && row.severity === "blocking"), true);
   });
 
-  it("warns when a priced in-house stay has no folio", () => {
-    const result = reconcileNightAuditFinancials(
+  it("blocks a priced in-house stay with no folio and keeps a departed one informational", () => {
+    const inHouse = reconcileNightAuditFinancials(
       facts({
         missingFolios: [{ id: "res-9", confirmationNumber: "R9", status: "checked_in", guestName: "Bea", room: "102" }],
       }),
     );
-    assert.equal(result.issues.some((row) => row.code === "missing_folio" && row.severity === "warning"), true);
-    assert.equal(result.status, "warning");
+    assert.equal(inHouse.issues.some((row) => row.code === "missing_folio" && row.severity === "blocking"), true);
+    assert.equal(inHouse.status, "blocked");
+    const departed = reconcileNightAuditFinancials(
+      facts({
+        missingFolios: [{ id: "res-8", confirmationNumber: "R8", status: "checked_out", guestName: "Cy", room: "103" }],
+      }),
+    );
+    assert.equal(departed.issues.some((row) => row.code === "missing_folio" && row.severity === "warning"), true);
+    assert.equal(departed.status, "warning");
   });
 
   it("passes a settled closed folio", () => {
@@ -543,7 +550,9 @@ describe("fiscal", () => {
     assert.equal(NIGHT_AUDIT_FISCAL_HANDLERS.length, 7);
     assert.doesNotMatch(financial, /processFiscalOutbox|retryFiscalRegistration/);
     assert.doesNotMatch(server, /processFiscalOutbox|retryFiscalRegistration/);
-    assert.doesNotMatch(panel, /Retry Fiscal|processFiscalOutbox/);
+    for (const source of [steps, parts]) {
+      assert.doesNotMatch(source, /Retry Fiscal|processFiscalOutbox/);
+    }
   });
 });
 
@@ -616,9 +625,10 @@ describe("workspace behavior", () => {
     const issue = result.issues[0];
     assert.equal(issue?.route, "/restaurant/pms/cashiering");
     assert.match(issue?.description ?? "", /open hotel drawer/i);
-    assert.match(panel, /night-audit-financial-detail/);
-    assert.match(panel, /Refresh \/ Recheck Financials/);
-    assert.doesNotMatch(panel, /Mark resolved|mark resolved|updateException/i);
+    assert.match(workspace, /"Recheck"/);
+    for (const source of [steps, parts, workspace]) {
+      assert.doesNotMatch(source, /Mark resolved|mark resolved|updateException/i);
+    }
     assert.match(financialEmptyCopy("access"), /don't have access/i);
   });
 
@@ -634,8 +644,7 @@ describe("workspace behavior", () => {
     assert.equal(redacted.summary.blockerCount, full.summary.blockerCount);
     assert.equal(redacted.summary.warningCount, full.summary.warningCount);
     assert.equal(presentNightAuditFinancials(full, "cashier").access, "detail");
-    assert.match(desk, /summary\.blockerCount|blockerCount/);
-    assert.match(panel, /summary\.blockerCount/);
+    assert.match(steps, /blockerCountCopy\(/);
   });
 });
 
@@ -667,8 +676,8 @@ describe("close gate and business date", () => {
   it("re-evaluates the same financial read before the close RPC", () => {
     const closeAt = functions.indexOf("export const closeBusinessDate");
     const closeBody = functions.slice(closeAt);
-    const readAt = closeBody.indexOf("readFinancialReconciliation");
-    const gateAt = closeBody.indexOf("financialAllowsClose");
+    const readAt = closeBody.indexOf("evaluateEndOfDay(");
+    const gateAt = closeBody.indexOf("openBlockers(conditions)");
     const rpcAt = closeBody.indexOf('rpc("close_business_date"');
     assert.ok(readAt > 0 && gateAt > readAt && rpcAt > gateAt);
     assert.match(closeBody, /FINANCIAL_UNAVAILABLE_MESSAGE/);
@@ -689,7 +698,9 @@ describe("close gate and business date", () => {
   it("scopes reads to the property and does not write finance", () => {
     assert.match(server, /\.eq\("restaurant_id", restaurantId\)/);
     assert.doesNotMatch(server, /\.insert\(|\.update\(|\.rpc\("close_business_date"/);
-    assert.match(workspace, /getNightAuditFinancials/);
-    assert.doesNotMatch(panel, /postCharge|allocatePayment|close_guest_folio/);
+    assert.match(workspace, /getNightAuditWorkspace/);
+    for (const source of [steps, parts, workspace]) {
+      assert.doesNotMatch(source, /postCharge|allocatePayment|close_guest_folio/);
+    }
   });
 });

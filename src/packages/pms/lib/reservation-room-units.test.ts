@@ -648,7 +648,7 @@ describe("STAY-08G room-unit authority", () => {
     "utf8",
   );
   const nightAudit = readFileSync(
-    resolve(process.cwd(), "src/packages/pms/lib/nightaudit.server.ts"),
+    resolve(process.cwd(), "src/packages/pms/lib/night-audit-operational.server.ts"),
     "utf8",
   );
   const revenue = readFileSync(

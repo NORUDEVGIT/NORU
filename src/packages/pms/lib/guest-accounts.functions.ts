@@ -5,6 +5,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requirePmsActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import {
+  requireGuestAccountCreateActor,
+  requireGuestAccountEditActor,
+  requireGuestAccountViewActor,
+} from "./guest-master-guards.server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { blankToNull, normalizeEmail, normalizePhone, recordGuestAccountEvent, recordGuestEvent } from "./guests.server";
@@ -500,7 +505,7 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestAccountListPage> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     const term = (data.search ?? "").trim();
     const like = term ? `%${term.replace(/[%,]/g, "")}%` : "";
     const offset = data.offset ?? 0;
@@ -593,7 +598,7 @@ export const getGuestAccount = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestAccountProfile> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     const result = await selectMaster(context, data.restaurantId, (query) =>
       query.eq("id", data.accountId).maybeSingle(),
     );
@@ -632,7 +637,7 @@ export const listGuestAccountHistory = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestAccountHistoryEntry[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     const result = await db(context)
       .from("guest_account_history")
       .select("id, event_type, notes, created_at")
@@ -667,7 +672,7 @@ export const createGuestAccount = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_CREATE);
+    const me = await requireGuestAccountCreateActor(context as never, data.restaurantId);
     const isCompany = data.accountType === "company";
     const isTravelAgent = data.accountType === "travel_agent";
     if (isCompany || isTravelAgent) {
@@ -781,7 +786,7 @@ export const updateGuestAccount = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requireGuestAccountEditActor(context as never, data.restaurantId);
     const existing = await selectMaster(context, data.restaurantId, (query) =>
       query.eq("id", data.accountId).maybeSingle(),
     );
@@ -952,7 +957,7 @@ export const listGuestAccountLinks = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestAccountLink[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    await requireGuestAccountViewActor(context as never, data.restaurantId);
     if (!data.guestId && !data.accountId) {
       throw new Error("Choose a guest or an account master to list relationships.");
     }
@@ -997,7 +1002,7 @@ export const linkGuestAccount = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requireGuestAccountEditActor(context as never, data.restaurantId);
 
     const { data: master, error: masterError } = await db(context)
       .from("guest_account_masters")
@@ -1071,7 +1076,7 @@ export const linkGuestAccountsBulk = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ linked: number; skipped: number }> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+    const me = await requireGuestAccountEditActor(context as never, data.restaurantId);
     const { data: master, error: masterError } = await db(context)
       .from("guest_account_masters")
       .select("id, name, account_type")
@@ -1162,7 +1167,7 @@ export const unlinkGuestAccount = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ guestRemaining: boolean; masterRemaining: boolean }> => {
-      const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_EDIT);
+      const me = await requireGuestAccountEditActor(context as never, data.restaurantId);
       const { data: link, error: readError } = await db(context)
         .from("guest_account_links")
         .select("id, guest_id, master_id, role")
@@ -1224,7 +1229,7 @@ export const getAccountLoyaltyValue = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<GuestLoyaltyValue> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
+    const me = await requireGuestAccountViewActor(context as never, data.restaurantId);
     const access = await guestStayAccessForActor(context as never, data.restaurantId);
     const links = await db(context)
       .from("guest_account_links")

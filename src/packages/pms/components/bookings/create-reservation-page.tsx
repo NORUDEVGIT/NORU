@@ -1842,6 +1842,7 @@ export function CreateReservationPage({
     return (
       <CreateReservationConfirmation
         view={createdView}
+        canPrint={access.can(PMS_PERMISSIONS.RESERVATION_PRINT)}
         onOpenReservation={onOpenCreatedReservation}
         onContinueToCheckIn={
           walkInMode && onContinueToCheckIn

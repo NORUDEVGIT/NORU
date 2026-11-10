@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -18,6 +19,14 @@ import { Label } from "@/shared/components/ui/label";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Textarea } from "@/shared/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -26,10 +35,20 @@ import {
 } from "@/shared/components/ui/select";
 import { SearchableSelect } from "@/shared/components/ui/searchable-select";
 import { supabase } from "@/integrations/supabase/client";
-import { COMMON_CURRENCIES, COMMON_TIMEZONES } from "@/shared/lib/property-time";
+import {
+  COMMON_CURRENCIES,
+  COMMON_TIMEZONES,
+  DEFAULT_TIMEZONE,
+  localDateInZone,
+} from "@/shared/lib/property-time";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import { BUSINESS_DATE_NORMAL_COPY } from "@/packages/pms/lib/business-date-recovery";
 import { nightAuditWindowConfigProblem } from "@/packages/pms/lib/night-audit-window";
+import {
+  OPEN_SHIFT_POLICY_LABEL,
+  endOfDayPolicyFromBlockers,
+  withOpenShiftPolicy,
+} from "@/packages/pms/lib/night-audit-steps";
 import {
   PropertySetupField,
   PropertySetupFormGrid,
@@ -64,23 +83,18 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   CARD1_ADDRESS_ADAPT_COPY,
-  CARD1_BLOCKER_LABELS,
   CARD1_BRAND_IMAGE_HELPER,
   CARD1_BRAND_IMAGE_UPLOAD_ERROR,
   CARD1_BUSINESS_DATE_CURRENT_COPY,
-  CARD1_CALENDAR_DISPLAY_LABELS,
-  CARD1_CALENDAR_DISPLAYS,
   CARD1_CAPACITY_COPY,
-  CARD1_DEFAULT_BLOCKERS,
   CARD1_FULL_ADDRESS_COPY,
+  CARD1_IDENTITY_HELPER,
   CARD1_INDEPENDENT_HELPER,
-  CARD1_MANUAL_ROLLOVER_ROLES,
   CARD1_OPENING_DATE_IN,
   CARD1_PROPERTY_AREA_OPTIONS,
   CARD1_PROPERTY_CODE_TOOLTIP,
   CARD1_PROPERTY_TYPE_LABELS,
   CARD1_PROPERTY_TYPES,
-  CARD1_PUBLIC_HELPER,
   CARD1_ROOMS_HREF,
   CARD1_SOCIAL_PLATFORM_LABELS,
   CARD1_SOCIAL_PLATFORMS,
@@ -90,9 +104,11 @@ import {
   STAR_RATINGS,
   card1LanguageOptions,
   emptyCurrentState,
+  formatTimeDisplay,
+  generateHourlyTimeOptions,
   isHttpOrDataAsset,
   validateBrandImageFile,
-  liveBlockPreview,
+  validateTinFormat,
   structureRoomCodeExample,
   vatCertificateRequired,
   type Card1AddressFieldErrors,
@@ -102,9 +118,15 @@ import {
   type Card1PropertyArea,
   type Card1Snapshot,
   type Card1StayPolicy,
+  type Card1TimeFormat,
   type Card1CurrentState,
   type Card1UploadRef,
 } from "@/packages/pms/lib/pms-property-setup-card1";
+import {
+  createCard1Department,
+  seedCard1StandardDepartments,
+  generateDepartmentCode,
+} from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   ISO_COUNTRIES,
   addressLayoutForCountry,
@@ -112,6 +134,7 @@ import {
   countryCodeFromInput,
   countryNameFromInput,
   regionsForCountry,
+  resolveRegionForCountryChange,
   type AddressFieldKey,
 } from "@/packages/pms/lib/pms-geography";
 
@@ -423,70 +446,59 @@ export function IdentityStep({
               </SelectContent>
             </Select>
           </SelectField>
+          <SelectField id="card1-time-format" label="Time Display Format">
+            <Select
+              value={draft.timeFormat || "24h"}
+              onValueChange={(val) => {
+                const timeFormat = val === "12h" ? "12h" : "24h";
+                setDraft((p) => ({
+                  ...p,
+                  timeFormat,
+                  identityToggles: { ...p.identityToggles, timeFormat },
+                }));
+              }}
+              disabled={!canEdit}
+            >
+              <SelectTrigger id="card1-time-format" className={SELECT_TRIGGER_CLASS} data-testid="card1-time-format">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="24h">24-hour (14:00)</SelectItem>
+                <SelectItem value="12h">12-hour (2:00 PM)</SelectItem>
+              </SelectContent>
+            </Select>
+          </SelectField>
 
           <PropertySetupFormItem span={3}>
-            <PropertySetupFormGrid>
-              <PropertySetupField
+            <PropertySetupField
+              id="card1-short-description"
+              label="Short Description"
+              icon="document"
+              error={
+                isShortDescriptionOverLimit(draft.shortDescription)
+                  ? "Reduce to 2,000 characters before saving."
+                  : undefined
+              }
+            >
+              <Textarea
                 id="card1-short-description"
-                label="Short Description"
-                icon="document"
-                error={
-                  isShortDescriptionOverLimit(draft.shortDescription)
-                    ? "Reduce to 80 characters before saving."
-                    : undefined
-                }
-              >
-                <Textarea
-                  id="card1-short-description"
-                  rows={2}
-                  value={draft.shortDescription}
-                  disabled={!canEdit}
-                  aria-invalid={isShortDescriptionOverLimit(draft.shortDescription)}
-                  className={PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS}
-                  onChange={(event) =>
-                    setDraft((p) => ({
-                      ...p,
-                      shortDescription: acceptShortDescriptionInput(
-                        p.shortDescription,
-                        event.target.value,
-                      ),
-                    }))
-                  }
-                />
-                <p
-                  className="mt-1 text-right text-xs text-muted-foreground"
-                  data-testid="card1-short-description-counter"
-                >
-                  {draft.shortDescription.length} / {PROPERTY_SETUP_SHORT_DESCRIPTION_UI_MAX}
-                </p>
-              </PropertySetupField>
-              <ToggleRow
-                id="card1-independent"
-                label="Independent Property"
-                helper={CARD1_INDEPENDENT_HELPER}
-                checked={draft.identityToggles.independentProperty}
+                rows={3}
+                value={draft.shortDescription}
                 disabled={!canEdit}
-                onChange={(independentProperty) =>
+                aria-invalid={isShortDescriptionOverLimit(draft.shortDescription)}
+                className={cn(PROPERTY_SETUP_COMPACT_TEXTAREA_CLASS, "min-h-[4.5rem]")}
+                placeholder="Enter property description or overview..."
+                onChange={(event) =>
                   setDraft((p) => ({
                     ...p,
-                    identityToggles: { ...p.identityToggles, independentProperty },
+                    shortDescription: acceptShortDescriptionInput(
+                      p.shortDescription,
+                      event.target.value,
+                    ),
                   }))
                 }
               />
-              <ToggleRow
-                id="card1-public"
-                label="Display Property Publicly"
-                helper={CARD1_PUBLIC_HELPER}
-                checked={draft.identityToggles.displayPublicly}
-                disabled={!canEdit}
-                onChange={(displayPublicly) =>
-                  setDraft((p) => ({
-                    ...p,
-                    identityToggles: { ...p.identityToggles, displayPublicly },
-                  }))
-                }
-              />
-            </PropertySetupFormGrid>
+            </PropertySetupField>
           </PropertySetupFormItem>
         </PropertySetupFormGrid>
       </Panel>
@@ -567,6 +579,7 @@ export function IdentityStep({
 }
 
 export function AddressStep({
+  restaurantId,
   draft,
   setDraft,
   canEdit,
@@ -574,8 +587,10 @@ export function AddressStep({
   errors,
   onClearError,
   departmentOptions,
+  onDepartmentsChange,
   websiteError,
 }: {
+  restaurantId?: string;
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
@@ -583,8 +598,81 @@ export function AddressStep({
   errors: Card1AddressFieldErrors;
   onClearError: (key: keyof Card1AddressFieldErrors) => void;
   departmentOptions: Card1DepartmentOption[];
+  onDepartmentsChange?: (options: Card1DepartmentOption[]) => void;
   websiteError?: string | undefined;
 }) {
+  const createDept = useServerFn(createCard1Department);
+  const seedDepts = useServerFn(seedCard1StandardDepartments);
+  const [createDeptOpen, setCreateDeptOpen] = useState(false);
+  const [targetContactIdx, setTargetContactIdx] = useState<number | null>(null);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [newDeptCode, setNewDeptCode] = useState("");
+  const [isCreatingDept, setIsCreatingDept] = useState(false);
+  const [isSeedingDepts, setIsSeedingDepts] = useState(false);
+
+  async function handleCreateDepartment() {
+    if (!restaurantId || !newDeptName.trim()) return;
+    setIsCreatingDept(true);
+    try {
+      const res = await createDept({
+        data: {
+          restaurantId,
+          name: newDeptName.trim(),
+          code: newDeptCode.trim() || undefined,
+        },
+      });
+      if (res?.ok) {
+        toast.success(`Department "${res.created.name}" created.`);
+        onDepartmentsChange?.(res.departmentOptions);
+        if (targetContactIdx !== null && targetContactIdx !== undefined) {
+          setDraft((p) => {
+            const next = [...p.departmentContacts];
+            if (next[targetContactIdx]) {
+              next[targetContactIdx] = {
+                ...next[targetContactIdx],
+                departmentId: res.created.id,
+                department: res.created.name,
+              };
+            }
+            return { ...p, departmentContacts: next };
+          });
+        }
+        setCreateDeptOpen(false);
+        setNewDeptName("");
+        setNewDeptCode("");
+        setTargetContactIdx(null);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create department.";
+      toast.error(msg);
+    } finally {
+      setIsCreatingDept(false);
+    }
+  }
+
+  async function handleSeedStandardDepartments() {
+    if (!restaurantId) return;
+    setIsSeedingDepts(true);
+    try {
+      const res = await seedDepts({
+        data: { restaurantId },
+      });
+      if (res?.ok) {
+        toast.success(
+          res.seededCount > 0
+            ? `Added ${res.seededCount} standard hotel departments.`
+            : "Standard departments are already present.",
+        );
+        onDepartmentsChange?.(res.departmentOptions);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to seed departments.";
+      toast.error(msg);
+    } finally {
+      setIsSeedingDepts(false);
+    }
+  }
+
   const layout = addressLayoutForCountry(draft.country);
   const countryCode = countryCodeFromInput(draft.country);
   const regionOptions = regionsForCountry(draft.country).map((region) => ({
@@ -637,7 +725,14 @@ export function AddressStep({
                 onClearError("country");
                 onClearError("addressRegion");
                 const name = countryNameFromInput(code);
-                setDraft((p) => clearDependentGeography({ ...p, country: name }));
+                setDraft((p) => {
+                  const cleared = clearDependentGeography({ ...p, country: name });
+                  const resolvedRegion = resolveRegionForCountryChange(name, p.addressRegion, p.country);
+                  return {
+                    ...cleared,
+                    addressRegion: resolvedRegion,
+                  };
+                });
               }}
             />
             {errors.country ? (
@@ -770,15 +865,6 @@ export function AddressStep({
             }
           />
         </div>
-        <ToggleRow
-          id="card1-pin"
-          label="Show property location on NORU and guest platforms"
-          checked={draft.locationExtras.pinVisible}
-          disabled={!canEdit}
-          onChange={(pinVisible) =>
-            setDraft((p) => ({ ...p, locationExtras: { ...p.locationExtras, pinVisible } }))
-          }
-        />
       </Panel>
 
       <Panel
@@ -894,6 +980,36 @@ export function AddressStep({
 
       <Panel title="Department contacts" icon="department">
         <div className="space-y-3">
+          {canEdit && restaurantId && departmentOptions.length === 0 ? (
+            <div
+              className="rounded-lg border border-dashed border-amber-300 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/20"
+              data-testid="pms-card1-dept-zero-state"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    No departments configured
+                  </h4>
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Department contacts require a registered department. Load standard hotel departments (Front Desk, Housekeeping, etc.) to get started.
+                  </p>
+                </div>
+                <div className="flex shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isSeedingDepts}
+                    onClick={handleSeedStandardDepartments}
+                    data-testid="pms-card1-seed-standard-depts"
+                  >
+                    {isSeedingDepts ? "Loading..." : "Load Standard Departments"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {draft.departmentContacts.map((row, index) => (
             <div
               key={row.id ?? `${row.departmentId ?? row.department}-${index}`}
@@ -902,26 +1018,38 @@ export function AddressStep({
               <Select
                 value={row.departmentId || (row.department ? `legacy:${index}` : "unset")}
                 disabled={!canEdit}
-                onValueChange={(departmentId) =>
+                onValueChange={(val) => {
+                  if (val === "__create_new__") {
+                    setTargetContactIdx(index);
+                    setNewDeptName("");
+                    setNewDeptCode("");
+                    setCreateDeptOpen(true);
+                    return;
+                  }
                   setDraft((p) => {
                     const next = [...p.departmentContacts];
                     const department = departmentOptions.find(
-                      (option) => option.id === departmentId,
+                      (option) => option.id === val,
                     );
                     next[index] = {
                       ...row,
-                      departmentId: departmentId === "unset" ? undefined : departmentId,
+                      departmentId: val === "unset" ? undefined : val,
                       department: department?.name ?? "",
                     };
                     return { ...p, departmentContacts: next };
-                  })
-                }
+                  });
+                }}
               >
                 <SelectTrigger className={SELECT_TRIGGER_CLASS} aria-label="Department">
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unset">Select department</SelectItem>
+                  {canEdit && restaurantId ? (
+                    <SelectItem value="__create_new__" className="font-medium text-primary">
+                      + Create New Department…
+                    </SelectItem>
+                  ) : null}
                   {!row.departmentId && row.department ? (
                     <SelectItem value={`legacy:${index}`} disabled>
                       Legacy: {row.department}
@@ -991,32 +1119,101 @@ export function AddressStep({
             </div>
           ))}
           {canEdit ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setDraft((p) => ({
-                  ...p,
-                  departmentContacts: [
-                    ...p.departmentContacts,
-                    {
-                      departmentId: undefined,
-                      department: "",
-                      name: "",
-                      phone: "",
-                      email: "",
-                      active: true,
-                      sortOrder: p.departmentContacts.length,
-                    },
-                  ],
-                }))
-              }
-            >
-              + Add department
-            </Button>
+            <div className="pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setDraft((p) => ({
+                    ...p,
+                    departmentContacts: [
+                      ...p.departmentContacts,
+                      {
+                        departmentId: undefined,
+                        department: "",
+                        name: "",
+                        phone: "",
+                        email: "",
+                        active: true,
+                        sortOrder: p.departmentContacts.length,
+                      },
+                    ],
+                  }))
+                }
+              >
+                + Add department contact
+              </Button>
+            </div>
           ) : null}
         </div>
       </Panel>
+
+      <Dialog open={createDeptOpen} onOpenChange={setCreateDeptOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="pms-card1-create-dept-modal">
+          <DialogHeader>
+            <DialogTitle>Create Department</DialogTitle>
+            <DialogDescription>
+              Add a department to your property directory. It will immediately be available for department contacts.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleCreateDepartment();
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="card1-new-dept-name">
+                Department Name <span className="text-red-600">*</span>
+              </Label>
+              <Input
+                id="card1-new-dept-name"
+                placeholder="e.g. Front Desk, Housekeeping, Security"
+                value={newDeptName}
+                onChange={(e) => {
+                  const nextName = e.target.value;
+                  setNewDeptName(nextName);
+                  const existingCodes = departmentOptions.map((d) => d.code ?? d.name);
+                  setNewDeptCode(generateDepartmentCode(nextName, existingCodes));
+                }}
+                disabled={isCreatingDept}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="card1-new-dept-code">Department Code</Label>
+              <Input
+                id="card1-new-dept-code"
+                placeholder="e.g. FD, HK, SEC"
+                value={newDeptCode}
+                onChange={(e) => setNewDeptCode(e.target.value.toUpperCase())}
+                disabled={isCreatingDept}
+                maxLength={20}
+              />
+              <p className="text-xs text-muted-foreground">
+                Unique short code (2-20 characters). Auto-suggested from the department name.
+              </p>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateDeptOpen(false)}
+                disabled={isCreatingDept}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isCreatingDept || !newDeptName.trim()}
+              >
+                {isCreatingDept ? "Creating..." : "Create Department"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Panel title="Emergency / alternate contact" testId="card1-emergency" icon="contact">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1100,7 +1297,38 @@ export function CheckinStep({
   businessDateAction?: ReactNode;
 }) {
   const effectiveCurrentState = currentState ?? emptyCurrentState();
-  const preview = liveBlockPreview(draft.businessDateBlockers);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const systemDate = useMemo(() => {
+    if (!draft.timezone) return effectiveCurrentState.systemDate || localDateInZone(DEFAULT_TIMEZONE, now);
+    try {
+      return localDateInZone(draft.timezone, now);
+    } catch {
+      return effectiveCurrentState.systemDate || localDateInZone(DEFAULT_TIMEZONE, now);
+    }
+  }, [draft.timezone, effectiveCurrentState.systemDate, now]);
+
+  const localClock = useMemo(() => {
+    if (!draft.timezone) return effectiveCurrentState.propertyLocalTime || "—";
+    try {
+      return new Intl.DateTimeFormat(draft.timeFormat === "12h" ? "en-US" : "en-GB", {
+        timeZone: draft.timezone,
+        hour: draft.timeFormat === "12h" ? "numeric" : "2-digit",
+        minute: "2-digit",
+        hour12: draft.timeFormat === "12h",
+      }).format(now);
+    } catch {
+      return effectiveCurrentState.propertyLocalTime || "—";
+    }
+  }, [draft.timezone, draft.timeFormat, effectiveCurrentState.propertyLocalTime, now]);
+
   const nightAuditWindowProblem = nightAuditWindowConfigProblem(
     draft.businessDateConfig.nightAuditWindowStart,
     draft.businessDateConfig.nightAuditWindowEnd,
@@ -1118,6 +1346,7 @@ export function CheckinStep({
             label="Standard Check-in Time"
             required
             value={draft.checkInTime}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(checkInTime) => setDraft((p) => ({ ...p, checkInTime }))}
           />
@@ -1126,6 +1355,7 @@ export function CheckinStep({
             label="Standard Check-out Time"
             required
             value={draft.checkOutTime}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(checkOutTime) => setDraft((p) => ({ ...p, checkOutTime }))}
           />
@@ -1153,6 +1383,7 @@ export function CheckinStep({
             id="card1-cutoff"
             label="Same-day Booking Cut-off Time"
             value={draft.checkinOps.sameDayCutoff}
+            timeFormat={draft.timeFormat}
             disabled={!canEdit}
             onChange={(sameDayCutoff) =>
               setDraft((p) => ({ ...p, checkinOps: { ...p.checkinOps, sameDayCutoff } }))
@@ -1318,277 +1549,130 @@ export function CheckinStep({
         </div>
       </Panel>
 
-      <Panel title="CURRENT STATE" helper={CARD1_BUSINESS_DATE_CURRENT_COPY} icon="date">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-business-date-current">Business Date</Label>
-            <Input
-              id="card1-business-date-current"
-              value={effectiveCurrentState.businessDate ?? "—"}
-              readOnly
-              disabled
-              data-testid="card1-business-date-current"
-              className="h-11 bg-muted/40"
-            />
-            <p
-              className="text-xs text-muted-foreground"
-              data-testid="card1-business-date-normal-copy"
-            >
-              {BUSINESS_DATE_NORMAL_COPY}
-            </p>
-            {businessDateAction}
-          </div>
-          <Field
-            id="card1-system-date"
-            label="System Date"
-            value={effectiveCurrentState.systemDate || "—"}
-            readOnly
-          />
-          <Field
-            id="card1-local-time"
-            label="Property Local Time"
-            value={effectiveCurrentState.propertyLocalTime || "—"}
-            readOnly
-          />
-          <Field
-            id="card1-bd-status"
-            label="Status"
-            value={effectiveCurrentState.status}
-            readOnly
-          />
-          <Field
-            id="card1-last-na"
-            label="Last Successful Night Audit"
-            value={effectiveCurrentState.lastSuccessfulNightAudit || "Never"}
-            readOnly
-          />
-        </div>
-      </Panel>
-      <Panel title="CONFIGURATION" icon="time">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Business date time zone</Label>
-            <Input value={draft.timezone || "—"} readOnly disabled className="h-11 bg-muted/40" />
-            <a
-              href={`${SET1_HUB_HREF}#property-business`}
-              className="text-xs font-medium text-[#C89933]"
-              onClick={() => {
-                window.location.hash = "property-business";
-              }}
-            >
-              Edit in Property Identity
-            </a>
-          </div>
-          <TimeSelect
-            id="card1-boundary"
-            label="Business day boundary"
-            required
-            value={draft.businessDateConfig.dayBoundary}
-            disabled={!canEdit}
-            onChange={(dayBoundary) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, dayBoundary },
-              }))
-            }
-          />
-          <TimeSelect
-            id="card1-na-start"
-            label="Expected Night Audit window start"
-            required
-            value={draft.businessDateConfig.nightAuditWindowStart}
-            disabled={!canEdit}
-            onChange={(nightAuditWindowStart) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowStart },
-              }))
-            }
-          />
-          <TimeSelect
-            id="card1-na-end"
-            label="Expected Night Audit window end"
-            required
-            value={draft.businessDateConfig.nightAuditWindowEnd}
-            disabled={!canEdit}
-            onChange={(nightAuditWindowEnd) =>
-              setDraft((p) => ({
-                ...p,
-                businessDateConfig: { ...p.businessDateConfig, nightAuditWindowEnd },
-              }))
-            }
-          />
-        </div>
-        {nightAuditWindowProblem ? (
-          <p
-            className="text-xs font-medium text-destructive"
-            data-testid="card1-night-audit-window-error"
-          >
-            {nightAuditWindowProblem}
-          </p>
-        ) : null}
-        <ToggleRow
-          id="card1-auto-roll"
-          label="Automatic date rollover — Only after successful Night Audit"
-          checked={draft.businessDateConfig.automaticRollover}
-          disabled={!canEdit}
-          onChange={(automaticRollover) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, automaticRollover },
-            }))
-          }
-        />
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-[#251605]">
-            Manual rollover (permissions) <span className="text-red-600">*</span>
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {CARD1_MANUAL_ROLLOVER_ROLES.map((role) => {
-              const on = draft.businessDateConfig.manualRolloverRoles.includes(role.id);
-              return (
-                <button
-                  key={role.id}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() =>
-                    setDraft((p) => {
-                      const roles = on
-                        ? p.businessDateConfig.manualRolloverRoles.filter((id) => id !== role.id)
-                        : [...p.businessDateConfig.manualRolloverRoles, role.id];
-                      return {
-                        ...p,
-                        businessDateConfig: {
-                          ...p.businessDateConfig,
-                          manualRolloverRoles: roles,
-                        },
-                      };
-                    })
-                  }
-                  className={`rounded-full border px-3 py-1 text-xs ${on ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]" : "border-[#CCCCCC] text-muted-foreground"}`}
+      <Panel
+        title="Business Date & Night Audit"
+        helper={CARD1_BUSINESS_DATE_CURRENT_COPY}
+        icon="time"
+        testId="card1-business-date-panel"
+      >
+        <div className="space-y-6">
+          <div>
+            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              System & Property Information
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Field
+                id="card1-system-date"
+                label="System Date"
+                value={systemDate}
+                readOnly
+              />
+              <Field
+                id="card1-local-time"
+                label="Property Time"
+                value={localClock}
+                readOnly
+              />
+              <div className="space-y-1.5">
+                <Label htmlFor="card1-business-date-current">Current Business Date</Label>
+                <Input
+                  id="card1-business-date-current"
+                  value={effectiveCurrentState.businessDate ?? "—"}
+                  readOnly
+                  disabled
+                  data-testid="card1-business-date-current"
+                  className="h-11 bg-muted/40"
+                />
+                <p
+                  className="text-xs text-muted-foreground"
+                  data-testid="card1-business-date-normal-copy"
                 >
-                  {role.label}
-                </button>
-              );
-            })}
+                  {BUSINESS_DATE_NORMAL_COPY}
+                </p>
+                {businessDateAction}
+              </div>
+              <Field
+                id="card1-last-na"
+                label="Last Successful Night Audit"
+                value={effectiveCurrentState.lastSuccessfulNightAudit || "Never"}
+                readOnly
+              />
+            </div>
           </div>
-        </div>
-        <ToggleRow
-          id="card1-approval"
-          label="Approval required"
-          checked={draft.businessDateConfig.approvalRequired}
-          disabled={!canEdit}
-          onChange={(approvalRequired) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, approvalRequired },
-            }))
-          }
-        />
-        <ToggleRow
-          id="card1-lock"
-          label="Business date lock during audit"
-          checked={draft.businessDateConfig.lockDuringAudit}
-          disabled={!canEdit}
-          onChange={(lockDuringAudit) =>
-            setDraft((p) => ({
-              ...p,
-              businessDateConfig: { ...p.businessDateConfig, lockDuringAudit },
-            }))
-          }
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field
-            id="card1-sell-date"
-            label="Reservation sell date rule"
-            value={`Uses business date: ${effectiveCurrentState.businessDate ?? "—"}`}
-            readOnly
-          />
-          <Field
-            id="card1-hk-date"
-            label="Housekeeping board date"
-            value={effectiveCurrentState.businessDate ?? "—"}
-            readOnly
-          />
-          <Field
-            id="card1-fo-date"
-            label="Front Office desk date"
-            value={effectiveCurrentState.businessDate ?? "—"}
-            readOnly
-          />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-calendar">Calendar display</Label>
-            <Select
-              value={draft.businessDateConfig.calendarDisplay}
-              onValueChange={(calendarDisplay) =>
-                setDraft((p) => ({
-                  ...p,
-                  businessDateConfig: {
-                    ...p.businessDateConfig,
-                    calendarDisplay: calendarDisplay as typeof p.businessDateConfig.calendarDisplay,
-                  },
-                }))
-              }
-              disabled={!canEdit}
-            >
-              <SelectTrigger id="card1-calendar" className={SELECT_TRIGGER_CLASS}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CARD1_CALENDAR_DISPLAYS.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {CARD1_CALENDAR_DISPLAY_LABELS[item]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Panel>
-      <Panel title="Block Date Advance When" icon="security">
-        <div className="space-y-2">
-          {CARD1_DEFAULT_BLOCKERS.map((id) => (
-            <label key={id} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={draft.businessDateBlockers.includes(id)}
+
+          <div className="border-t border-[#E8E2D6] pt-5">
+            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Night Audit Configuration
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TimeSelect
+                id="card1-na-start"
+                label="Night Audit Window Start"
+                required
+                value={draft.businessDateConfig.nightAuditWindowStart}
+                timeFormat={draft.timeFormat}
                 disabled={!canEdit}
-                onCheckedChange={(checked) =>
+                onChange={(nightAuditWindowStart) =>
                   setDraft((p) => ({
                     ...p,
-                    businessDateBlockers:
-                      checked === true
-                        ? [...new Set([...p.businessDateBlockers, id])]
-                        : p.businessDateBlockers.filter((row) => row !== id),
+                    businessDateConfig: { ...p.businessDateConfig, nightAuditWindowStart },
                   }))
                 }
               />
-              {CARD1_BLOCKER_LABELS[id]}
-            </label>
-          ))}
+              <TimeSelect
+                id="card1-na-end"
+                label="Night Audit Window End"
+                required
+                value={draft.businessDateConfig.nightAuditWindowEnd}
+                timeFormat={draft.timeFormat}
+                disabled={!canEdit}
+                onChange={(nightAuditWindowEnd) =>
+                  setDraft((p) => ({
+                    ...p,
+                    businessDateConfig: { ...p.businessDateConfig, nightAuditWindowEnd },
+                  }))
+                }
+              />
+            </div>
+            {nightAuditWindowProblem ? (
+              <p
+                className="mt-2 text-xs font-medium text-destructive"
+                data-testid="card1-night-audit-window-error"
+              >
+                {nightAuditWindowProblem}
+              </p>
+            ) : null}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <ControlledSelectField
+                id="card1-eod-open-shifts"
+                label="Open cashier shifts before End of Day"
+                value={endOfDayPolicyFromBlockers(draft.businessDateBlockers).openCashierShifts}
+                options={[
+                  { value: "block", label: OPEN_SHIFT_POLICY_LABEL.block },
+                  { value: "do_not_block", label: OPEN_SHIFT_POLICY_LABEL.do_not_block },
+                ]}
+                disabled={!canEdit}
+                onChange={(next) =>
+                  setDraft((p) => ({
+                    ...p,
+                    businessDateBlockers: withOpenShiftPolicy(
+                      p.businessDateBlockers,
+                      next === "do_not_block" ? "do_not_block" : "block",
+                    ),
+                  }))
+                }
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              System integrity checks always block End of Day and cannot be turned off.
+            </p>
+          </div>
         </div>
-        <div
-          className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800"
-          data-testid="card1-live-block-preview"
-        >
-          <p className="font-medium">Live Block Preview</p>
-          <p className="mt-1">{preview}</p>
-        </div>
-      </Panel>
-      <Panel title="Recommended Defaults" icon="document">
-        <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
-          <li>Rollover only after successful Night Audit</li>
-          <li>FO / HK / Reservations follow business date</li>
-          <li>Time zone managed in Property Identity</li>
-        </ul>
       </Panel>
     </div>
   );
 }
 
-const HOURLY_TIME_OPTIONS = Array.from({ length: 24 }, (_, hour) => ({
-  value: `${String(hour).padStart(2, "0")}:00`,
-  label: `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:00 ${hour < 12 ? "AM" : "PM"}`,
-}));
 
 function ControlledSelectField({
   id,
@@ -1636,6 +1720,7 @@ function TimeSelect({
   value,
   disabled,
   required,
+  timeFormat = "24h",
   onChange,
 }: {
   id: string;
@@ -1643,16 +1728,18 @@ function TimeSelect({
   value: string;
   disabled?: boolean;
   required?: boolean;
+  timeFormat?: Card1TimeFormat;
   onChange: (value: string) => void;
 }) {
+  const hourly = generateHourlyTimeOptions(timeFormat);
   const options =
-    value && !HOURLY_TIME_OPTIONS.some((option) => option.value === value)
-      ? [{ value, label: `${value} (legacy)` }, ...HOURLY_TIME_OPTIONS]
-      : HOURLY_TIME_OPTIONS;
+    value && !hourly.some((option) => option.value === value)
+      ? [{ value, label: `${formatTimeDisplay(value, timeFormat)} (custom)` }, ...hourly]
+      : hourly;
   return (
     <PropertySetupField id={id} label={label} required={required}>
       <Select value={value || "__unset"} disabled={disabled} onValueChange={onChange}>
-        <SelectTrigger id={id} className={SELECT_TRIGGER_CLASS}>
+        <SelectTrigger id={id} className={SELECT_TRIGGER_CLASS} data-testid={id}>
           <SelectValue placeholder="Select time" />
         </SelectTrigger>
         <SelectContent>
@@ -1749,164 +1836,185 @@ export function LegalStep({
   canEdit: boolean;
   warnings?: string[];
 }) {
+  const tinFormatError = validateTinFormat(draft.tinNumber);
+
   return (
     <div className="space-y-4" data-testid="pms-card1-step-legal">
-      <Panel title="Legal Identity" icon="briefcase">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <Field
-            id="card1-legal-name"
-            label="Registered Company Name"
-            required
-            value={draft.legalName}
-            disabled={!canEdit}
-            onChange={(legalName) => setDraft((p) => ({ ...p, legalName }))}
-          />
-          <Field
-            id="card1-legal-entity"
-            label="Legal entity name"
-            value={draft.legalEntityName}
-            disabled={!canEdit}
-            onChange={(legalEntityName) => setDraft((p) => ({ ...p, legalEntityName }))}
-          />
-          <Field
-            id="card1-ownership"
-            label="Ownership Type"
-            value={draft.legalExtras.ownershipType}
-            disabled={!canEdit}
-            onChange={(ownershipType) =>
-              setDraft((p) => ({ ...p, legalExtras: { ...p.legalExtras, ownershipType } }))
-            }
-          />
-          <Field
-            id="card1-incorp"
-            label="Date of Incorporation"
-            type="date"
-            value={draft.legalExtras.incorporationDate}
-            disabled={!canEdit}
-            onChange={(incorporationDate) =>
-              setDraft((p) => ({ ...p, legalExtras: { ...p.legalExtras, incorporationDate } }))
-            }
-          />
-          <div className="space-y-1.5">
-            <Label htmlFor="card1-entity-type">Entity type</Label>
-            <Select
-              value={draft.legalEntityType || "unset"}
-              onValueChange={(value) =>
-                setDraft((p) => ({
-                  ...p,
-                  legalEntityType: value === "unset" ? "" : (value as typeof draft.legalEntityType),
-                }))
-              }
-              disabled={!canEdit}
-            >
-              <SelectTrigger id="card1-entity-type" className={SELECT_TRIGGER_CLASS}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unset">Not set</SelectItem>
-                {LEGAL_ENTITY_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {LEGAL_ENTITY_TYPE_LABELS[type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Field
-            id="card1-reg"
-            label="Registration number"
-            value={draft.registrationNumber}
-            disabled={!canEdit}
-            onChange={(registrationNumber) => setDraft((p) => ({ ...p, registrationNumber }))}
-          />
-        </div>
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="Certificate of Incorporation"
-          kind="certificate_of_incorporation"
-          refs={draft.legalUploadRefs}
-          canEdit={canEdit}
-          onChange={(legalUploadRefs) => setDraft((p) => ({ ...p, legalUploadRefs }))}
-        />
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="Trade License Copy"
-          kind="trade_license"
-          refs={draft.legalUploadRefs}
-          canEdit={canEdit}
-          onChange={(legalUploadRefs) => setDraft((p) => ({ ...p, legalUploadRefs }))}
-        />
-      </Panel>
-
-      <Panel title="Tax & Documents" helper={CARD1_VAT_GATE_COPY} icon="tax">
+      <Panel title="Legal & Tax Information" helper={CARD1_VAT_GATE_COPY} icon="tax">
         <div className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 p-3 text-sm text-[#251605]">
-          Tax identity is used for property setup and compliance. VAT certificate is required only
-          when VAT Registered is On.
+          Legal business registration and tax identity are used for property setup, cashiering documents, folios, and fiscal device compliance.
         </div>
-        <ToggleRow
-          id="card1-vat-registered"
-          label="VAT Registered"
-          checked={draft.vatRegistered}
-          disabled={!canEdit}
-          onChange={(vatRegistered) => setDraft((p) => ({ ...p, vatRegistered }))}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field
-            id="card1-vat-number"
-            label="VAT number"
-            value={draft.vatNumber}
-            disabled={!canEdit}
-            onChange={(vatNumber) => setDraft((p) => ({ ...p, vatNumber }))}
-          />
-          <Field
-            id="card1-tin"
-            label="TIN"
-            value={draft.tinNumber}
-            disabled={!canEdit}
-            onChange={(tinNumber) => setDraft((p) => ({ ...p, tinNumber }))}
-          />
-          <Field
-            id="card1-licence"
-            label="Licence number"
-            value={draft.licenceNumber}
-            disabled={!canEdit}
-            onChange={(licenceNumber) => setDraft((p) => ({ ...p, licenceNumber }))}
-          />
+
+        {/* Group 1: Legal Business Information */}
+        <div className="space-y-3 pt-1">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Legal Business Information</h3>
+            <p className="text-xs text-slate-500">Corporate registration and entity classification details.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              id="card1-legal-name"
+              label="Registered Company Name"
+              required
+              value={draft.legalName}
+              disabled={!canEdit}
+              onChange={(legalName) => setDraft((p) => ({ ...p, legalName }))}
+            />
+            <div className="space-y-1">
+              <Field
+                id="card1-legal-entity"
+                label="Operating Entity Name"
+                value={draft.legalEntityName}
+                disabled={!canEdit}
+                onChange={(legalEntityName) => setDraft((p) => ({ ...p, legalEntityName }))}
+              />
+              <p className="text-[11px] text-slate-500">
+                Only enter this if the entity operating the hotel differs from the registered company.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="card1-entity-type">Entity type</Label>
+              <Select
+                value={draft.legalEntityType || "unset"}
+                onValueChange={(value) =>
+                  setDraft((p) => ({
+                    ...p,
+                    legalEntityType: value === "unset" ? "" : (value as typeof draft.legalEntityType),
+                  }))
+                }
+                disabled={!canEdit}
+              >
+                <SelectTrigger id="card1-entity-type" className={SELECT_TRIGGER_CLASS}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unset">Not set</SelectItem>
+                  {draft.legalEntityType === "private_limited" ? (
+                    <SelectItem value="private_limited">Private Limited Company (PLC)</SelectItem>
+                  ) : (
+                    <SelectItem value="plc">Private Limited Company (PLC)</SelectItem>
+                  )}
+                  <SelectItem value="sole_proprietor">Sole proprietorship</SelectItem>
+                  <SelectItem value="partnership">Partnership</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Field
+              id="card1-reg"
+              label="Commercial Registration Number"
+              value={draft.registrationNumber}
+              disabled={!canEdit}
+              onChange={(registrationNumber) => setDraft((p) => ({ ...p, registrationNumber }))}
+            />
+          </div>
         </div>
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="Trade License"
-          kind="trade_license"
-          required
-          refs={draft.taxUploadRefs}
-          canEdit={canEdit}
-          onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
-        />
-        <UploadRefs
-          restaurantId={restaurantId}
-          label="TIN Certificate"
-          kind="tin_certificate"
-          required
-          refs={draft.taxUploadRefs}
-          canEdit={canEdit}
-          onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
-        />
-        {vatCertificateRequired(draft.vatRegistered) ? (
+
+        <div className="my-2 border-t border-slate-200/80" />
+
+        {/* Group 2: Tax & Licensing */}
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Tax & Licensing</h3>
+            <p className="text-xs text-slate-500">Taxpayer identification, trade licensing, and VAT registration posture.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Field
+                id="card1-tin"
+                label="Taxpayer Identification Number (TIN)"
+                value={draft.tinNumber}
+                disabled={!canEdit}
+                onChange={(tinNumber) => setDraft((p) => ({ ...p, tinNumber }))}
+              />
+              {tinFormatError ? (
+                <p className="text-[11px] font-medium text-amber-600">{tinFormatError}</p>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  10-digit Ethiopian taxpayer identifier used for cashiering and fiscal machine integration.
+                </p>
+              )}
+            </div>
+            <Field
+              id="card1-licence"
+              label="Trade License Number"
+              value={draft.licenceNumber}
+              disabled={!canEdit}
+              onChange={(licenceNumber) => setDraft((p) => ({ ...p, licenceNumber }))}
+            />
+          </div>
+          <ToggleRow
+            id="card1-vat-registered"
+            label="VAT Registered"
+            checked={draft.vatRegistered}
+            disabled={!canEdit}
+            onChange={(vatRegistered) => setDraft((p) => ({ ...p, vatRegistered }))}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {draft.vatRegistered ? (
+              <Field
+                id="card1-vat-number"
+                label="VAT Registration Number"
+                required
+                value={draft.vatNumber}
+                disabled={!canEdit}
+                onChange={(vatNumber) => setDraft((p) => ({ ...p, vatNumber }))}
+              />
+            ) : null}
+          </div>
+        </div>
+
+        <div className="my-2 border-t border-slate-200/80" />
+
+        {/* Group 3: Legal Documents */}
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Legal Documents</h3>
+            <p className="text-xs text-slate-500">Attach verification and compliance documents (PDF, PNG, JPG under 1 MB).</p>
+          </div>
           <UploadRefs
             restaurantId={restaurantId}
-            label="VAT certificate"
-            kind="vat_certificate"
-            required
+            label="Trade License"
+            kind="trade_license"
+            refs={draft.taxUploadRefs}
+            canEdit={canEdit}
+            onChange={(taxUploadRefs) => {
+              setDraft((p) => {
+                const remainingTradePaths = new Set(
+                  taxUploadRefs.filter((r) => r.kind === "trade_license").map((r) => r.storagePath).filter(Boolean),
+                );
+                const nextLegalUploadRefs = p.legalUploadRefs.filter(
+                  (r) => r.kind !== "trade_license" || (r.storagePath && remainingTradePaths.has(r.storagePath)),
+                );
+                return { ...p, taxUploadRefs, legalUploadRefs: nextLegalUploadRefs };
+              });
+            }}
+          />
+          <UploadRefs
+            restaurantId={restaurantId}
+            label="TIN Certificate"
+            kind="tin_certificate"
             refs={draft.taxUploadRefs}
             canEdit={canEdit}
             onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
           />
-        ) : null}
-        {warnings.map((warning) => (
-          <p key={warning} className="text-sm text-[#C89933]" data-testid="card1-vat-warning">
-            {warning}
-          </p>
-        ))}
+          {vatCertificateRequired(draft.vatRegistered) ? (
+            <UploadRefs
+              restaurantId={restaurantId}
+              label="VAT certificate"
+              kind="vat_certificate"
+              required
+              refs={draft.taxUploadRefs}
+              canEdit={canEdit}
+              onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
+            />
+          ) : null}
+          {warnings.map((warning) => (
+            <p key={warning} className="text-sm text-[#C89933]" data-testid="card1-vat-warning">
+              {warning}
+            </p>
+          ))}
+        </div>
       </Panel>
     </div>
   );

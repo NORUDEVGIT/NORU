@@ -21,6 +21,51 @@ export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 export const GUEST_STATUSES = ["active", "inactive"] as const;
 export type GuestStatus = (typeof GUEST_STATUSES)[number];
 
+export const INACTIVE_GUEST_BOOKING_MESSAGE =
+  "This guest profile is inactive and cannot be used for new reservations. Reactivate the profile first.";
+
+type GuestBookingStatusRow = {
+  id: string;
+  guest_status: string | null;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+/** Ensures every guest id is active before attaching to a new or amended reservation. */
+export async function assertGuestProfilesActiveForBooking(
+  client: { from: (table: string) => { select: (cols: string) => unknown } },
+  restaurantId: string,
+  guestIds: Iterable<string>,
+): Promise<void> {
+  const ids = [...new Set([...guestIds].filter(Boolean))];
+  if (ids.length === 0) return;
+  const query = client.from("guest_profiles") as {
+    select: (cols: string) => {
+      eq: (col: string, val: string) => {
+        in: (col: string, vals: string[]) => Promise<{
+          data: GuestBookingStatusRow[] | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+  };
+  const { data, error } = await query
+    .select("id, guest_status, first_name, last_name")
+    .eq("restaurant_id", restaurantId)
+    .in("id", ids);
+  if (error) throw new Error(error.message);
+  if ((data ?? []).length !== ids.length) {
+    throw new Error("A guest on this reservation could not be found.");
+  }
+  for (const row of data ?? []) {
+    if ((row.guest_status ?? "active") !== "active") {
+      const name =
+        [row.first_name, row.last_name].filter(Boolean).join(" ").trim() || "This guest";
+      throw new Error(`${name} is inactive and cannot be used for new reservations. Reactivate the profile first.`);
+    }
+  }
+}
+
 export const GUEST_EVENT_TYPES = [
   "created",
   "profile_updated",

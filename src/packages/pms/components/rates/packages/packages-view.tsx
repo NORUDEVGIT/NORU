@@ -101,7 +101,7 @@ export function PackagesView({
   onContextChange?: ((patch: Partial<RevenueContext>) => void) | undefined;
   onNavigateView?: ((view: RevenueWorkspaceView) => void) | undefined;
 }) {
-  const canManage = access.canViewCommercial;
+  const canManage = access.canApprove;
   const fetchPackages = useServerFn(getPackagesWorkspace);
   const query = useQuery({
     queryKey: [
