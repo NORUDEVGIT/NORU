@@ -50,6 +50,7 @@ import {
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { getNoShowReadiness } from "@/packages/pms/lib/fo-no-show-readiness.functions";
 import { RoomUnitTargetSelect } from "@/packages/pms/components/frontoffice/room-unit-target-select";
+import { CancellationSettlementPanel } from "@/packages/pms/components/frontoffice/cancellation-settlement-panel";
 import {
   getBookingsAccess,
   getReservation,
@@ -682,6 +683,32 @@ export function ReservationNoShowWorkspace({
                   <a href={cashieringRefundHref(ctx.folio.folioNumber)}>Open folio in Cashiering</a>
                 </Button>
               ) : null}
+              <div className="mt-3 border-t border-[#EEE7DC] pt-3">
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  {step === "complete" ? "Folio settlement" : "Folio after no-show"}
+                </p>
+                {step === "complete" ? (
+                  completion ? (
+                    <CancellationSettlementPanel
+                      restaurantId={restaurantId}
+                      reservationId={reservationId}
+                      reservationRoomId={completion.reservationRoomId}
+                      kind="noshow"
+                      mode="result"
+                      settlement={completion.settlement}
+                      settlementError={completion.settlementError}
+                    />
+                  ) : null
+                ) : (
+                  <CancellationSettlementPanel
+                    restaurantId={restaurantId}
+                    reservationId={reservationId}
+                    reservationRoomId={reservationRoomId || null}
+                    kind="noshow"
+                    mode="preview"
+                  />
+                )}
+              </div>
             </SectionCard>
 
             <div className="grid gap-4">

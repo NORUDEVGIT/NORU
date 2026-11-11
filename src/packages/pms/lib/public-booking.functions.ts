@@ -15,6 +15,8 @@ import { signRoomImages } from "./rooms.server";
 import { parseSnapshot, rateError, toQuote, type StayQuote } from "./rates.server";
 import { nightsBetween, propertyToday } from "./reservation-dates";
 import { getRoomTypeAvailabilityCompat } from "./room-inventory-compat";
+import { computeCancellationPenalty } from "./reservation-cancel-workspace";
+import { publicCancelAllowed } from "./reservation-cancellation-settlement";
 
 const slugSchema = z
   .string()
@@ -376,6 +378,7 @@ const lookupSchema = z.object({
 const RESERVATION_PUBLIC_SELECT = `
   id, confirmation_number, status, arrival_date, departure_date, adults, children,
   special_requests, currency, room_subtotal, nightly_rate_snapshot, guest_id,
+  cancellation_policy_snapshot,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, email, phone ),
   room_types!hotel_reservations_type_same_property ( name ),
   hotel_rate_plans ( name )
@@ -394,6 +397,7 @@ type PublicRow = {
   room_subtotal: number | string | null;
   nightly_rate_snapshot: unknown;
   guest_id: string;
+  cancellation_policy_snapshot: unknown;
   guest_profiles: { first_name: string; last_name: string | null; email: string | null; phone: string | null } | null;
   room_types: { name: string } | null;
   hotel_rate_plans: { name: string } | null;
@@ -428,6 +432,22 @@ async function findBooking(
   return { property, row: typed };
 }
 
+const CANCEL_PENALTY_MESSAGE =
+  "A cancellation charge applies to this booking. Please contact the property to cancel.";
+
+function publicPenalty(property: StayProperty, row: PublicRow) {
+  const subtotal = row.room_subtotal === null || row.room_subtotal === undefined ? null : Number(row.room_subtotal);
+  return computeCancellationPenalty({
+    snapshot: row.cancellation_policy_snapshot,
+    arrivalDate: row.arrival_date,
+    timeZone: property.timezone,
+    now: new Date(),
+    roomSubtotal: Number.isFinite(subtotal) ? subtotal : null,
+    nightlyRates: parseSnapshot(row.nightly_rate_snapshot),
+    currency: row.currency ?? property.currency,
+  });
+}
+
 function toPublicDetail(property: StayProperty, row: PublicRow): PublicBookingDetail {
   const guest = row.guest_profiles;
   return {
@@ -447,7 +467,9 @@ function toPublicDetail(property: StayProperty, row: PublicRow): PublicBookingDe
     nightly: parseSnapshot(row.nightly_rate_snapshot),
     specialRequests: row.special_requests,
     canCancel:
-      ["pending", "confirmed"].includes(row.status) && row.arrival_date >= propertyToday(property.timezone),
+      ["pending", "confirmed"].includes(row.status) &&
+      row.arrival_date >= propertyToday(property.timezone) &&
+      publicCancelAllowed(publicPenalty(property, row)),
   };
 }
 
@@ -474,36 +496,29 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
       }
 
       const db = await admin();
-      const { error } = await db
-        .from("hotel_reservations")
-        .update({ status: "cancelled", cancellation_reason: "Cancelled by the guest online." })
-        .eq("id", found.row.id)
-        .eq("restaurant_id", found.property.id);
-      if (error) return { ok: false, message: "We couldn't cancel that booking. Please contact the property." };
+      const {
+        loadCancellationPenaltyQuote,
+        processReservationCancellation,
+        propertyLedgerMembershipId,
+      } = await import("./reservation-cancellation.server");
+      const penalty = await loadCancellationPenaltyQuote(db, found.property.id, found.row.id);
+      if (!publicCancelAllowed(penalty)) {
+        return { ok: false, message: CANCEL_PENALTY_MESSAGE };
+      }
 
-      const actor = await db
-        .from("restaurant_memberships")
-        .select("id")
-        .eq("restaurant_id", found.property.id)
-        .limit(1)
-        .maybeSingle();
-      const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
-      await resyncGroupBlockInventoryForReservation(
-        db,
-        (actor.data as { id?: string } | null)?.id ?? null,
-        found.property.id,
-        found.row.id,
-      );
-
-      await db.from("hotel_reservation_history").insert({
-        restaurant_id: found.property.id,
-        reservation_id: found.row.id,
-        event_type: "cancelled",
-        previous_values: { status: found.row.status } as never,
-        new_values: { status: "cancelled" } as never,
-        notes: "Cancelled by the guest through direct booking.",
-        actor_membership_id: null,
-      });
+      try {
+        await processReservationCancellation(db, {
+          restaurantId: found.property.id,
+          reservationId: found.row.id,
+          source: "public",
+          reason: "Cancelled by the guest online.",
+          actorMembershipId: null,
+          ledgerMembershipId: await propertyLedgerMembershipId(db, found.property.id),
+          historyNotes: "Cancelled by the guest through direct booking.",
+        });
+      } catch {
+        return { ok: false, message: "We couldn't cancel that booking. Please contact the property." };
+      }
 
       await logDistribution({
         restaurantId: found.property.id,

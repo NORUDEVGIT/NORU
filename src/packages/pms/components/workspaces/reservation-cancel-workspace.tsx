@@ -47,6 +47,8 @@ import {
   postCancelOrNoShowFee,
   waiveCancelOrNoShowFee,
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
+import { CancellationSettlementPanel } from "@/packages/pms/components/frontoffice/cancellation-settlement-panel";
+import type { CompleteCancelResult } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import {
   getBookingsAccess,
@@ -120,6 +122,7 @@ export function ReservationCancelWorkspace({
   const [reason, setReason] = useState(CANCEL_REASON_OPTIONS[0].value);
   const [notes, setNotes] = useState("");
   const [assignedBefore, setAssignedBefore] = useState<string | null>(null);
+  const [cancelResult, setCancelResult] = useState<CompleteCancelResult | null>(null);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -243,6 +246,7 @@ export function ReservationCancelWorkspace({
       feeIdempotencyKey.current = crypto.randomUUID();
       toast.success("Cancellation fee posted.");
       void cancelCtxQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["cancellation-settlement-preview"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -277,7 +281,8 @@ export function ReservationCancelWorkspace({
       submitCancel({
         data: { restaurantId, reservationId, reason: composedReason },
       }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
+      setCancelResult(result);
       await queryClient.invalidateQueries({
         queryKey: ["reservation", restaurantId, reservationId],
       });
@@ -396,8 +401,8 @@ export function ReservationCancelWorkspace({
         <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           <p className="font-semibold">Cancellation Completed</p>
           <p>
-            The reservation was cancelled with the existing Front Office cancel writer. Related
-            systems listed below are only those that writer actually performs.
+            The reservation was cancelled and its folio was settled. Room and package charges
+            that are no longer billable were reversed. Deposits and payments stay on the folio.
           </p>
         </div>
       ) : null}
@@ -544,6 +549,30 @@ export function ReservationCancelWorkspace({
                   Stored deposit requirement: {moneyFmt(deposit.amount)}. Not a refund posting.
                 </p>
               ) : null}
+              <div className="mt-3 border-t border-[#EEE7DC] pt-3">
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  {step === "complete" ? "Folio settlement" : "Folio after cancellation"}
+                </p>
+                {step === "complete" ? (
+                  cancelResult ? (
+                    <CancellationSettlementPanel
+                      restaurantId={restaurantId}
+                      reservationId={reservationId}
+                      kind="cancel"
+                      mode="result"
+                      settlement={cancelResult.settlement}
+                      settlementError={cancelResult.settlementError}
+                    />
+                  ) : null
+                ) : (
+                  <CancellationSettlementPanel
+                    restaurantId={restaurantId}
+                    reservationId={reservationId}
+                    kind="cancel"
+                    mode="preview"
+                  />
+                )}
+              </div>
             </SectionCard>
 
             <div className="grid gap-4">

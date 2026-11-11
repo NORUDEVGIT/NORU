@@ -1103,6 +1103,14 @@ export const markNoShow = createServerFn({ method: "POST" })
       _membership_id: me.id,
     });
     if (error) throw reservationError(error.message);
+    const { applySettlementAndRecord } = await import("./reservation-cancellation.server");
+    await applySettlementAndRecord(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      kind: "noshow",
+      ledgerMembershipId: me.id,
+      actorMembershipId: me.id,
+    });
     const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
     await resyncGroupBlockInventoryForReservation(
       supabaseAdmin,

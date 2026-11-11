@@ -104,11 +104,13 @@ export type GuestFolioFact = {
 };
 
 export type FinancialTransactionFact = {
+  id?: string;
   folioId: string;
   amount: number;
   postedAt: string;
   referenceType: string | null;
   referenceId: string | null;
+  originalTransactionId?: string | null;
   transactionType?: string;
   category?: string | null;
   paymentMethod?: string | null;

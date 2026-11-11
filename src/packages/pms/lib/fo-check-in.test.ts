@@ -165,9 +165,28 @@ describe("FO-FS1 deposit policy A", () => {
     );
 
     assert.equal(snapshotRequiredAmount({ computed_amount: 1500 }), 1500);
+    assert.equal(snapshotRequiredAmount({ computed_amount: 1500, required: true }), 1500);
     assert.equal(snapshotRequiredAmount({ computed_amount: 0 }), 0);
     assert.equal(snapshotRequiredAmount(null), null);
     assert.equal(snapshotRequiredAmount({}), null);
+    assert.equal(snapshotRequiredAmount({ computed_amount: 1500, required: false }), 0);
+
+    const optionalDeposit = projectCheckInDepositReadiness({
+      folioId: "folio-1",
+      folioNumber: "FL-000123",
+      folioStatus: "open",
+      currency: "GBP",
+      requiredAmount: snapshotRequiredAmount({ computed_amount: 1500, required: false }),
+      lines: [],
+      waived: false,
+      guaranteeMethod: null,
+      companyMasterId: null,
+      groupAccountMasterId: null,
+    });
+    assert.equal(optionalDeposit.requiredAmount, 0);
+    assert.equal(optionalDeposit.receivedAmount, 0);
+    assert.equal(optionalDeposit.outstanding, 0);
+    assert.equal(optionalDeposit.satisfied, true);
 
     const fns = readFileSync(new URL("./fo-check-in.functions.ts", import.meta.url), "utf8");
     assert.match(fns, /\.in\("transaction_type", \["deposit", "refund"\]\)/);
