@@ -14,6 +14,7 @@ import {
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
 import { TA_COMMISSION_PLAN_TYPES } from "./guest-travel-agent-detail-workspace.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import { validateCompanyPhone } from "./guest-company-create-workspace.ts";
 import {
   ALL_TRAVEL_AGENCY_CREATION_FIELDS,
   isTravelAgencyFieldCode,
@@ -139,6 +140,61 @@ export function nextAgencyCode(typeCode: string, usedCodes: Iterable<string> = [
     candidate = generateAgencyCode(prefix, seq);
   }
   return candidate;
+}
+
+export type TravelAgentIdentityFields = {
+  id?: string | null;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  taxId?: string | null;
+  registrationNumber?: string | null;
+  iataLicenseNumber?: string | null;
+};
+
+function identityText(value: string | null | undefined): string | null {
+  const next = (value ?? "").trim().toLowerCase();
+  return next || null;
+}
+
+function identityPhone(value: string | null | undefined): string | null {
+  const next = (value ?? "").replace(/\D/g, "");
+  return next || null;
+}
+
+/** Blocks a second travel agency at the same property with the same identity. */
+export function travelAgentDuplicateMessage(
+  incoming: TravelAgentIdentityFields,
+  existing: TravelAgentIdentityFields[],
+): string | null {
+  const name = identityText(incoming.name);
+  const email = identityText(incoming.email);
+  const phone = identityPhone(incoming.phone);
+  const taxId = identityText(incoming.taxId);
+  const registration = identityText(incoming.registrationNumber);
+  const iata = identityText(incoming.iataLicenseNumber);
+  const others = existing.filter((row) => !incoming.id || row.id !== incoming.id);
+  if (name && others.some((row) => identityText(row.name) === name)) {
+    return `A travel agency named "${incoming.name.trim()}" already exists.`;
+  }
+  for (const row of others) {
+    if (iata && identityText(row.iataLicenseNumber) === iata) {
+      return "A travel agency already exists with the same IATA / license number.";
+    }
+    if (taxId && identityText(row.taxId) === taxId) {
+      return "A travel agency already exists with the same tax ID.";
+    }
+    if (registration && identityText(row.registrationNumber) === registration) {
+      return "A travel agency already exists with the same registration number.";
+    }
+    if (email && identityText(row.email) === email) {
+      return "A travel agency already exists with the same email.";
+    }
+    if (phone && identityPhone(row.phone) === phone) {
+      return "A travel agency already exists with the same phone number.";
+    }
+  }
+  return null;
 }
 
 export type TravelAgencyDraftDocument = {
@@ -949,6 +1005,12 @@ export function travelAgentCreateFieldIssues(
       issues.push({ key: "contacts", message: "Enter a valid contact email.", step: "contacts" });
     }
   }
+  for (const contact of draft.contacts) {
+    const phoneErr = validateCompanyPhone(contact.phone);
+    if (phoneErr) issues.push({ key: "contactPhone", message: phoneErr, step: "contacts" });
+    const whatsappErr = validateCompanyPhone(contact.whatsapp);
+    if (whatsappErr) issues.push({ key: "contactWhatsapp", message: whatsappErr, step: "contacts" });
+  }
   const dateError = contractDateError(draft.contractStartDate, draft.contractEndDate);
   if (dateError) {
     issues.push({ key: "contractStartDate", message: dateError, step: "booking_operations" });
@@ -962,9 +1024,6 @@ export function travelAgentCreateFieldIssues(
   }
   if (filled(draft.paymentMethodId) && options?.paymentMethodIds && !options.paymentMethodIds.includes(draft.paymentMethodId)) {
     issues.push({ key: "paymentMethodId", message: "Select a configured payment method.", step: "review" });
-  }
-  if (filled(draft.currency) && options?.currencyCodes?.length && !options.currencyCodes.includes(draft.currency)) {
-    issues.push({ key: "currency", message: "Select a configured currency.", step: "review" });
   }
   if (filled(draft.billingEmail) && !validEmail(draft.billingEmail)) {
     issues.push({ key: "billingEmail", message: "Enter a valid billing email.", step: "review" });
@@ -1023,8 +1082,14 @@ export function travelAgentCreateFieldIssues(
   }
 
   // Step 4 Issues: Payment, Credit & Reservation Rules
-  if (!filled(draft.billingCurrencyCode) && !filled(draft.currency)) {
+  const billingCurrency = (draft.billingCurrencyCode || draft.currency || "").trim();
+  if (!filled(billingCurrency)) {
     issues.push({ key: "billingCurrencyCode", message: "Billing currency is required.", step: "payment_rules" });
+  } else if (
+    options?.currencyCodes?.length &&
+    !options.currencyCodes.some((code) => code.toUpperCase() === billingCurrency.toUpperCase())
+  ) {
+    issues.push({ key: "billingCurrencyCode", message: "Select a configured currency.", step: "payment_rules" });
   }
 
   const validTimings = ["due_on_arrival", "due_on_departure", "prepaid", "credit_terms"];

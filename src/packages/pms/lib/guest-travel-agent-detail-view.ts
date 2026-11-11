@@ -7,7 +7,8 @@ export const TRAVEL_AGENT_DETAIL_CANONICAL_VIEWS = [
   // Primary Tabs
   { id: "overview", label: "Overview", group: "primary" },
   { id: "details", label: "Agency Details", group: "primary" },
-  { id: "contacts-travelers", label: "Contacts & Travelers", group: "primary" },
+  { id: "contacts", label: "Agency Contacts", group: "primary" },
+  { id: "travelers", label: "Linked Travelers", group: "primary" },
   { id: "bookings", label: "Bookings", group: "primary" },
   { id: "commercial-commission", label: "Commercial & Commission", group: "primary" },
   // More Dropdown Items
@@ -34,8 +35,9 @@ export type TravelAgentSettingsSubTab = "booking-rules" | "allotments" | "notifi
 /**
  * Resolves any raw nav parameter (including legacy bookmarked URLs) to a canonical view ID.
  * Maps:
- * - "contacts" -> "contacts-travelers"
- * - "travelers" -> "contacts-travelers"
+ * - "contacts" -> "contacts"
+ * - "travelers" -> "travelers"
+ * - "contacts-travelers" -> "contacts"
  * - "commission" -> "commercial-commission"
  * - "payment" / "billing" / "payment-invoices" -> "commercial-commission"
  * - "bookings" / "reservations" -> "bookings"
@@ -58,10 +60,11 @@ export function resolveCanonicalTravelAgentNavId(
     case "details":
     case "agency-details":
       return "details";
-    case "contacts-travelers":
     case "contacts":
+    case "contacts-travelers":
+      return "contacts";
     case "travelers":
-      return "contacts-travelers";
+      return "travelers";
     case "bookings":
     case "reservations":
       return "bookings";

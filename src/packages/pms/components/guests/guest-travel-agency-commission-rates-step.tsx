@@ -1,4 +1,4 @@
-import { useState, useMemo, type ReactNode } from "react";
+import { useEffect, useState, useMemo, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -92,6 +92,16 @@ export function GuestTravelAgencyCommissionRatesStep({
   const rateCategories = config?.rateCategories ?? [];
   const currencies = config?.currencies ?? [];
   const baseCurrency = config?.baseCurrency ?? "ETB";
+
+  const today = new Date().toISOString().slice(0, 10);
+  useEffect(() => {
+    if (draft.commercialModel === "commissionable" && !draft.commissionEffectiveOn) {
+      set("commissionEffectiveOn", today);
+    }
+    if (draft.commercialModel === "net_rate" && !draft.netValidFrom) {
+      set("netValidFrom", today);
+    }
+  }, [draft.commercialModel, draft.commissionEffectiveOn, draft.netValidFrom, set, today]);
 
   const activeCurrency = draft.commissionCurrency || draft.netCurrencyCode || baseCurrency;
   const isCommissionable = draft.commercialModel === "commissionable" && draft.commissionEnabled !== false;
@@ -242,7 +252,7 @@ export function GuestTravelAgencyCommissionRatesStep({
                 <Input
                   type="date"
                   data-testid="commission-effective-on"
-                  value={draft.commissionEffectiveOn || new Date().toISOString().slice(0, 10)}
+                  value={draft.commissionEffectiveOn || today}
                   onChange={(e) => set("commissionEffectiveOn", e.target.value)}
                   className={CONTROL_CLASS}
                 />
@@ -908,7 +918,7 @@ export function GuestTravelAgencyCommissionRatesStep({
             >
               <Input
                 type="date"
-                value={draft.netValidFrom || new Date().toISOString().slice(0, 10)}
+                value={draft.netValidFrom || today}
                 onChange={(e) => set("netValidFrom", e.target.value)}
                 className={CONTROL_CLASS}
               />

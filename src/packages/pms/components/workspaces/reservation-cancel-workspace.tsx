@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -42,7 +42,9 @@ import {
 } from "@/packages/pms/lib/fo-cancel-noshow";
 import {
   completeFoCancel,
+  ensureCancelNoShowFolio,
   getCancelNoShowContext,
+  postCancelOrNoShowFee,
   waiveCancelOrNoShowFee,
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
@@ -110,6 +112,9 @@ export function ReservationCancelWorkspace({
   const fetchCancelCtx = useServerFn(getCancelNoShowContext);
   const submitCancel = useServerFn(completeFoCancel);
   const submitWaive = useServerFn(waiveCancelOrNoShowFee);
+  const submitEnsureFolio = useServerFn(ensureCancelNoShowFolio);
+  const submitFee = useServerFn(postCancelOrNoShowFee);
+  const feeIdempotencyKey = useRef(crypto.randomUUID());
 
   const [step, setStep] = useState<CancelReservationStepId>("details");
   const [reason, setReason] = useState(CANCEL_REASON_OPTIONS[0].value);
@@ -220,6 +225,35 @@ export function ReservationCancelWorkspace({
       waived,
     }),
   );
+
+  const postFee = useMutation({
+    mutationFn: () => {
+      const amount = ctx?.policy.defaultAmount ?? 0;
+      return submitFee({
+        data: {
+          restaurantId,
+          reservationId,
+          kind: "cancel",
+          amount,
+          idempotencyKey: feeIdempotencyKey.current,
+        },
+      });
+    },
+    onSuccess: () => {
+      feeIdempotencyKey.current = crypto.randomUUID();
+      toast.success("Cancellation fee posted.");
+      void cancelCtxQuery.refetch();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const ensureFolio = useMutation({
+    mutationFn: () => submitEnsureFolio({ data: { restaurantId, reservationId } }),
+    onSuccess: () => {
+      void cancelCtxQuery.refetch();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const waive = useMutation({
     mutationFn: () =>
@@ -465,10 +499,12 @@ export function ReservationCancelWorkspace({
                 >
                   {policy.outcomeLabel}.
                   {policy.outcome === "within_free"
-                    ? " No cancellation fee is derived from this policy snapshot."
-                    : policy.outcome === "penalty_applies"
-                      ? " A penalty rule may apply; this screen does not calculate a fee."
-                      : ""}
+                    ? " No cancellation fee is charged."
+                    : feeRequired && (ctx?.policy.defaultAmount ?? 0) > 0
+                      ? ` Folio charge: ${moneyFmt(ctx?.policy.defaultAmount ?? 0)}.`
+                      : policy.outcome === "penalty_applies"
+                        ? " This policy does not add a cancellation charge."
+                        : ""}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Penalty rule: {policy.penaltyRule}
@@ -645,18 +681,46 @@ export function ReservationCancelWorkspace({
               {feeRequired && !posted && !waived ? (
                 <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   <p>{FEE_REQUIRED_BANNER}</p>
-                  {ctx?.canWaive ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      disabled={waive.isPending}
-                      onClick={() => waive.mutate()}
-                    >
-                      Waive cancel fee
-                    </Button>
+                  {(ctx?.policy.defaultAmount ?? 0) > 0 ? (
+                    <p className="mt-1 text-xs">
+                      Frozen policy amount: {moneyFmt(ctx?.policy.defaultAmount ?? 0)}
+                    </p>
                   ) : null}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {!ctx?.folio.folioId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={ensureFolio.isPending}
+                        onClick={() => ensureFolio.mutate()}
+                      >
+                        Open Folio
+                      </Button>
+                    ) : null}
+                    {ctx?.folio.status === "open" && (ctx.policy.defaultAmount ?? 0) > 0 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={postFee.isPending}
+                        onClick={() => postFee.mutate()}
+                      >
+                        Post Cancellation Fee
+                      </Button>
+                    ) : null}
+                    {ctx?.canWaive ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={waive.isPending}
+                        onClick={() => waive.mutate()}
+                      >
+                        Waive cancel fee
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </SectionCard>

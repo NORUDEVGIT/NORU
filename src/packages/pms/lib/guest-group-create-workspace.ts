@@ -6,6 +6,7 @@
 
 import { validateGroupDates, type GroupMemberStatus } from "./guest-group-detail-workspace.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import { validateCompanyPhone } from "./guest-company-create-workspace.ts";
 
 function nightsBetweenLocal(arrival: string, departure: string): number {
   const start = Date.parse(`${arrival}T00:00:00Z`);
@@ -483,6 +484,17 @@ export function groupCreateFieldIssues(
     if (!member.guestId && !filled(member.firstName) && !filled(member.guestName)) {
       issues.push({ key: "members", message: "Each staged member needs a guest profile or a first name.", step: "guests" });
       break;
+    }
+  }
+  const contactPhoneError = validateCompanyPhone(draft.contactPhone);
+  if (contactPhoneError) {
+    issues.push({ key: "contactPhone", message: contactPhoneError, step: "details" });
+  }
+  for (const member of draft.members) {
+    if (member.guestId) continue;
+    const memberPhoneError = validateCompanyPhone(member.phone);
+    if (memberPhoneError) {
+      issues.push({ key: "members", message: memberPhoneError, step: "guests" });
     }
   }
   if (!filled(draft.billingArrangement)) {

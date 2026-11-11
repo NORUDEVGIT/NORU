@@ -12,7 +12,6 @@ import {
   isPrimaryTravelAgentView,
   resolveCanonicalTravelAgentNavId,
   resolveInitialTravelAgentCommercialSubTab,
-  resolveInitialTravelAgentContactsTravelersSubTab,
   resolveInitialTravelAgentSettingsSubTab,
   type CanonicalTravelAgentViewId,
 } from "./guest-travel-agent-detail-view.ts";
@@ -42,12 +41,13 @@ function readRel(rel: string) {
 // SECTION 1: CANONICAL VIEW REGISTRY & NAVIGATION TOPOLOGY
 // ===========================================================================
 describe("Phase 6: Travel Agent Detail View Registry & Navigation Topology", () => {
-  it("defines exactly 5 canonical primary views", () => {
-    assert.equal(TRAVEL_AGENT_DETAIL_PRIMARY_TABS.length, 5);
+  it("defines exactly 6 canonical primary views", () => {
+    assert.equal(TRAVEL_AGENT_DETAIL_PRIMARY_TABS.length, 6);
     const expected: CanonicalTravelAgentViewId[] = [
       "overview",
       "details",
-      "contacts-travelers",
+      "contacts",
+      "travelers",
       "bookings",
       "commercial-commission",
     ];
@@ -72,11 +72,11 @@ describe("Phase 6: Travel Agent Detail View Registry & Navigation Topology", () 
     );
   });
 
-  it("partitions canonical views into primary and more without overlap (10 total)", () => {
-    assert.equal(TRAVEL_AGENT_DETAIL_CANONICAL_VIEWS.length, 10);
+  it("partitions canonical views into primary and more without overlap (11 total)", () => {
+    assert.equal(TRAVEL_AGENT_DETAIL_CANONICAL_VIEWS.length, 11);
     const ids = TRAVEL_AGENT_DETAIL_CANONICAL_VIEWS.map((v) => v.id);
     const uniqueIds = new Set(ids);
-    assert.equal(uniqueIds.size, 10);
+    assert.equal(uniqueIds.size, 11);
   });
 
   it("correctly identifies items belonging to the More dropdown", () => {
@@ -94,7 +94,8 @@ describe("Phase 6: Travel Agent Detail View Registry & Navigation Topology", () 
     const labels = TRAVEL_AGENT_DETAIL_CANONICAL_VIEWS.map((v) => v.label);
     assert.ok(labels.includes("Overview"));
     assert.ok(labels.includes("Agency Details"));
-    assert.ok(labels.includes("Contacts & Travelers"));
+    assert.ok(labels.includes("Agency Contacts"));
+    assert.ok(labels.includes("Linked Travelers"));
     assert.ok(labels.includes("Bookings"));
     assert.ok(labels.includes("Commercial & Commission"));
     assert.ok(labels.includes("Agreements"));
@@ -112,7 +113,8 @@ describe("Phase 6: Backward-Compatible URL and Alias Resolution", () => {
   it("resolves primary canonical IDs directly", () => {
     assert.equal(resolveCanonicalTravelAgentNavId("overview"), "overview");
     assert.equal(resolveCanonicalTravelAgentNavId("details"), "details");
-    assert.equal(resolveCanonicalTravelAgentNavId("contacts-travelers"), "contacts-travelers");
+    assert.equal(resolveCanonicalTravelAgentNavId("contacts"), "contacts");
+    assert.equal(resolveCanonicalTravelAgentNavId("travelers"), "travelers");
     assert.equal(resolveCanonicalTravelAgentNavId("bookings"), "bookings");
     assert.equal(resolveCanonicalTravelAgentNavId("commercial-commission"), "commercial-commission");
   });
@@ -125,12 +127,10 @@ describe("Phase 6: Backward-Compatible URL and Alias Resolution", () => {
     assert.equal(resolveCanonicalTravelAgentNavId("settings"), "settings");
   });
 
-  it("maps legacy contacts and travelers to contacts-travelers", () => {
-    assert.equal(resolveCanonicalTravelAgentNavId("contacts"), "contacts-travelers");
-    assert.equal(resolveCanonicalTravelAgentNavId("travelers"), "contacts-travelers");
-    assert.equal(resolveInitialTravelAgentContactsTravelersSubTab("contacts"), "contacts");
-    assert.equal(resolveInitialTravelAgentContactsTravelersSubTab("travelers"), "travelers");
-    assert.equal(resolveInitialTravelAgentContactsTravelersSubTab(undefined), "contacts");
+  it("keeps agency contacts and linked travelers as separate tabs", () => {
+    assert.equal(resolveCanonicalTravelAgentNavId("contacts"), "contacts");
+    assert.equal(resolveCanonicalTravelAgentNavId("travelers"), "travelers");
+    assert.equal(resolveCanonicalTravelAgentNavId("contacts-travelers"), "contacts");
   });
 
   it("maps legacy commission and payment to commercial-commission", () => {
@@ -478,11 +478,12 @@ describe("Phase 6: Agency Settings Ownership (Amendment 7)", () => {
 // SECTION 10: ARCHITECTURAL INVARIANTS & NON-REGRESSION
 // ===========================================================================
 describe("Phase 6: Architectural Invariants & Non-Regression (Amendment 1)", () => {
-  it("verifies all 10 canonical view components exist and export their respective views", () => {
+  it("verifies all 11 canonical view components exist and export their respective views", () => {
     const components = [
       "guest-travel-agent-overview-view.tsx",
       "guest-travel-agent-details-view.tsx",
-      "guest-travel-agent-contacts-travelers-view.tsx",
+      "guest-travel-agent-contacts.tsx",
+      "guest-travel-agent-travelers.tsx",
       "guest-travel-agent-bookings.tsx",
       "guest-travel-agent-commercial-commission-view.tsx",
       "guest-travel-agent-agreements.tsx",

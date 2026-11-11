@@ -32,6 +32,7 @@ export const TRAVEL_AGENT_DETAIL_NAV = [
 export type TravelAgentDetailNavId =
   | (typeof TRAVEL_AGENT_DETAIL_NAV)[number]["id"]
   | "details"
+  | "travelers"
   | "contacts-travelers"
   | "commercial-commission"
   | "communication-notes"

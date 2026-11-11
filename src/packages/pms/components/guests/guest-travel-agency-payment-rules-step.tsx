@@ -50,10 +50,10 @@ import type {
 } from "@/packages/pms/lib/guest-travel-agency-step4.server";
 
 const MODAL_CONTROL_CLASS =
-  "h-9 rounded-[6px] border border-[#CCCCCC] bg-white text-xs text-[#251605] placeholder:text-[#999999] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none";
+  "h-10 w-full rounded-none border-[#CCCCCC] bg-white text-xs text-[#251605] placeholder:text-[#A0988A] shadow-none focus-visible:border-[#8A641A] focus-visible:ring-[#8A641A]";
 
 const MODAL_SELECT_TRIGGER_CLASS =
-  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none";
+  "h-10 w-full rounded-none border-[#CCCCCC] bg-white text-xs text-[#251605] shadow-none focus:border-[#8A641A] focus:ring-[#8A641A]";
 
 const PRESET_DAYS = [7, 15, 30, 45, 60, 90] as const;
 const CREDIT_DAYS_PRESETS = PRESET_DAYS;
@@ -122,6 +122,10 @@ export function GuestTravelAgencyPaymentRulesStep({
     if (!config?.billingRules || !draft.defaultBillingRuleId) return null;
     return config.billingRules.find((r) => r.id === draft.defaultBillingRuleId) ?? null;
   }, [config?.billingRules, draft.defaultBillingRuleId]);
+  const selectedDeposit = config?.depositPolicies.find((policy) => policy.id === draft.defaultDepositPolicyId) ?? null;
+  const selectedCancellation =
+    config?.cancellationPolicies.find((policy) => policy.id === draft.defaultCancellationPolicyId) ?? null;
+  const selectedNoShow = config?.noShowPolicies.find((policy) => policy.id === draft.defaultNoShowPolicyId) ?? null;
 
   const isCustomOtherRule = selectedRule?.systemCode === "custom_other";
 
@@ -223,26 +227,30 @@ export function GuestTravelAgencyPaymentRulesStep({
             <Label htmlFor="ta-billing-currency" className="text-xs font-medium text-[#251605]">
               Billing Currency {isRuleRequired ? (isRuleRequired("TA_BILLING_CURRENCY") ? <span className="text-destructive">*</span> : null) : <span className="text-destructive">*</span>}
             </Label>
-            <select
-              id="ta-billing-currency"
+            <Select
               value={draft.billingCurrencyCode || draft.currency || config?.baseCurrency || "ETB"}
-              onChange={(e) => {
-                const val = e.target.value;
+              onValueChange={(val) => {
                 set("billingCurrencyCode", val);
                 set("currency", val);
               }}
-              className={MODAL_SELECT_TRIGGER_CLASS}
             >
-              {config?.currencies && config.currencies.length > 0 ? (
-                config.currencies.map((c) => (
-                  <option key={c.code} value={c.code}>
+              <SelectTrigger
+                id="ta-billing-currency"
+                className={cn(MODAL_SELECT_TRIGGER_CLASS, fieldError("billingCurrencyCode") && "border-destructive")}
+              >
+                <SelectValue placeholder="Select currency…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(config?.currencies && config.currencies.length > 0
+                  ? config.currencies
+                  : [{ code: "ETB", isBase: true }]
+                ).map((c) => (
+                  <SelectItem key={c.code} value={c.code} className="text-xs">
                     {c.code} {c.isBase ? "(Base Property Currency)" : ""}
-                  </option>
-                ))
-              ) : (
-                <option value="ETB">ETB (Base Property Currency)</option>
-              )}
-            </select>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {fieldError("billingCurrencyCode") && (
               <p className="text-xs text-destructive">{fieldError("billingCurrencyCode")}</p>
             )}
@@ -256,23 +264,31 @@ export function GuestTravelAgencyPaymentRulesStep({
             <Label htmlFor="ta-settlement-method" className="text-xs font-medium text-[#251605]">
               Preferred Settlement Method {isRuleRequired?.("TA_PAYMENT_METHOD") && <span className="text-destructive">*</span>}
             </Label>
-            <select
-              id="ta-settlement-method"
-              value={draft.defaultPaymentMethodId || draft.paymentMethodId || ""}
-              onChange={(e) => {
-                const val = e.target.value || null;
-                set("defaultPaymentMethodId", val);
-                set("paymentMethodId", val || "");
+            <Select
+              value={draft.defaultPaymentMethodId || draft.paymentMethodId || "none"}
+              onValueChange={(val) => {
+                const next = val === "none" ? null : val;
+                set("defaultPaymentMethodId", next);
+                set("paymentMethodId", next || "");
               }}
-              className={MODAL_SELECT_TRIGGER_CLASS}
             >
-              <option value="">No preference</option>
-              {(config?.paymentMethods ?? []).map((method) => (
-                <option key={method.id} value={method.id}>
-                  {method.name} ({method.code})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                id="ta-settlement-method"
+                className={cn(MODAL_SELECT_TRIGGER_CLASS, fieldError("defaultPaymentMethodId") && "border-destructive")}
+              >
+                <SelectValue placeholder="No preference" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none" className="text-xs">
+                  No preference
+                </SelectItem>
+                {(config?.paymentMethods ?? []).map((method) => (
+                  <SelectItem key={method.id} value={method.id} className="text-xs">
+                    {method.name} ({method.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {fieldError("defaultPaymentMethodId") && (
               <p className="text-xs text-destructive">{fieldError("defaultPaymentMethodId")}</p>
             )}
@@ -286,13 +302,12 @@ export function GuestTravelAgencyPaymentRulesStep({
             <Label htmlFor="ta-payment-timing" className="text-xs font-medium text-[#251605]">
               Payment Timing {isRuleRequired ? (isRuleRequired("TA_PAYMENT_TIMING") ? <span className="text-destructive">*</span> : null) : <span className="text-destructive">*</span>}
             </Label>
-            <select
-              id="ta-payment-timing"
+            <Select
               value={draft.paymentTiming || "due_on_departure"}
-              onChange={(e) => {
-                const val = e.target.value as GuestTravelAgentCreateDraft["paymentTiming"];
-                set("paymentTiming", val);
-                if (val === "credit_terms") {
+              onValueChange={(val) => {
+                const timing = val as GuestTravelAgentCreateDraft["paymentTiming"];
+                set("paymentTiming", timing);
+                if (timing === "credit_terms") {
                   if (!draft.allowCredit) {
                     set("allowCredit", true);
                     toast.info("Credit arrangement enabled for Credit Terms.");
@@ -302,13 +317,28 @@ export function GuestTravelAgencyPaymentRulesStep({
                   }
                 }
               }}
-              className={MODAL_SELECT_TRIGGER_CLASS}
             >
-              <option value="due_on_arrival">Due on Arrival</option>
-              <option value="due_on_departure">Due on Departure</option>
-              <option value="prepaid">Prepaid / Advance Deposit</option>
-              <option value="credit_terms">Credit Terms</option>
-            </select>
+              <SelectTrigger
+                id="ta-payment-timing"
+                className={cn(MODAL_SELECT_TRIGGER_CLASS, fieldError("paymentTiming") && "border-destructive")}
+              >
+                <SelectValue placeholder="Select timing…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="due_on_arrival" className="text-xs">
+                  Due on Arrival
+                </SelectItem>
+                <SelectItem value="due_on_departure" className="text-xs">
+                  Due on Departure
+                </SelectItem>
+                <SelectItem value="prepaid" className="text-xs">
+                  Prepaid / Advance Deposit
+                </SelectItem>
+                <SelectItem value="credit_terms" className="text-xs">
+                  Credit Terms
+                </SelectItem>
+              </SelectContent>
+            </Select>
             {fieldError("paymentTiming") && (
               <p className="text-xs text-destructive">{fieldError("paymentTiming")}</p>
             )}
@@ -323,13 +353,13 @@ export function GuestTravelAgencyPaymentRulesStep({
               Default Billing Rule {isRuleRequired ? (isRuleRequired("TA_BILLING_RULE") ? <span className="text-destructive">*</span> : null) : <span className="text-destructive">*</span>}
             </Label>
             <Select
-              value={draft.defaultBillingRuleId ?? ""}
-              onValueChange={(val) => set("defaultBillingRuleId", val || null)}
+              value={draft.defaultBillingRuleId || "none"}
+              onValueChange={(val) => set("defaultBillingRuleId", val === "none" ? null : val)}
             >
               <SelectTrigger
                 id="ta-billing-rule"
                 className={cn(
-                  "h-9 rounded-[6px] border border-[#CCCCCC] bg-white text-xs text-[#251605] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none",
+                  MODAL_SELECT_TRIGGER_CLASS,
                   fieldError("defaultBillingRuleId") && "border-destructive",
                 )}
                 data-testid="default-billing-rule-select"
@@ -337,6 +367,9 @@ export function GuestTravelAgencyPaymentRulesStep({
                 <SelectValue placeholder="Select billing rule…" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none" className="text-xs">
+                  Select billing rule…
+                </SelectItem>
                 {(config?.billingRules ?? []).map((rule) => (
                   <SelectItem key={rule.id} value={rule.id} className="text-xs">
                     <span className="font-medium text-[#251605]">{rule.name}</span>
@@ -361,7 +394,7 @@ export function GuestTravelAgencyPaymentRulesStep({
               rows={3}
               value={draft.billingInstruction}
               onChange={(e) => set("billingInstruction", e.target.value)}
-              className="rounded-[6px] border border-[#CCCCCC] text-xs focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]"
+              className={MODAL_CONTROL_CLASS}
               placeholder="Specify special billing routing instructions or account arrangements..."
             />
             {fieldError("billingInstruction") && (
@@ -430,10 +463,7 @@ export function GuestTravelAgencyPaymentRulesStep({
                 step="0.01"
                 value={draft.creditLimitAmount ?? ""}
                 onChange={(e) => set("creditLimitAmount", e.target.value)}
-                className={cn(
-                  "h-9 rounded-[6px] border border-[#CCCCCC] bg-white text-xs text-[#251605] placeholder:text-[#999999] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none",
-                  fieldError("creditLimitAmount") && "border-destructive",
-                )}
+                className={cn(MODAL_CONTROL_CLASS, fieldError("creditLimitAmount") && "border-destructive")}
                 placeholder="0.00"
                 data-testid="credit-limit-input"
               />
@@ -470,7 +500,8 @@ export function GuestTravelAgencyPaymentRulesStep({
                   >
                     <SelectTrigger
                       className={cn(
-                        "h-9 rounded-[6px] border border-[#CCCCCC] bg-white flex-1 text-xs text-[#251605] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none",
+                        MODAL_SELECT_TRIGGER_CLASS,
+                        "flex-1",
                         fieldError("creditDays") && "border-destructive",
                       )}
                       data-testid="credit-days-select"
@@ -502,7 +533,8 @@ export function GuestTravelAgencyPaymentRulesStep({
                       set("creditDaysPreset", "custom");
                     }}
                     className={cn(
-                      "h-9 rounded-[6px] border border-[#CCCCCC] bg-white flex-1 text-xs text-[#251605] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none",
+                      MODAL_CONTROL_CLASS,
+                      "flex-1",
                       fieldError("creditDays") && "border-destructive",
                     )}
                     placeholder="Enter days (e.g. 40)"
@@ -539,7 +571,7 @@ export function GuestTravelAgencyPaymentRulesStep({
               >
                 <SelectTrigger
                   className={cn(
-                    "h-9 rounded-[6px] border border-[#CCCCCC] bg-white text-xs text-[#251605] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none",
+                    MODAL_SELECT_TRIGGER_CLASS,
                     fieldError("creditStatus") && "border-destructive",
                   )}
                   data-testid="credit-status-select"
@@ -574,102 +606,144 @@ export function GuestTravelAgencyPaymentRulesStep({
       </section>
 
       {/* SECTION 3: Reservation Rules */}
-      <section className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-        <div className="border-b border-[#EDE6D8] pb-3">
+      <section className="space-y-4 rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm">
+        <div className="border-b border-[#E8E4DC] pb-3">
           <div className="flex items-center gap-2">
             <Building2 className="size-4 text-[#8A641A]" />
-            <h2 className="text-sm font-semibold text-[#251605]">Reservation Rules</h2>
+            <h2 className="font-display text-base font-semibold text-[#251605]">Reservation Rules</h2>
           </div>
-          <p className="text-xs text-[#756A5B] mt-0.5">
-            Deposit and no-show policies are loaded from Payments &amp; Deposits. Cancellation
-            policies are loaded from Rate &amp; Pricing.
+          <p className="mt-0.5 text-xs text-[#756A5B]">
+            Deposit and no-show policies come from Payments &amp; Deposits. Cancellation policies come from Rate &amp; Pricing.
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          {/* 1. Guarantee / Deposit Policy */}
-          <div className="space-y-1">
-            <Label htmlFor="ta-guarantee-policy" className="text-xs font-medium text-[#251605]">
+          <div className="space-y-1.5">
+            <Label htmlFor="ta-guarantee-policy" className="text-xs font-semibold text-[#251605]">
               Default Guarantee Policy {isRuleRequired?.("TA_DEPOSIT_POLICY") && <span className="text-destructive">*</span>}
             </Label>
-            <select
-              id="ta-guarantee-policy"
-              value={draft.defaultDepositPolicyId || ""}
-              onChange={(e) => set("defaultDepositPolicyId", e.target.value || null)}
-              className={MODAL_SELECT_TRIGGER_CLASS}
+            <Select
+              value={draft.defaultDepositPolicyId || "none"}
+              onValueChange={(val) => set("defaultDepositPolicyId", val === "none" ? null : val)}
             >
-              <option value="">Property Default Policy</option>
-              {(config?.depositPolicies ?? []).map((policy) => (
-                <option key={policy.id} value={policy.id}>
-                  {policy.name} ({policy.depositType === "first_night" ? "First Night" : `${policy.depositValue}${policy.depositType === "percent" ? "%" : ""}`})
-                </option>
-              ))}
-            </select>
-            {fieldError("defaultDepositPolicyId") && (
-              <p className="text-xs text-destructive">{fieldError("defaultDepositPolicyId")}</p>
+              <SelectTrigger
+                id="ta-guarantee-policy"
+                className={cn(MODAL_SELECT_TRIGGER_CLASS, fieldError("defaultDepositPolicyId") && "border-destructive")}
+              >
+                <SelectValue placeholder="Select guarantee policy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none" className="text-xs">
+                  Property Default Policy
+                </SelectItem>
+                {(config?.depositPolicies ?? []).map((policy) => (
+                  <SelectItem key={policy.id} value={policy.id} className="text-xs">
+                    {policy.name}
+                    {policy.isDefault ? " (Default)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldError("defaultDepositPolicyId") ? (
+              <p className="text-[11px] text-destructive">{fieldError("defaultDepositPolicyId")}</p>
+            ) : (
+              <p className="text-[11px] text-[#756A5B]">Deposit requirement applied to agency reservations.</p>
             )}
-            <p className="text-[11px] text-[#756A5B]">
-              Deposit requirement applied to agency reservations.
-            </p>
+            {selectedDeposit ? (
+              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+                {selectedDeposit.depositType === "none"
+                  ? "No deposit required."
+                  : selectedDeposit.depositType === "first_night"
+                    ? "First-night deposit required to guarantee booking."
+                    : selectedDeposit.depositType === "percent"
+                      ? `${selectedDeposit.depositValue}% deposit required to guarantee booking.`
+                      : `Fixed deposit of ${selectedDeposit.depositValue} required.`}
+              </div>
+            ) : null}
           </div>
 
-          {/* 2. Cancellation Policy */}
-          <div className="space-y-1">
-            <Label htmlFor="ta-cancel-policy" className="text-xs font-medium text-[#251605]">
+          <div className="space-y-1.5">
+            <Label htmlFor="ta-cancel-policy" className="text-xs font-semibold text-[#251605]">
               Default Cancellation Policy {isRuleRequired?.("TA_CANCELLATION_POLICY") && <span className="text-destructive">*</span>}
             </Label>
-            <select
-              id="ta-cancel-policy"
-              value={draft.defaultCancellationPolicyId || ""}
-              onChange={(e) => set("defaultCancellationPolicyId", e.target.value || null)}
-              className={MODAL_SELECT_TRIGGER_CLASS}
+            <Select
+              value={draft.defaultCancellationPolicyId || "none"}
+              onValueChange={(val) => set("defaultCancellationPolicyId", val === "none" ? null : val)}
             >
-              <option value="">Property Default Policy</option>
-              {(config?.cancellationPolicies ?? []).map((policy) => (
-                <option key={policy.id} value={policy.id}>
-                  {policy.name} ({policy.cutoffHours}h cutoff)
-                </option>
-              ))}
-            </select>
-            {fieldError("defaultCancellationPolicyId") && (
-              <p className="text-xs text-destructive">{fieldError("defaultCancellationPolicyId")}</p>
+              <SelectTrigger
+                id="ta-cancel-policy"
+                className={cn(MODAL_SELECT_TRIGGER_CLASS, fieldError("defaultCancellationPolicyId") && "border-destructive")}
+              >
+                <SelectValue placeholder="Select cancellation policy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none" className="text-xs">
+                  Property Default Policy
+                </SelectItem>
+                {(config?.cancellationPolicies ?? []).map((policy) => (
+                  <SelectItem key={policy.id} value={policy.id} className="text-xs">
+                    {policy.name}
+                    {policy.isDefault ? " (Default)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldError("defaultCancellationPolicyId") ? (
+              <p className="text-[11px] text-destructive">{fieldError("defaultCancellationPolicyId")}</p>
+            ) : (
+              <p className="text-[11px] text-[#756A5B]">Cutoff window and penalty rules for reservation cancellations.</p>
             )}
-            <p className="text-[11px] text-[#756A5B]">
-              Cutoff window and penalty rules for reservation cancellations.
-            </p>
+            {selectedCancellation ? (
+              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+                {selectedCancellation.refundableBeforeCutoff
+                  ? `Free cancellation until ${selectedCancellation.cutoffHours} hours before arrival.`
+                  : `Non-refundable. Cutoff ${selectedCancellation.cutoffHours} hours before arrival.`}
+              </div>
+            ) : null}
           </div>
 
-          {/* 3. No-Show Policy */}
-          <div className="space-y-1">
-            <Label htmlFor="ta-noshow-policy" className="text-xs font-medium text-[#251605]">
+          <div className="space-y-1.5">
+            <Label htmlFor="ta-noshow-policy" className="text-xs font-semibold text-[#251605]">
               Default No-Show Policy {isRuleRequired?.("TA_NOSHOW_POLICY") && <span className="text-destructive">*</span>}
             </Label>
-            <select
-              id="ta-noshow-policy"
-              value={draft.defaultNoShowPolicyId || ""}
-              onChange={(e) => set("defaultNoShowPolicyId", e.target.value || null)}
-              className={MODAL_SELECT_TRIGGER_CLASS}
+            <Select
+              value={draft.defaultNoShowPolicyId || "none"}
+              onValueChange={(val) => set("defaultNoShowPolicyId", val === "none" ? null : val)}
             >
-              <option value="">Property Default Policy</option>
-              {(config?.noShowPolicies ?? []).map((policy) => (
-                <option key={policy.id} value={policy.id}>
-                  {policy.name} (Release: {policy.releaseHour}:00)
-                </option>
-              ))}
-            </select>
-            {fieldError("defaultNoShowPolicyId") && (
-              <p className="text-xs text-destructive">{fieldError("defaultNoShowPolicyId")}</p>
+              <SelectTrigger
+                id="ta-noshow-policy"
+                className={cn(MODAL_SELECT_TRIGGER_CLASS, fieldError("defaultNoShowPolicyId") && "border-destructive")}
+              >
+                <SelectValue placeholder="Select no-show policy" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none" className="text-xs">
+                  Property Default Policy
+                </SelectItem>
+                {(config?.noShowPolicies ?? []).map((policy) => (
+                  <SelectItem key={policy.id} value={policy.id} className="text-xs">
+                    {policy.name}
+                    {policy.isDefault ? " (Default)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldError("defaultNoShowPolicyId") ? (
+              <p className="text-[11px] text-destructive">{fieldError("defaultNoShowPolicyId")}</p>
+            ) : (
+              <p className="text-[11px] text-[#756A5B]">Inventory release and fee schedule for no-shows.</p>
             )}
-            <p className="text-[11px] text-[#756A5B]">
-              Inventory release and fee schedule for no-shows.
-            </p>
+            {selectedNoShow ? (
+              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+                Release at {String(selectedNoShow.releaseHour).padStart(2, "0")}:00. Penalty {selectedNoShow.penaltyType.replaceAll("_", " ")}.
+              </div>
+            ) : null}
           </div>
         </div>
 
-        {/* 4. Booking Notes */}
-        <div className="pt-2 border-t border-[#EDE6D8] space-y-1.5">
+        <div className="space-y-1.5 border-t border-[#E8E4DC] pt-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="ta-booking-notes" className="text-xs font-medium text-[#251605]">
+            <Label htmlFor="ta-booking-notes" className="text-xs font-semibold text-[#251605]">
               Booking Notes {isRuleRequired?.("TA_BOOKING_NOTES") && <span className="text-destructive">*</span>}
             </Label>
             <span className="text-[10px] text-[#756A5B]">
@@ -682,7 +756,7 @@ export function GuestTravelAgencyPaymentRulesStep({
             maxLength={500}
             value={draft.bookingNotes}
             onChange={(e) => set("bookingNotes", e.target.value)}
-            className="rounded-[6px] border border-[#CCCCCC] text-xs focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]"
+            className={MODAL_CONTROL_CLASS}
             placeholder="Operational instructions for Front Desk and Reservation agents (e.g. voucher verification required at check-in)..."
           />
           {fieldError("bookingNotes") && (

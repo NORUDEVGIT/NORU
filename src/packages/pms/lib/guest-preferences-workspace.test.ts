@@ -74,7 +74,13 @@ describe("Guest preference workspace helpers", () => {
         roomTypes: rooms,
         ratePlans: rates,
       }),
-      { specialRequests: null, roomTypeId: null, ratePlanId: null },
+      {
+        specialRequests: null,
+        roomTypeId: null,
+        roomTypeLabel: null,
+        ratePlanId: null,
+        ratePlanLabel: null,
+      },
     );
     const on = reservationDefaultsFromWorkspace({
       applyToFutureReservations: true,
@@ -88,8 +94,80 @@ describe("Guest preference workspace helpers", () => {
       ratePlans: rates,
     });
     assert.equal(on.roomTypeId, "rt-1");
+    assert.equal(on.roomTypeLabel, "Deluxe");
     assert.equal(on.ratePlanId, "rp-1");
-    assert.match(on.specialRequests ?? "", /Quiet please/);
+    assert.equal(on.ratePlanLabel, "Standard Rate (BAR)");
+    assert.equal(on.specialRequests, null);
+  });
+
+  it("selects a matching room and rate without copying preferences into special requests", () => {
+    const rooms = [
+      { id: "rt-king", code: "DLXK", label: "Deluxe King" },
+      { id: "rt-twin", code: "DLXT", label: "Deluxe Twin" },
+    ];
+    const rates = [{ id: "rp-bar", code: "BAR", label: "Best Available" }];
+    const mapped = reservationDefaultsFromWorkspace({
+      applyToFutureReservations: true,
+      answers: [
+        {
+          code: "ROOM_TYPE",
+          name: "Room Type",
+          valueType: "single",
+          values: ["deluxe"],
+          options: [{ label: "Deluxe Room", value: "deluxe" }],
+        },
+        {
+          code: "RATE_PLAN",
+          name: "Rate Plan",
+          valueType: "single",
+          values: ["rp-bar"],
+        },
+        {
+          code: "BED_TYPE",
+          name: "Bed Type",
+          valueType: "single",
+          values: ["king"],
+          options: [{ label: "King", value: "king" }],
+        },
+        {
+          code: "FLOOR",
+          name: "Floor",
+          valueType: "single",
+          values: ["3"],
+          options: [{ label: "3", value: "3" }],
+        },
+        {
+          code: "WAKE",
+          name: "Wake-up Call",
+          valueType: "yes_no",
+          values: ["yes"],
+        },
+      ],
+      specialRequests: null,
+      roomTypes: rooms,
+      ratePlans: rates,
+    });
+    assert.equal(mapped.roomTypeId, null);
+    assert.equal(mapped.ratePlanId, "rp-bar");
+    assert.equal(mapped.ratePlanLabel, "Best Available");
+    assert.equal(mapped.specialRequests, null);
+
+    const namedRoom = reservationDefaultsFromWorkspace({
+      applyToFutureReservations: true,
+      answers: [
+        {
+          code: "ROOM_TYPE",
+          name: "Room Type",
+          valueType: "single",
+          values: ["Deluxe King"],
+        },
+      ],
+      specialRequests: null,
+      roomTypes: rooms,
+      ratePlans: rates,
+    });
+    assert.equal(namedRoom.roomTypeId, "rt-king");
+    assert.equal(namedRoom.specialRequests, null);
   });
 
   it("filters saved preferences to the Individual Guest type list", () => {
@@ -214,7 +292,6 @@ describe("Guest preference workspace lock", () => {
     assert.doesNotMatch(card, /Recent Activity/);
     assert.doesNotMatch(card, /CATALOGUE_FIELDS/);
     assert.match(helpers, /applyPreferenceDefaults/);
-    assert.match(booking, /applyPreferenceDefaults/);
-    assert.match(booking, /getGuestReservationPreferenceDefaults/);
+    assert.doesNotMatch(booking, /applyPreferenceDefaults|preferenceApplyText|mergeSpecialRequests|getGuestReservationPreferenceDefaults/);
   });
 });

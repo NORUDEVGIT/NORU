@@ -155,9 +155,7 @@ describe("Create reservation Booking Details wiring", () => {
     assert.doesNotMatch(details, /room-preferences-ui-only/);
     assert.doesNotMatch(details, /setPreferences/);
     assert.match(details, /booking-details-saved-preferences/);
-    assert.match(details, /apply-saved-preferences/);
-    assert.match(details, /confirm-apply-preferences/);
-    assert.match(details, /mergeSpecialRequests/);
+    assert.doesNotMatch(details, /apply-saved-preferences|confirm-apply-preferences|mergeSpecialRequests|preferenceApplyText/);
     assert.match(page, /listGuestPreferenceWorkspace/);
     assert.match(page, /savedPreferencesForProfileType/);
     assert.match(page, /current \|\| nextRoomTypeId/);

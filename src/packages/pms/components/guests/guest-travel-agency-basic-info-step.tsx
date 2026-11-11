@@ -36,6 +36,7 @@ import {
 } from "@/packages/pms/lib/guest-travel-agent-create-workspace";
 import type { TravelAgentCreateContext } from "@/packages/pms/lib/guest-travel-agent-create.functions";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import { validateCompanyPhone } from "@/packages/pms/lib/guest-company-create-workspace";
 import { cn } from "@/shared/lib/utils";
 
 const CONTROL_CLASS = "h-8 text-xs bg-[#FAF8F5] border-[#DDD4C5] focus:bg-white rounded-[6px]";
@@ -461,7 +462,7 @@ export function BasicInfoStep({
                 <StepField
                   label="Phone"
                   required={req("TA_CONTACT_PHONE")}
-                  error={!contact.phone && req("TA_CONTACT_PHONE") ? (fieldError("contactPhone", "contacts") || "Phone is required") : undefined}
+                  error={validateCompanyPhone(contact.phone) || (!contact.phone && req("TA_CONTACT_PHONE") ? (fieldError("contactPhone", "contacts") || "Phone is required") : undefined)}
                 >
                   <CanonicalPhoneInput
                     value={contact.phone}
@@ -471,16 +472,17 @@ export function BasicInfoStep({
                         draft.contacts.map((row, i) => (i === index ? { ...row, phone } : row)),
                       )
                     }
-                    error={Boolean(!contact.phone && req("TA_CONTACT_PHONE"))}
+                    error={Boolean(validateCompanyPhone(contact.phone) || (!contact.phone && req("TA_CONTACT_PHONE")))}
                     placeholder="e.g. 911 234 567"
                     size="sm"
+                    maxDigits={9}
                   />
                 </StepField>
 
                 <StepField
                   label="WhatsApp"
                   required={req("TA_CONTACT_WHATSAPP")}
-                  error={!contact.whatsapp && req("TA_CONTACT_WHATSAPP") ? (fieldError("contactWhatsapp", "contacts") || "WhatsApp is required") : undefined}
+                  error={validateCompanyPhone(contact.whatsapp) || (!contact.whatsapp && req("TA_CONTACT_WHATSAPP") ? (fieldError("contactWhatsapp", "contacts") || "WhatsApp is required") : undefined)}
                 >
                   <CanonicalPhoneInput
                     value={contact.whatsapp}
@@ -490,9 +492,10 @@ export function BasicInfoStep({
                         draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp } : row)),
                       )
                     }
-                    error={Boolean(!contact.whatsapp && req("TA_CONTACT_WHATSAPP"))}
+                    error={Boolean(validateCompanyPhone(contact.whatsapp) || (!contact.whatsapp && req("TA_CONTACT_WHATSAPP")))}
                     placeholder="e.g. 911 234 567"
                     size="sm"
+                    maxDigits={9}
                   />
                 </StepField>
 

@@ -38,6 +38,7 @@ import {
   feeAmountAllowed,
   folioHasPostedFee,
   isCreditBalance,
+  isFeePostedLine,
   isFeeSatisfied,
   isReasonComplete,
   mapCashierShiftError,
@@ -49,6 +50,7 @@ import {
   type WalkInHistoryRow,
 } from "./fo-cancel-noshow";
 import { computeNoShowPenalty, isMatchingNoShowCharge } from "./fo-no-show-readiness";
+import { computeCancellationPenalty } from "./reservation-cancel-workspace";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -280,6 +282,36 @@ async function loadNoShowPenaltyQuote(
   });
 }
 
+async function loadCancellationPenalty(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  restaurantId: string,
+  reservationId: string,
+) {
+  const { data: reservation, error } = await supabaseAdmin
+    .from("hotel_reservations")
+    .select("arrival_date, room_subtotal, nightly_rate_snapshot, currency, cancellation_policy_snapshot")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", reservationId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!reservation) throw new Error("Reservation not found for this property.");
+  const { data: restaurant } = await supabaseAdmin
+    .from("restaurants")
+    .select("timezone")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  const roomSubtotal = reservation.room_subtotal == null ? null : Number(reservation.room_subtotal);
+  return computeCancellationPenalty({
+    snapshot: reservation.cancellation_policy_snapshot,
+    arrivalDate: reservation.arrival_date,
+    timeZone: (restaurant as { timezone?: string | null } | null)?.timezone,
+    now: new Date(),
+    roomSubtotal: Number.isFinite(roomSubtotal) ? roomSubtotal : null,
+    nightlyRates: parseSnapshot(reservation.nightly_rate_snapshot),
+    currency: reservation.currency ?? null,
+  });
+}
+
 async function loadFolioState(
   supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
   restaurantId: string,
@@ -409,12 +441,28 @@ export async function buildCancelNoShowContext(
   reservationRoomId?: string,
 ): Promise<CancelNoShowContext> {
   const loaded = await loadStay(supabaseAdmin, restaurantId, reservationId);
-  const [folio, waiver, policy, actorName] = await Promise.all([
+  const [folio, waiver, propertyPolicy, actorName, cancelPenalty] = await Promise.all([
     loadFolioState(supabaseAdmin, restaurantId, reservationId),
     loadWaiver(supabaseAdmin, restaurantId, reservationId, kind, reservationRoomId),
     loadFeePolicy(supabaseAdmin, restaurantId, kind),
     actorDisplayName(supabaseAdmin, membershipId, restaurantId),
+    kind === "cancel"
+      ? loadCancellationPenalty(supabaseAdmin, restaurantId, reservationId)
+      : Promise.resolve(null),
   ]);
+  const frozen = cancelPenalty?.calculable === true ? cancelPenalty : null;
+  const policy = frozen
+    ? {
+        required: frozen.required,
+        defaultAmount: frozen.amount ?? 0,
+      }
+    : propertyPolicy;
+  const posted = frozen
+    ? folio.transactions.some(
+        (line) =>
+          isFeePostedLine(line, "cancel") && Math.abs(line.amount - (frozen.amount ?? 0)) < 0.01,
+      )
+    : folioHasPostedFee(folio.transactions, kind);
   return {
     stay: loaded.stay,
     kind,
@@ -425,7 +473,7 @@ export async function buildCancelNoShowContext(
       nightlyRates: loaded.nightlyRates,
       nights: loaded.stay.nights,
     }),
-    posted: folioHasPostedFee(folio.transactions, kind),
+    posted,
     waived: waiver.waived,
     waiveReason: waiver.reason,
     canWaive,
@@ -533,6 +581,10 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
             data.reservationRoomId,
           )
         : null;
+    const cancelPenalty =
+      data.kind === "cancel"
+        ? await loadCancellationPenalty(supabaseAdmin, data.restaurantId, data.reservationId)
+        : null;
     if (noShowPenalty && !noShowPenalty.calculable) {
       throw new Error("The frozen no-show policy cannot produce an authoritative charge amount.");
     }
@@ -542,6 +594,17 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
     ) {
       if (data.kind === "noshow") {
         throw new Error("The no-show charge must match the frozen policy amount.");
+      }
+    }
+    if (cancelPenalty && cancelPenalty.basis !== "not_evaluated") {
+      if (!cancelPenalty.calculable || cancelPenalty.amount == null) {
+        throw new Error("The frozen cancellation policy cannot produce an authoritative charge amount.");
+      }
+      if (!cancelPenalty.required) {
+        throw new Error("This cancellation policy does not charge a fee.");
+      }
+      if (Math.abs(cancelPenalty.amount - amount) >= 0.01) {
+        throw new Error("The cancellation charge must match the frozen policy amount.");
       }
     }
 

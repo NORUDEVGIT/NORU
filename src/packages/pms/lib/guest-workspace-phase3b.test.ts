@@ -77,12 +77,11 @@ describe("NORU PMS — Guest Profile Phase 3B — Modernize Individual Detail Vi
   });
 
   // STAYS
-  it("6. modern stay summary strip renders 5-cell KPI metrics", () => {
-    assert.match(staysCode, /Upcoming/);
-    assert.match(staysCode, /In-House/);
-    assert.match(staysCode, /Past Stays/);
-    assert.match(staysCode, /Cancelled/);
-    assert.match(staysCode, /Total Nights/);
+  it("6. stay filters use the shared filter menu, with no KPI strip", () => {
+    assert.match(staysCode, /PmsFilterMenu/);
+    assert.match(staysCode, /guest-stays-filter-chips/);
+    assert.doesNotMatch(staysCode, /Total Nights/);
+    assert.doesNotMatch(staysCode, /Past Stays/);
   });
 
   it("7. upcoming/current/past stay scope filters operate", () => {

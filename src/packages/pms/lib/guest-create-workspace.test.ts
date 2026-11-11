@@ -202,6 +202,30 @@ describe("Guest create workflow helpers", () => {
     assert.ok(errors.length > 0);
   });
 
+  it("rejects an incomplete phone while it is being entered", () => {
+    const draft = emptyGuestCreateDraft();
+    draft.firstName = "Abebe";
+    draft.phone = "+25191";
+    const issues = guestCreateFieldIssues(draft, {
+      rules: [],
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+    });
+    assert.ok(issues.some((issue) => issue.key === "PHONE" && issue.step === "basic"));
+    draft.phone = "+251911234567";
+    const valid = guestCreateFieldIssues(draft, {
+      rules: [],
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+    });
+    assert.equal(
+      valid.some((issue) => issue.key === "PHONE"),
+      false,
+    );
+  });
+
   it("names the missing field and the step that holds it", () => {
     const issues = guestCreateFieldIssues(emptyGuestCreateDraft(), {
       rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),

@@ -97,6 +97,7 @@ export type CompanyContactRow = {
   notes: string | null;
   roleIds: string[];
   roleNames: string[];
+  preferredMethod?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -15,6 +15,7 @@ import {
   inferGuestTravelAgentCreateStep,
   parseGuestTravelAgentCreateHold,
   travelAgentCommissionReady,
+  travelAgentDuplicateMessage,
   travelAgentCreateDraftErrors,
   travelAgentCreateDraftErrorsForSave,
   travelAgentCreateFieldIssues,
@@ -36,6 +37,99 @@ function filledDraft() {
 }
 
 describe("Travel agency create workflow helpers", () => {
+  it("rejects a second travel agency with the same identity", () => {
+    const incoming = {
+      name: "Blue Nile Travel",
+      email: "desk@bluenile.test",
+      phone: "+251 911 000 000",
+      iataLicenseNumber: "IATA-1",
+      taxId: "TIN-1",
+      registrationNumber: "REG-1",
+    };
+    assert.match(
+      travelAgentDuplicateMessage(incoming, [
+        {
+          id: "a",
+          name: "blue nile travel",
+          email: null,
+          phone: null,
+          iataLicenseNumber: null,
+          taxId: null,
+          registrationNumber: null,
+        },
+      ]) ?? "",
+      /already exists/,
+    );
+    assert.equal(
+      travelAgentDuplicateMessage(
+        { ...incoming, id: "a" },
+        [
+          {
+            id: "a",
+            name: "blue nile travel",
+            email: null,
+            phone: null,
+            iataLicenseNumber: null,
+            taxId: null,
+            registrationNumber: null,
+          },
+        ],
+      ),
+      null,
+    );
+    assert.match(
+      travelAgentDuplicateMessage(
+        { ...incoming, name: "Other Agency" },
+        [
+          {
+            id: "b",
+            name: "Different Desk",
+            email: "Desk@BlueNile.test",
+            phone: null,
+            iataLicenseNumber: null,
+            taxId: null,
+            registrationNumber: null,
+          },
+        ],
+      ) ?? "",
+      /same email/,
+    );
+    assert.match(
+      travelAgentDuplicateMessage(
+        { ...incoming, name: "Other Agency", email: null },
+        [
+          {
+            id: "b",
+            name: "Different Desk",
+            email: null,
+            phone: "251911000000",
+            iataLicenseNumber: "iata-1",
+            taxId: null,
+            registrationNumber: null,
+          },
+        ],
+      ) ?? "",
+      /IATA/,
+    );
+    assert.equal(
+      travelAgentDuplicateMessage(
+        { name: "Brand New", email: null, phone: null, iataLicenseNumber: null, taxId: null, registrationNumber: null },
+        [
+          {
+            id: "b",
+            name: "Different Desk",
+            email: "desk@bluenile.test",
+            phone: "251911000000",
+            iataLicenseNumber: "IATA-1",
+            taxId: "TIN-1",
+            registrationNumber: "REG-1",
+          },
+        ],
+      ),
+      null,
+    );
+  });
+
   it("assigns the next unused agency code for a prefix", () => {
     assert.equal(nextAgencyCode("TA", []), "TA-001");
     assert.equal(nextAgencyCode("OTA", ["OTA-001", "TA-004"]), "OTA-002");
@@ -79,6 +173,26 @@ describe("Travel agency create workflow helpers", () => {
       issuesBeforeStep(issues, GUEST_TRAVEL_AGENT_CREATE_STEPS, "commission_rates").some(
         (issue) => issue.key === "name",
       ),
+    );
+  });
+
+  it("accepts a billing currency chosen on the payment step", () => {
+    const draft = emptyGuestTravelAgentCreateDraft();
+    draft.billingCurrencyCode = "USD";
+    draft.currency = "ETB";
+    const issues = travelAgentCreateFieldIssues(draft, { currencyCodes: ["ETB", "USD"] });
+    assert.equal(
+      issues.some((issue) => issue.message === "Select a configured currency."),
+      false,
+    );
+    const blocked = travelAgentCreateFieldIssues(draft, { currencyCodes: ["ETB"] });
+    const currencyIssue = blocked.find((issue) => issue.key === "billingCurrencyCode");
+    assert.equal(currencyIssue?.step, "payment_rules");
+    assert.equal(
+      issuesBeforeStep(blocked, GUEST_TRAVEL_AGENT_CREATE_STEPS, "review").some(
+        (issue) => issue.key === "billingCurrencyCode",
+      ),
+      true,
     );
   });
 

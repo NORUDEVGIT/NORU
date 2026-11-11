@@ -217,6 +217,7 @@ export interface GuestProfile extends GuestSummary {
   emailAlt: string | null;
   position: string | null;
   department: string | null;
+  companyName: string | null;
   sourceOfBusiness: string | null;
   restrictionSeverity: RestrictionSeverity | null;
   restrictionReason: string | null;
@@ -365,7 +366,7 @@ const GUEST_COLUMNS_BASE =
   "id, first_name, last_name, phone, email, nationality, language, date_of_birth, address_line1, address_line2, city, region, country, postal_code, id_document_type, id_document_number, id_document_expiry, guest_status, vip_status, notes, created_at, updated_at";
 const GUEST_COLUMNS_W2 = `${GUEST_COLUMNS_BASE}, merged_into_guest_id, data_processing_consent, data_processing_consent_recorded_at, data_processing_consent_recorded_by, marketing_consent, marketing_consent_recorded_at, marketing_consent_recorded_by`;
 const GUEST_COLUMNS_W5 = `${GUEST_COLUMNS_W2}, anonymised_at, anonymised_by_membership_id`;
-const GUEST_COLUMNS_GE2 = `${GUEST_COLUMNS_W5}, title, middle_name, preferred_name, gender, phone_alt, email_alt, employment_position, department, source_of_business, restricted, blacklisted, restriction_severity, restriction_reason, restriction_set_by_membership_id, restriction_set_at, restriction_until`;
+const GUEST_COLUMNS_GE2 = `${GUEST_COLUMNS_W5}, title, middle_name, preferred_name, gender, phone_alt, email_alt, employment_position, department, employer_name, source_of_business, restricted, blacklisted, restriction_severity, restriction_reason, restriction_set_by_membership_id, restriction_set_at, restriction_until`;
 const GUEST_COLUMNS_OVERVIEW = `${GUEST_COLUMNS_GE2}, profile_number, profile_type_id, photo_storage_path, preferred_contact_method, preferred_contact_time, geo_latitude, geo_longitude`;
 
 type GuestRow = {
@@ -408,6 +409,7 @@ type GuestRow = {
   email_alt?: string | null;
   employment_position?: string | null;
   department?: string | null;
+  employer_name?: string | null;
   source_of_business?: string | null;
   restricted?: boolean | null;
   blacklisted?: boolean | null;
@@ -504,6 +506,7 @@ function toProfile(
     emailAlt: anonymised ? null : (row.email_alt ?? null),
     position: anonymised ? null : (row.employment_position ?? null),
     department: anonymised ? null : (row.department ?? null),
+    companyName: anonymised ? null : (row.employer_name ?? null),
     sourceOfBusiness: anonymised ? null : (row.source_of_business ?? null),
     restrictionSeverity: (row.restriction_severity as RestrictionSeverity | null) ?? null,
     restrictionReason: row.restriction_reason ?? null,
@@ -623,6 +626,7 @@ const guestInputSchema = z.object({
   preferredContactTime: z.enum(PREFERRED_CONTACT_TIMES).optional().nullable(),
   position: z.string().max(160).optional().nullable(),
   department: z.string().max(160).optional().nullable(),
+  companyName: z.string().max(200).optional().nullable(),
   sourceOfBusiness: z.string().max(200).optional().nullable(),
   guestStatus: z.enum(GUEST_STATUSES).optional(),
   restricted: z.boolean().optional(),
@@ -684,6 +688,7 @@ function toColumns(input: GuestInput) {
     preferred_contact_time: blankToNull(input.preferredContactTime),
     employment_position: blankToNull(input.position),
     department: blankToNull(input.department),
+    employer_name: blankToNull(input.companyName),
     source_of_business: blankToNull(input.sourceOfBusiness),
     ...(input.guestStatus ? { guest_status: input.guestStatus } : {}),
     restricted,
@@ -2805,6 +2810,9 @@ export const getGuestReservationPreferenceDefaults = createServerFn({ method: "P
       applyToFutureReservations: boolean;
       specialRequests: string | null;
       roomTypeId: string | null;
+      roomTypeLabel: string | null;
+      ratePlanId: string | null;
+      ratePlanLabel: string | null;
     }> => {
       await requireGuestProfileViewActor(context as never, data.restaurantId);
       const workspace = await listGuestPreferenceWorkspace({
@@ -2816,10 +2824,24 @@ export const getGuestReservationPreferenceDefaults = createServerFn({ method: "P
       const answers = workspace.categories.flatMap((category) =>
         category.types.map((type) => ({
           code: type.code,
+          name: type.name,
           valueType: type.valueType,
           values: type.values,
+          options: type.options.map((option) => ({
+            label: option.label,
+            value: option.value,
+          })),
         })),
       );
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const ratePlansRes = await supabaseAdmin
+        .from("hotel_rate_plans")
+        .select("id, name, code, active")
+        .eq("restaurant_id", data.restaurantId)
+        .order("name");
+      if (ratePlansRes.error && !isMissingSchemaError(ratePlansRes.error)) {
+        throw new Error(ratePlansRes.error.message);
+      }
       const mapped = reservationDefaultsFromWorkspace({
         applyToFutureReservations: workspace.applyToFutureReservations,
         answers,
@@ -2829,11 +2851,21 @@ export const getGuestReservationPreferenceDefaults = createServerFn({ method: "P
           code: row.code ?? null,
           label: row.label,
         })),
+        ratePlans: (ratePlansRes.error ? [] : (ratePlansRes.data ?? []))
+          .filter((row) => row.active !== false)
+          .map((row) => ({
+            id: row.id,
+            code: row.code ?? null,
+            label: row.name,
+          })),
       });
       return {
         applyToFutureReservations: workspace.applyToFutureReservations,
         specialRequests: mapped.specialRequests,
         roomTypeId: mapped.roomTypeId,
+        roomTypeLabel: mapped.roomTypeLabel,
+        ratePlanId: mapped.ratePlanId,
+        ratePlanLabel: mapped.ratePlanLabel,
       };
     },
   );
@@ -2877,6 +2909,39 @@ export type GuestPreferenceSummary = {
   chips: OverviewPreferenceChip[];
 };
 
+function labelPreferenceValues(
+  valueType: string,
+  options: unknown,
+  raw: string[],
+  catalogueNames: Map<string, string>,
+): string {
+  const parsed = Array.isArray(options)
+    ? options.flatMap((option) => {
+        if (!option || typeof option !== "object") return [];
+        const row = option as { id?: unknown; value?: unknown; label?: unknown; name?: unknown };
+        const id = typeof row.id === "string" ? row.id : "";
+        const value = typeof row.value === "string" ? row.value : "";
+        const label =
+          typeof row.label === "string"
+            ? row.label
+            : typeof row.name === "string"
+              ? row.name
+              : "";
+        return [{ id, value, label }];
+      })
+    : [];
+  return raw
+    .map((value) => {
+      if (valueType === "yes_no") {
+        if (value === "yes") return "Yes";
+        if (value === "no") return "No";
+      }
+      const match = parsed.find((option) => option.id === value || option.value === value);
+      return match?.label || catalogueNames.get(value) || match?.value || value;
+    })
+    .join(", ");
+}
+
 export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -2893,14 +2958,34 @@ export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
     if (!values.error) {
       const types = await supabaseAdmin
         .from("pms_guest_preference_types")
-        .select("id, name, code, active")
+        .select("id, name, code, value_type, options, active")
         .eq("restaurant_id", data.restaurantId);
       if (!types.error) {
         const typeById = new Map(
           (
-            (types.data ?? []) as Array<{ id: string; name: string; code: string; active: boolean }>
+            (types.data ?? []) as Array<{
+              id: string;
+              name: string;
+              code: string;
+              active: boolean;
+              value_type?: string | null;
+              options?: unknown;
+            }>
           ).map((row) => [row.id, row]),
         );
+        const optionNames = new Map<string, string>();
+        const catalogueOptions = await supabaseAdmin
+          .from("pms_preference_options")
+          .select("id, name")
+          .eq("restaurant_id", data.restaurantId);
+        if (!catalogueOptions.error) {
+          for (const option of (catalogueOptions.data ?? []) as Array<{
+            id: string;
+            name: string;
+          }>) {
+            optionNames.set(option.id, option.name);
+          }
+        }
         const chips: OverviewPreferenceChip[] = [];
         for (const row of (values.data ?? []) as Array<{
           preference_type_id: string;
@@ -2914,7 +2999,7 @@ export const listGuestPreferenceSummary = createServerFn({ method: "POST" })
           chips.push({
             code: type.code,
             label: type.name,
-            value: raw.join(", "),
+            value: labelPreferenceValues(type.value_type ?? "", type.options, raw, optionNames),
             active: type.active,
           });
         }
@@ -3656,6 +3741,42 @@ export const saveGuestPhoto = createServerFn({ method: "POST" })
       eventType: "photo_updated",
       previousValues: previous ? { photo_storage_path: previous } : null,
       newValues: { photo_storage_path: data.path },
+      actorMembershipId: me.id,
+    });
+    return { ok: true as const };
+  });
+
+export const clearGuestPhoto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z.object({ restaurantId: idSchema, guestId: idSchema }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const { data: before, error: loadError } = await context.supabase
+      .from("guest_profiles")
+      .select("photo_storage_path")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId)
+      .maybeSingle();
+    if (loadError) throw new Error(loadError.message);
+    const previous = (before as { photo_storage_path?: string | null } | null)?.photo_storage_path ?? null;
+    const { error } = await context.supabase
+      .from("guest_profiles")
+      .update({ photo_storage_path: null } as never)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.guestId);
+    if (error) throw new Error(error.message);
+    if (previous) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.storage.from(ROOM_BUCKET).remove([previous]);
+    }
+    await recordGuestEvent({
+      restaurantId: data.restaurantId,
+      guestId: data.guestId,
+      eventType: "photo_updated",
+      previousValues: previous ? { photo_storage_path: previous } : null,
+      newValues: { photo_storage_path: null },
       actorMembershipId: me.id,
     });
     return { ok: true as const };

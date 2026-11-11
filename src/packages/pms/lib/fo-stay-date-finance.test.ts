@@ -65,15 +65,18 @@ describe("posted charge and early-departure penalty", () => {
     assert.match(earlyDeparturePolicyLine(null), /No early-departure penalty is configured/);
   });
 
-  it("records a configured penalty without posting it as a folio charge", () => {
-    const line = earlyDeparturePolicyLine({
-      name: "Flexible departure",
-      penalty_type: "first_night",
-    });
+  it("posts a configured penalty as its own folio charge", () => {
+    const line = earlyDeparturePolicyLine(
+      {
+        name: "Flexible departure",
+        penalty_type: "first_night",
+      },
+      120,
+    );
     assert.match(line, /Flexible departure/);
-    assert.match(line, /does not post that penalty/);
+    assert.match(line, /posted to the folio when the shorter stay is saved/);
     const lines = stayDateFolioImpact("early_departure", "first_night");
-    assert.match(lines.join(" "), /not posted as its own folio charge/);
+    assert.match(lines.join(" "), /posted as its own folio charge/);
     assert.match(lines.join(" "), /Deposit money is not refunded/);
     assert.match(lines.join(" "), /reversed and the new room amount is posted/);
   });
@@ -109,10 +112,12 @@ describe("FO-03 writer", () => {
     );
     assert.match(change, /apply_inhouse_stay_date_change/);
     assert.match(change, /_arrival: arrival/);
-    assert.doesNotMatch(change, /folio_transactions|price_hotel_stay/);
+    assert.match(change, /price_hotel_stay/);
+    assert.match(change, /Early departure penalty/);
+    assert.match(change, /reservation_early_departure/);
     const quote = writer.slice(writer.indexOf("export const quoteInHouseStayChange"));
     assert.match(quote, /price_hotel_stay/);
-    assert.match(quote, /penaltyPosted: false/);
+    assert.match(quote, /penaltyAmount:/);
   });
 
   it("shows separate Extend and Early Departure confirmations", () => {

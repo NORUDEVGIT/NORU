@@ -22,7 +22,7 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { GuestFormDialog } from "@/packages/pms/components/guests/guest-form-dialog";
-import { VipBadge } from "@/packages/pms/components/guests/guest-bits";
+import { GuestRestrictionBadges, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import { toast } from "sonner";
 import {
   CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS,
