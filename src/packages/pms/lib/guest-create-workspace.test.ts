@@ -14,6 +14,8 @@ import {
   createFieldRules,
   emptyGuestCreateDraft,
   guestCreateCompletion,
+  guestCreateDiffers,
+  guestCreateHasChanges,
   guestCreateHoldKey,
   guestCreateFieldIssues,
   guestCreateStepErrors,
@@ -449,6 +451,32 @@ describe("Guest create honesty", () => {
     assert.match(reservation, /GuestFormDialog/);
     assert.match(dialog, /createGuest/);
     assert.doesNotMatch(workspace, /Airport Pickup|Laundry|Wake-up Call/);
+  });
+
+  it("asks to leave only after the user enters something", () => {
+    const opened = emptyGuestCreateDraft();
+    opened.dataProcessingConsent = "granted";
+    opened.documents = [
+      {
+        key: "auto",
+        idTypeId: "passport",
+        documentNumber: "",
+        issuingCountry: "",
+        issueDate: "",
+        expiryDate: "",
+        issuingAuthority: "",
+        notes: "",
+        hasFront: false,
+        hasBack: false,
+      },
+    ];
+    assert.equal(guestCreateHasChanges(opened), false);
+    assert.equal(guestCreateHasChanges({ ...opened, firstName: "Ada" }), true);
+    const loaded = emptyGuestCreateDraft();
+    loaded.firstName = "Ada";
+    loaded.dataProcessingConsent = "granted";
+    assert.equal(guestCreateDiffers(loaded, loaded), false);
+    assert.equal(guestCreateDiffers({ ...loaded, phone: "+251911" }, loaded), true);
   });
 
   it("keeps dual-lane 0093 drafts off guest_profiles", () => {

@@ -797,7 +797,44 @@ export function preferenceControl(valueType: PreferenceValueType): "select" | "m
   return valueType;
 }
 
+function blankCreateDocument(doc: GuestCreateDocumentDraft): boolean {
+  return (
+    !doc.existingDocumentId &&
+    !doc.documentNumber.trim() &&
+    !doc.issuingCountry.trim() &&
+    !doc.issueDate.trim() &&
+    !doc.expiryDate.trim() &&
+    !doc.issuingAuthority.trim() &&
+    !doc.notes.trim() &&
+    !doc.hasFront &&
+    !doc.hasBack
+  );
+}
+
+/** Compare guest form contents without the automatic consent grant or an empty identity row. */
+function comparableCreateDraft(draft: GuestCreateDraft): GuestCreateDraft {
+  return {
+    ...draft,
+    acknowledgeDuplicates: false,
+    // The form grants consent on open. Untouched and granted are the same contents.
+    dataProcessingConsent: draft.dataProcessingConsent === "denied" ? "denied" : "granted",
+    documents: draft.documents
+      .filter((doc) => !blankCreateDocument(doc))
+      .map((doc) => ({ ...doc, key: "" })),
+  };
+}
+
 export function guestCreateHasChanges(draft: GuestCreateDraft, defaults?: ProfileTypeDefaults | null): boolean {
   const empty = emptyGuestCreateDraft(defaults);
-  return JSON.stringify({ ...draft, acknowledgeDuplicates: false }) !== JSON.stringify({ ...empty, acknowledgeDuplicates: false });
+  // The form grants this before the user types. It is not entered data.
+  empty.dataProcessingConsent = "granted";
+  return (
+    JSON.stringify(comparableCreateDraft(draft)) !== JSON.stringify(comparableCreateDraft(empty))
+  );
+}
+
+export function guestCreateDiffers(current: GuestCreateDraft, baseline: GuestCreateDraft): boolean {
+  return (
+    JSON.stringify(comparableCreateDraft(current)) !== JSON.stringify(comparableCreateDraft(baseline))
+  );
 }

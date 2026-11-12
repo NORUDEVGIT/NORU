@@ -70,6 +70,7 @@ import {
   emptyGuestCreateDraft,
   guestCreateCompletion,
   guestCreateFieldIssues,
+  guestCreateDiffers,
   guestCreateHasChanges,
   guestDisplayName,
   readGuestCreateHold,
@@ -329,6 +330,8 @@ export function GuestCreateModal({
   const clearDocImage = useServerFn(clearGuestDocumentImage);
   const removePhoto = useServerFn(clearGuestPhoto);
   const prefsLoaded = useRef(false);
+  const editBaseline = useRef<GuestCreateDraft | null>(null);
+  const customBaseline = useRef("{}");
   const loadDocDetail = useServerFn(getGuestDocument);
   const deleteDoc = useServerFn(deleteGuestDocument);
 
@@ -386,7 +389,9 @@ export function GuestCreateModal({
   useEffect(() => {
     if (!open) return;
     if (isEdit && guest) {
-      setDraft(guestProfileToCreateDraft(guest, context.data?.documentTypes));
+      const loaded = guestProfileToCreateDraft(guest, context.data?.documentTypes);
+      editBaseline.current = loaded;
+      setDraft(loaded);
       setStep("basic");
       setDefaultsApplied(true);
       setDeletedDocIds([]);
@@ -403,6 +408,7 @@ export function GuestCreateModal({
           for (const item of items) {
             initial[item.fieldId] = item.value;
           }
+          customBaseline.current = JSON.stringify(initial);
           setCustomValues(initial);
         })
         .catch(() => undefined);
@@ -414,11 +420,13 @@ export function GuestCreateModal({
               .filter((type) => type.values.length > 0)
               .map((type) => ({ typeId: type.id, values: type.values })),
           );
-          setDraft((current) =>
-            current.preferenceAnswers.length > 0
-              ? current
-              : { ...current, preferenceAnswers: answers },
-          );
+          setDraft((current) => {
+            if (current.preferenceAnswers.length > 0) return current;
+            if (editBaseline.current) {
+              editBaseline.current = { ...editBaseline.current, preferenceAnswers: answers };
+            }
+            return { ...current, preferenceAnswers: answers };
+          });
           prefsLoaded.current = true;
         })
         .catch(() => undefined);
@@ -462,6 +470,9 @@ export function GuestCreateModal({
               backImageUrl: doc.backUrl ?? null,
             };
           });
+          if (editBaseline.current) {
+            editBaseline.current = { ...editBaseline.current, documents: mappedDocs };
+          }
           setDraft((curr) => ({
             ...curr,
             documents: mappedDocs,
@@ -1244,16 +1255,23 @@ export function GuestCreateModal({
     }
   }
 
-  function handleAttemptClose() {
+  function hasEnteredData() {
+    if (created) return false;
     if (isEdit) {
-      handleActualClose();
+      if (photoFile || photoRemoved) return true;
+      if (Object.values(docFiles).some(Boolean)) return true;
+      if (JSON.stringify(customValues) !== customBaseline.current) return true;
+      return editBaseline.current ? guestCreateDiffers(draft, editBaseline.current) : false;
+    }
+    return guestCreateHasChanges(draft, context.data?.profileType?.defaults);
+  }
+
+  function handleAttemptClose() {
+    if (hasEnteredData()) {
+      setDiscardConfirmOpen(true);
       return;
     }
-    if (guestCreateHasChanges(draft, context.data?.profileType?.defaults) && !created) {
-      setDiscardConfirmOpen(true);
-    } else {
-      handleActualClose();
-    }
+    handleActualClose();
   }
 
   function resetForm() {
@@ -1317,7 +1335,7 @@ export function GuestCreateModal({
               e.preventDefault();
               return;
             }
-            if (guestCreateHasChanges(draft, context.data?.profileType?.defaults) && !created) {
+            if (hasEnteredData()) {
               e.preventDefault();
               setDiscardConfirmOpen(true);
             }
@@ -1712,9 +1730,13 @@ export function GuestCreateModal({
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
         <AlertDialogContent className="z-[90] rounded-2xl border border-[#DDD4C5] bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-lg text-[#251605]">Discard new guest?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display text-lg text-[#251605]">
+              {isEdit ? "Leave without saving?" : "Discard new guest?"}
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-muted-foreground">
-              Your entered information will be lost if not saved as a draft.
+              {isEdit
+                ? "You have changes that are not saved."
+                : "Your entered information will be lost if not saved as a draft."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1726,7 +1748,7 @@ export function GuestCreateModal({
                 handleActualClose();
               }}
             >
-              Discard
+              Leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
