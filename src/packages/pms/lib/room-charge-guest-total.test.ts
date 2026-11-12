@@ -6,6 +6,7 @@ import {
   effectiveServiceQuantity,
   packageChargeFigures,
   packageChargeScopeApplies,
+  composeStayChargePreview,
   previewPostedRoomCharge,
   serviceChargeFigures,
   serviceQuantityEditable,
@@ -66,6 +67,46 @@ describe("posted room charge guest total", () => {
     });
     assert.equal(posted.netAmount, 200);
     assert.equal(posted.total, 220);
+  });
+
+  it("adds room tax, package tax, and service into the stay total", () => {
+    const preview = composeStayChargePreview(
+      1000,
+      [200],
+      {
+        taxes: [{ code: "VAT", chargeType: "percentage", rate: 10, calculation: "exclusive" }],
+        services: [{ code: "SVC", chargeType: "percentage", rate: 5 }],
+      },
+      {
+        taxes: [{ code: "PKG", chargeType: "percentage", rate: 10, calculation: "exclusive" }],
+        services: [],
+      },
+    );
+    assert.equal(preview.tax, 120);
+    assert.equal(preview.serviceCharge, 50);
+    assert.equal(preview.estimatedTotal, 1370);
+  });
+
+  it("keeps an inclusive room tax inside the rate and still adds the package", () => {
+    const preview = composeStayChargePreview(
+      120,
+      [50],
+      {
+        taxes: [{ code: "VAT", chargeType: "percentage", rate: 20, calculation: "inclusive" }],
+        services: [],
+      },
+      { taxes: [], services: [] },
+    );
+    assert.equal(preview.tax, 20);
+    assert.equal(preview.serviceCharge, 0);
+    assert.equal(preview.estimatedTotal, 170);
+  });
+
+  it("returns the rate plus packages when no tax or service applies", () => {
+    const preview = composeStayChargePreview(400, [25], { taxes: [], services: [] }, { taxes: [], services: [] });
+    assert.equal(preview.tax, 0);
+    assert.equal(preview.serviceCharge, 0);
+    assert.equal(preview.estimatedTotal, 425);
   });
 });
 

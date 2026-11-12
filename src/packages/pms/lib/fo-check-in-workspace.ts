@@ -253,13 +253,11 @@ export function foPickGuestIdentityDocumentPreview(
   return { url: pick.url, verificationStatus: pick.verificationStatus };
 }
 
-export const FO_FOLIO_PREVIEW_TAXES_UNAVAILABLE =
-  "Taxes and service charge are not exposed on this Front Office read model.";
-
 export type FoFolioPreviewDisplay = {
   roomCharge: string | null;
   packageLine: string | null;
-  taxesAndService: string | null;
+  tax: string | null;
+  service: string | null;
   estimatedTotal: string | null;
   folioBalance: string | null;
 };
@@ -269,7 +267,9 @@ export function foBuildFolioPreviewDisplay(input: {
   roomSubtotal: number | null;
   packages: FoReservationPackageRow[];
   packagesSubtotal: number | null;
-  grandCommercialSubtotal: number | null;
+  tax: number | null;
+  serviceCharge: number | null;
+  estimatedTotal: number | null;
   folioBalance: number | null;
 }): FoFolioPreviewDisplay {
   const roomCharge = input.roomSubtotal != null ? input.money(input.roomSubtotal) : null;
@@ -280,13 +280,12 @@ export function foBuildFolioPreviewDisplay(input: {
   } else if (names) {
     packageLine = names;
   }
-  const estimatedTotal =
-    input.grandCommercialSubtotal != null ? input.money(input.grandCommercialSubtotal) : null;
   return {
     roomCharge,
     packageLine,
-    taxesAndService: null,
-    estimatedTotal,
+    tax: input.tax != null && input.tax > 0 ? input.money(input.tax) : null,
+    service: input.serviceCharge != null && input.serviceCharge > 0 ? input.money(input.serviceCharge) : null,
+    estimatedTotal: input.estimatedTotal != null ? input.money(input.estimatedTotal) : null,
     folioBalance: input.folioBalance != null ? input.money(input.folioBalance) : null,
   };
 }

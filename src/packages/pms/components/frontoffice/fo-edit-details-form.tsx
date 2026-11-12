@@ -317,6 +317,7 @@ export function FoEditDetailsForm({
       void queryClient.invalidateQueries({ queryKey: ["reservation", restaurantId, stay.id] });
       void queryClient.invalidateQueries({ queryKey: ["guest", restaurantId, stay.guestId] });
       void queryClient.invalidateQueries({ queryKey: ["fo-amend", restaurantId, stay.id] });
+      void queryClient.invalidateQueries({ queryKey: ["fo-arrival-qv", restaurantId, stay.id] });
       toast.success("Changes saved.");
     },
     onError: (error: Error) => toast.error(error.message),

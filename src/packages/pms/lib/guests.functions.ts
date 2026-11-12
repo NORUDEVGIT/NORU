@@ -1952,18 +1952,22 @@ export const updateGuest = createServerFn({ method: "POST" })
         : {}),
     };
 
-    const { error } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: updated, error } = await supabaseAdmin
       .from("guest_profiles")
       .update(updateRow as never)
       .eq("restaurant_id", data.restaurantId)
-      .eq("id", data.guestId);
+      .eq("id", data.guestId)
+      .select("id")
+      .maybeSingle();
     if (error && isMissingSchemaError(error)) {
       throw new Error(INDIVIDUAL_ENRICHMENT_UNAVAILABLE);
     }
     if (error) throw new Error(error.message);
+    if (!updated) throw new Error("That guest could not be found.");
 
     await replaceEmergencyContacts(
-      context.supabase,
+      supabaseAdmin,
       data.restaurantId,
       data.guestId,
       data.guest.emergencyContacts,

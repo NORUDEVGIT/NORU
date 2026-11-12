@@ -294,7 +294,7 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
     ] = await Promise.all([
       supabaseAdmin
         .from("guest_profiles")
-        .select("first_name, last_name, phone, email, vip_status")
+        .select("first_name, middle_name, last_name, phone, email, vip_status")
         .eq("restaurant_id", data.restaurantId)
         .eq("id", stay.guestId)
         .maybeSingle(),
@@ -330,8 +330,10 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
 
     const guest = {
       fullName:
-        [guestRow?.first_name, guestRow?.last_name].filter(Boolean).join(" ").trim() ||
-        stay.guestName,
+        [guestRow?.first_name, guestRow?.middle_name, guestRow?.last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || stay.guestName,
       phone: (guestRow?.phone as string | null) ?? stay.guestPhone,
       email: (guestRow?.email as string | null) ?? stay.guestEmail,
       vip: guestRow?.vip_status === true || stay.guestVip,
