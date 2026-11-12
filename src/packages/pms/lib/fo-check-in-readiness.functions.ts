@@ -9,7 +9,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isKeyRecorded, isRoomReady } from "@/packages/pms/lib/fo-check-in";
 import { getCheckInAgreement } from "@/packages/pms/lib/fo-check-in-agreement.functions";
 import { getCheckInDepositReadiness } from "@/packages/pms/lib/fo-check-in.functions";
-import { checkInIdentityVerification } from "@/packages/pms/lib/fo-check-in-registration";
+import { checkInIdentityVerification, guestRowForCheckInRules } from "@/packages/pms/lib/fo-check-in-registration";
+import { loadCheckInPartyLinks } from "@/packages/pms/lib/fo-check-in-registration.functions";
 import {
   evaluateCheckInReadiness,
   registrationSnapshotIsComplete,
@@ -28,6 +29,7 @@ import {
   resolveIndividualProfileType,
   validateGuestCheckInRequirements,
 } from "@/packages/pms/lib/guest-field-rules";
+import type { GuestProfile } from "@/packages/pms/lib/guests.functions";
 import { loadGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { loadCard2HousekeepingSnapshot } from "@/packages/pms/lib/housekeeping-card2.functions";
 import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
@@ -158,22 +160,28 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
       property?.business_date ?? null,
       property?.timezone ?? "UTC",
     );
-    const { data: customFieldRows } = await supabaseAdmin
+    const customFieldQuery = await supabaseAdmin
       .from("guest_custom_field_values")
       .select("field_id, value_json")
       .eq("restaurant_id", data.restaurantId)
       .eq("guest_id", target.primaryGuestId);
     const customValues: Record<string, unknown> = {};
-    for (const row of customFieldRows ?? []) {
+    for (const row of customFieldQuery.data ?? []) {
       customValues[row.field_id] = row.value_json;
     }
+    const customFieldsAvailable = !customFieldQuery.error;
+    const links = await loadCheckInPartyLinks(data.restaurantId, data.reservationId);
     const guestValidation = validateGuestCheckInRequirements({
-      guest: guestProfile,
+      guest: guestProfile
+        ? (guestRowForCheckInRules(guestProfile as Record<string, unknown>) as GuestProfile)
+        : null,
       documents,
       config: workspaceConfig,
       profileType: individualType,
       today,
       customFieldValues: customValues,
+      links,
+      skipCustomFields: !customFieldsAvailable,
     });
     const identityDocumentErrors = guestValidation.missingFieldCodes.includes("IDENTITY_DOCUMENT")
       ? guestValidation.errors.filter((item) => /identity document/i.test(item))

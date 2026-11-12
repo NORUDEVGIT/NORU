@@ -19,8 +19,11 @@ import {
   writeCheckInUnitProgress,
 } from "@/packages/pms/lib/fo-check-in-unit.functions";
 import {
+  checkInFieldParty,
+  checkInRegistrationCollects,
   resolveGuestFieldRules,
   resolveIndividualProfileType,
+  type CheckInPartyLinks,
 } from "@/packages/pms/lib/guest-field-rules";
 import { loadGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { diffFields, recordGuestEvent } from "@/packages/pms/lib/guests.server";
@@ -58,14 +61,41 @@ export type CheckInRegistrationField = {
   value: string | null;
 };
 
+export type CheckInRegistrationCustomField = {
+  fieldId: string;
+  code: string;
+  label: string;
+  value: string | null;
+};
+
 export type CheckInRegistrationRead = {
   guestId: string;
   guestSource: "unit_primary" | "booker";
   reservationRoomId: string | null;
   fields: CheckInRegistrationField[];
+  customFields: CheckInRegistrationCustomField[];
   documents: CheckInRegistrationDocument[];
   warnings: string[];
 };
+
+export async function loadCheckInPartyLinks(
+  restaurantId: string,
+  reservationId: string,
+): Promise<CheckInPartyLinks> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("hotel_reservations")
+    .select("company_master_id, travel_agent_master_id, group_account_master_id, pms_group_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", reservationId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return {
+    company: Boolean(data?.company_master_id),
+    travelAgency: Boolean(data?.travel_agent_master_id),
+    group: Boolean(data?.group_account_master_id || data?.pms_group_id),
+  };
+}
 
 const PROFILE_SELECT =
   "id, first_name, last_name, middle_name, preferred_name, title, gender, date_of_birth, phone, email, nationality, language, address_line1, address_line2, city, region, country, postal_code";
@@ -98,10 +128,17 @@ export const getCheckInRegistration = createServerFn({ method: "POST" })
 
     const config = await loadGuestWorkspaceConfig(data.restaurantId);
     const profileType = resolveIndividualProfileType(config);
-    const rules = resolveGuestFieldRules(config, profileType, "check_in");
+    const links = await loadCheckInPartyLinks(data.restaurantId, data.reservationId);
+    const rules = resolveGuestFieldRules(config, profileType, "check_in", links);
     const record = profile as Record<string, unknown>;
     const fields: CheckInRegistrationField[] = rules
-      .filter((rule) => rule.requiredForContext && rule.canonicalKey !== "documents")
+      .filter(
+        (rule) =>
+          rule.requiredForContext &&
+          checkInRegistrationCollects(rule) &&
+          rule.canonicalKey !== "documents" &&
+          rule.category !== "custom_value",
+      )
       .map((rule) => {
         const column = rule.canonicalKey ? snake(rule.canonicalKey) : null;
         return {
@@ -111,6 +148,29 @@ export const getCheckInRegistration = createServerFn({ method: "POST" })
           value: column ? textValue(record[column]) : null,
         };
       });
+    const customRows = await supabaseAdmin
+      .from("guest_custom_field_values")
+      .select("field_id, value_json")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("guest_id", target.primaryGuestId);
+    const customValues = new Map(
+      (customRows.data ?? []).map((row) => [row.field_id, customText(row.value_json)]),
+    );
+    const customFields: CheckInRegistrationCustomField[] = customRows.error
+      ? []
+      : rules
+          .filter(
+            (rule) =>
+              rule.requiredForContext &&
+              rule.category === "custom_value" &&
+              checkInFieldParty(rule.code) === "guest",
+          )
+          .map((rule) => ({
+            fieldId: rule.id,
+            code: rule.code,
+            label: rule.label,
+            value: customValues.get(rule.id) ?? null,
+          }));
 
     const documentQuery = await supabaseAdmin
       .from("guest_documents")
@@ -143,6 +203,7 @@ export const getCheckInRegistration = createServerFn({ method: "POST" })
       guestSource: target.guestSource,
       reservationRoomId: target.reservationRoomId,
       fields,
+      customFields,
       documents,
       warnings: verification.warnings,
     };
@@ -152,6 +213,14 @@ function snake(key: string): string {
   return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
+function customText(value: unknown): string | null {
+  if (typeof value === "string" || typeof value === "number") {
+    const text = String(value).trim();
+    return text.length > 0 ? text : null;
+  }
+  return null;
+}
+
 export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -159,6 +228,7 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
       .object({
         ...targetSchema,
         fields: z.record(z.string().max(200).nullable()).optional(),
+        customFields: z.record(z.string().max(500).nullable()).optional(),
         document: z
           .object({
             documentId: idSchema.optional(),
@@ -183,6 +253,7 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
     });
     const guestId = target.primaryGuestId;
     const columns = registrationProfileColumns(data.fields ?? {});
+    let profileDiff: ReturnType<typeof diffFields> = null;
     if (Object.keys(columns).length > 0) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: before, error: beforeError } = await supabaseAdmin
@@ -199,51 +270,79 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
         .eq("restaurant_id", data.restaurantId)
         .eq("id", guestId);
       if (error) throw new Error(error.message);
-      const profileDiff = diffFields(
+      profileDiff = diffFields(
         before as unknown as Record<string, unknown>,
         columns,
         Object.keys(columns),
       );
-      if (profileDiff) {
-        await recordGuestEvent({
+    }
+
+    const followUps: Promise<unknown>[] = [];
+    if (profileDiff) {
+      followUps.push(
+        recordGuestEvent({
           restaurantId: data.restaurantId,
           guestId,
           eventType: "profile_updated",
           previousValues: profileDiff.previous,
           newValues: profileDiff.next,
           actorMembershipId: me.id,
-        });
-      }
+        }),
+      );
     }
-
+    if (data.customFields && Object.keys(data.customFields).length > 0) {
+      followUps.push(
+        (async () => {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { persistGuestCustomFieldValues } = await import(
+            "@/packages/pms/lib/guest-custom-fields.functions"
+          );
+          await persistGuestCustomFieldValues(
+            supabaseAdmin,
+            data.restaurantId,
+            guestId,
+            context.userId,
+            data.customFields!,
+            me.id,
+          );
+        })(),
+      );
+    }
     if (data.document) {
-      const saved = await saveGuestDocument({
-        data: {
-          restaurantId: data.restaurantId,
-          guestId,
-          idTypeId: data.document.idTypeId,
-          ...(data.document.documentId ? { documentId: data.document.documentId } : {}),
-          ...(data.document.documentNumber !== undefined
-            ? { documentNumber: data.document.documentNumber }
-            : {}),
-          ...(data.document.issuingCountry !== undefined
-            ? { issuingCountry: registrationIssuingCountry(data.document.issuingCountry) }
-            : {}),
-          ...(data.document.issueDate !== undefined ? { issueDate: data.document.issueDate } : {}),
-          ...(data.document.expiryDate !== undefined
-            ? { expiryDate: data.document.expiryDate }
-            : {}),
-          ...(data.document.issuingAuthority !== undefined
-            ? { issuingAuthority: data.document.issuingAuthority }
-            : {}),
-          ...(data.document.notes !== undefined ? { notes: data.document.notes } : {}),
-        },
-      });
-      if (!saved.ok) throw new Error(saved.message);
+      followUps.push(
+        (async () => {
+          const saved = await saveGuestDocument({
+            data: {
+              restaurantId: data.restaurantId,
+              guestId,
+              idTypeId: data.document!.idTypeId,
+              ...(data.document!.documentId ? { documentId: data.document!.documentId } : {}),
+              ...(data.document!.documentNumber !== undefined
+                ? { documentNumber: data.document!.documentNumber }
+                : {}),
+              ...(data.document!.issuingCountry !== undefined
+                ? { issuingCountry: registrationIssuingCountry(data.document!.issuingCountry) }
+                : {}),
+              ...(data.document!.issueDate !== undefined
+                ? { issueDate: data.document!.issueDate }
+                : {}),
+              ...(data.document!.expiryDate !== undefined
+                ? { expiryDate: data.document!.expiryDate }
+                : {}),
+              ...(data.document!.issuingAuthority !== undefined
+                ? { issuingAuthority: data.document!.issuingAuthority }
+                : {}),
+              ...(data.document!.notes !== undefined ? { notes: data.document!.notes } : {}),
+            },
+          });
+          if (!saved.ok) throw new Error(saved.message);
+        })(),
+      );
     }
+    await Promise.all(followUps);
 
-    try {
-      await writeCheckInUnitProgress({
+    await Promise.all([
+      writeCheckInUnitProgress({
         restaurantId: data.restaurantId,
         reservationId: data.reservationId,
         reservationRoomId: target.reservationRoomId,
@@ -254,27 +353,27 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
             fields: columns,
           },
         },
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      throw new Error(
-        message
-          ? `Guest profile was saved, but the room registration could not be stored. ${message}`
-          : "Guest profile was saved, but the room registration could not be stored. Try again.",
-      );
-    }
-    await recordReservationEvent({
-      restaurantId: data.restaurantId,
-      reservationId: data.reservationId,
-      eventType: "amended",
-      newValues: {
-        reservation_room_id: target.reservationRoomId,
-        guest_id: guestId,
-        guest_source: target.guestSource,
-      },
-      notes: "Check-in registration saved.",
-      actorMembershipId: me.id,
-    });
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "";
+        throw new Error(
+          message
+            ? `Guest profile was saved, but the room registration could not be stored. ${message}`
+            : "Guest profile was saved, but the room registration could not be stored. Try again.",
+        );
+      }),
+      recordReservationEvent({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        eventType: "amended",
+        newValues: {
+          reservation_room_id: target.reservationRoomId,
+          guest_id: guestId,
+          guest_source: target.guestSource,
+        },
+        notes: "Check-in registration saved.",
+        actorMembershipId: me.id,
+      }),
+    ]);
     return { ok: true, guestId };
   });
 
