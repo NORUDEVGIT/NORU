@@ -802,6 +802,113 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Release deposit allocations above what a charge group keeps live
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.release_charge_allocations_above(
+  _restaurant_id uuid,
+  _charge_id uuid,
+  _live_after numeric,
+  _membership_id uuid,
+  _release_seed text,
+  _reason text
+) RETURNS numeric
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  charge_row public.folio_transactions%ROWTYPE;
+  alloc record;
+  alloc_net_total numeric(12,2);
+  alloc_net numeric(12,2);
+  excess numeric(12,2);
+  release_amount numeric(12,2);
+  release_key text;
+  released_total numeric(12,2) := 0;
+BEGIN
+  SELECT * INTO charge_row FROM public.folio_transactions
+  WHERE id = _charge_id AND restaurant_id = _restaurant_id;
+  IF NOT FOUND THEN
+    RETURN 0;
+  END IF;
+
+  SELECT COALESCE(round(sum(a.amount), 2), 0) INTO alloc_net_total
+  FROM public.folio_deposit_allocations a
+  WHERE a.restaurant_id = _restaurant_id
+    AND a.charge_transaction_id IN (
+      SELECT charge_row.id
+      UNION ALL
+      SELECT child.id FROM public.folio_transactions child
+      WHERE child.restaurant_id = _restaurant_id
+        AND child.original_transaction_id = charge_row.id
+        AND child.transaction_type = 'charge'
+        AND child.category IN ('tax', 'service_charge')
+    );
+  excess := round(alloc_net_total - _live_after, 2);
+
+  IF excess > 0 THEN
+    FOR alloc IN
+      SELECT a.id, a.deposit_transaction_id, a.charge_transaction_id, a.amount
+      FROM public.folio_deposit_allocations a
+      WHERE a.restaurant_id = _restaurant_id
+        AND a.released_allocation_id IS NULL
+        AND a.charge_transaction_id IN (
+          SELECT charge_row.id
+          UNION ALL
+          SELECT child.id FROM public.folio_transactions child
+          WHERE child.restaurant_id = _restaurant_id
+            AND child.original_transaction_id = charge_row.id
+            AND child.transaction_type = 'charge'
+            AND child.category IN ('tax', 'service_charge')
+        )
+      ORDER BY a.created_at DESC, a.id DESC
+    LOOP
+      EXIT WHEN excess <= 0;
+      SELECT round(alloc.amount + COALESCE(sum(r.amount), 0), 2) INTO alloc_net
+      FROM public.folio_deposit_allocations r
+      WHERE r.released_allocation_id = alloc.id;
+      IF alloc_net <= 0 THEN
+        CONTINUE;
+      END IF;
+      release_amount := least(alloc_net, excess);
+      release_key := 'cxrel' || replace(alloc.id::text, '-', '') || left(md5(_release_seed), 8);
+      IF NOT EXISTS (
+        SELECT 1 FROM public.folio_deposit_allocations
+        WHERE restaurant_id = _restaurant_id AND idempotency_key = release_key
+      ) THEN
+        INSERT INTO public.folio_deposit_allocations (
+          restaurant_id, deposit_transaction_id, charge_transaction_id, amount,
+          idempotency_key, actor_membership_id, released_allocation_id
+        ) VALUES (
+          _restaurant_id, alloc.deposit_transaction_id, alloc.charge_transaction_id,
+          -release_amount, release_key, _membership_id, alloc.id
+        );
+        INSERT INTO public.folio_history (
+          restaurant_id, folio_id, event_type, actor_membership_id, notes, new_values
+        ) VALUES (
+          _restaurant_id, charge_row.folio_id, 'deposit_allocated', _membership_id,
+          'Deposit allocation released',
+          jsonb_build_object(
+            'released', true,
+            'allocation_id', alloc.id,
+            'deposit_transaction_id', alloc.deposit_transaction_id,
+            'charge_transaction_id', alloc.charge_transaction_id,
+            'amount', -release_amount,
+            'reason', _reason
+          )
+        );
+      END IF;
+      released_total := round(released_total + release_amount, 2);
+      excess := round(excess - release_amount, 2);
+    END LOOP;
+  END IF;
+
+  RETURN released_total;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Restore: post the stay charge again when cancellation reversed it
 -- ---------------------------------------------------------------------------
 
@@ -825,6 +932,9 @@ DECLARE
   prior integer;
   posted integer := 0;
   previous_room text;
+  fee public.folio_transactions%ROWTYPE;
+  remaining_fee numeric(12,2);
+  fee_key text;
 BEGIN
   SELECT * INTO res FROM public.hotel_reservations
   WHERE id = _reservation_id AND restaurant_id = _restaurant_id
@@ -845,6 +955,47 @@ BEGIN
   IF folio.status <> 'open' THEN
     RAISE EXCEPTION 'FOLIO_CLOSED';
   END IF;
+
+  -- A reinstated stay is no longer cancelled or a no-show, so its fee is reversed.
+  -- Each fee gets one deterministic correction key; a fee already reversed is skipped.
+  FOR fee IN
+    SELECT * FROM public.folio_transactions
+    WHERE restaurant_id = _restaurant_id AND folio_id = folio.id
+      AND transaction_type = 'charge'
+      AND reference_type IN ('reservation_cancel', 'reservation_no_show')
+      AND category NOT IN ('tax', 'service_charge')
+    ORDER BY posted_at, id
+  LOOP
+    remaining_fee := public.charge_group_remaining_gross(_restaurant_id, fee.id);
+    CONTINUE WHEN remaining_fee <= 0;
+
+    IF public.group_is_billed(_restaurant_id, fee.id) OR EXISTS (
+      SELECT 1 FROM public.guest_folio_invoices
+      WHERE restaurant_id = _restaurant_id AND folio_id = folio.id
+        AND coverage_scope = 'legacy_folio'
+    ) THEN
+      RAISE EXCEPTION 'FEE_INVOICED';
+    END IF;
+
+    fee_key := 'rsrfee' || replace(fee.id::text, '-', '');
+    CONTINUE WHEN EXISTS (
+      SELECT 1 FROM public.folio_transactions
+      WHERE restaurant_id = _restaurant_id AND idempotency_key = fee_key
+    );
+
+    PERFORM public.release_charge_allocations_above(
+      _restaurant_id, fee.id, 0, _membership_id, fee_key, 'Cancellation fee reversed on reinstatement'
+    );
+    PERFORM public.post_folio_charge_correction(
+      _restaurant_id,
+      fee.id,
+      'reverse_remaining',
+      NULL,
+      left('Fee reversed on reinstatement — ' || COALESCE(NULLIF(btrim(fee.description), ''), 'fee'), 200),
+      _membership_id,
+      fee_key
+    );
+  END LOOP;
 
   -- Only stays whose room charge was posted before can need a repost.
   IF NOT EXISTS (
@@ -1030,6 +1181,7 @@ REVOKE ALL ON FUNCTION public.open_reservation_fee_folio(uuid, uuid, uuid) FROM 
 REVOKE ALL ON FUNCTION public.charge_group_remaining_gross(uuid, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.settle_reservation_cancellation(uuid, uuid, uuid, text, uuid, boolean) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.repost_reservation_charges_after_restore(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.release_charge_allocations_above(uuid, uuid, numeric, uuid, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.list_cancelled_reservation_settlement_exceptions(uuid) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.open_reservation_fee_folio(uuid, uuid, uuid) TO service_role;

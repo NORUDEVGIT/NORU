@@ -3493,7 +3493,8 @@ export const setReservationStatus = createServerFn({ method: "POST" })
           reservationId: data.reservationId,
           eventType: "amended",
           newValues: { restore_repost_failed: true, error: repostError.message },
-          notes: "Room charges were not posted again after restore. Post them in Cashiering.",
+          notes:
+            "Fee reversal or room charge repost did not finish after restore. Check the folio in Cashiering.",
           actorMembershipId: me.id,
         });
       } else {

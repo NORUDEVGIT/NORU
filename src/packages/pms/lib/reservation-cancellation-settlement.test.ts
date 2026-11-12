@@ -182,6 +182,35 @@ describe("0206 migration", () => {
     assert.match(fn, /'fee_only', true/);
   });
 
+  it("reverses the cancel or no-show fee when a stay is reinstated", () => {
+    const fn = migration.slice(
+      migration.indexOf("FUNCTION public.repost_reservation_charges_after_restore"),
+      migration.indexOf("FUNCTION public.list_cancelled_reservation_settlement_exceptions"),
+    );
+    assert.match(fn, /reference_type IN \('reservation_cancel', 'reservation_no_show'\)/);
+    assert.match(fn, /'rsrfee' \|\| replace\(fee\.id::text, '-', ''\)/);
+    assert.match(fn, /CONTINUE WHEN remaining_fee <= 0;/);
+    assert.match(fn, /CONTINUE WHEN EXISTS \([\s\S]*idempotency_key = fee_key/);
+    assert.match(fn, /RAISE EXCEPTION 'FEE_INVOICED'/);
+    assert.match(fn, /release_charge_allocations_above\(/);
+    assert.match(fn, /post_folio_charge_correction\([\s\S]*'reverse_remaining'/);
+    assert.ok(
+      fn.indexOf("reference_type IN ('reservation_cancel'") <
+        fn.indexOf("reservation_room_charge', res.id"),
+      "fee reversal runs before the room repost",
+    );
+  });
+
+  it("releases deposit allocations above the live amount before reversing", () => {
+    const helper = migration.slice(
+      migration.indexOf("FUNCTION public.release_charge_allocations_above"),
+      migration.indexOf("FUNCTION public.repost_reservation_charges_after_restore"),
+    );
+    assert.match(helper, /released_allocation_id IS NULL/);
+    assert.match(helper, /'cxrel' \|\| replace\(alloc\.id::text, '-', ''\)/);
+    assert.match(helper, /-release_amount/);
+  });
+
   it("lets a restored stay post its package again", () => {
     assert.match(migration, /DROP INDEX IF EXISTS public\.folio_transactions_package_charge_once/);
     assert.match(migration, /charge_group_remaining_gross\(_restaurant_id, t\.id\) > 0/);
