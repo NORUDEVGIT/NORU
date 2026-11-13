@@ -27,6 +27,7 @@ import {
   listAssignableRooms,
 } from "@/packages/pms/lib/reservations.functions";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import { quoteFrontOfficeStayCharges } from "@/packages/pms/lib/room-charge-guest-total.functions";
 import { getGuest, listGuestDocuments } from "@/packages/pms/lib/guests.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import {
@@ -199,6 +200,7 @@ export function FoCheckInWorkspaceSheet({
   const fetchArrival = useServerFn(getFrontOfficeArrivalQuickView);
   const fetchFees = useServerFn(getFoFeeDefaults);
   const fetchCommercial = useServerFn(getReservationCommercialAttribution);
+  const fetchStayCharges = useServerFn(quoteFrontOfficeStayCharges);
   const fetchGuest = useServerFn(getGuest);
   const fetchDocuments = useServerFn(listGuestDocuments);
   const fetchAssignable = useServerFn(listAssignableRooms);
@@ -262,6 +264,27 @@ export function FoCheckInWorkspaceSheet({
         },
       }),
     enabled: open && !!detailQuery.data?.reservation,
+    retry: false,
+  });
+
+  const roomForCharges =
+    commercialQuery.data?.roomSubtotalAfterPromotion ??
+    detailQuery.data?.reservation?.roomSubtotal ??
+    null;
+  const packageAmountsForCharges = (commercialQuery.data?.packages ?? [])
+    .map((row) => row.appliedAmount)
+    .filter((amount) => amount > 0);
+  const chargeQuery = useQuery({
+    queryKey: ["fo-stay-charges", restaurantId, stay.id, roomForCharges, packageAmountsForCharges],
+    queryFn: () =>
+      fetchStayCharges({
+        data: {
+          restaurantId,
+          roomSubtotal: roomForCharges,
+          packageAmounts: packageAmountsForCharges,
+        },
+      }),
+    enabled: open && (roomForCharges != null || packageAmountsForCharges.length > 0),
     retry: false,
   });
 
@@ -340,6 +363,17 @@ export function FoCheckInWorkspaceSheet({
   const menuItems = stayQuickViewMenuItems({ status: stay.status, assigned: Boolean(stay.roomId) });
   const reservationType = foDeriveReservationType(reservation);
   const guestDisplayId = foGuestDisplayId(guestQuery.data?.guest.profileNumber);
+  const loadedGuest = guestQuery.data?.guest;
+  const guestLiveName = [loadedGuest?.firstName, loadedGuest?.middleName, loadedGuest?.lastName]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  const guestLiveEmail = loadedGuest
+    ? (loadedGuest.email ?? "")
+    : (arrival?.guest.email ?? "");
+  const guestLivePhone = loadedGuest
+    ? (loadedGuest.phone ?? stay.guestPhone ?? "")
+    : (arrival?.guest.phone ?? stay.guestPhone ?? "");
   const packageAttributions = commercialQuery.data?.packages ?? [];
   const packageLabel = foPackageSummaryLabel(packageAttributions) ?? "—";
 
@@ -364,7 +398,9 @@ export function FoCheckInWorkspaceSheet({
     roomSubtotal: reservation?.roomSubtotal ?? null,
     packages: packageAttributions,
     packagesSubtotal: commercialQuery.data?.packagesSubtotal ?? null,
-    grandCommercialSubtotal: commercialQuery.data?.grandCommercialSubtotal ?? null,
+    tax: chargeQuery.data?.tax ?? null,
+    serviceCharge: chargeQuery.data?.serviceCharge ?? null,
+    estimatedTotal: chargeQuery.data?.estimatedTotal ?? null,
     folioBalance,
   });
 
@@ -455,7 +491,7 @@ export function FoCheckInWorkspaceSheet({
             {compactChrome ? (
               <>
                 <SheetDescription className="sr-only">
-                  {stay.confirmationNumber} · {stay.guestName}
+                  {stay.confirmationNumber} · {guestLiveName || stay.guestName}
                   {roomNumber ? ` · Room ${roomNumber}` : " · Unassigned"}
                 </SheetDescription>
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -464,7 +500,7 @@ export function FoCheckInWorkspaceSheet({
                   </span>
                   <span className="text-[#8C7A64]">·</span>
                   <SheetTitle className="font-display text-base font-semibold leading-none text-[#F6EFE4]">
-                    {stay.guestName}
+                    {guestLiveName || stay.guestName}
                   </SheetTitle>
                   {stay.guestVip ? <VipBadge /> : null}
                   {roomAssigned && roomNumber ? (
@@ -513,7 +549,7 @@ export function FoCheckInWorkspaceSheet({
                     )}
                   </SheetDescription>
                   <SheetTitle className="font-display text-xl text-[#F6EFE4]">
-                    {stay.guestName}
+                    {guestLiveName || stay.guestName}
                   </SheetTitle>
                 </div>
               </div>
@@ -727,7 +763,7 @@ export function FoCheckInWorkspaceSheet({
                 restaurantId={restaurantId}
                 reservationId={stay.id}
                 reservationRoomId={stay.reservationRoomId ?? null}
-                guestName={stay.guestName}
+                guestName={guestLiveName || stay.guestName}
                 confirmationNumber={stay.confirmationNumber}
                 roomNumber={roomNumber}
                 roomTypeName={stay.roomTypeName}
@@ -765,7 +801,9 @@ export function FoCheckInWorkspaceSheet({
                     >
                       <FieldGroup>
                         <div className="flex items-center gap-2 pb-1">
-                          <p className="font-display text-base font-semibold">{stay.guestName}</p>
+                          <p className="font-display text-base font-semibold">
+                            {guestLiveName || stay.guestName}
+                          </p>
                           {stay.guestVip || guestQuery.data?.guest.vipStatus ? <VipBadge /> : null}
                         </div>
                         {guestDisplayId ? (
@@ -780,9 +818,9 @@ export function FoCheckInWorkspaceSheet({
                         ) : null}
                         <DlRow
                           label="Phone"
-                          value={arrival?.guest.phone ?? stay.guestPhone ?? "—"}
+                          value={guestLivePhone || "—"}
                         />
-                        <DlRow label="Email" value={arrival?.guest.email ?? "—"} />
+                        <DlRow label="Email" value={guestLiveEmail || "—"} />
                         <DlRow label="Nationality" value={arrival?.guest.nationality ?? "—"} />
                         <DlRow label="Company" value={reservation?.companyName ?? "—"} />
                         <DlRow label="ID Type" value={idLabel} />
@@ -894,10 +932,10 @@ export function FoCheckInWorkspaceSheet({
                           <DlRow label="Folio No." value={folioNumber || "None yet"} />
                           <DlRow label="Room Charge" value={folioPreview.roomCharge ?? "—"} />
                           <DlRow label="Package" value={folioPreview.packageLine ?? "—"} />
-                          <DlRow
-                            label="Taxes & Service"
-                            value={folioPreview.taxesAndService ?? "—"}
-                          />
+                          {folioPreview.tax ? <DlRow label="Tax" value={folioPreview.tax} /> : null}
+                          {folioPreview.service ? (
+                            <DlRow label="Service" value={folioPreview.service} />
+                          ) : null}
                           <DlRow
                             label="Estimated Total"
                             value={folioPreview.estimatedTotal ?? "—"}

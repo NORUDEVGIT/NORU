@@ -155,47 +155,128 @@ export function contactDefaultChips(defaults: ContactDefaultsDraft): PreferenceS
   return chips;
 }
 
+type ReservationCatalogueRow = { id: string; code?: string | null; label: string };
+
+type ReservationPreferenceAnswer = {
+  code: string;
+  name?: string;
+  valueType: PreferenceValueType;
+  values: string[];
+  options?: Array<{ label: string; value: string }>;
+};
+
+function preferenceKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function exactCatalogueMatch(
+  rows: ReservationCatalogueRow[],
+  candidate: string,
+): ReservationCatalogueRow | null {
+  const key = preferenceKey(candidate);
+  if (!key) return null;
+  return (
+    rows.find(
+      (row) =>
+        preferenceKey(row.id) === key ||
+        preferenceKey(row.code ?? "") === key ||
+        preferenceKey(row.label) === key,
+    ) ?? null
+  );
+}
+
+function containsCatalogueMatch(
+  rows: ReservationCatalogueRow[],
+  candidate: string,
+): ReservationCatalogueRow | null {
+  const key = preferenceKey(candidate);
+  if (key.length < 3) return null;
+  const hits = rows.filter((row) => {
+    const label = preferenceKey(row.label);
+    const code = preferenceKey(row.code ?? "");
+    return (
+      (label.length >= 3 && (label.includes(key) || key.includes(label))) ||
+      (code.length >= 3 && (code.includes(key) || key.includes(code)))
+    );
+  });
+  return hits.length === 1 ? (hits[0] ?? null) : null;
+}
+
+function matchReservationCatalogue(
+  rows: ReservationCatalogueRow[],
+  raw: string,
+  optionLabel: string | null,
+): ReservationCatalogueRow | null {
+  const exact =
+    exactCatalogueMatch(rows, raw) ??
+    (optionLabel ? exactCatalogueMatch(rows, optionLabel) : null);
+  if (exact) return exact;
+  return containsCatalogueMatch(rows, optionLabel || raw);
+}
+
+function optionLabelFor(answer: ReservationPreferenceAnswer, raw: string): string | null {
+  const key = preferenceKey(raw);
+  const option = (answer.options ?? []).find(
+    (row) => preferenceKey(row.value) === key || preferenceKey(row.label) === key,
+  );
+  const label = option?.label.trim() ?? "";
+  return label || null;
+}
+
 export function reservationDefaultsFromWorkspace(input: {
   applyToFutureReservations: boolean;
-  answers: Array<{ code: string; valueType: PreferenceValueType; values: string[] }>;
+  answers: ReservationPreferenceAnswer[];
   specialRequests: string | null;
-  roomTypes: Array<{ id: string; code?: string | null; label: string }>;
-  ratePlans?: Array<{ id: string; code?: string | null; label: string }>;
-}): { specialRequests: string | null; roomTypeId: string | null; ratePlanId?: string | null } {
+  roomTypes: ReservationCatalogueRow[];
+  ratePlans?: ReservationCatalogueRow[];
+}): {
+  specialRequests: string | null;
+  roomTypeId: string | null;
+  roomTypeLabel: string | null;
+  ratePlanId: string | null;
+  ratePlanLabel: string | null;
+} {
   if (!input.applyToFutureReservations) {
-    return { specialRequests: null, roomTypeId: null, ratePlanId: null };
+    return {
+      specialRequests: null,
+      roomTypeId: null,
+      roomTypeLabel: null,
+      ratePlanId: null,
+      ratePlanLabel: null,
+    };
   }
-  const texts = input.answers
-    .filter((row) => row.valueType === "text")
-    .flatMap((row) => row.values);
-  const fromWave2 = (input.specialRequests ?? "").trim();
-  const specialRequests = [...texts, fromWave2].filter(Boolean).join("\n") || null;
-  const roomAnswer =
-    input.answers.find((row) => row.code === "ROOM_TYPE" || row.code === "ROOM")?.values[0] ??
-    input.answers.find((row) => row.code === "BED_TYPE")?.values[0] ??
-    null;
+  const ratePlans = input.ratePlans ?? [];
   let roomTypeId: string | null = null;
-  if (roomAnswer) {
-    const match = input.roomTypes.find(
-      (row) =>
-        row.id === roomAnswer ||
-        (row.code ?? "").toLowerCase() === roomAnswer.toLowerCase() ||
-        row.label.toLowerCase() === roomAnswer.toLowerCase(),
-    );
-    roomTypeId = match?.id ?? null;
-  }
-  const rateAnswer = input.answers.find((row) => row.code === "RATE_PLAN")?.values[0] ?? null;
+  let roomTypeLabel: string | null = null;
   let ratePlanId: string | null = null;
-  if (rateAnswer && input.ratePlans) {
-    const match = input.ratePlans.find(
-      (row) =>
-        row.id === rateAnswer ||
-        (row.code ?? "").toLowerCase() === rateAnswer.toLowerCase() ||
-        row.label.toLowerCase() === rateAnswer.toLowerCase(),
-    );
-    ratePlanId = match?.id ?? null;
+  let ratePlanLabel: string | null = null;
+
+  for (const answer of input.answers) {
+    const raw = answer.values.find((value) => value.trim())?.trim() ?? "";
+    if (!raw) continue;
+    const optionLabel = optionLabelFor(answer, raw);
+    if ((answer.code === "ROOM_TYPE" || answer.code === "ROOM") && !roomTypeId) {
+      const match = matchReservationCatalogue(input.roomTypes, raw, optionLabel);
+      if (match) {
+        roomTypeId = match.id;
+        roomTypeLabel = match.label;
+      }
+    } else if (answer.code === "RATE_PLAN" && !ratePlanId) {
+      const match = matchReservationCatalogue(ratePlans, raw, optionLabel);
+      if (match) {
+        ratePlanId = match.id;
+        ratePlanLabel = match.label;
+      }
+    }
   }
-  return { specialRequests, roomTypeId, ratePlanId };
+
+  return {
+    specialRequests: null,
+    roomTypeId,
+    roomTypeLabel,
+    ratePlanId,
+    ratePlanLabel,
+  };
 }
 
 export type SavedPreferenceDisplay = {

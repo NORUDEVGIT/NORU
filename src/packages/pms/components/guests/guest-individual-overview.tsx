@@ -32,9 +32,14 @@ import {
   isPreferredContactMethod,
   isPreferredContactTime,
 } from "@/packages/pms/lib/guest-profile-overview";
+import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
+import { GUEST_DOCUMENT_STATUS_LABELS } from "@/packages/pms/lib/guest-profile-wave2";
+import { countryNameFromInput } from "@/packages/pms/lib/pms-geography";
 import {
+  listGuestDocuments,
   listGuestPreferenceSummary,
   getGuestStayOverview,
+  type GuestDocument,
   type GuestHistoryEntry,
   type GuestProfile,
 } from "@/packages/pms/lib/guests.functions";
@@ -110,6 +115,70 @@ function InfoRow({
   );
 }
 
+function maskStoredNumber(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  return `•••• ${trimmed.slice(-4)}`;
+}
+
+function OverviewIdentity({
+  document,
+  extraCount,
+  profileType,
+  profileNumber,
+  profileExpiry,
+}: {
+  document: GuestDocument | null;
+  extraCount: number;
+  profileType: GuestProfile["idDocumentType"];
+  profileNumber: string | null;
+  profileExpiry: string | null;
+}) {
+  const typeLabel =
+    document?.typeName ||
+    (profileType ? ID_DOCUMENT_LABELS[profileType] : null) ||
+    null;
+  const number = document?.documentNumberMasked || maskStoredNumber(profileNumber);
+  const country = document?.issuingCountry
+    ? countryNameFromInput(document.issuingCountry)
+    : null;
+  const expiry = document?.expiryDate || profileExpiry;
+  const status = document?.verificationStatus ?? null;
+  const verified = status === "verified";
+
+  return (
+    <>
+      <InfoRow label="ID Document" value={typeLabel ?? "Not recorded"} />
+      <InfoRow label="ID Number" value={number} />
+      <InfoRow label="Issuing Country" value={country} />
+      <InfoRow label="Expiration Date" value={expiry ? formatStayDate(expiry) : "—"} />
+      <div className="flex items-center justify-between border-t border-[#DDD4C5]/60 pt-2">
+        <span className="text-[#756A5B]">Verification</span>
+        {document ? (
+          verified ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+              <CheckCircle2 className="size-3" /> {GUEST_DOCUMENT_STATUS_LABELS.verified}
+            </span>
+          ) : (
+            <span className="rounded-full border border-stone-200 bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
+              {GUEST_DOCUMENT_STATUS_LABELS[status ?? "unverified"]}
+            </span>
+          )
+        ) : (
+          <span className="rounded-full border border-stone-200 bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
+            Not recorded
+          </span>
+        )}
+      </div>
+      {extraCount > 0 ? (
+        <p className="pt-1 text-[11px] text-[#756A5B]">
+          {extraCount} more document{extraCount === 1 ? "" : "s"} on the Identity tab.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 export function GuestIndividualOverview({
   restaurantId,
   guest,
@@ -128,6 +197,7 @@ export function GuestIndividualOverview({
   const fetchOverview = useServerFn(getGuestStayOverview);
   const fetchLinks = useServerFn(listGuestAccountLinks);
   const fetchPrefs = useServerFn(listGuestPreferenceSummary);
+  const fetchDocuments = useServerFn(listGuestDocuments);
 
   const overviewQuery = useQuery({
     queryKey: ["guest-stay-overview", restaurantId, guest.id],
@@ -144,6 +214,12 @@ export function GuestIndividualOverview({
   const prefsQuery = useQuery({
     queryKey: ["guest-preference-summary", restaurantId, guest.id],
     queryFn: () => fetchPrefs({ data: { restaurantId, guestId: guest.id } }),
+    retry: false,
+  });
+
+  const documentsQuery = useQuery({
+    queryKey: ["guest-documents", restaurantId, guest.id],
+    queryFn: () => fetchDocuments({ data: { restaurantId, guestId: guest.id } }),
     retry: false,
   });
 
@@ -459,28 +535,17 @@ export function GuestIndividualOverview({
           icon={FileCheck}
           data-testid="guest-overview-identity"
         >
-          <InfoRow label="ID Document" value={guest.idType ? guest.idType.toUpperCase() : "Not recorded"} />
-          <InfoRow
-            label="ID Number"
-            value={guest.idNumberMasked ?? (guest.idNumber ? `•••• ${guest.idNumber.slice(-4)}` : "—")}
-          />
-          <InfoRow label="Issuing Country" value={guest.idCountry} />
-          <InfoRow
-            label="Expiration Date"
-            value={guest.idExpiry ? formatStayDate(guest.idExpiry) : "—"}
-          />
-          <div className="flex items-center justify-between pt-2 border-t border-[#DDD4C5]/60">
-            <span className="text-[#756A5B]">Verification</span>
-            {guest.idVerified ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                <CheckCircle2 className="size-3" /> Verified
-              </span>
-            ) : (
-              <span className="rounded-full bg-stone-100 border border-stone-200 px-2 py-0.5 text-[10px] font-medium text-stone-600">
-                Unverified
-              </span>
-            )}
-          </div>
+          {documentsQuery.isLoading ? (
+            <p className="py-1 text-xs text-[#756A5B]">Loading identity…</p>
+          ) : (
+            <OverviewIdentity
+              document={documentsQuery.data?.documents?.[0] ?? null}
+              extraCount={Math.max((documentsQuery.data?.documents.length ?? 0) - 1, 0)}
+              profileType={guest.idDocumentType}
+              profileNumber={guest.idDocumentNumber}
+              profileExpiry={guest.idDocumentExpiry}
+            />
+          )}
         </SectionCard>
 
         {/* Card 6: Relationships */}

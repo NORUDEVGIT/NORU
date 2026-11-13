@@ -8,6 +8,7 @@ import { AlertTriangle, Camera, Check, ChevronDown, ChevronRight, ChevronUp } fr
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import { validateCompanyPhone } from "@/packages/pms/lib/guest-company-create-workspace";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Switch } from "@/shared/components/ui/switch";
@@ -871,21 +872,23 @@ function BasicStep({
         <h2 className="font-display text-lg">Contact Information</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {visible("PHONE") ? (
-            <Field label="Mobile Phone" required={required("PHONE")} error={fieldError("PHONE", "basic")}>
+            <Field label="Mobile Phone" required={required("PHONE")} error={(validateCompanyPhone(draft.phone) || fieldError("PHONE", "basic")) ?? undefined}>
               <CanonicalPhoneInput
                 value={draft.phone}
                 onChange={(phone) => set("phone", phone)}
-                error={Boolean(fieldError("PHONE", "basic"))}
+                error={Boolean(validateCompanyPhone(draft.phone) || fieldError("PHONE", "basic"))}
                 placeholder="e.g. 911 234 567"
+                maxDigits={9}
               />
             </Field>
           ) : null}
-          <Field label="Alternative Phone" required={required("PHONE_ALT")} error={fieldError("PHONE_ALT", "basic")}>
+          <Field label="Alternative Phone" required={required("PHONE_ALT")} error={(validateCompanyPhone(draft.phoneAlt) || fieldError("PHONE_ALT", "basic")) ?? undefined}>
             <CanonicalPhoneInput
               value={draft.phoneAlt}
               onChange={(phoneAlt) => set("phoneAlt", phoneAlt)}
-              error={Boolean(fieldError("PHONE_ALT", "basic"))}
+              error={Boolean(validateCompanyPhone(draft.phoneAlt) || fieldError("PHONE_ALT", "basic"))}
               placeholder="e.g. 911 234 567"
+              maxDigits={9}
             />
           </Field>
           {visible("EMAIL") ? (
@@ -1388,7 +1391,7 @@ function AdditionalStep({
           <div key={index} className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Name"><Input value={contact.name} onChange={(event) => set("emergencyContacts", draft.emergencyContacts.map((row, i) => i === index ? { ...row, name: event.target.value } : row))} /></Field>
             <Field label="Relationship"><Input value={contact.relationship} onChange={(event) => set("emergencyContacts", draft.emergencyContacts.map((row, i) => i === index ? { ...row, relationship: event.target.value } : row))} /></Field>
-            <Field label="Phone">
+            <Field label="Phone" error={validateCompanyPhone(contact.phone) ?? undefined}>
               <CanonicalPhoneInput
                 value={contact.phone}
                 onChange={(phone) =>
@@ -1397,7 +1400,9 @@ function AdditionalStep({
                     draft.emergencyContacts.map((row, i) => (i === index ? { ...row, phone } : row)),
                   )
                 }
+                error={Boolean(validateCompanyPhone(contact.phone))}
                 placeholder="e.g. 911 234 567"
+                maxDigits={9}
               />
             </Field>
             <Field label="Email"><Input value={contact.email} onChange={(event) => set("emergencyContacts", draft.emergencyContacts.map((row, i) => i === index ? { ...row, email: event.target.value } : row))} /></Field>

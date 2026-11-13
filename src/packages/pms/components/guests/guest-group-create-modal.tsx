@@ -91,6 +91,7 @@ import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/g
 import { applyGroupTemplateToDraft, GROUP_TEMPLATE_COPY, listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
 import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import { validateCompanyPhone } from "@/packages/pms/lib/guest-company-create-workspace";
 
 const MODAL_CONTROL_CLASS =
   "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE]";
@@ -1373,11 +1374,13 @@ function DetailsStep({
                 placeholder="contact@group.com"
               />
             </ModalField>
-            <ModalField label="Contact Phone">
+            <ModalField label="Contact Phone" error={validateCompanyPhone(draft.contactPhone) ?? undefined}>
               <CanonicalPhoneInput
                 value={draft.contactPhone}
                 onChange={(phone) => set("contactPhone", phone)}
+                error={Boolean(validateCompanyPhone(draft.contactPhone))}
                 placeholder="e.g. 911 234 567"
+                maxDigits={9}
               />
             </ModalField>
           </div>
@@ -1912,11 +1915,13 @@ function GuestsStep({
               placeholder="guest@example.com"
             />
           </ModalField>
-          <ModalField label="Phone">
+          <ModalField label="Phone" error={validateCompanyPhone(memberDraft.phone) ?? undefined}>
             <CanonicalPhoneInput
               value={memberDraft.phone}
               onChange={(phone) => onMemberDraft({ ...memberDraft, phone })}
+              error={Boolean(validateCompanyPhone(memberDraft.phone))}
               placeholder="e.g. 911 234 567"
+              maxDigits={9}
             />
           </ModalField>
           <ModalField label="Room type preference">

@@ -396,6 +396,9 @@ export function GuestTravelAgencyCreateModal({
   const [holdState, setHoldState] = useState<"idle" | "saving" | "saved">(localHold ? "saved" : "idle");
   const [attemptedSteps, setAttemptedSteps] = useState<Set<string>>(new Set());
   const editHydratedFor = useRef<string | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const createLock = useRef(false);
 
   const context = useQuery({
     queryKey: ["travel-agent-create-context", restaurantId],
@@ -532,7 +535,8 @@ export function GuestTravelAgencyCreateModal({
   const catalogueIds = {
     rules,
     paymentMethodIds: (catalogues?.paymentMethods ?? []).map((row) => row.id),
-    currencyCodes: catalogues?.currencies ?? [],
+    currencyCodes:
+      step4ConfigQuery.data?.currencies.map((row) => row.code) ?? catalogues?.currencies ?? [],
   };
   const completion = guestTravelAgentCreateCompletion(draft);
   const stepIndex = GUEST_TRAVEL_AGENT_CREATE_STEPS.findIndex((item) => item.id === step);
@@ -611,10 +615,12 @@ export function GuestTravelAgencyCreateModal({
 
   const draftMutation = useMutation({
     mutationFn: async () => {
-      const errors = travelAgentCreateDraftErrorsForSave(draft);
+      const errors = travelAgentCreateDraftErrorsForSave(draftRef.current);
       if (errors.length) throw new Error(errors[0]);
-      const saved = await persist({ data: { restaurantId, draft, mode: "draft" } });
-      const next = { ...draft, accountId: saved.id ?? draft.accountId, contacts: saved.contacts };
+      const current = draftRef.current;
+      const saved = await persist({ data: { restaurantId, draft: current, mode: "draft" } });
+      const next = { ...draftRef.current, accountId: saved.id ?? current.accountId, contacts: saved.contacts };
+      draftRef.current = next;
       setDraft(next);
       await saveDraftHold({ data: { restaurantId, payload: { step, draft: next } as never } });
       if (saved.error) throw new Error(saved.error);
@@ -647,8 +653,12 @@ export function GuestTravelAgencyCreateModal({
           );
         }
       }
-      const saved = await persist({ data: { restaurantId, draft, mode: "complete" } });
-      if (saved.id) setDraft((current) => ({ ...current, accountId: saved.id, contacts: saved.contacts }));
+      const saved = await persist({ data: { restaurantId, draft: draftRef.current, mode: "complete" } });
+      if (saved.id) {
+        const next = { ...draftRef.current, accountId: saved.id, contacts: saved.contacts };
+        draftRef.current = next;
+        setDraft(next);
+      }
       if (!saved.id) throw new Error("Travel agency could not be created.");
       if (saved.error) throw new Error(saved.error);
       clearGuestTravelAgentCreateHold(restaurantId);
@@ -1108,8 +1118,16 @@ export function GuestTravelAgencyCreateModal({
                     variant="outline"
                     size="sm"
                     data-testid="travel-agency-create-save-draft"
-                    onClick={() => draftMutation.mutate()}
-                    disabled={draftMutation.isPending || completeMutation.isPending}
+                    onClick={() => {
+                      if (createLock.current || draftMutation.isPending || completeMutation.isPending) return;
+                      createLock.current = true;
+                      draftMutation.mutate(undefined, {
+                        onSettled: () => {
+                          createLock.current = false;
+                        },
+                      });
+                    }}
+                    disabled={createLock.current || draftMutation.isPending || completeMutation.isPending}
                     className="text-xs border-[#C89933]/50 text-[#8A641A] hover:bg-[#FAF8F5]"
                   >
                     Save as Draft
@@ -1130,8 +1148,16 @@ export function GuestTravelAgencyCreateModal({
                       type="button"
                       size="sm"
                       data-testid="create-travel-agency-final"
-                      onClick={() => completeMutation.mutate()}
-                      disabled={completeMutation.isPending}
+                      onClick={() => {
+                        if (createLock.current || completeMutation.isPending || draftMutation.isPending) return;
+                        createLock.current = true;
+                        completeMutation.mutate(undefined, {
+                          onSettled: () => {
+                            createLock.current = false;
+                          },
+                        });
+                      }}
+                      disabled={createLock.current || completeMutation.isPending || draftMutation.isPending}
                       className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
                     >
                       {completeMutation.isPending ? "Creating Travel Agency…" : "Create Travel Agency"}

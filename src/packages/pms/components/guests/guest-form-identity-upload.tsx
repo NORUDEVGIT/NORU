@@ -4,6 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -96,9 +102,13 @@ export async function attachGuestDocumentFile(params: {
 export function GuestFormIdentityUpload({
   restaurantId,
   guestId,
+  open,
+  onOpenChange,
 }: {
   restaurantId: string;
   guestId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -142,7 +152,7 @@ export function GuestFormIdentityUpload({
 
   const documents = documentsQuery.data?.documents ?? [];
 
-  return (
+  const form = (
     <div className="space-y-3" data-testid="individual-identity-upload">
       <p className="text-xs text-muted-foreground">{INDIVIDUAL_IDENTITY_UPLOAD_COPY}</p>
       <p className="text-xs text-muted-foreground">{STAFF_VERIFY_COPY}</p>
@@ -189,4 +199,19 @@ export function GuestFormIdentityUpload({
       ) : null}
     </div>
   );
+
+  if (typeof open === "boolean") {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload document</DialogTitle>
+          </DialogHeader>
+          {form}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return form;
 }

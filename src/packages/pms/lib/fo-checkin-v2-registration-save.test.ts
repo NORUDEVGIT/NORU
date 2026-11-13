@@ -162,14 +162,15 @@ describe("check-in registration save path", () => {
     assert.equal(registrationSnapshotIsComplete({ fields: snapshot }), true);
   });
 
-  it("refetches readiness for this unit before continuing", () => {
-    assert.match(registrationUi, /getCheckInReadiness/);
+  it("continues from the saved snapshot without waiting on readiness", () => {
+    assert.doesNotMatch(registrationUi, /getCheckInReadiness/);
+    assert.match(registrationUi, /registrationSnapshotGaps\(\{ fields: payload\.fields \}\)/);
+    assert.match(registrationUi, /unit\.progress\.registrationWaived/);
     assert.match(
       registrationUi,
       /fo-ci-v2-readiness", restaurantId, reservationId, reservationRoomId/,
     );
-    assert.match(registrationUi, /registrationSnapshotGaps/);
-    assert.match(registrationUi, /if \(!readiness\.registration\.complete && !readiness\.registration\.waived\)/);
+    assert.doesNotMatch(registrationUi, /await queryClient\.invalidateQueries/);
     assert.doesNotMatch(registrationUi, /recordCheckInKey|completeFoCheckIn|postCheckInDeposit/);
   });
 });

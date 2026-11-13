@@ -4,10 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { listReservations } from "@/packages/pms/lib/reservations.functions";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { CancellationSettlementReport } from "@/packages/pms/components/bookings/cancellation-settlement-report";
 
 /**
  * Phase 7D.2F1 patch — cancelled reservations as a lifecycle category.
- * Read-only view over the existing reservation records; no new writes.
+ * The list is read-only. The settlement report above it can run settlement again.
  */
 export function ReservationCancellationsTab({ restaurantId }: { restaurantId: string }) {
   const navigate = useNavigate();
@@ -24,9 +25,12 @@ export function ReservationCancellationsTab({ restaurantId }: { restaurantId: st
   const rows = query.data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-        No cancelled reservations yet.
-      </div>
+      <>
+        <CancellationSettlementReport restaurantId={restaurantId} />
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          No cancelled reservations yet.
+        </div>
+      </>
     );
   }
 
@@ -35,6 +39,8 @@ export function ReservationCancellationsTab({ restaurantId }: { restaurantId: st
   }
 
   return (
+    <>
+    <CancellationSettlementReport restaurantId={restaurantId} />
     <div className="overflow-hidden rounded-2xl border border-border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -65,5 +71,6 @@ export function ReservationCancellationsTab({ restaurantId }: { restaurantId: st
         </tbody>
       </table>
     </div>
+    </>
   );
 }

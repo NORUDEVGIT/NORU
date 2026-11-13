@@ -2,20 +2,17 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check, RotateCcw, Sliders, ExternalLink } from "lucide-react";
+import { Check, RotateCcw, ExternalLink } from "lucide-react";
 
 import {
   CONTACT_DEFAULTS_COPY,
   CONTACT_DEFAULTS_TITLE,
-  PREFERENCES_APPLY_COPY,
   PREFERENCES_COPY,
   PREFERENCES_EMPTY_TYPES,
   PREFERENCES_IMPORTANT_NOTE,
   PREFERENCE_TEXT_MAX,
-  contactDefaultChips,
   labelForPreferenceValues,
   type ContactDefaultsDraft,
-  type PreferenceSummaryChip,
 } from "@/packages/pms/lib/guest-preferences-workspace";
 import {
   PREFERRED_CONTACT_METHODS,
@@ -61,23 +58,6 @@ function answersFromCategories(categories: GuestPreferenceWorkspaceCategory[]) {
     for (const type of category.types) answers[type.id] = [...type.values];
   }
   return answers;
-}
-
-function catalogueChips(categories: GuestPreferenceWorkspaceCategory[]): PreferenceSummaryChip[] {
-  const chips: PreferenceSummaryChip[] = [];
-  for (const category of categories) {
-    for (const type of category.types) {
-      const value = labelForPreferenceValues(type.options, type.values, type.valueType);
-      if (!value) continue;
-      chips.push({
-        source: "catalogue",
-        code: type.code,
-        label: type.name,
-        value,
-      });
-    }
-  }
-  return chips;
 }
 
 function TypeControl({
@@ -396,10 +376,6 @@ export function GuestPreferencesView({
   }
 
   const { categories } = workspaceQuery.data;
-  const summary: PreferenceSummaryChip[] = [
-    ...catalogueChips(categories),
-    ...contactDefaultChips(draft.contactDefaults),
-  ];
 
   function setAnswer(typeId: string, values: string[]) {
     setDraft((curr) => (curr ? { ...curr, answers: { ...curr.answers, [typeId]: values } } : curr));
@@ -471,27 +447,6 @@ export function GuestPreferencesView({
             {saveMutation.isPending ? "Saving…" : "Save Changes"}
           </Button>
         </div>
-      </div>
-
-      {/* Summary Strip */}
-      <div
-        className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm text-xs text-[#251605]"
-        data-testid="guest-pref-summary"
-      >
-        <span className="font-semibold text-[#756A5B] mr-2">Summary:</span>
-        {summary.length === 0 ? (
-          <span className="text-[#756A5B]">No preferences recorded yet.</span>
-        ) : (
-          <span className="leading-relaxed">
-            {summary.map((chip, idx) => (
-              <span key={`${chip.source}-${chip.code}`}>
-                {idx > 0 ? " | " : ""}
-                <span className="text-[#756A5B]">{chip.label}:</span>{" "}
-                <span className="font-medium text-[#251605]">{chip.value}</span>
-              </span>
-            ))}
-          </span>
-        )}
       </div>
 
       {!hasTypes ? (

@@ -36,11 +36,11 @@ import {
 } from "@/packages/pms/lib/fo-check-in-registration.functions";
 import {
   buildRegistrationSave,
-  registrationCanonicalKey,
   registrationDocumentState,
   registrationDraft,
   registrationIdentitySelection,
   registrationFailureCopy,
+  registrationCustomErrors,
   registrationFieldRequired,
   registrationRelationship,
   registrationRequiredErrors,
@@ -54,7 +54,6 @@ import {
   registrationSnapshotGaps,
   type RegistrationCompletionProjection,
 } from "@/packages/pms/lib/fo-check-in-readiness";
-import { getCheckInReadiness } from "@/packages/pms/lib/fo-check-in-readiness.functions";
 import { classifyCheckInUnitFailure } from "@/packages/pms/lib/fo-checkin-v2-model";
 import { documentExpiryStatus } from "@/packages/pms/lib/guest-identity-documents";
 import {
@@ -202,7 +201,7 @@ function Field({
     <label className="block space-y-1">
       <span className="text-xs font-medium text-[#6B5E4E]">
         {label}
-        {required ? <span className="text-[#8B4513] font-semibold"> *</span> : null}
+        {required ? <span className="font-semibold text-red-600"> *</span> : null}
       </span>
       {children}
     </label>
@@ -251,7 +250,6 @@ export const FoCheckInV2Registration = forwardRef<
   const fetchTypes = useServerFn(listGuestIdentityDocumentTypes);
   const fetchDocument = useServerFn(getGuestDocument);
   const saveRegistration = useServerFn(saveCheckInUnitRegistration);
-  const fetchReadiness = useServerFn(getCheckInReadiness);
   const searchDuplicates = useServerFn(searchCheckInGuestDuplicates);
   const reviewDocument = useServerFn(reviewGuestDocument);
   const startUpload = useServerFn(createGuestDocumentUpload);
@@ -286,6 +284,7 @@ export const FoCheckInV2Registration = forwardRef<
   const types = (typesQuery.data?.types ?? []).filter((type) => type.active);
 
   const [draft, setDraft] = useState<Record<CheckInProfileField, string> | null>(null);
+  const [customDraft, setCustomDraft] = useState<Record<string, string>>({});
   const [seedKey, setSeedKey] = useState("");
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [idTypeId, setIdTypeId] = useState("");
@@ -312,6 +311,11 @@ export const FoCheckInV2Registration = forwardRef<
   useEffect(() => {
     if (!registration || guestQuery.isLoading || seed === seedKey) return;
     setDraft(registrationDraft(registration.fields, profileValues(guest)));
+    setCustomDraft(
+      Object.fromEntries(
+        (registration.customFields ?? []).map((field) => [field.fieldId, field.value ?? ""]),
+      ),
+    );
     const identity = registrationIdentitySelection(registration.documents, today);
     setSelectedDocumentId(identity?.id ?? null);
     setIdTypeId(identity?.typeId ?? "");
@@ -380,7 +384,10 @@ export const FoCheckInV2Registration = forwardRef<
 
   async function save(): Promise<boolean> {
     if (!registration || !draft) return false;
-    const required = registrationRequiredErrors(registration.fields, draft);
+    const required = [
+      ...registrationRequiredErrors(registration.fields, draft),
+      ...registrationCustomErrors(registration.customFields ?? [], customDraft),
+    ];
     const selectedType = types.find((type) => type.id === idTypeId) ?? null;
     const documentError = selectedType
       ? validateDocumentFields(selectedType, {
@@ -414,28 +421,24 @@ export const FoCheckInV2Registration = forwardRef<
           reservationId,
           ...(reservationRoomId ? { reservationRoomId } : {}),
           fields: payload.fields,
+          ...(Object.keys(customDraft).length > 0 ? { customFields: customDraft } : {}),
           ...(payload.document ? { document: payload.document } : {}),
         },
       });
-      await queryClient.invalidateQueries({
-        queryKey: ["fo-ci-v2-registration", restaurantId, reservationId],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["fo-ci-v2-readiness", restaurantId, reservationId, reservationRoomId],
-      });
-      const readiness = await fetchReadiness({
-        data: {
-          restaurantId,
-          reservationId,
-          ...(reservationRoomId ? { reservationRoomId } : {}),
-        },
-      });
-      onSaved();
-      if (!readiness.registration.complete && !readiness.registration.waived) {
-        const gaps = registrationSnapshotGaps({ fields: payload.fields });
-        setErrors(gaps.length > 0 ? gaps : ["Registration is incomplete."]);
+      const gaps = registrationSnapshotGaps({ fields: payload.fields });
+      if (gaps.length > 0 && !unit.progress.registrationWaived) {
+        setErrors(gaps);
         return false;
       }
+      // The saved snapshot decides this step. Refresh behind Payment so Next is not
+      // held for the full readiness read, which this click used to run twice.
+      void queryClient.invalidateQueries({
+        queryKey: ["fo-ci-v2-registration", restaurantId, reservationId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["fo-ci-v2-readiness", restaurantId, reservationId, reservationRoomId],
+      });
+      onSaved();
       return true;
     } catch (error) {
       setErrors([registrationFailureCopy(error)]);
@@ -744,7 +747,7 @@ export const FoCheckInV2Registration = forwardRef<
 
       {/* Required fields note */}
       <p className="-mt-1 text-[11px] text-[#8C7E72]">
-        <span className="font-semibold text-[#8B4513]">*</span> Required to complete registration
+        <span className="font-semibold text-red-600">*</span> Required to complete registration
       </p>
 
       <FormSection title="A. Registration Details" testId="fo-ci-v2-registration-details">
@@ -1049,13 +1052,20 @@ export const FoCheckInV2Registration = forwardRef<
             />
           ))}
         </div>
-        {registration.fields.some((field) => registrationCanonicalKey(field.code) == null) ? (
+        {(registration.customFields ?? []).length > 0 ? (
           <div className={cn(fieldGridClass, "mt-2")}>
-            {registration.fields
-              .filter((field) => registrationCanonicalKey(field.code) == null)
-              .map((field) => (
-                <ReadOnly key={field.code} label={field.label} value={field.value ?? "—"} />
-              ))}
+            {(registration.customFields ?? []).map((field) => (
+              <Field key={field.fieldId} label={field.label} required>
+                <Input
+                  className={controlClass}
+                  value={customDraft[field.fieldId] ?? ""}
+                  data-testid={`fo-ci-v2-custom-${field.code}`}
+                  onChange={(event) =>
+                    setCustomDraft((current) => ({ ...current, [field.fieldId]: event.target.value }))
+                  }
+                />
+              </Field>
+            ))}
           </div>
         ) : null}
       </FormSection>

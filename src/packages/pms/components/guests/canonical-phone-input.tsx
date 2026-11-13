@@ -36,6 +36,8 @@ export interface CanonicalPhoneInputProps {
   containerClassName?: string;
   popoverClassName?: string;
   size?: "sm" | "default" | "modal";
+  /** When set, the local number cannot be longer than this many digits. */
+  maxDigits?: number;
   "data-testid"?: string;
 }
 
@@ -62,6 +64,7 @@ export function CanonicalPhoneInput({
   containerClassName,
   popoverClassName,
   size = "modal",
+  maxDigits,
   "data-testid": testId,
 }: CanonicalPhoneInputProps) {
   const [open, setOpen] = useState(false);
@@ -78,7 +81,8 @@ export function CanonicalPhoneInput({
   const country = effectiveIso ? propertySetupCallingCountry(effectiveIso) : undefined;
 
   function emit(nextIso: string | null, localNumber: string) {
-    const digits = filterPhoneDigits(localNumber);
+    const filtered = filterPhoneDigits(localNumber);
+    const digits = maxDigits == null ? filtered : filtered.slice(0, maxDigits);
     if (!digits) {
       onChange("");
       return;
@@ -160,8 +164,9 @@ export function CanonicalPhoneInput({
         aria-invalid={Boolean(error)}
         disabled={disabled}
         readOnly={readOnly}
-        value={parsed.localNumber}
+        value={maxDigits == null ? parsed.localNumber : parsed.localNumber.slice(0, maxDigits)}
         placeholder={placeholder}
+        maxLength={maxDigits}
         className={cn(
           heightClass,
           "flex-1 font-mono text-xs bg-white border-[#CCCCCC] rounded-[6px] transition-colors hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:ring-[#8A641A]",

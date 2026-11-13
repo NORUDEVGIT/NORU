@@ -28,6 +28,7 @@ import {
   PREFERRED_CONTACT_TIMES,
 } from "./guest-profile-overview.ts";
 import { ISO_COUNTRIES } from "./pms-geography.ts";
+import { CHECK_IN_PROFILE_COLUMNS } from "./fo-check-in-registration.ts";
 import { guestCreateBlocked, type GuestProfileRules } from "./pms-set3-rates-guest.ts";
 import {
   isCompanyFieldCode,
@@ -36,6 +37,46 @@ import {
 } from "./guest-creation-field-definitions";
 
 export type GuestFieldContext = "profile_create" | "profile_edit" | "reservation" | "check_in";
+
+export type CheckInPartyLinks = {
+  company: boolean;
+  travelAgency: boolean;
+  group: boolean;
+};
+
+export const CHECK_IN_WITHOUT_PARTY_LINKS: CheckInPartyLinks = {
+  company: false,
+  travelAgency: false,
+  group: false,
+};
+
+export type CheckInFieldParty = "company" | "travel_agency" | "group" | "guest";
+
+/** Company, agency, and group codes belong to the linked party. COMPANY is the profile alias. */
+export function checkInFieldParty(code: string | null | undefined): CheckInFieldParty {
+  const upper = code?.trim().toUpperCase() ?? "";
+  if (!upper) return "guest";
+  if (upper === "COMPANY" || isCompanyFieldCode(upper)) return "company";
+  if (isTravelAgencyFieldCode(upper)) return "travel_agency";
+  if (isGroupFieldCode(upper)) return "group";
+  return "guest";
+}
+
+/**
+ * Card 4 Check-in applies to a guest field on every stay.
+ * A company, agency, or group field applies only when this reservation is linked to that party.
+ */
+export function checkInRequirementApplies(
+  field: { code: string; active: boolean; checkIn: boolean },
+  links: CheckInPartyLinks,
+): boolean {
+  if (!field.active || !field.checkIn) return false;
+  const party = checkInFieldParty(field.code);
+  if (party === "company") return links.company;
+  if (party === "travel_agency") return links.travelAgency;
+  if (party === "group") return links.group;
+  return true;
+}
 
 export type NormalizedFieldOption = {
   id: string;
@@ -312,6 +353,7 @@ export function resolveGuestFieldRules(
   config: GuestWorkspaceConfig | null | undefined,
   profileType: GuestWorkspaceTypeConfig | null | undefined,
   context: GuestFieldContext,
+  checkInLinks: CheckInPartyLinks = CHECK_IN_WITHOUT_PARTY_LINKS,
 ): ResolvedGuestFieldRule[] {
   const fields =
     config?.requiredFields ??
@@ -352,7 +394,14 @@ export function resolveGuestFieldRules(
         requiredForContext = isIndividualField && field.reservation && field.active;
         break;
       case "check_in":
-        requiredForContext = isIndividualField && field.checkIn && field.active;
+        // First Name is system required: Card 4 always shows it as active and required,
+        // so a stale inactive/optional saved row must not switch it off at check-in.
+        requiredForContext =
+          isTechnicalMinimum ||
+          checkInRequirementApplies(
+            { code, active: field.active, checkIn: field.checkIn },
+            checkInLinks,
+          );
         break;
     }
 
@@ -370,8 +419,10 @@ export function resolveGuestFieldRules(
       category,
       label: field.name,
       fieldType: field.fieldType,
-      active: field.active,
-      required: isIndividualField ? (field.required || isTypeRequired) : false,
+      active: isTechnicalMinimum ? true : field.active,
+      required: isIndividualField
+        ? field.required || isTypeRequired || isTechnicalMinimum
+        : false,
       requiredForContext,
       displayOrder: field.displayOrder ?? 0,
       options,
@@ -556,6 +607,18 @@ export function validateReservationGuestRequirements(
   return validateGuestFields(dict, rules, "reservation", null, customFieldValues);
 }
 
+/** Registration can collect guest profile columns and custom guest values. Party fields follow the reservation link. */
+export function checkInRegistrationCollects(rule: {
+  code: string;
+  category: GuestFieldCategory;
+  canonicalKey: CanonicalGuestFieldKey | null;
+}): boolean {
+  if (checkInFieldParty(rule.code) !== "guest") return false;
+  if (rule.category === "document" || rule.canonicalKey === "documents") return true;
+  if (rule.category === "custom_value") return true;
+  return rule.canonicalKey != null && rule.canonicalKey in CHECK_IN_PROFILE_COLUMNS;
+}
+
 export type CheckInDocumentCandidate = {
   id?: string;
   typeId?: string | null;
@@ -579,6 +642,8 @@ export function validateGuestCheckInRequirements(params: {
   profileType?: GuestWorkspaceTypeConfig | null;
   today?: string;
   customFieldValues?: Record<string, unknown>;
+  links?: CheckInPartyLinks;
+  skipCustomFields?: boolean;
 }): ValidationResult {
   const { guest, documents, config, customFieldValues } = params;
   if (!guest) {
@@ -586,7 +651,20 @@ export function validateGuestCheckInRequirements(params: {
   }
 
   const pType = params.profileType ?? resolveIndividualProfileType(config);
-  const rules = resolveGuestFieldRules(config, pType, "check_in");
+  const rules = resolveGuestFieldRules(
+    config,
+    pType,
+    "check_in",
+    params.links ?? CHECK_IN_WITHOUT_PARTY_LINKS,
+  ).map((rule) =>
+    rule.requiredForContext && !checkInRegistrationCollects(rule)
+      ? { ...rule, requiredForContext: false }
+      : rule,
+  ).map((rule) =>
+    params.skipCustomFields && rule.category === "custom_value"
+      ? { ...rule, requiredForContext: false }
+      : rule,
+  );
 
   const dict = guest as unknown as Record<string, unknown>;
   const fieldValidation = validateGuestFields(dict, rules, "check_in", null, customFieldValues);

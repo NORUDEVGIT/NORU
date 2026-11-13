@@ -100,6 +100,91 @@ export function earlyDeparturePenaltySummary(
   return EARLY_DEPARTURE_PENALTY_TYPE_LABELS[type];
 }
 
+export type EarlyDeparturePenaltyQuote = {
+  amount: number | null;
+  basis: "none" | "first_night" | "percent_stay" | "fixed_amount" | "full_stay" | "unknown";
+  calculable: boolean;
+  currency: string | null;
+};
+
+function roundPenalty(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Extra folio charge when a stay is shortened.
+ * Percent and full-stay use the unused room amount when the new total is known.
+ */
+export function computeEarlyDeparturePenalty(input: {
+  snapshot: unknown;
+  roomSubtotal: number | null;
+  quotedSubtotal: number | null;
+  nightlyRates: Array<{ rate: number }>;
+  currency: string | null;
+}): EarlyDeparturePenaltyQuote {
+  const row =
+    input.snapshot && typeof input.snapshot === "object" && !Array.isArray(input.snapshot)
+      ? (input.snapshot as Record<string, unknown>)
+      : null;
+  const type = EARLY_DEPARTURE_PENALTY_TYPES.find((value) => value === row?.penalty_type) ?? null;
+  const value = Number(row?.penalty_value ?? 0);
+  const subtotal =
+    input.roomSubtotal != null && Number.isFinite(input.roomSubtotal)
+      ? roundPenalty(input.roomSubtotal)
+      : null;
+  const quoted =
+    input.quotedSubtotal != null && Number.isFinite(input.quotedSubtotal)
+      ? roundPenalty(input.quotedSubtotal)
+      : null;
+  const unused =
+    subtotal != null && quoted != null ? roundPenalty(Math.max(0, subtotal - quoted)) : null;
+  const firstNight = input.nightlyRates.find((night) => Number.isFinite(night.rate))?.rate ?? null;
+  const none: EarlyDeparturePenaltyQuote = {
+    amount: 0,
+    basis: "none",
+    calculable: true,
+    currency: input.currency,
+  };
+  if (!type || type === "none") return none;
+  if (type === "first_night") {
+    return {
+      amount: firstNight == null ? null : roundPenalty(firstNight),
+      basis: "first_night",
+      calculable: firstNight != null,
+      currency: input.currency,
+    };
+  }
+  if (type === "percent_stay") {
+    const base = unused != null ? unused : subtotal;
+    const calculable = base != null && Number.isFinite(value) && value >= 0 && value <= 100;
+    return {
+      amount: calculable ? roundPenalty((base * value) / 100) : null,
+      basis: "percent_stay",
+      calculable,
+      currency: input.currency,
+    };
+  }
+  if (type === "fixed_amount") {
+    const calculable = Number.isFinite(value) && value >= 0;
+    return {
+      amount: calculable ? roundPenalty(value) : null,
+      basis: "fixed_amount",
+      calculable,
+      currency: input.currency,
+    };
+  }
+  if (type === "full_stay") {
+    const amount = unused != null ? unused : subtotal;
+    return {
+      amount,
+      basis: "full_stay",
+      calculable: amount != null,
+      currency: input.currency,
+    };
+  }
+  return { amount: null, basis: "unknown", calculable: false, currency: input.currency };
+}
+
 export function earlyDepartureReviewLabel(input: {
   name?: string | null;
   penaltyType?: string | null;

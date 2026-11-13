@@ -108,16 +108,18 @@ describe("Company create workflow helpers", () => {
     assert.equal(draft.addressLine1, "Bole Road");
   });
 
-  it("validates phone formats indicator +251, 09, 07", () => {
+  it("accepts a 9-digit phone and rejects any other length", () => {
     const draft = filledDraft();
     draft.contacts[0].phone = "not-a-phone";
-    assert.match(companyCreateStepErrors("contacts", draft).join(" "), /valid phone number/);
+    assert.match(companyCreateStepErrors("contacts", draft).join(" "), /9-digit phone number/);
     draft.contacts[0].phone = "+251911234567";
     assert.equal(companyCreateStepErrors("contacts", draft).length, 0);
+    draft.contacts[0].phone = "911234567";
+    assert.equal(companyCreateStepErrors("contacts", draft).length, 0);
     draft.contacts[0].phone = "0911234567";
-    assert.equal(companyCreateStepErrors("contacts", draft).length, 0);
+    assert.match(companyCreateStepErrors("contacts", draft).join(" "), /9-digit phone number/);
     draft.contacts[0].phone = "0711234567";
-    assert.equal(companyCreateStepErrors("contacts", draft).length, 0);
+    assert.match(companyCreateStepErrors("contacts", draft).join(" "), /9-digit phone number/);
   });
 
   it("blocks inverted contract dates", () => {

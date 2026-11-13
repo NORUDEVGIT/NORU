@@ -6,7 +6,10 @@ import { ArrowLeft, Camera, ChevronDown, FileText, Pencil, Plus, Printer, Sparkl
 import { toast } from "sonner";
 
 import { StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
-import { useGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
+import {
+  useOptionalGuestProfileActions,
+  type GuestProfileActionsValue,
+} from "@/packages/pms/components/guests/guest-profile-actions";
 import {
   GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
@@ -49,22 +52,34 @@ function calculateAge(dob: string): number | null {
   return age >= 0 && age < 130 ? age : null;
 }
 
-export function GuestProfileHeader({
-  restaurantId,
-  guest,
-  returnCard = "directory",
-  profileType,
-  directorySearch,
-  showBackButton = true,
-}: {
+type GuestProfileHeaderProps = {
   restaurantId: string;
   guest: GuestProfile;
   returnCard?: GuestProfileCardId;
   profileType?: GuestProfileTypeId;
   directorySearch?: Record<string, unknown>;
   showBackButton?: boolean;
-}) {
-  const actions = useGuestProfileActions();
+};
+
+/**
+ * The header needs the profile actions provider. When it renders for one frame
+ * before the provider mounts (guest data still arriving), it waits instead of
+ * crashing the whole route.
+ */
+export function GuestProfileHeader(props: GuestProfileHeaderProps) {
+  const actions = useOptionalGuestProfileActions();
+  if (!actions) return null;
+  return <GuestProfileHeaderContent {...props} actions={actions} />;
+}
+
+function GuestProfileHeaderContent({
+  restaurantId,
+  guest,
+  profileType,
+  directorySearch,
+  showBackButton = true,
+  actions,
+}: GuestProfileHeaderProps & { actions: GuestProfileActionsValue }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const startPhoto = useServerFn(createGuestPhotoUpload);
@@ -130,33 +145,61 @@ export function GuestProfileHeader({
   const dobFormatted = guest.dateOfBirth
     ? `${formatStayDate(guest.dateOfBirth)}${age !== null ? ` (${age} yrs)` : ""}`
     : null;
+  const listStatus = directorySearch?.status;
+  const listVip = directorySearch?.vip;
+  const listPageSize = directorySearch?.pageSize;
+
+  function openGuestList() {
+    void navigate({
+      to: GUEST_PROFILE_DIRECTORY_PATH,
+      search: guestProfileSearch({
+        type: profileType,
+        q: typeof directorySearch?.q === "string" ? directorySearch.q : undefined,
+        status:
+          listStatus === "all" || listStatus === "active" || listStatus === "inactive"
+            ? listStatus
+            : undefined,
+        vip: listVip === "all" || listVip === "vip" || listVip === "non-vip" ? listVip : undefined,
+        lastStay: typeof directorySearch?.lastStay === "string" ? directorySearch.lastStay : undefined,
+        nationality:
+          typeof directorySearch?.nationality === "string" ? directorySearch.nationality : undefined,
+        sort: typeof directorySearch?.sort === "string" ? directorySearch.sort : undefined,
+        page: typeof directorySearch?.page === "number" ? directorySearch.page : undefined,
+        pageSize: listPageSize === 25 || listPageSize === 50 ? listPageSize : undefined,
+      }),
+    });
+  }
+
+  function openPreviousPage() {
+    if (directorySearch?.returnTo && typeof directorySearch.returnTo === "string") {
+      void navigate({ to: directorySearch.returnTo });
+      return;
+    }
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      window.history.back();
+    }
+  }
 
   return (
     <div className="space-y-3" data-testid="guest-profile-header-container">
-      {/* Back to Directory Button matching Reservation & Room navigation */}
       {showBackButton && (
-        <div>
+        <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() => {
-              if (directorySearch?.returnTo && typeof directorySearch.returnTo === "string") {
-                void navigate({ to: directorySearch.returnTo as string });
-              } else if (typeof window !== "undefined" && window.history.length > 1) {
-                window.history.back();
-              } else {
-                void navigate({
-                  to: GUEST_PROFILE_DIRECTORY_PATH,
-                  search: directorySearch
-                    ? { ...guestProfileSearch({ card: returnCard, type: profileType }), ...directorySearch }
-                    : guestProfileSearch({ card: returnCard, type: profileType }),
-                });
-              }
-            }}
+            onClick={openGuestList}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#756A5B] hover:text-[#251605] transition-colors"
             data-testid="guest-header-back-button"
           >
             <ArrowLeft className="size-3.5" />
-            <span>{directorySearch?.returnTo ? "Back to Previous Page" : "Back to Guest Profiles"}</span>
+            <span>Back to Guest Profile</span>
+          </button>
+          <button
+            type="button"
+            onClick={openPreviousPage}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#756A5B] hover:text-[#251605] transition-colors"
+            data-testid="guest-header-previous-button"
+          >
+            <span>Back to Previous Page</span>
           </button>
         </div>
       )}

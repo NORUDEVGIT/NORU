@@ -305,6 +305,25 @@ export function composeSetupPhone(iso: string | null, localNumber: string): stri
   return `+${country.dialCode}${local}`;
 }
 
+/** Digits typed in the local number box. The calling code is not counted. */
+export const CREATION_PHONE_DIGIT_LENGTH = 9;
+
+export function creationPhoneLocalDigits(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("+")) {
+    return filterPhoneDigits(decomposeSetupPhone(trimmed).localNumber);
+  }
+  return filterPhoneDigits(trimmed);
+}
+
+export function validateNineDigitPhone(value: string): string | null {
+  if (!value || !value.trim()) return null;
+  return creationPhoneLocalDigits(value).length === CREATION_PHONE_DIGIT_LENGTH
+    ? null
+    : "Enter a 9-digit phone number.";
+}
+
 /**
  * One E.164 value for registration. A number that already includes its
  * calling code is not prefixed again. Flags and spaces are not stored.

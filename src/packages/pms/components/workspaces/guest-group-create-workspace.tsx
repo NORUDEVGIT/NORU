@@ -19,6 +19,7 @@ import {
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import { validateCompanyPhone } from "@/packages/pms/lib/guest-company-create-workspace";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -870,11 +871,13 @@ function DetailsStep({
         <Field label="Contact Email">
           <Input value={draft.contactEmail} onChange={(event) => set("contactEmail", event.target.value)} />
         </Field>
-        <Field label="Contact Phone">
+        <Field label="Contact Phone" error={validateCompanyPhone(draft.contactPhone) ?? undefined}>
           <CanonicalPhoneInput
             value={draft.contactPhone}
             onChange={(phone) => set("contactPhone", phone)}
+            error={Boolean(validateCompanyPhone(draft.contactPhone))}
             placeholder="e.g. 911 234 567"
+            maxDigits={9}
           />
         </Field>
       </div>
@@ -1179,11 +1182,13 @@ function GuestsStep({
           <Field label="Email">
             <Input value={memberDraft.email} onChange={(event) => onMemberDraft({ ...memberDraft, email: event.target.value })} />
           </Field>
-          <Field label="Phone">
+          <Field label="Phone" error={validateCompanyPhone(memberDraft.phone) ?? undefined}>
             <CanonicalPhoneInput
               value={memberDraft.phone}
               onChange={(phone) => onMemberDraft({ ...memberDraft, phone })}
+              error={Boolean(validateCompanyPhone(memberDraft.phone))}
               placeholder="e.g. 911 234 567"
+              maxDigits={9}
             />
           </Field>
           <Field label="Room type preference">

@@ -761,11 +761,13 @@ export async function loadNightAuditFinancialReconciliation(
     transactions: transactions
       .filter((txn) => txn.folio_id)
       .map((txn) => ({
+        id: txn.id,
         folioId: txn.folio_id,
         amount: num(txn.amount),
         postedAt: txn.posted_at,
         referenceType: txn.reference_type,
         referenceId: txn.reference_id,
+        originalTransactionId: txn.original_transaction_id,
         transactionType: txn.transaction_type,
         category: txn.category,
         paymentMethod: txn.payment_method,

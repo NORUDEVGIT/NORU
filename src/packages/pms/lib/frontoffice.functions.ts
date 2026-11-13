@@ -19,6 +19,7 @@ import {
   type ReservationStatus,
 } from "./reservations.server";
 import { STAY_MUTATION_CONFLICT, stayMutationIsStale } from "./fo-mutation-freshness";
+import { computeEarlyDeparturePenalty } from "./early-departure-policy";
 import {
   earlyDeparturePenaltyType,
   earlyDeparturePolicyLine,
@@ -26,7 +27,8 @@ import {
   stayDateFolioImpact,
   stayNights,
 } from "./fo-stay-date-finance";
-import { rateError } from "./rates.server";
+import { callPostFolioTransaction, cashierError } from "./cashiering.server";
+import { parseSnapshot, rateError } from "./rates.server";
 import { projectOperationalStayRows, type FoSiblingUnit } from "./fo-unit-desk";
 import {
   checkedInRoomIds,
@@ -949,12 +951,85 @@ export const changeStayDates = createServerFn({ method: "POST" })
       });
       const stayRead = await supabaseAdmin
         .from("hotel_reservations")
-        .select("status")
+        .select(
+          "status, arrival_date, departure_date, room_subtotal, nightly_rate_snapshot, currency, early_departure_policy_snapshot",
+        )
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.reservationId)
         .maybeSingle();
       if (stayRead.error) throw new Error(stayRead.error.message);
-      const stay = stayRead.data as { status?: string } | null;
+      const stay = stayRead.data as {
+        status?: string;
+        arrival_date?: string;
+        departure_date?: string;
+        room_subtotal?: number | string | null;
+        nightly_rate_snapshot?: unknown;
+        currency?: string | null;
+        early_departure_policy_snapshot?: unknown;
+      } | null;
+      const dateKind =
+        stay?.arrival_date && stay.departure_date
+          ? stayDateChangeKind(stay.arrival_date, stay.departure_date, arrival, departure)
+          : "dates_changed";
+      let quotedSubtotal: number | null = null;
+      if (dateKind === "early_departure") {
+        const unitsRead = await supabaseAdmin
+          .from("hotel_reservation_rooms")
+          .select("rate_plan_id, room_type_id, adults, children, infants, currency, status")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("reservation_id", data.reservationId);
+        if (unitsRead.error) throw new Error(unitsRead.error.message);
+        const active = (
+          (unitsRead.data ?? []) as Array<{
+            rate_plan_id: string | null;
+            room_type_id: string;
+            adults: number;
+            children: number;
+            infants: number | null;
+            currency: string | null;
+            status: string;
+          }>
+        ).filter((unit) => !["cancelled", "no_show", "checked_out"].includes(unit.status));
+        let quoted = 0;
+        for (const unit of active) {
+          if (!unit.rate_plan_id) throw reservationError("RATE_PLAN_REQUIRED");
+          const priced = await supabaseAdmin.rpc("price_hotel_stay", {
+            _restaurant_id: data.restaurantId,
+            _rate_plan_id: unit.rate_plan_id,
+            _room_type_id: unit.room_type_id,
+            _arrival: arrival,
+            _departure: departure,
+            _rooms: 1,
+            _adults: unit.adults,
+            _children: unit.children,
+            _infants: unit.infants ?? 0,
+            _quote_currency: unit.currency ?? stay?.currency ?? undefined,
+          });
+          if (priced.error) throw rateError(priced.error.message);
+          quoted += Number((priced.data as { subtotal?: number | string } | null)?.subtotal ?? 0);
+        }
+        quotedSubtotal = active.length === 0 ? Number(stay?.room_subtotal ?? 0) : Math.round(quoted * 100) / 100;
+      }
+      const earlyPenalty =
+        dateKind === "early_departure"
+          ? computeEarlyDeparturePenalty({
+              snapshot: stay?.early_departure_policy_snapshot,
+              roomSubtotal: stay?.room_subtotal == null ? null : Number(stay.room_subtotal),
+              quotedSubtotal,
+              nightlyRates: parseSnapshot(stay?.nightly_rate_snapshot),
+              currency: stay?.currency ?? null,
+            })
+          : null;
+      if (earlyPenalty && !earlyPenalty.calculable) {
+        throw new Error("The frozen early-departure policy cannot produce an authoritative charge amount.");
+      }
+      if (earlyPenalty && (earlyPenalty.amount ?? 0) > 0) {
+        await requirePmsActor(
+          context as never,
+          data.restaurantId,
+          PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
+        );
+      }
       const { assertExistingReservationGroupPickup, resyncGroupBlockInventoryForReservation } =
         await import("./groups.functions");
       await assertExistingReservationGroupPickup(supabaseAdmin, {
@@ -966,6 +1041,27 @@ export const changeStayDates = createServerFn({ method: "POST" })
           status: stay?.status,
         },
       });
+      if (earlyPenalty && (earlyPenalty.amount ?? 0) > 0) {
+        const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
+          _restaurant_id: data.restaurantId,
+          _reservation_id: data.reservationId,
+          _membership_id: me.id,
+        });
+        if (opened.error) throw cashierError(opened.error.message);
+        const folioId = (opened.data as { id: string }).id;
+        await callPostFolioTransaction({
+          restaurantId: data.restaurantId,
+          folioId,
+          type: "charge",
+          category: "manual",
+          description: "Early departure penalty",
+          amount: earlyPenalty.amount ?? 0,
+          referenceType: "reservation_early_departure",
+          referenceId: data.reservationId,
+          membershipId: me.id,
+          idempotencyKey: `early-departure:${data.reservationId}:${stay?.departure_date ?? ""}:${departure}`,
+        });
+      }
       const { error } = await supabaseAdmin.rpc("apply_inhouse_stay_date_change", {
         _restaurant_id: data.restaurantId,
         _reservation_id: data.reservationId,
@@ -1007,6 +1103,14 @@ export const markNoShow = createServerFn({ method: "POST" })
       _membership_id: me.id,
     });
     if (error) throw reservationError(error.message);
+    const { applySettlementAndRecord } = await import("./reservation-cancellation.server");
+    await applySettlementAndRecord(supabaseAdmin, {
+      restaurantId: data.restaurantId,
+      reservationId: data.reservationId,
+      kind: "noshow",
+      ledgerMembershipId: me.id,
+      actorMembershipId: me.id,
+    });
     const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
     await resyncGroupBlockInventoryForReservation(
       supabaseAdmin,
@@ -1025,7 +1129,7 @@ export type InHouseStayQuote = {
   quotedSubtotal: number;
   currency: string | null;
   penaltyType: string;
-  penaltyPosted: false;
+  penaltyAmount: number | null;
   policyLine: string;
   impact: string[];
 };
@@ -1050,7 +1154,7 @@ export const quoteInHouseStayChange = createServerFn({ method: "POST" })
     const stayRead = await supabaseAdmin
       .from("hotel_reservations")
       .select(
-        "arrival_date, departure_date, room_subtotal, currency, early_departure_policy_snapshot, status",
+        "arrival_date, departure_date, room_subtotal, nightly_rate_snapshot, currency, early_departure_policy_snapshot, status",
       )
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.reservationId)
@@ -1060,6 +1164,7 @@ export const quoteInHouseStayChange = createServerFn({ method: "POST" })
       arrival_date: string;
       departure_date: string;
       room_subtotal: number | string | null;
+      nightly_rate_snapshot: unknown;
       currency: string | null;
       early_departure_policy_snapshot: unknown;
       status: string;
@@ -1126,16 +1231,27 @@ export const quoteInHouseStayChange = createServerFn({ method: "POST" })
 
     const kind = stayDateChangeKind(stay.arrival_date, stay.departure_date, arrival, departure);
     const penaltyType = earlyDeparturePenaltyType(stay.early_departure_policy_snapshot);
+    const quotedSubtotal = Math.round(quoted * 100) / 100;
+    const penalty =
+      kind === "early_departure"
+        ? computeEarlyDeparturePenalty({
+            snapshot: stay.early_departure_policy_snapshot,
+            roomSubtotal: Number(stay.room_subtotal ?? 0),
+            quotedSubtotal,
+            nightlyRates: parseSnapshot(stay.nightly_rate_snapshot),
+            currency,
+          })
+        : null;
     return {
       kind,
       previousNights: stayNights(stay.arrival_date, stay.departure_date),
       nextNights: stayNights(arrival, departure),
       previousSubtotal: Number(stay.room_subtotal ?? 0),
-      quotedSubtotal: Math.round(quoted * 100) / 100,
+      quotedSubtotal,
       currency,
       penaltyType,
-      penaltyPosted: false,
-      policyLine: earlyDeparturePolicyLine(stay.early_departure_policy_snapshot),
+      penaltyAmount: penalty?.amount ?? 0,
+      policyLine: earlyDeparturePolicyLine(stay.early_departure_policy_snapshot, penalty?.amount ?? 0),
       impact: stayDateFolioImpact(kind, penaltyType),
     };
   });

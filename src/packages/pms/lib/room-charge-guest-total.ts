@@ -110,6 +110,38 @@ export function previewPostedRoomCharge(
   };
 }
 
+/**
+ * Stay overview total. Room and package amounts are priced with the rules the
+ * folio posts on each. An inclusive tax stays inside the entered amount.
+ * Exclusive tax and service are added. A zero package amount is skipped.
+ */
+export function composeStayChargePreview(
+  roomSubtotal: number | null,
+  packageAmounts: number[],
+  roomRules: RoomChargeRules,
+  packageRules: RoomChargeRules,
+): { tax: number; serviceCharge: number; estimatedTotal: number | null } {
+  const room =
+    roomSubtotal != null && roomSubtotal > 0
+      ? previewPostedRoomCharge(roomSubtotal, roomRules.taxes, roomRules.services)
+      : null;
+  const packages = packageAmounts
+    .filter((amount) => amount > 0)
+    .map((amount) => previewPostedRoomCharge(amount, packageRules.taxes, packageRules.services));
+  if (!room && packages.length === 0) {
+    return { tax: 0, serviceCharge: 0, estimatedTotal: null };
+  }
+  return {
+    tax: roundMoney((room?.tax ?? 0) + packages.reduce((sum, row) => sum + row.tax, 0)),
+    serviceCharge: roundMoney(
+      (room?.serviceCharge ?? 0) + packages.reduce((sum, row) => sum + row.serviceCharge, 0),
+    ),
+    estimatedTotal: roundMoney(
+      (room?.total ?? 0) + packages.reduce((sum, row) => sum + row.total, 0),
+    ),
+  };
+}
+
 /** Taxes and service charges that post on a package charge. Rate-plan rules do not. */
 export function packageChargeScopeApplies(
   scope: string | null | undefined,

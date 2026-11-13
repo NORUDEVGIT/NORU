@@ -3793,6 +3793,7 @@ export type Database = {
           email_alt: string | null
           email_normalized: string | null
           employment_position: string | null
+          employer_name: string | null
           first_name: string
           gender: string | null
           geo_latitude: number | null
@@ -3854,6 +3855,7 @@ export type Database = {
           email_alt?: string | null
           email_normalized?: string | null
           employment_position?: string | null
+          employer_name?: string | null
           first_name: string
           gender?: string | null
           geo_latitude?: number | null
@@ -3915,6 +3917,7 @@ export type Database = {
           email_alt?: string | null
           email_normalized?: string | null
           employment_position?: string | null
+          employer_name?: string | null
           first_name?: string
           gender?: string | null
           geo_latitude?: number | null

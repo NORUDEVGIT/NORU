@@ -56,15 +56,18 @@ export function earlyDeparturePenaltyType(snapshot: unknown): string {
   return typeof value === "string" && value.trim() ? value.trim() : "none";
 }
 
-export function earlyDeparturePolicyLine(snapshot: unknown): string {
+export function earlyDeparturePolicyLine(snapshot: unknown, amount: number | null = null): string {
   const type = earlyDeparturePenaltyType(snapshot);
-  if (type === "none") return "No early-departure penalty is configured for this stay.";
+  if (type === "none" || amount === 0) return "No early-departure penalty is configured for this stay.";
   const name =
     snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
       ? String((snapshot as { name?: unknown }).name ?? "").trim()
       : "";
-  const label = name ? `${name} (${type})` : type;
-  return `Early-departure policy: ${label}. This action does not post that penalty as a separate folio charge.`;
+  const label = name ? `${name} (${type.replace(/_/g, " ")})` : type.replace(/_/g, " ");
+  if (amount != null && amount > 0) {
+    return `${label}. The penalty is posted to the folio when the shorter stay is saved.`;
+  }
+  return `${label}. The penalty amount could not be calculated from the frozen policy.`;
 }
 
 /**
@@ -81,7 +84,7 @@ export function stayDateFolioImpact(kind: StayDateChangeKind, penaltyType: strin
     lines.push(
       penaltyType === "none"
         ? "No early-departure penalty is configured, so none is posted."
-        : "The early-departure penalty stays on the reservation. It is not posted as its own folio charge.",
+        : "The early-departure penalty is posted as its own folio charge, in addition to the shortened room charge.",
     );
   }
   return lines;

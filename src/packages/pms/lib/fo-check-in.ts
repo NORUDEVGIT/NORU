@@ -213,10 +213,15 @@ export function projectCheckInDepositReadiness(input: {
   };
 }
 
-/** Null when the reservation has no snapshot amount. Zero is a real requirement of nothing. */
+/**
+ * Amount that must be on the folio before check-in can finish.
+ * Null when the reservation has no snapshot amount.
+ * Zero when the snapshot says the deposit is not required, even if a preview amount is stored.
+ */
 export function snapshotRequiredAmount(raw: unknown): number | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
+  if (row["required"] === false) return 0;
   const value = row.computed_amount ?? row.computedAmount;
   if (value == null || value === "") return null;
   const amount = Number(value);

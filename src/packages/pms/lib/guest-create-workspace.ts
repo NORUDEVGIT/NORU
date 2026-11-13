@@ -19,6 +19,7 @@ import {
 } from "./guest-profile-individual.ts";
 import type { GuestStatus } from "./guests.server.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import { validateCompanyPhone } from "./guest-company-create-workspace.ts";
 import {
   isCompanyFieldCode,
   isTravelAgencyFieldCode,
@@ -114,6 +115,8 @@ export type GuestCreateDocumentDraft = {
   existingDocumentId?: string;
   frontImageUrl?: string | null;
   backImageUrl?: string | null;
+  clearFront?: boolean;
+  clearBack?: boolean;
 };
 
 export type GuestCreateLinkDraft = {
@@ -161,6 +164,7 @@ export type GuestCreateDraft = {
   guestStatus: GuestStatus;
   position: string;
   department: string;
+  companyName: string;
   sourceOfBusiness: string;
   notes: string;
   restricted: boolean;
@@ -287,6 +291,7 @@ export function emptyGuestCreateDraft(defaults?: ProfileTypeDefaults | null): Gu
     guestStatus: "active",
     position: "",
     department: "",
+    companyName: "",
     sourceOfBusiness: "",
     notes: "",
     restricted: false,
@@ -511,6 +516,10 @@ export function guestCreateFieldIssues(
     const message = gap.code === "IDENTITY_DOCUMENT" ? "At least one identity document is required." : `${gap.label} is required.`;
     issues.push({ key: gap.code, message, step: gap.step });
   }
+  const phoneError = validateCompanyPhone(draft.phone);
+  if (phoneError) issues.push({ key: "PHONE", message: phoneError, step: "basic" });
+  const phoneAltError = validateCompanyPhone(draft.phoneAlt);
+  if (phoneAltError) issues.push({ key: "PHONE_ALT", message: phoneAltError, step: "basic" });
   if (options.identityActive !== false && options.documentTypes && options.documentTypes.length > 0) {
     draft.documents.forEach((doc, i) => {
       const docType = options.documentTypes?.find((t) => t.id === doc.idTypeId && t.active !== false);
@@ -576,6 +585,12 @@ export function guestCreateFieldIssues(
   }
   const emergencyError = validateEmergencyContacts(draft.emergencyContacts);
   if (emergencyError) issues.push({ key: "emergency", message: emergencyError, step: "additional" });
+  for (const contact of draft.emergencyContacts) {
+    const emergencyPhoneError = validateCompanyPhone(contact.phone);
+    if (emergencyPhoneError) {
+      issues.push({ key: "emergencyPhone", message: emergencyPhoneError, step: "additional" });
+    }
+  }
   if (options.dataProcessingRequired && draft.dataProcessingConsent !== "granted") {
     issues.push({
       key: "dataProcessing",
@@ -782,7 +797,44 @@ export function preferenceControl(valueType: PreferenceValueType): "select" | "m
   return valueType;
 }
 
+function blankCreateDocument(doc: GuestCreateDocumentDraft): boolean {
+  return (
+    !doc.existingDocumentId &&
+    !doc.documentNumber.trim() &&
+    !doc.issuingCountry.trim() &&
+    !doc.issueDate.trim() &&
+    !doc.expiryDate.trim() &&
+    !doc.issuingAuthority.trim() &&
+    !doc.notes.trim() &&
+    !doc.hasFront &&
+    !doc.hasBack
+  );
+}
+
+/** Compare guest form contents without the automatic consent grant or an empty identity row. */
+function comparableCreateDraft(draft: GuestCreateDraft): GuestCreateDraft {
+  return {
+    ...draft,
+    acknowledgeDuplicates: false,
+    // The form grants consent on open. Untouched and granted are the same contents.
+    dataProcessingConsent: draft.dataProcessingConsent === "denied" ? "denied" : "granted",
+    documents: draft.documents
+      .filter((doc) => !blankCreateDocument(doc))
+      .map((doc) => ({ ...doc, key: "" })),
+  };
+}
+
 export function guestCreateHasChanges(draft: GuestCreateDraft, defaults?: ProfileTypeDefaults | null): boolean {
   const empty = emptyGuestCreateDraft(defaults);
-  return JSON.stringify({ ...draft, acknowledgeDuplicates: false }) !== JSON.stringify({ ...empty, acknowledgeDuplicates: false });
+  // The form grants this before the user types. It is not entered data.
+  empty.dataProcessingConsent = "granted";
+  return (
+    JSON.stringify(comparableCreateDraft(draft)) !== JSON.stringify(comparableCreateDraft(empty))
+  );
+}
+
+export function guestCreateDiffers(current: GuestCreateDraft, baseline: GuestCreateDraft): boolean {
+  return (
+    JSON.stringify(comparableCreateDraft(current)) !== JSON.stringify(comparableCreateDraft(baseline))
+  );
 }

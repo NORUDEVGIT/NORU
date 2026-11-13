@@ -15,6 +15,10 @@ const fo = readFileSync(new URL("./frontoffice.functions.ts", import.meta.url), 
 const checkIn = readFileSync(new URL("./fo-check-in.functions.ts", import.meta.url), "utf8");
 const checkOut = readFileSync(new URL("./fo-check-out.functions.ts", import.meta.url), "utf8");
 const cancelNoShow = readFileSync(new URL("./fo-cancel-noshow.functions.ts", import.meta.url), "utf8");
+const cancelServer = readFileSync(
+  new URL("./reservation-cancellation.server.ts", import.meta.url),
+  "utf8",
+);
 
 const statusHandler = functions.slice(
   functions.indexOf("export const setReservationStatus"),
@@ -118,7 +122,7 @@ describe("DB03-B01 booking-status allowlist", () => {
     assert.match(checkIn, /check_in_hotel_reservation/);
     assert.match(checkOut, /check_out_hotel_reservation/);
     assert.match(cancelNoShow, /mark_hotel_reservation_no_show/);
-    assert.match(cancelNoShow, /room_id: null/);
+    assert.match(cancelServer, /room_id: null/);
     assert.match(functions, /export const copyReservation/);
     assert.match(functions, /roomId: null/);
   });

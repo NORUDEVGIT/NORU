@@ -113,12 +113,19 @@ export function registrationRequiredErrors(
   for (const field of fields) {
     if (!field.required) continue;
     const key = registrationCanonicalKey(field.code);
-    if (!key) {
-      if (!field.value?.trim())
-        errors.push(`${field.label} is required and cannot be edited here.`);
-      continue;
-    }
+    if (!key) continue;
     if (!draft[key]?.trim()) errors.push(`${field.label} is required.`);
+  }
+  return errors;
+}
+
+export function registrationCustomErrors(
+  fields: Array<{ fieldId: string; label: string }>,
+  draft: Record<string, string>,
+): string[] {
+  const errors: string[] = [];
+  for (const field of fields) {
+    if (!draft[field.fieldId]?.trim()) errors.push(`${field.label} is required.`);
   }
   return errors;
 }

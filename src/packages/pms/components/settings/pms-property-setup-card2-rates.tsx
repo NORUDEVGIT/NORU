@@ -1373,6 +1373,24 @@ function optionalId(value: string) {
   return value && value !== NONE ? value : null;
 }
 
+function dateField(value: string | null | undefined) {
+  const match = String(value ?? "").match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? "";
+}
+
+function ratePlanOptionLabel(
+  id: string,
+  rows: ReadonlyArray<{ id: string; code: string; name: string }>,
+  savedName?: string | null,
+  suffix?: string,
+): string | undefined {
+  if (!id) return undefined;
+  if (id === NONE) return "None";
+  const row = rows.find((item) => item.id === id);
+  if (!row) return savedName?.trim() || undefined;
+  return `${row.code} — ${row.name}${suffix ?? ""}`;
+}
+
 function PlanDrawer({
   open,
   canEdit,
@@ -1462,8 +1480,8 @@ function PlanDrawer({
     value ? "fixed" : roomTypeBaseIsConfigured(initialType?.baseNightlyRate) ? "use_base" : "fixed",
   );
   const [methodPercent, setMethodPercent] = useState(10);
-  const [validFrom, setValidFrom] = useState(value?.validFrom ?? "");
-  const [validTo, setValidTo] = useState(value?.validTo ?? "");
+  const [validFrom, setValidFrom] = useState(dateField(value?.validFrom));
+  const [validTo, setValidTo] = useState(dateField(value?.validTo));
   const [mealPlanId, setMealPlanId] = useState(value?.mealPlanId ?? NONE);
   const [cancellationPolicyId, setCancellationPolicyId] = useState(
     value?.cancellationPolicyId ?? NONE,
@@ -1475,6 +1493,42 @@ function PlanDrawer({
     value?.earlyDeparturePolicyId ?? NONE,
   );
   const selectedType = roomTypes.find((row) => row.id === roomTypeId);
+  const selectedMeal = mealPlans.find((row) => row.id === mealPlanId);
+  const selectedRefundability = refundabilityCodes.find((row) => row.id === refundabilityId);
+  const categoryLabel = ratePlanOptionLabel(
+    categoryId,
+    categories,
+    value?.categoryName ? `${value.categoryName}` : null,
+  );
+  const roomTypeLabel = ratePlanOptionLabel(
+    roomTypeId,
+    roomTypes,
+    value ? `${value.roomTypeCode} — ${value.roomTypeName}`.trim() : null,
+  );
+  const mealLabel = ratePlanOptionLabel(
+    mealPlanId,
+    mealPlans,
+    value?.mealPlanName,
+    selectedMeal?.includesBreakfast ? " (breakfast)" : "",
+  );
+  const cancellationLabel = ratePlanOptionLabel(
+    cancellationPolicyId,
+    cancellationPolicies,
+    value?.cancellationName,
+  );
+  const refundabilityLabel = ratePlanOptionLabel(
+    refundabilityId,
+    refundabilityCodes,
+    value?.refundabilityName,
+    selectedRefundability ? ` (${REFUNDABILITY_KIND_LABELS[selectedRefundability.kind]})` : "",
+  );
+  const depositLabel = ratePlanOptionLabel(depositPolicyId, depositPolicies, value?.depositPolicyName);
+  const noShowLabel = ratePlanOptionLabel(noShowPolicyId, noShowPolicies, value?.noShowPolicyName);
+  const earlyDepartureLabel = ratePlanOptionLabel(
+    earlyDeparturePolicyId,
+    earlyDeparturePolicies,
+    value?.earlyDeparturePolicyName,
+  );
   const [includedOccupancy, setIncludedOccupancy] = useState(
     value ? savedOccupancy.includedOccupancy : createDefaults.includedOccupancy,
   );
@@ -1572,7 +1626,7 @@ function PlanDrawer({
             <Label>Category</Label>
             <Select value={categoryId} disabled={!canEdit} onValueChange={setCategoryId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a category" />
+                <SelectValue placeholder="Select a category">{categoryLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent className="max-h-[190px] overflow-y-auto">
                 {categories.map((row) => (
@@ -1611,7 +1665,7 @@ function PlanDrawer({
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a room type" />
+                <SelectValue placeholder="Select a room type">{roomTypeLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent className="max-h-[190px] overflow-y-auto">
                 {roomTypes.map((row) => (
@@ -1713,7 +1767,7 @@ function PlanDrawer({
           </div>
           <Select value={mealPlanId} disabled={!canEdit} onValueChange={setMealPlanId}>
             <SelectTrigger>
-              <SelectValue placeholder="None" />
+              <SelectValue placeholder="None">{mealLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent className="max-h-[190px] overflow-y-auto">
               <SelectItem value={NONE}>None</SelectItem>
@@ -1762,7 +1816,7 @@ function PlanDrawer({
                 onValueChange={setCancellationPolicyId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="None" />
+                  <SelectValue placeholder="None">{cancellationLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
@@ -1797,7 +1851,7 @@ function PlanDrawer({
                 onValueChange={setRefundabilityId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="None" />
+                  <SelectValue placeholder="None">{refundabilityLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
@@ -1832,7 +1886,7 @@ function PlanDrawer({
                 onValueChange={setDepositPolicyId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="None" />
+                  <SelectValue placeholder="None">{depositLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent className="z-[100]">
                   <SelectItem value={NONE}>None</SelectItem>
@@ -1873,7 +1927,7 @@ function PlanDrawer({
                 onValueChange={setNoShowPolicyId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="None" />
+                  <SelectValue placeholder="None">{noShowLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>
@@ -1914,7 +1968,7 @@ function PlanDrawer({
                 onValueChange={setEarlyDeparturePolicyId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="None" />
+                  <SelectValue placeholder="None">{earlyDepartureLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>None</SelectItem>

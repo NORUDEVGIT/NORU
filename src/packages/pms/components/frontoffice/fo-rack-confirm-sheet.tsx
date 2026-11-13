@@ -537,9 +537,9 @@ export function FoRackConfirmSheet({
                       {money(folioQuery.data.folioBalance)}
                     </p>
                   ) : null}
-                  {dateKind === "early_departure" && quoteQuery.data && quoteQuery.data.penaltyType !== "none" ? (
+                  {dateKind === "early_departure" && quoteQuery.data && (quoteQuery.data.penaltyAmount ?? 0) > 0 ? (
                     <p className="mt-2 text-sm font-medium text-[#251605]" data-testid="fo-stay-date-policy">
-                      Early departure charge: {quoteQuery.data.policyLine}
+                      Early departure penalty {money(quoteQuery.data.penaltyAmount ?? 0)} will be posted to the folio.
                     </p>
                   ) : dateKind === "early_departure" && quoteQuery.data ? (
                     <p className="mt-2 text-xs text-[#6B5E4E]" data-testid="fo-stay-date-policy">

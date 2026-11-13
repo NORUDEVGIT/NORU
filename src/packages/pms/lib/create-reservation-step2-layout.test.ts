@@ -148,7 +148,7 @@ describe("reservation create step 2 booking details layout", () => {
     assert.match(packages, /onToggleActivation/);
     assert.match(details, /data-testid="saved-preference-chip"/);
     assert.match(details, /\{row\.label\}/);
-    assert.match(details, /apply-saved-preferences/);
+    assert.doesNotMatch(details, /apply-saved-preferences|preferenceApplyText/);
     assert.match(details, /<Checkbox/);
     assert.match(details, /booking-details-service-requests/);
     assert.match(details, /onSelectedServiceRequestsChange/);

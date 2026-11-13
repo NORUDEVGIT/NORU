@@ -26,6 +26,8 @@ import { guestListItems, listGuests } from "@/packages/pms/lib/guests.functions"
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { cn } from "@/shared/lib/utils";
 import {
   Select,
   SelectContent,
@@ -46,6 +48,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
+
+function individualGuestProfileSearch() {
+  return guestProfileSearch({
+    type: "individual",
+    nav: "overview",
+    view: "overview",
+    tab: "overview",
+  });
+}
 
 export function GuestTravelAgentTravelers({
   restaurantId,
@@ -277,7 +288,15 @@ export function GuestTravelAgentTravelers({
                     data-testid={`travel-agent-traveler-row-${row.id}`}
                   >
                     <td className="px-3.5 py-2.5 font-medium text-[#251605]">
-                      {row.guestName}
+                      <Link
+                        to={GUEST_PROFILE_DETAIL_PATH}
+                        params={{ guestId: row.guestId }}
+                        search={individualGuestProfileSearch()}
+                        onClick={(event) => event.stopPropagation()}
+                        className="hover:text-[#8A641A] hover:underline"
+                      >
+                        {row.guestName}
+                      </Link>
                     </td>
                     <td className="px-3 py-2.5">
                       <span className="inline-flex items-center rounded-full bg-[#F4E9D0] px-2 py-0.5 text-[10px] font-medium text-[#8A641A]">
@@ -306,7 +325,7 @@ export function GuestTravelAgentTravelers({
                           <Link
                             to={GUEST_PROFILE_DETAIL_PATH}
                             params={{ guestId: row.guestId }}
-                            search={guestProfileSearch({ type: "individual" })}
+                            search={individualGuestProfileSearch()}
                           >
                             <ExternalLink className="size-3.5" />
                           </Link>
@@ -376,7 +395,7 @@ export function GuestTravelAgentTravelers({
                   <Link
                     to={GUEST_PROFILE_DETAIL_PATH}
                     params={{ guestId: selectedLink.guestId }}
-                    search={guestProfileSearch({ type: "individual" })}
+                    search={individualGuestProfileSearch()}
                   >
                     <ExternalLink className="mr-1.5 size-3.5" />
                     Open Full Guest Profile

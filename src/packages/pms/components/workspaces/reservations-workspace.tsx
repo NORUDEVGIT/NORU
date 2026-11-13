@@ -421,30 +421,32 @@ export function ReservationsWorkspace({
   }, [initialReturnTo, initialGuestId, initialCompanyId, initialTravelAgentId, initialGroupId]);
 
   const returnToLabel = useMemo(() => {
+    if (initialReturnTo) return "Return to Previous Page";
     if (initialGuestId) return "Return to Guest Profile";
     if (initialCompanyId) return "Return to Company Profile";
     if (initialTravelAgentId) return "Return to Travel Agency Profile";
     if (initialGroupId) return "Return to Group Profile";
     if (returnTo) return "Return to Previous Page";
     return "Return to Reservation Desk";
-  }, [initialGuestId, initialCompanyId, initialTravelAgentId, initialGroupId, returnTo]);
+  }, [initialReturnTo, initialGuestId, initialCompanyId, initialTravelAgentId, initialGroupId, returnTo]);
 
   const hydratedCreateRef = useRef(false);
+  const closingCreateRef = useRef(false);
   useEffect(() => {
     if (!initialCreate) {
       hydratedCreateRef.current = false;
+      closingCreateRef.current = false;
       return;
     }
-    if (initialCreate && !hydratedCreateRef.current) {
-      hydratedCreateRef.current = true;
-      setOverlay({
-        type: "new-reservation",
-        initialGuestId: initialGuestId ?? null,
-        initialCompanyMasterId: initialCompanyId ?? null,
-        initialTravelAgentMasterId: initialTravelAgentId ?? null,
-        initialGroupMasterId: initialGroupId ?? null,
-      });
-    }
+    if (closingCreateRef.current || hydratedCreateRef.current) return;
+    hydratedCreateRef.current = true;
+    setOverlay({
+      type: "new-reservation",
+      initialGuestId: initialGuestId ?? null,
+      initialCompanyMasterId: initialCompanyId ?? null,
+      initialTravelAgentMasterId: initialTravelAgentId ?? null,
+      initialGroupMasterId: initialGroupId ?? null,
+    });
   }, [initialCreate, initialGuestId, initialCompanyId, initialTravelAgentId, initialGroupId]);
 
   useEffect(() => {
@@ -719,6 +721,8 @@ export function ReservationsWorkspace({
 
   function closeWorkspaceOverlay(open: boolean) {
     if (open) return;
+    closingCreateRef.current = true;
+    hydratedCreateRef.current = true;
     setOverlay(null);
     setCreateGroupLink(null);
     invalidateReservationReads();
