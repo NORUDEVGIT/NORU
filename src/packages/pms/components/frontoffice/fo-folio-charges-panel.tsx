@@ -34,7 +34,7 @@ import {
   getReservationFolio,
   type FolioTransactionRow,
 } from "@/packages/pms/lib/cashiering.functions";
-import { issueGuestFolioInvoice } from "@/packages/pms/lib/cashiering-invoices.functions";
+import { issueGuestFolioChargeInvoice } from "@/packages/pms/lib/cashiering-invoices.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import {
   FO_FOLIO_SECTIONS,
@@ -115,7 +115,7 @@ export function FoFolioChargesPanel({
   const fetchWorkspace = useServerFn(getFolioWorkspace);
   const fetchDepositPolicy = useServerFn(getDefaultDepositPolicy);
   const fetchCorrectionNotice = useServerFn(getCashieringCorrectionNotice);
-  const issueInvoice = useServerFn(issueGuestFolioInvoice);
+  const issueInvoice = useServerFn(issueGuestFolioChargeInvoice);
   const [section, setSection] = useState<FoFolioSectionId>("charges");
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);

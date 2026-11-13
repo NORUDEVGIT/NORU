@@ -13,6 +13,7 @@ import {
   checkInRegistrationCollects,
   checkInRequirementApplies,
   resolveGuestFieldRules,
+  identityDocumentOnFile,
   validateGuestCheckInRequirements,
 } from "./guest-field-rules.ts";
 
@@ -167,6 +168,57 @@ describe("check-in field requirements", () => {
     assert.equal(first?.requiredForContext, true);
     assert.equal(first?.active, true);
     assert.equal(rules.find((rule) => rule.code === "PHONE")?.requiredForContext, false);
+  });
+
+  it("accepts the identity document saved at registration for ID / Passport", () => {
+    const config = {
+      identityDocumentActive: true,
+      identityDocumentTypes: [],
+      fields: [
+        {
+          id: "id-field",
+          code: "IDENTITY_DOCUMENT",
+          name: "ID / Passport",
+          fieldType: "document",
+          required: true,
+          checkIn: true,
+          reservation: false,
+          active: true,
+          displayOrder: 1,
+          options: [],
+        },
+      ],
+    } as unknown as Parameters<typeof validateGuestCheckInRequirements>[0]["config"];
+    const guest = { firstName: "Ada", lastName: "Lovelace" } as unknown as Parameters<
+      typeof validateGuestCheckInRequirements
+    >[0]["guest"];
+    const saved = [
+      {
+        id: "doc-1",
+        typeId: "type-passport",
+        kind: "passport",
+        documentNumberMasked: "P123456",
+        issuingCountry: "ET",
+        expiryDate: "2030-01-01",
+      },
+    ];
+    assert.equal(identityDocumentOnFile(saved), true);
+    const accepted = validateGuestCheckInRequirements({
+      guest,
+      documents: saved,
+      config,
+    });
+    assert.equal(
+      accepted.errors.some((error) => error.includes("ID / Passport")),
+      false,
+    );
+
+    const missing = validateGuestCheckInRequirements({
+      guest,
+      documents: [],
+      config,
+    });
+    assert.ok(missing.errors.some((error) => error.includes("ID / Passport is required.")));
   });
 
   it("does not block registration on a field the form cannot edit", () => {

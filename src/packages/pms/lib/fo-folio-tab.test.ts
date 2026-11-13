@@ -169,7 +169,8 @@ describe("FO folio tab — Cashiering figures and writers", () => {
     assert.equal(foFolioEntryType("refund"), "refund");
     assert.match(panel, /<FolioEntryDialog/);
     assert.match(panel, /<CloseFolioDialog/);
-    assert.match(panel, /issueGuestFolioInvoice/);
+    assert.match(panel, /issueGuestFolioChargeInvoice/);
+    assert.doesNotMatch(panel, /useServerFn\(issueGuestFolioInvoice\)/);
     assert.doesNotMatch(panel, /post_folio_transaction|open_folio_for_reservation/);
   });
 
@@ -242,6 +243,7 @@ describe("FO folio tab — Cashiering figures and writers", () => {
     assert.match(panel, /aria-label="Folio actions"/);
     assert.match(panel, /FolioEntryDialog/);
     assert.match(panel, /CloseFolioDialog/);
-    assert.match(panel, /issueGuestFolioInvoice/);
+    assert.match(panel, /issueGuestFolioChargeInvoice/);
+    assert.doesNotMatch(panel, /useServerFn\(issueGuestFolioInvoice\)/);
   });
 });

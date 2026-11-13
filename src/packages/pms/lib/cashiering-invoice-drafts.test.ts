@@ -6,13 +6,16 @@ import {
   correctableGroupRemainder,
   type TransferLedgerRow,
 } from "./cashiering-transfer-allocate.ts";
-import { mapFolioInvoiceSnapshot } from "./cashiering-invoices.server.ts";
+import { mapFolioInvoiceSnapshot, uninvoicedGuestChargeIds } from "./cashiering-invoices.server.ts";
 
 function read(path: string): string {
   return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
 const sql = read("../../../../supabase/migrations/0144_cashiering_guest_invoice_drafts.sql");
+const invoiceFns = read("./cashiering-invoices.functions.ts");
+const folioPanel = read("../components/frontoffice/fo-folio-charges-panel.tsx");
+const reservationFolio = read("../components/workspaces/reservation-detail-folio.tsx");
 const drizzle = read("../../../../drizzle/migrations/0144_cashiering_guest_invoice_drafts.sql");
 
 function group(parent: number, tax: number, service: number): TransferLedgerRow[] {
@@ -141,6 +144,27 @@ describe("guest invoice drafts", () => {
     const current = correctableGroupRemainder("parent", rows);
     assert.equal(current.grossRemaining, 360);
     assert.match(sql, /parent_remaining := public.correctable_charge_remainder/);
+  });
+
+  it("issues uninvoiced charges and leaves payments, deposits, and issued charges out", () => {
+    assert.deepEqual(
+      uninvoicedGuestChargeIds([
+        { parentTransactionId: "room", invoiceState: "uninvoiced" },
+        { parentTransactionId: "already", invoiceState: "invoiced" },
+        { parentTransactionId: "drafted", invoiceState: "in_draft" },
+        { parentTransactionId: "  ", invoiceState: "uninvoiced" },
+      ]),
+      ["room", "drafted"],
+    );
+    const chargeIssue = invoiceFns.slice(invoiceFns.indexOf("issueGuestFolioChargeInvoice"));
+    assert.match(chargeIssue, /list_guest_folio_invoice_groups/);
+    assert.match(chargeIssue, /issue_guest_folio_invoice_draft/);
+    assert.doesNotMatch(chargeIssue, /issue_guest_folio_invoice(?!_draft)/);
+    assert.match(folioPanel, /issueGuestFolioChargeInvoice/);
+    assert.match(reservationFolio, /issueGuestFolioChargeInvoice/);
+    assert.doesNotMatch(folioPanel, /useServerFn\(issueGuestFolioInvoice\)/);
+    assert.doesNotMatch(reservationFolio, /useServerFn\(issueGuestFolioInvoice\)/);
+    assert.match(reservationFolio, /legacyFolioInvoice/);
   });
 
   it("still loads a legacy version 1 snapshot", () => {

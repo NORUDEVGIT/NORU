@@ -223,6 +223,19 @@ export type InvoiceBoard = {
   draft: InvoiceDraftRow | null;
 };
 
+/** Charges still available for a guest invoice. Issued charges, payments, and deposits stay out. */
+export function uninvoicedGuestChargeIds(
+  groups: Array<{ parentTransactionId?: string | null; invoiceState?: string | null }>,
+): string[] {
+  const ids: string[] = [];
+  for (const group of groups) {
+    if (group.invoiceState === "invoiced") continue;
+    const id = group.parentTransactionId?.trim() ?? "";
+    if (id) ids.push(id);
+  }
+  return ids;
+}
+
 export function invoiceIssuerLabel(property: FolioInvoiceSnapshot["property"]): string {
   return (
     property.legalEntityName?.trim() ||
