@@ -29,11 +29,11 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
   const shellCode = readRel("../workspaces/guest-profile-workspace.tsx");
   const directoryCode = readRel("./guest-travel-agent-directory.tsx");
 
-  it("1. New Travel Agency opens the wide modal with Reservation-style overlay sizing", () => {
+  it("1. New Travel Agency opens the Create New Guest wizard shell", () => {
     assert.match(modalCode, /DialogContent/);
     assert.match(modalCode, /data-testid="guest-travel-agency-create-modal"/);
-    assert.match(modalCode, /w-\[min\(98vw,1550px\)\]/);
-    assert.match(modalCode, /h-\[min\(92vh,960px\)\]/);
+    assert.match(modalCode, /h-\[92vh\] max-h-\[92vh\] w-\[min\(90vw,1440px\)\]/);
+    assert.match(modalCode, /bg-\[#1F140A\]/);
   });
 
   it("2. Guest Profile workspace remains mounted behind modal when create === 'travel-agent'", () => {
@@ -79,8 +79,6 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
   });
 
   it("6. Core travel agency, contact, address, business, and billing fields are preserved", () => {
-    assert.match(fullModalCode, /Profile Type/);
-    assert.match(fullModalCode, /Travel Agency \(TRA\)/);
     assert.match(fullModalCode, /draft\.name/);
     assert.match(fullModalCode, /draft\.agencyType/);
     assert.match(fullModalCode, /draft\.agencyTypeOther/);
@@ -128,11 +126,12 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.match(modalCode, /MODAL_SELECT_TRIGGER_CLASS/);
   });
 
-  it("11. Right-side panel includes profile preview, completion progress, and step guidance", () => {
-    assert.match(modalCode, /data-testid="travel-agency-create-profile-preview"/);
+  it("11. Completion stays in the header and the right-side rail is not mounted", () => {
     assert.match(modalCode, /guestTravelAgentCreateCompletion/);
-    assert.match(modalCode, /Step Guidance/);
-    assert.match(modalCode, /Property Setup Controlled/);
+    assert.match(modalCode, /% complete/);
+    assert.doesNotMatch(modalCode, /data-testid="travel-agency-create-profile-preview"/);
+    assert.doesNotMatch(modalCode, /Step Guidance/);
+    assert.doesNotMatch(modalCode, /Property Setup Controlled/);
   });
 
   it("12. Sticky footer includes Back, Next, Save Draft, and gold Create Travel Agency CTA with dark espresso text", () => {
@@ -140,7 +139,7 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
     assert.match(modalCode, /data-testid="travel-agency-create-save-draft"/);
     assert.match(modalCode, /Create Travel Agency/);
     assert.match(modalCode, /data-testid="create-travel-agency-final"/);
-    assert.match(modalCode, /bg-\[#C89933\] text-\[#251605\] hover:bg-\[#B98B2D\] font-semibold/);
+    assert.match(modalCode, /SHELL_PRIMARY_BUTTON/);
   });
 
   it("13. Strict Independence: GuestTravelAgencyCreateModal does NOT import or render GuestCreateModal or GuestCompanyCreateModal", () => {
@@ -169,11 +168,9 @@ describe("NORU PMS — Guest Profile: New Travel Agency Wide Modal Modernization
 
   it("16. Step 3 mounts GuestTravelAgencyCommissionRatesStep and Step 4 mounts GuestTravelAgencyPaymentRulesStep", () => {
     assert.match(modalCode, /GuestTravelAgencyCommissionRatesStep/);
-    assert.match(modalCode, /CommercialSummaryPanel/);
     assert.match(modalCode, /getTravelAgencyCommissionRatesConfig/);
     assert.match(modalCode, /step === "commission_rates"/);
     assert.match(modalCode, /GuestTravelAgencyPaymentRulesStep/);
-    assert.match(modalCode, /PaymentRulesSummaryPanel/);
   });
 
   it("17. Edit hydrates saved contacts, commission rates, and billing settings", () => {

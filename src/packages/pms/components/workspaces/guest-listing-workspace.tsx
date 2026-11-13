@@ -3,7 +3,21 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Crown, Menu, Plane, RefreshCw, RotateCcw, UserCheck, Users } from "lucide-react";
+import {
+  Building2,
+  CreditCard,
+  Crown,
+  DoorOpen,
+  Layers,
+  Menu,
+  Percent,
+  Plane,
+  RefreshCw,
+  RotateCcw,
+  UserCheck,
+  UserMinus,
+  Users,
+} from "lucide-react";
 
 import { GuestAccountDirectory } from "@/packages/pms/components/guests/guest-account-directory";
 import {
@@ -29,7 +43,11 @@ import {
   listingTypeInactive,
   sectionToAccountType,
 } from "@/packages/pms/lib/guest-profile-listing";
-import { getGuestDirectoryStats, getGuestWorkspaceStats } from "@/packages/pms/lib/guests.functions";
+import { getGuestDirectoryStats } from "@/packages/pms/lib/guests.functions";
+import { listCompanyWorkspace } from "@/packages/pms/lib/guest-companies.functions";
+import { getTravelAgentWorkspaceSummary } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
+import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
+import type { GuestAccountStatus } from "@/packages/pms/lib/guest-profile-wave4";
 import { getGuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { Button } from "@/shared/components/ui/button";
@@ -65,9 +83,15 @@ export function GuestListingWorkspace({
   const section = guestListingSection(listingType);
   const accountType = sectionToAccountType(section);
   const fetchAccess = useServerFn(getGuestWorkspaceAccess);
-  const fetchStats = useServerFn(getGuestWorkspaceStats);
   const fetchDirectoryStats = useServerFn(getGuestDirectoryStats);
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
+  const fetchCompanies = useServerFn(listCompanyWorkspace);
+  const fetchAgencySummary = useServerFn(getTravelAgentWorkspaceSummary);
+  const fetchAccounts = useServerFn(listGuestAccounts);
+  const [companyStatus, setCompanyStatus] = useState<"all" | GuestAccountStatus>("all");
+  const [companyCredit, setCompanyCredit] = useState<"all" | "yes" | "no">("all");
+  const [agencyStatus, setAgencyStatus] = useState<"all" | GuestAccountStatus>("all");
+  const [groupStatus, setGroupStatus] = useState<"all" | GuestAccountStatus>("all");
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [shellSlots, setShellSlots] = useState<GuestProfileShellSlots>({
     search: null,
@@ -99,12 +123,6 @@ export function GuestListingWorkspace({
   const navSections = GUEST_WORKSPACE_SECTIONS.filter((item) =>
     item.accountType ? canViewAccounts : canViewProfiles,
   );
-  const statsQuery = useQuery({
-    queryKey: ["guest-workspace-stats", restaurantId],
-    queryFn: () => fetchStats({ data: { restaurantId } }),
-    enabled: canView,
-    retry: false,
-  });
   const directoryStatsQuery = useQuery({
     queryKey: ["guest-directory-stats", restaurantId],
     queryFn: () => fetchDirectoryStats({ data: { restaurantId } }),
@@ -116,6 +134,44 @@ export function GuestListingWorkspace({
     queryFn: () => fetchConfig({ data: { restaurantId } }),
     enabled: canView,
     retry: false,
+  });
+  const companyKpiQuery = useQuery({
+    queryKey: ["company-workspace-kpis", restaurantId],
+    queryFn: () => fetchCompanies({ data: { restaurantId, status: "all", credit: "all", limit: 1, offset: 0 } }),
+    enabled: canViewAccounts && accountType === "company",
+    staleTime: 60_000,
+  });
+  const agencySummaryQuery = useQuery({
+    queryKey: ["travel-agent-workspace-summary", restaurantId],
+    queryFn: () => fetchAgencySummary({ data: { restaurantId } }),
+    enabled: canViewAccounts && accountType === "travel_agent",
+    staleTime: 60_000,
+  });
+  const groupKpiQuery = useQuery({
+    queryKey: ["guest-accounts", restaurantId, "group", "section-kpis"],
+    queryFn: async () => {
+      const [allRes, pendingRes, activeRes, inactiveRes] = await Promise.all([
+        fetchAccounts({ data: { restaurantId, accountType: "group", limit: 1, offset: 0 } }),
+        fetchAccounts({ data: { restaurantId, accountType: "group", status: "pending", limit: 1, offset: 0 } }),
+        fetchAccounts({ data: { restaurantId, accountType: "group", status: "active", limit: 1, offset: 0 } }),
+        fetchAccounts({ data: { restaurantId, accountType: "group", status: "inactive", limit: 1, offset: 0 } }),
+      ]);
+      return {
+        total: allRes.total,
+        pending: pendingRes.total,
+        active: activeRes.total,
+        inactive: inactiveRes.total,
+      };
+    },
+    enabled: canViewAccounts && accountType === "group",
+    staleTime: 30_000,
+  });
+  const groupMembersQuery = useQuery({
+    queryKey: ["guest-accounts", restaurantId, "group", "member-total"],
+    queryFn: () =>
+      fetchAccounts({ data: { restaurantId, accountType: "group", limit: 200, offset: 0 } }),
+    enabled: canViewAccounts && accountType === "group",
+    staleTime: 30_000,
   });
 
   function selectSection(nextSection: "guests" | "companies" | "travel-agencies" | "groups") {
@@ -132,6 +188,23 @@ export function GuestListingWorkspace({
       search: guestProfileSearch({
         section: nextSection,
         type: domain,
+      }),
+    });
+  }
+
+  function openGuestFilter(filters: {
+    status?: "active" | "inactive";
+    vip?: "vip" | "non-vip";
+    sort?: "last_stay";
+  }) {
+    void navigate({
+      to: GUEST_PROFILE_DIRECTORY_PATH,
+      search: guestProfileSearch({
+        section: "guests",
+        type: "individual",
+        status: filters.status,
+        vip: filters.vip,
+        sort: filters.sort,
       }),
     });
   }
@@ -178,12 +251,26 @@ export function GuestListingWorkspace({
     );
   }
 
-  const stats = statsQuery.data;
   const guestStats = directoryStatsQuery.data;
   const config = configQuery.data;
   const sectionInactive = listingTypeInactive(section, config);
   const activeSection = workspaceSectionForListing(section);
-  const kpiLoading = statsQuery.isLoading || directoryStatsQuery.isLoading;
+  const companyKpis = companyKpiQuery.data?.kpis;
+  const agencySummary = agencySummaryQuery.data;
+  const groupKpis = groupKpiQuery.data;
+  const memberPage = groupMembersQuery.data;
+  const totalMembers =
+    memberPage && memberPage.total <= memberPage.items.length
+      ? memberPage.items.reduce((sum, row) => sum + (row.memberCount ?? 0), 0)
+      : null;
+  const kpiLoading =
+    activeSection === "guests"
+      ? directoryStatsQuery.isLoading
+      : activeSection === "companies"
+        ? companyKpiQuery.isLoading
+        : activeSection === "travel-agencies"
+          ? agencySummaryQuery.isLoading
+          : groupKpiQuery.isLoading || groupMembersQuery.isLoading || configQuery.isLoading;
 
   return (
     <GuestProfileShellProvider value={shellSlots}>
@@ -193,56 +280,43 @@ export function GuestListingWorkspace({
           aria-label="Guest profile KPIs"
           data-testid="guest-workspace-kpis"
         >
-          {canViewProfiles ? (
+          {activeSection === "companies" ? (
             <>
-              <GuestKpiCard
-                label="Total Guests"
-                value={guestStats?.totalGuests}
-                loading={kpiLoading}
-                icon={<Users className="size-4" />}
-                tone="bg-[#F4E9D0] text-[#8A641A]"
-              />
-              <GuestKpiCard
-                label="Active Guests"
-                value={guestStats?.activeGuests}
-                loading={kpiLoading}
-                icon={<UserCheck className="size-4" />}
-                tone="bg-emerald-50 text-emerald-700"
-              />
-              <GuestKpiCard
-                label="VIP Guests"
-                value={guestStats?.vipGuests}
-                loading={kpiLoading}
-                icon={<Crown className="size-4" />}
-                tone="bg-amber-50 text-amber-700"
-              />
-              <GuestKpiCard
-                label="Returning Guests"
-                value={guestStats?.returningGuests}
-                loading={kpiLoading}
-                icon={<RotateCcw className="size-4" />}
-                tone="bg-blue-50 text-blue-700"
-              />
+              <GuestKpiCard label="Total Companies" value={companyKpis?.total} loading={kpiLoading} icon={<Building2 className="size-4" />} tone="bg-[#F4E9D0] text-[#8A641A]" active={companyStatus === "all" && companyCredit === "all"} onClick={() => { setCompanyStatus("all"); setCompanyCredit("all"); }} />
+              <GuestKpiCard label="Active Companies" value={companyKpis?.active} loading={kpiLoading} icon={<UserCheck className="size-4" />} tone="bg-emerald-50 text-emerald-700" active={companyStatus === "active"} onClick={() => setCompanyStatus(companyStatus === "active" ? "all" : "active")} />
+              <GuestKpiCard label="Inactive Companies" value={companyKpis?.inactive} loading={kpiLoading} icon={<UserMinus className="size-4" />} tone="bg-stone-100 text-stone-600" active={companyStatus === "inactive"} onClick={() => setCompanyStatus(companyStatus === "inactive" ? "all" : "inactive")} />
+              <GuestKpiCard label="Credit Accounts" value={companyKpis?.credit} loading={kpiLoading} icon={<CreditCard className="size-4" />} tone="bg-amber-50 text-amber-700" active={companyCredit === "yes"} onClick={() => setCompanyCredit(companyCredit === "yes" ? "all" : "yes")} />
+              <GuestKpiCard label="Pending Companies" value={companyKpis ? Math.max(0, companyKpis.total - companyKpis.active - companyKpis.inactive) : undefined} loading={kpiLoading} icon={<RotateCcw className="size-4" />} tone="bg-amber-50 text-amber-700" active={companyStatus === "pending"} onClick={() => setCompanyStatus(companyStatus === "pending" ? "all" : "pending")} />
+              <GuestKpiCard label="Direct Pay" value={companyKpis ? Math.max(0, companyKpis.total - companyKpis.credit) : undefined} loading={kpiLoading} icon={<Building2 className="size-4" />} tone="bg-stone-100 text-stone-700" active={companyCredit === "no"} onClick={() => setCompanyCredit(companyCredit === "no" ? "all" : "no")} />
             </>
-          ) : null}
-          {canViewAccounts ? (
+          ) : activeSection === "travel-agencies" ? (
             <>
-              <GuestKpiCard
-                label="Companies"
-                value={stats?.companies}
-                loading={kpiLoading}
-                icon={<Building2 className="size-4" />}
-                tone="bg-stone-100 text-stone-700"
-              />
-              <GuestKpiCard
-                label="Travel Agencies"
-                value={stats?.travelAgents}
-                loading={kpiLoading}
-                icon={<Plane className="size-4" />}
-                tone="bg-indigo-50 text-indigo-700"
-              />
+              <GuestKpiCard label="Total Agencies" value={agencySummary?.total} loading={kpiLoading} icon={<Plane className="size-4" />} tone="bg-[#F4E9D0] text-[#8A641A]" active={agencyStatus === "all"} onClick={() => setAgencyStatus("all")} />
+              <GuestKpiCard label="Active Agencies" value={agencySummary?.active} loading={kpiLoading} icon={<UserCheck className="size-4" />} tone="bg-emerald-50 text-emerald-700" active={agencyStatus === "active"} onClick={() => setAgencyStatus(agencyStatus === "active" ? "all" : "active")} />
+              <GuestKpiCard label="Inactive Agencies" value={agencySummary?.inactive} loading={kpiLoading} icon={<UserMinus className="size-4" />} tone="bg-stone-100 text-stone-600" active={agencyStatus === "inactive"} onClick={() => setAgencyStatus(agencyStatus === "inactive" ? "all" : "inactive")} />
+              <GuestKpiCard label="Commission Configured" value={agencySummary?.commissionConfigured} loading={kpiLoading} icon={<Percent className="size-4" />} tone="bg-amber-50 text-amber-700" />
+              <GuestKpiCard label="Pending Agencies" value={agencySummary ? Math.max(0, agencySummary.total - agencySummary.active - agencySummary.inactive) : undefined} loading={kpiLoading} icon={<RotateCcw className="size-4" />} tone="bg-amber-50 text-amber-700" active={agencyStatus === "pending"} onClick={() => setAgencyStatus(agencyStatus === "pending" ? "all" : "pending")} />
+              <GuestKpiCard label="Commission Not Set" value={agencySummary ? Math.max(0, agencySummary.total - agencySummary.commissionConfigured) : undefined} loading={kpiLoading} icon={<Percent className="size-4" />} tone="bg-stone-100 text-stone-600" />
             </>
-          ) : null}
+          ) : activeSection === "groups" ? (
+            <>
+              <GuestKpiCard label="Total Groups" value={groupKpis?.total} loading={kpiLoading} icon={<Users className="size-4" />} tone="bg-[#F4E9D0] text-[#8A641A]" active={groupStatus === "all"} onClick={() => setGroupStatus("all")} />
+              <GuestKpiCard label="Active Groups" value={groupKpis?.active} loading={kpiLoading} icon={<UserCheck className="size-4" />} tone="bg-emerald-50 text-emerald-700" active={groupStatus === "active"} onClick={() => setGroupStatus(groupStatus === "active" ? "all" : "active")} />
+              <GuestKpiCard label="Pending Groups" value={groupKpis?.pending} loading={kpiLoading} icon={<RotateCcw className="size-4" />} tone="bg-amber-50 text-amber-700" active={groupStatus === "pending"} onClick={() => setGroupStatus(groupStatus === "pending" ? "all" : "pending")} />
+              <GuestKpiCard label="Inactive Groups" value={groupKpis?.inactive} loading={kpiLoading} icon={<UserMinus className="size-4" />} tone="bg-stone-100 text-stone-600" active={groupStatus === "inactive"} onClick={() => setGroupStatus(groupStatus === "inactive" ? "all" : "inactive")} />
+              <GuestKpiCard label="Total Members" value={totalMembers} loading={groupMembersQuery.isLoading} icon={<Users className="size-4" />} tone="bg-[#F7F4EE] text-[#8A641A]" />
+              <GuestKpiCard label="Group Types" value={configQuery.data?.groupTypes.length} loading={configQuery.isLoading} icon={<Layers className="size-4" />} tone="bg-stone-100 text-stone-700" />
+            </>
+          ) : (
+            <>
+              <GuestKpiCard label="Total Guests" value={guestStats?.totalGuests} loading={kpiLoading} icon={<Users className="size-4" />} tone="bg-[#F4E9D0] text-[#8A641A]" active={!directorySearch?.status && !directorySearch?.vip} onClick={() => openGuestFilter({})} />
+              <GuestKpiCard label="Active Guests" value={guestStats?.activeGuests} loading={kpiLoading} icon={<UserCheck className="size-4" />} tone="bg-emerald-50 text-emerald-700" active={directorySearch?.status === "active"} onClick={() => openGuestFilter({ status: "active" })} />
+              <GuestKpiCard label="VIP Guests" value={guestStats?.vipGuests} loading={kpiLoading} icon={<Crown className="size-4" />} tone="bg-amber-50 text-amber-700" active={directorySearch?.vip === "vip"} onClick={() => openGuestFilter({ vip: "vip" })} />
+              <GuestKpiCard label="Returning Guests" value={guestStats?.returningGuests} loading={kpiLoading} icon={<RotateCcw className="size-4" />} tone="bg-blue-50 text-blue-700" />
+              <GuestKpiCard label="In-House Guests" value={guestStats?.inHouseGuests} loading={kpiLoading} icon={<DoorOpen className="size-4" />} tone="bg-emerald-50 text-emerald-700" />
+              <GuestKpiCard label="Inactive Guests" value={guestStats ? Math.max(0, guestStats.totalGuests - guestStats.activeGuests) : undefined} loading={kpiLoading} icon={<UserMinus className="size-4" />} tone="bg-stone-100 text-stone-600" active={directorySearch?.status === "inactive"} onClick={() => openGuestFilter({ status: "inactive" })} />
+            </>
+          )}
         </section>
 
         <section
@@ -292,6 +366,14 @@ export function GuestListingWorkspace({
               accountType={accountType}
               returnCard={returnCard}
               embedded
+              companyStatus={companyStatus}
+              companyCredit={companyCredit}
+              onCompanyStatus={setCompanyStatus}
+              onCompanyCredit={setCompanyCredit}
+              agencyStatus={agencyStatus}
+              onAgencyStatus={setAgencyStatus}
+              groupStatus={groupStatus}
+              onGroupStatus={setGroupStatus}
             />
           ) : section === "tour-operator" ? (
             <PlaceholderCard title="Tour Operators" copy={TOUR_OPERATOR_UNAVAILABLE} />
@@ -327,15 +409,24 @@ function GuestKpiCard({
   loading,
   icon,
   tone,
+  active = false,
+  onClick,
 }: {
   label: string;
   value?: number | null | undefined;
   loading: boolean;
   icon: ReactNode;
   tone: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm">
+  const className = cn(
+    "flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border bg-white px-2.5 py-2 text-left shadow-sm",
+    onClick && "transition-colors hover:bg-[#FBF7F1]",
+    active ? "border-[#C89933]" : "border-[#DDD4C5]",
+  );
+  const body = (
+    <>
       <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", tone)}>{icon}</span>
       <div className="min-w-0">
         <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
@@ -347,7 +438,13 @@ function GuestKpiCard({
           </p>
         )}
       </div>
-    </div>
+    </>
+  );
+  if (!onClick) return <div className={className}>{body}</div>;
+  return (
+    <button type="button" onClick={onClick} aria-pressed={active} className={className}>
+      {body}
+    </button>
   );
 }
 

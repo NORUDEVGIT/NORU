@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { addDays } from "@/packages/pms/lib/reservation-dates";
+import { formatInclusiveRangeLabel } from "@/packages/pms/lib/reservation-workspace/section-week";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
@@ -43,19 +44,7 @@ export function writeSharedWeekStart(restaurantId: string, dateInWeek: string) {
 
 /** `2–8 Nov 2026`, or with the month repeated when the week crosses a month. */
 export function formatWeekLabel(monday: string): string {
-  const sunday = addDays(monday, 6);
-  const start = new Date(`${monday}T00:00:00Z`);
-  const end = new Date(`${sunday}T00:00:00Z`);
-  const day = (date: Date) => String(date.getUTCDate());
-  const month = (date: Date) =>
-    date.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
-  const sameMonth =
-    start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear();
-  if (sameMonth) return `${day(start)}–${day(end)} ${month(end)} ${end.getUTCFullYear()}`;
-  if (start.getUTCFullYear() === end.getUTCFullYear()) {
-    return `${day(start)} ${month(start)} – ${day(end)} ${month(end)} ${end.getUTCFullYear()}`;
-  }
-  return `${day(start)} ${month(start)} ${start.getUTCFullYear()} – ${day(end)} ${month(end)} ${end.getUTCFullYear()}`;
+  return formatInclusiveRangeLabel(monday, addDays(monday, 6));
 }
 
 /**
@@ -84,16 +73,25 @@ export function initialWeekFocusDate(input: {
 /** Compact `‹  2–8 Nov 2026  ›` control. Arrows move a full week. Any picked date snaps to its week. */
 export function WeekRangeControl({
   weekStart,
+  days = 7,
   onShiftWeek,
   onPickDate,
 }: {
-  /** Monday of the visible week. Null while the property business date is still loading. */
+  /** First day of the visible range. Null while the property business date is still loading. */
   weekStart: string | null;
+  /** 7 keeps a Monday–Sunday label. 1, 14, and 30 label that many days from `weekStart`. */
+  days?: number;
   onShiftWeek: (direction: -1 | 1) => void;
   /** The date the person picked. Callers snap a 7-day range to that date's Monday. */
   onPickDate: (isoDate: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const week = days === 7;
+  const label = !weekStart
+    ? "Loading…"
+    : week
+      ? formatWeekLabel(weekStart)
+      : formatInclusiveRangeLabel(weekStart, addDays(weekStart, days - 1));
   return (
     <div
       className="inline-flex h-9 shrink-0 items-center rounded-md border border-[#DDD4C5] bg-white"
@@ -104,7 +102,7 @@ export function WeekRangeControl({
         variant="ghost"
         size="icon"
         className="size-8 rounded-r-none"
-        aria-label="Previous week"
+        aria-label={week ? "Previous week" : "Previous period"}
         disabled={!weekStart}
         onClick={() => onShiftWeek(-1)}
       >
@@ -115,18 +113,18 @@ export function WeekRangeControl({
           <button
             type="button"
             className="h-8 min-w-[8.75rem] px-1.5 text-xs font-semibold tabular-nums text-[#251605] disabled:opacity-60"
-            aria-label="Week"
+            aria-label={week ? "Week" : "Date range"}
             disabled={!weekStart}
           >
-            {weekStart ? formatWeekLabel(weekStart) : "Loading…"}
+            {label}
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-3">
           <label className="grid gap-1 text-[11px] font-medium text-muted-foreground">
-            Any date in the week
+            {week ? "Any date in the week" : "Range start"}
             <Input
               type="date"
-              aria-label="Date in week"
+              aria-label={week ? "Date in week" : "Range start"}
               className="h-9 w-40"
               value={weekStart ?? ""}
               onChange={(event) => {
@@ -143,7 +141,7 @@ export function WeekRangeControl({
         variant="ghost"
         size="icon"
         className="size-8 rounded-l-none"
-        aria-label="Next week"
+        aria-label={week ? "Next week" : "Next period"}
         disabled={!weekStart}
         onClick={() => onShiftWeek(1)}
       >

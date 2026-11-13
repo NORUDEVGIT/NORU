@@ -6,7 +6,6 @@ import {
   CalendarPlus,
   CheckCircle2,
   Download,
-  ExternalLink,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -15,11 +14,10 @@ import {
   X,
 } from "lucide-react";
 
-import { GuestGroupQuickViewDrawer } from "@/packages/pms/components/guests/guest-group-quick-view-drawer";
 import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-profile-shell-slots";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { GuestGroupCreateModal } from "@/packages/pms/components/guests/guest-group-create-modal";
-import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
+import { DIRECTORY_HEAD_CLASS, DirectoryPager } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -41,21 +39,12 @@ import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
-import { listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
 import { groupStatusLabel } from "@/packages/pms/lib/guest-group-detail-workspace";
 import { csvEscape } from "@/packages/pms/lib/guest-companies-workspace";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -81,6 +70,8 @@ function GroupKpiCard({
   loading,
   icon,
   tone,
+  active = false,
+  onClick,
 }: {
   label: string;
   value?: number | null | undefined;
@@ -88,10 +79,18 @@ function GroupKpiCard({
   loading?: boolean | undefined;
   icon: React.ReactNode;
   tone: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div
-      className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm text-left"
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3 text-left shadow-sm transition-colors hover:bg-[#FBF7F1]",
+        active ? "border-[#C89933]" : "border-[#DDD4C5]",
+      )}
     >
       <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
         {icon}
@@ -109,7 +108,7 @@ function GroupKpiCard({
         )}
         {hint ? <p className="truncate text-[9px] text-[#8C827A]">{hint}</p> : null}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -117,10 +116,14 @@ export function GuestGroupDirectory({
   membership,
   returnCard,
   embedded = false,
+  statusValue,
+  onStatusChange,
 }: {
   membership: RestaurantMembership;
   returnCard?: GuestProfileCardId | undefined;
   embedded?: boolean;
+  statusValue?: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number];
+  onStatusChange?: (status: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number]) => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -128,21 +131,22 @@ export function GuestGroupDirectory({
 
   const fetchAccounts = useServerFn(listGuestAccounts);
   const fetchConfig = useServerFn(getGuestWorkspaceConfig);
-  const fetchTemplates = useServerFn(listGroupTemplates);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [status, setStatus] = useState<string>(ALL);
+  const [statusState, setStatusState] = useState<"all" | (typeof GUEST_ACCOUNT_STATUSES)[number]>(ALL);
+  const status = statusValue ?? statusState;
+  function setStatus(next: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number]) {
+    if (onStatusChange) onStatusChange(next);
+    else setStatusState(next);
+  }
   const [groupTypeId, setGroupTypeId] = useState<string>(ALL);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<(typeof LISTING_PAGE_SIZES)[number]>(
     LISTING_DEFAULT_PAGE_SIZE,
   );
-  const [selected, setSelected] = useState<string[]>([]);
 
-  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
 
   // 300ms search debounce
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,7 +155,6 @@ export function GuestGroupDirectory({
     searchTimeoutRef.current = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(0);
-      setSelected([]);
     }, 300);
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -160,7 +163,6 @@ export function GuestGroupDirectory({
 
   useEffect(() => {
     setPage(0);
-    setSelected([]);
   }, [status, groupTypeId, pageSize]);
 
   const permissions = usePmsPermissions(restaurantId);
@@ -230,12 +232,6 @@ export function GuestGroupDirectory({
     staleTime: 30_000,
   });
 
-  const templatesQuery = useQuery({
-    queryKey: ["group-templates", restaurantId],
-    queryFn: () => fetchTemplates({ data: { restaurantId } }),
-    enabled: templatesDialogOpen,
-  });
-
   const rawRows = accountListItems(accountsQuery.data?.items ?? []);
   const groupTypes = configQuery.data?.groupTypes ?? [];
   const groupTypeMap = new Map(groupTypes.map((gt) => [gt.id, gt.name]));
@@ -250,6 +246,14 @@ export function GuestGroupDirectory({
   const canCreate =
     accountAccess.canCreate && listingCreateAllowed("group", configQuery.data);
 
+  function openGroup(id: string) {
+    void navigate({
+      to: GUEST_PROFILE_DETAIL_PATH,
+      params: { guestId: id },
+      search: guestProfileSearch({ type: "group" }),
+    });
+  }
+
   function handleClear() {
     setSearch("");
     setDebouncedSearch("");
@@ -260,32 +264,29 @@ export function GuestGroupDirectory({
 
   function runExport() {
     if (!canPrintExport) return;
-    const exportRows = selected.length > 0 ? rows.filter((row) => selected.includes(row.id)) : rows;
     const header = [
       "Profile No.",
-      "Group",
-      "Primary Contact",
+      "Group Name",
       "Group Type",
-      "Arrival",
-      "Departure",
-      "Expected Pax",
-      "Expected Rooms",
+      "Primary Contact",
+      "Company",
+      "Travel Agency",
+      "Members",
       "Status",
     ];
     const lines = [header.join(",")];
-    for (const row of exportRows) {
+    for (const row of rows) {
       const typeName = row.groupTypeId ? groupTypeMap.get(row.groupTypeId) : null;
       lines.push(
         [
           csvEscape(displayProfileNumber(row.id, row.code)),
           csvEscape(row.name),
-          csvEscape(row.primaryContactName),
           csvEscape(typeName ?? ""),
-          csvEscape(row.arrivalDate ?? ""),
-          csvEscape(row.departureDate ?? ""),
-          csvEscape(row.expectedPax != null ? String(row.expectedPax) : ""),
-          csvEscape(row.expectedRooms != null ? String(row.expectedRooms) : ""),
-          csvEscape(groupStatusLabel(row.status)),
+          csvEscape(row.primaryContactName),
+          csvEscape(row.companyMasterName ?? ""),
+          csvEscape(row.travelAgentMasterName ?? ""),
+          csvEscape(row.memberCount != null ? String(row.memberCount) : ""),
+          csvEscape(groupStatusLabel(row.accountStatus)),
         ].join(","),
       );
     }
@@ -348,7 +349,7 @@ export function GuestGroupDirectory({
           ["active", "Confirmed"],
           ["inactive", "Cancelled"],
         ]}
-        onChange={setStatus}
+        onChange={(value) => setStatus(value as "all" | (typeof GUEST_ACCOUNT_STATUSES)[number])}
       />
       {groupTypes.length > 0 ? (
         <PmsFilterChoiceRow
@@ -376,16 +377,11 @@ export function GuestGroupDirectory({
                 size="icon"
                 className={cn(SHELL_ICON_BUTTON, "relative")}
                 onClick={runExport}
-                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                aria-label="Export"
+                title="Export"
                 data-testid="group-export"
               >
                 <Download className="size-4" />
-                {selected.length > 0 ? (
-                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                    {selected.length}
-                  </span>
-                ) : null}
               </Button>
             </GuestProfileShellSlot>
           ) : null}
@@ -423,38 +419,6 @@ export function GuestGroupDirectory({
         </div>
       </div>
 
-      {/* KPI Summary Strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="group-kpi-band">
-        <GroupKpiCard
-          label="Total Groups"
-          value={kpiQuery.data?.total}
-          loading={kpiQuery.isLoading}
-          icon={<Users className="size-4 text-[#8A641A]" />}
-          tone="bg-[#F7F4EE]"
-        />
-        <GroupKpiCard
-          label="Draft"
-          value={kpiQuery.data?.draft}
-          loading={kpiQuery.isLoading}
-          icon={<Users className="size-4 text-amber-700" />}
-          tone="bg-amber-50"
-        />
-        <GroupKpiCard
-          label="Confirmed"
-          value={kpiQuery.data?.confirmed}
-          loading={kpiQuery.isLoading}
-          icon={<CheckCircle2 className="size-4 text-emerald-700" />}
-          tone="bg-emerald-50"
-        />
-        <GroupKpiCard
-          label="Cancelled"
-          value={kpiQuery.data?.cancelled}
-          loading={kpiQuery.isLoading}
-          icon={<X className="size-4 text-red-700" />}
-          tone="bg-red-50"
-        />
-      </div>
-
       {/* Filter Toolbar */}
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
         <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
@@ -468,7 +432,10 @@ export function GuestGroupDirectory({
           />
         </div>
 
-        <Select value={status} onValueChange={setStatus}>
+        <Select
+          value={status}
+          onValueChange={(value) => setStatus(value as "all" | (typeof GUEST_ACCOUNT_STATUSES)[number])}
+        >
           <SelectTrigger className="h-9 w-[130px] border-[#DDD4C5] text-xs" data-testid="group-status-filter">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -513,125 +480,125 @@ export function GuestGroupDirectory({
       </>
       )}
 
+      {embedded ? null : (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="group-kpi-band">
+        <GroupKpiCard
+          label="Total Groups"
+          value={kpiQuery.data?.total}
+          loading={kpiQuery.isLoading}
+          icon={<Users className="size-4 text-[#8A641A]" />}
+          tone="bg-[#F7F4EE]"
+          active={status === ALL}
+          onClick={() => setStatus(ALL)}
+        />
+        <GroupKpiCard
+          label="Draft"
+          value={kpiQuery.data?.draft}
+          loading={kpiQuery.isLoading}
+          icon={<Users className="size-4 text-amber-700" />}
+          tone="bg-amber-50"
+          active={status === "pending"}
+          onClick={() => setStatus(status === "pending" ? ALL : "pending")}
+        />
+        <GroupKpiCard
+          label="Confirmed"
+          value={kpiQuery.data?.confirmed}
+          loading={kpiQuery.isLoading}
+          icon={<CheckCircle2 className="size-4 text-emerald-700" />}
+          tone="bg-emerald-50"
+          active={status === "active"}
+          onClick={() => setStatus(status === "active" ? ALL : "active")}
+        />
+        <GroupKpiCard
+          label="Cancelled"
+          value={kpiQuery.data?.cancelled}
+          loading={kpiQuery.isLoading}
+          icon={<X className="size-4 text-red-700" />}
+          tone="bg-red-50"
+          active={status === "inactive"}
+          onClick={() => setStatus(status === "inactive" ? ALL : "inactive")}
+        />
+      </div>
+      )}
+
       {/* Groups Table */}
-      <div className="overflow-hidden rounded-2xl border border-[#DDD4C5] bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs" data-testid="group-directory-table">
-            <thead>
-              <tr className="border-b border-[#DDD4C5] bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wider text-[#756A5B]">
-                <th className="w-10 px-2 py-2.5">
-                  <Checkbox
-                    checked={rows.length > 0 && rows.every((row) => selected.includes(row.id))}
-                    onCheckedChange={(checked) =>
-                      setSelected(checked === true ? rows.map((row) => row.id) : [])
-                    }
-                    aria-label="Select page"
-                  />
-                </th>
-                <th className="px-4 py-3">Profile No.</th>
-                <th className="px-4 py-3">Group</th>
-                <th className="px-4 py-3">Group Type</th>
-                <th className="px-4 py-3">Dates</th>
-                <th className="px-4 py-3">Expected Pax</th>
-                <th className="px-4 py-3">Expected Rooms</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+          <table className="w-full min-w-[900px] text-xs" data-testid="group-directory-table">
+            <thead className={DIRECTORY_HEAD_CLASS}>
+              <tr>
+                <th className="px-2 py-2.5">Profile No.</th>
+                <th className="px-2 py-2.5">Group Name</th>
+                <th className="px-2 py-2.5">Group Type</th>
+                <th className="px-2 py-2.5">Primary Contact</th>
+                <th className="px-2 py-2.5">Company / Travel Agency</th>
+                <th className="px-2 py-2.5">Members</th>
+                <th className="px-2 py-2.5">Status</th>
+                <th className="px-2 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#DDD4C5]/60">
+            <tbody>
               {accountsQuery.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={9} className="px-4 py-3">
+                    <td colSpan={8} className="px-2 py-3">
                       <Skeleton className="h-5 w-full" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-[#756A5B]">
+                  <td colSpan={8} className="px-2 py-8 text-center text-sm text-[#756A5B]">
                     No groups found.
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => {
                   const typeName = row.groupTypeId ? groupTypeMap.get(row.groupTypeId) : null;
+                  const affiliation = [row.companyMasterName, row.travelAgentMasterName].filter(Boolean).join(" / ");
+                  const statusLabel = groupStatusLabel(row.accountStatus);
                   return (
                     <tr
                       key={row.id}
-                      onClick={() => setQuickViewId(row.id)}
-                      className="cursor-pointer transition-colors hover:bg-[#F7F4EE]/60"
+                      onClick={() => openGroup(row.id)}
+                      className="cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]"
                       data-testid={`group-row-${row.id}`}
                     >
-                      <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selected.includes(row.id)}
-                          onCheckedChange={(checked) =>
-                            setSelected((prev) =>
-                              checked === true
-                                ? [...prev, row.id]
-                                : prev.filter((id) => id !== row.id),
-                            )
-                          }
-                          aria-label={`Select ${row.name}`}
-                        />
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-[#756A5B]">
+                      <td className="px-2 py-2.5 font-mono text-[11px] text-[#7A6B58]">
                         {displayProfileNumber(row.id, row.code)}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-[#251605]">{row.name}</div>
-                        {row.primaryContactName ? (
-                          <div className="text-[11px] text-[#756A5B]">
-                            Contact: {row.primaryContactName}
-                          </div>
-                        ) : null}
+                      <td className="px-2 py-2.5">
+                        <div className="font-semibold text-[#251605]">{row.name}</div>
                       </td>
-                      <td className="px-4 py-3 text-[#756A5B]">
-                        {typeName ? (
-                          <span className="rounded-md bg-[#F7F4EE] px-2 py-0.5 text-[11px] font-medium text-[#251605]">
-                            {typeName}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
+                      <td className="px-2 py-2.5 text-[#756A5B]">{typeName || "—"}</td>
+                      <td className="px-2 py-2.5 text-[#251605]">{row.primaryContactName || "—"}</td>
+                      <td className="px-2 py-2.5 text-[#756A5B]">{affiliation || "—"}</td>
+                      <td className="px-2 py-2.5 text-[#251605]">{row.memberCount ?? "—"}</td>
+                      <td className="px-2 py-2.5">
+                        <span
+                          className={
+                            row.accountStatus === "active"
+                              ? "inline-flex rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-success"
+                              : "inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                          }
+                        >
+                          {statusLabel}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-[#756A5B]">
-                        {row.arrivalDate && row.departureDate
-                          ? `${row.arrivalDate} → ${row.departureDate}`
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-[#756A5B]">{row.expectedPax ?? "—"}</td>
-                      <td className="px-4 py-3 text-[#756A5B]">{row.expectedRooms ?? "—"}</td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={row.status} />
-                      </td>
-                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-2 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="size-7 text-[#756A5B] hover:text-[#251605]"
+                              className="size-7 text-[#7A6B58] hover:text-[#251605]"
                               aria-label="Actions"
                             >
                               <MoreHorizontal className="size-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                void navigate({
-                                  to: GUEST_PROFILE_DETAIL_PATH,
-                                  params: { guestId: row.id },
-                                  search: guestProfileSearch({ type: "group" }),
-                                });
-                              }}
-                            >
-                              <ExternalLink className="mr-2 size-3.5" />
-                              Open Workspace
-                            </DropdownMenuItem>
+                          <DropdownMenuContent align="end" className="text-xs">
                             <DropdownMenuItem
                               onClick={() => {
                                 void navigate({
@@ -660,44 +627,18 @@ export function GuestGroupDirectory({
           </table>
         </div>
 
-        {/* Pagination Bar */}
-        {totalCount > pageSize ? (
-          <div className="flex items-center justify-between border-t border-[#DDD4C5] bg-[#F7F4EE]/50 px-4 py-2.5 text-xs text-[#756A5B]">
-            <span>
-              Showing {rows.length} of {totalCount} groups
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="h-7 border-[#DDD4C5] text-xs"
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page >= pageCount - 1}
-                onClick={() => setPage((p) => p + 1)}
-                className="h-7 border-[#DDD4C5] text-xs"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        ) : null}
       </div>
-
-      {/* Quick View Drawer */}
-      <GuestGroupQuickViewDrawer
-        restaurantId={restaurantId}
-        groupId={quickViewId}
-        onClose={() => setQuickViewId(null)}
-        onEditGroup={(id) => setEditingGroupId(id)}
+      <DirectoryPager
+        page={page}
+        pageCount={pageCount}
+        pageSize={pageSize}
+        pageSizes={LISTING_PAGE_SIZES}
+        total={totalCount}
+        offset={page * pageSize}
+        noun="groups"
+        disabled={accountsQuery.isFetching}
+        onPage={setPage}
+        onPageSize={(size) => setPageSize(size as (typeof LISTING_PAGE_SIZES)[number])}
       />
 
       {/* Edit Group Modal */}
@@ -716,55 +657,6 @@ export function GuestGroupDirectory({
           }}
         />
       ) : null}
-
-      {/* Group Templates Dialog */}
-      <Dialog open={templatesDialogOpen} onOpenChange={setTemplatesDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-lg">Group Templates</DialogTitle>
-            <DialogDescription className="text-xs text-[#756A5B]">
-              Reusable creation templates stored in property configuration. Applying a template copies values into a new group.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            {templatesQuery.isLoading ? (
-              <Skeleton className="h-20 w-full" />
-            ) : (templatesQuery.data ?? []).length === 0 ? (
-              <p className="text-center text-xs text-[#756A5B]">No group templates configured yet.</p>
-            ) : (
-              <div className="divide-y divide-[#DDD4C5]/60 rounded-xl border border-[#DDD4C5] bg-white">
-                {(templatesQuery.data ?? []).map((t) => (
-                  <div key={t.id} className="flex items-center justify-between p-3 text-xs">
-                    <div>
-                      <p className="font-medium text-[#251605]">{t.name}</p>
-                      {t.description ? <p className="text-[11px] text-[#756A5B]">{t.description}</p> : null}
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setTemplatesDialogOpen(false);
-                        void navigate({
-                          to: GUEST_PROFILE_DIRECTORY_PATH,
-                          search: guestProfileSearch({
-                            create: "group",
-                            templateId: t.id,
-                            returnCard: returnCard ?? "overview",
-                          }),
-                        });
-                      }}
-                      className="h-7 text-xs border-[#DDD4C5] text-[#251605]"
-                    >
-                      Use Template
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

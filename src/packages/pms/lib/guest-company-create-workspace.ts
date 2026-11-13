@@ -7,6 +7,7 @@
 import { COMPANY_TYPES, isCompanyType } from "./guest-profile-company.ts";
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import { isPlausibleHttpUrl, validateTinFormat } from "./pms-property-setup-card1.ts";
 import { validateNineDigitPhone } from "./pms-property-setup-phone.ts";
 import {
   COMPANY_CREATION_FIELDS,
@@ -1567,6 +1568,14 @@ export function companyCreateFieldIssues(
         }
       }
     }
+  }
+
+  const tinFormat = validateTinFormat(draft.taxId);
+  if (tinFormat) {
+    issues.push({ key: "taxId", message: tinFormat, step: "details" });
+  }
+  if (filled(draft.website) && !isPlausibleHttpUrl(draft.website.trim())) {
+    issues.push({ key: "website", message: "Enter a valid website address.", step: "details" });
   }
 
   return issues;

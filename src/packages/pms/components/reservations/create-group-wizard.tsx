@@ -1,22 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Plus, Trash2, Users } from "lucide-react";
+import { Check, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { CreateReservationMasterPicker } from "@/packages/pms/components/bookings/create-reservation-master-picker";
-import {
-  CreateReservationGuest,
-  CreateReservationGuestCompact,
-  type PickedReservationGuest,
-} from "@/packages/pms/components/bookings/create-reservation-guest";
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { GuestGroupCreateModal } from "@/packages/pms/components/guests/guest-group-create-modal";
 import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import {
   allotmentAvailabilityRanges,
   allotmentSummary,
   allotmentsForCreate,
   canSelectGroupCreateStep,
+  clearGroupProfileSelection,
   emptyAllotmentRow,
   emptyGroupCreateDraft,
   executeGroupBlockCreate,
@@ -32,6 +28,7 @@ import {
   groupBlockPreflightFromRules,
   groupCreateDraftIsDirty,
   groupCreateSuccessDetail,
+  groupProfileMasterPatch,
   groupStayIsValid,
   isRoomTypeSelectableForBlock,
   otherLocalRequestedForRow,
@@ -43,7 +40,13 @@ import {
   type GroupCreateDraft,
   type GroupCreateStatus,
 } from "@/packages/pms/lib/groups-create-wizard";
-import { GROUP_TYPES, type GroupType } from "@/packages/pms/lib/groups";
+import {
+  printGroupBlockConfirmation,
+  type GroupBlockConfirmationProperty,
+} from "@/packages/pms/lib/group-block-confirmation-print";
+import { formatPrintDateTime } from "@/packages/pms/lib/reservation-print-document";
+import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
+import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import { addGroupBlock, createGroup } from "@/packages/pms/lib/groups.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import {
@@ -94,11 +97,15 @@ export function CreateGroupWizard({
   open,
   onOpenChange,
   onCreated,
+  initialGroupProfileId = null,
+  property = null,
 }: {
   restaurantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (groupId: string) => void;
+  initialGroupProfileId?: string | null;
+  property?: GroupBlockConfirmationProperty | null;
 }) {
   const submitCreate = useServerFn(createGroup);
   const submitBlock = useServerFn(addGroupBlock);
@@ -107,6 +114,8 @@ export function CreateGroupWizard({
   const loadPlans = useServerFn(listRatePlans);
   const loadSet6 = useServerFn(getPmsSet6Snapshot);
   const loadRules = useServerFn(getInventoryRules);
+  const fetchProfile = useServerFn(getGroupDetailWorkspace);
+  const appliedProfileId = useRef<string | null>(null);
 
   const [draft, setDraft] = useState<GroupCreateDraft>(emptyGroupCreateDraft);
   const [step, setStep] = useState(0);
@@ -117,6 +126,7 @@ export function CreateGroupWizard({
 
   useEffect(() => {
     if (!open) {
+      appliedProfileId.current = null;
       setDraft(emptyGroupCreateDraft());
       setStep(0);
       setDiscardOpen(false);
@@ -189,6 +199,54 @@ export function CreateGroupWizard({
   const ratePlans = plansQuery.data ?? [];
   const sources = (set6Query.data?.snapshot.sourceCodes ?? []).filter((row) => row.active);
   const segments = (set6Query.data?.snapshot.marketSegments ?? []).filter((row) => row.active);
+
+  useEffect(() => {
+    if (!open || !initialGroupProfileId || appliedProfileId.current === initialGroupProfileId) return;
+    if (set6Query.isLoading) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const detail = await fetchProfile({
+          data: { restaurantId, groupId: initialGroupProfileId },
+        });
+        if (cancelled) return;
+        const group = detail.group;
+        appliedProfileId.current = initialGroupProfileId;
+        setDraft((current) => ({
+          ...current,
+          ...groupProfileMasterPatch(
+            current,
+            {
+              id: group.id,
+              name: group.name,
+              code: group.code,
+              notes: group.notes,
+              specialRequests: group.specialRequests,
+              groupTypeName: group.groupTypeName,
+              companyMasterId: group.companyMasterId,
+              companyMasterName: group.companyMasterName,
+              travelAgentMasterId: group.travelAgentMasterId,
+              travelAgentMasterName: group.travelAgentMasterName,
+              primaryContactGuestId: group.primaryContactGuestId,
+              primaryContactName: group.primaryContactName,
+              sourceCodeId: group.sourceCodeId,
+              marketSegmentId: group.marketSegmentId,
+            },
+            { sources, segments },
+          ),
+        }));
+      } catch (error) {
+        if (!cancelled) {
+          toast.error(error instanceof Error ? error.message : "Could not load that group profile.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Catalogues are read once loading finishes. Their array identity changes every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialGroupProfileId, set6Query.isLoading, restaurantId, fetchProfile]);
 
   function availableFor(row: GroupAllotmentDraftRow): number | null {
     const index = availabilityKeys.findIndex(
@@ -309,32 +367,30 @@ export function CreateGroupWizard({
                   onChange={patch}
                 />
               </div>
+            ) : step === 1 ? (
+              <div className="mx-auto w-full max-w-[1500px]">
+                <RoomAllotmentStep
+                  draft={draft}
+                  roomTypes={roomTypes}
+                  availableByRow={availableByRow}
+                  preflight={preflight}
+                  onChange={(allotments) => patch({ allotments })}
+                />
+              </div>
             ) : (
-              <div className="mx-auto grid max-w-[1500px] gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-                <div className="min-w-0 space-y-4">
-                  {step === 1 ? (
-                    <RoomAllotmentStep
-                      draft={draft}
-                      roomTypes={roomTypes}
-                      availableByRow={availableByRow}
-                      preflight={preflight}
-                      onChange={(allotments) => patch({ allotments })}
-                    />
-                  ) : null}
-                  {step === 2 ? (
-                    <GroupReviewStep
-                      draft={draft}
-                      roomTypes={roomTypes}
-                      preferredPlanName={
-                        preferredPlan ? `${preferredPlan.code} · ${preferredPlan.name}` : null
-                      }
-                      availableByRow={availableByRow}
-                      preflight={preflight}
-                      onBackToAllotment={() => goTo(1)}
-                    />
-                  ) : null}
-                </div>
-                <GroupCreateSummary draft={draft} preferredPlanName={preferredPlan?.name ?? null} />
+              <div className="mx-auto w-full max-w-[1500px]">
+                <GroupReviewStep
+                  draft={draft}
+                  roomTypes={roomTypes}
+                  sources={sources}
+                  segments={segments}
+                  preferredPlanName={
+                    preferredPlan ? `${preferredPlan.code} · ${preferredPlan.name}` : null
+                  }
+                  availableByRow={availableByRow}
+                  preflight={preflight}
+                  onBackToAllotment={() => goTo(1)}
+                />
               </div>
             )}
           </div>
@@ -369,6 +425,31 @@ export function CreateGroupWizard({
                   {step === 0 ? "Continue" : `${current.continueLabel} →`}
                 </Button>
               ) : (
+                <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={PMS_OP_BTN_OUTLINE}
+                  data-testid="group-create-print"
+                  onClick={() =>
+                    printGroupBlockConfirmation(
+                      groupBlockConfirmationInput({
+                        draft,
+                        property,
+                        sources,
+                        segments,
+                        roomTypes,
+                        preferredPlanName: preferredPlan
+                          ? `${preferredPlan.code} · ${preferredPlan.name}`
+                          : null,
+                        availableByRow,
+                        preflight,
+                      }),
+                    )
+                  }
+                >
+                  Print Confirmation
+                </Button>
                 <Button
                   className="!rounded-[6px] bg-[#C89933] text-[#251605] !shadow-none hover:bg-[#B98B2D]"
                   disabled={busy || Boolean(allotmentIssue)}
@@ -381,6 +462,7 @@ export function CreateGroupWizard({
                       ? "Creating allotment…"
                       : "Create Group & Block"}
                 </Button>
+                </>
               )}
             </div>
           </div>
@@ -484,18 +566,278 @@ function GroupCreateLiveStrip({ draft }: { draft: GroupCreateDraft }) {
   parts.push(draft.cutoffDate ? `Cut-off ${formatStayDate(draft.cutoffDate)}` : "Cut-off not set");
   return (
     <p
-      className="truncate rounded-md border border-[#E8DFD0] bg-white px-3 py-1.5 text-xs text-[#5C4E3E]"
+      className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-md border border-[#DDD4C5] bg-white px-3 py-2 text-sm leading-5 text-[#251605]"
       data-testid="group-create-summary"
     >
-      {parts.join(" · ")}
+      {parts.map((part, index) => (
+        <span key={`${part}-${index}`} className="inline-flex items-center gap-2.5">
+          {index > 0 ? (
+            <span className="text-[#C4B8A8]" aria-hidden>
+              ·
+            </span>
+          ) : null}
+          <span className={index === 0 ? "font-medium" : "text-[#5C4E3E]"}>{part}</span>
+        </span>
+      ))}
     </p>
+  );
+}
+
+function groupProfileSearchRows(
+  data: unknown,
+): Array<{ id: string; name: string; code: string | null }> {
+  const rows = Array.isArray(data)
+    ? data
+    : data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)
+      ? (data as { items: unknown[] }).items
+      : [];
+  return rows.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const item = row as { id?: unknown; name?: unknown; code?: unknown };
+    if (typeof item.id !== "string" || typeof item.name !== "string") return [];
+    return [{ id: item.id, name: item.name, code: typeof item.code === "string" ? item.code : null }];
+  });
+}
+
+function GroupProfileField({
+  restaurantId,
+  draft,
+  sources,
+  segments,
+  onChange,
+}: {
+  restaurantId: string;
+  draft: GroupCreateDraft;
+  sources: Array<{ id: string; code: string }>;
+  segments: Array<{ id: string; code: string }>;
+  onChange: (partial: Partial<GroupCreateDraft>) => void;
+}) {
+  const fetchAccounts = useServerFn(listGuestAccounts);
+  const fetchGroup = useServerFn(getGroupDetailWorkspace);
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => setDebounced(search.trim()), 300);
+    return () => window.clearTimeout(handle);
+  }, [search]);
+
+  const accountsQuery = useQuery({
+    queryKey: ["group-profile-picker", restaurantId, debounced],
+    queryFn: () =>
+      fetchAccounts({
+        data: {
+          restaurantId,
+          accountType: "group",
+          search: debounced,
+          limit: 8,
+        },
+      }),
+    enabled: debounced.length > 0 && !draft.groupProfileId,
+  });
+  const results = groupProfileSearchRows(accountsQuery.data);
+
+  async function adopt(groupId: string) {
+    setPicking(true);
+    try {
+      const detail = await fetchGroup({ data: { restaurantId, groupId } });
+      const group = detail.group;
+      onChange(
+        groupProfileMasterPatch(
+          draft,
+          {
+            id: group.id,
+            name: group.name,
+            code: group.code,
+            notes: group.notes,
+            specialRequests: group.specialRequests,
+            groupTypeName: group.groupTypeName,
+            companyMasterId: group.companyMasterId,
+            companyMasterName: group.companyMasterName,
+            travelAgentMasterId: group.travelAgentMasterId,
+            travelAgentMasterName: group.travelAgentMasterName,
+            primaryContactGuestId: group.primaryContactGuestId,
+            primaryContactName: group.primaryContactName,
+            sourceCodeId: group.sourceCodeId,
+            marketSegmentId: group.marketSegmentId,
+          },
+          { sources, segments },
+        ),
+      );
+      setSearch("");
+      setCreateOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not load that group profile.");
+    } finally {
+      setPicking(false);
+    }
+  }
+
+  return (
+    <section className={cn(PMS_OP_PANEL, "p-3")} data-testid="group-profile-picker">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-[#251605]">Group Profile</h2>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Name, contacts, and defaults come from the profile.
+          </p>
+        </div>
+        {draft.groupProfileId ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            className={PMS_OP_BTN_COMPACT}
+            data-testid="create-group-profile"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="mr-1 size-3.5" />
+            Create New Group Profile
+          </Button>
+        )}
+      </div>
+      {draft.groupProfileId ? (
+        <div
+          className="mt-1.5 rounded-[6px] border border-[#CCCCCC] bg-[#FBF7F1] px-2.5 py-1"
+          data-testid="selected-group-profile"
+        >
+          <div className="flex items-center gap-2">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-[#251605]">
+              <span data-testid="group-create-name">{draft.name || "Group"}</span>
+              <span className="mx-1.5 font-normal text-[#C4B8A8]">·</span>
+              <span className="font-normal text-[#6B5E4E]" data-testid="group-create-code">
+                {draft.code || "No group code"}
+              </span>
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 shrink-0 px-2 text-xs text-[#4a2c1a]"
+              data-testid="change-group-profile"
+              onClick={() => onChange(clearGroupProfileSelection())}
+            >
+              Change Profile
+            </Button>
+          </div>
+          <dl className="mt-0.5 grid grid-cols-2 gap-x-2.5 gap-y-0 sm:grid-cols-3">
+            <LockedProfileValue
+              label="Group type"
+              value={draft.profileGroupTypeName || GROUP_TYPE_LABELS[draft.groupType]}
+              testId="group-create-type"
+            />
+            <LockedProfileValue
+              label="Company"
+              value={draft.company?.name ?? ""}
+              testId="group-profile-company"
+            />
+            <LockedProfileValue
+              label="Travel agency"
+              value={draft.travelAgent?.name ?? ""}
+              testId="group-profile-travel-agency"
+            />
+            <LockedProfileValue
+              label="Group leader"
+              value={draft.leader?.name ?? ""}
+              testId="group-leader-picker"
+            />
+            <LockedProfileValue
+              label="Default source"
+              value={draft.profileSourceName || draft.profileSource}
+              testId="group-profile-default-source"
+            />
+            <LockedProfileValue
+              label="Default market segment"
+              value={draft.profileMarketSegmentName || draft.profileMarketSegment}
+              testId="group-profile-default-segment"
+            />
+            <LockedProfileValue
+              label="Profile notes"
+              value={draft.profileNotes}
+              testId="group-profile-notes"
+              className="col-span-full"
+            />
+          </dl>
+        </div>
+      ) : (
+        <div className="relative mt-2">
+          <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-[#8A7B68]" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search group profiles by name or code"
+            className={cn(inputClass, "pl-8")}
+            data-testid="group-profile-search"
+            aria-label="Group Profile"
+          />
+          {debounced.length > 0 ? (
+            <ul
+              className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-[6px] border border-[#CCCCCC] bg-white shadow-md"
+              data-testid="group-profile-results"
+            >
+              {accountsQuery.isFetching || picking ? (
+                <li className="px-3 py-2 text-xs text-[#6B5E4E]">Searching…</li>
+              ) : results.length === 0 ? (
+                <li className="px-3 py-2 text-xs text-[#6B5E4E]">No matching group profiles.</li>
+              ) : (
+                results.map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-[#251605] hover:bg-[#FBF7F1]"
+                      data-testid="group-profile-result"
+                      onClick={() => void adopt(row.id)}
+                    >
+                      <span className="truncate">{row.name}</span>
+                      {row.code ? (
+                        <span className="shrink-0 text-xs text-[#6B5E4E]">{row.code}</span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </div>
+      )}
+      <GuestGroupCreateModal
+        restaurantId={restaurantId}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        promptCreateBlock={false}
+        onCreated={(id) => {
+          void adopt(id);
+        }}
+      />
+    </section>
+  );
+}
+
+function LockedProfileValue({
+  label,
+  value,
+  testId,
+  className,
+}: {
+  label: string;
+  value: string;
+  testId: string;
+  className?: string;
+}) {
+  const shown = value.trim() || "—";
+  return (
+    <div className={cn("flex min-w-0 items-baseline gap-1", className)} data-testid={testId}>
+      <dt className="shrink-0 text-[10px] font-medium text-[#6B5E4E]">{label}</dt>
+      <dd className="truncate text-xs text-[#251605]" title={shown}>
+        {shown}
+      </dd>
+    </div>
   );
 }
 
 function GroupDetailsStep({
   restaurantId,
   draft,
-  detailsIssue,
   sources,
   segments,
   ratePlans,
@@ -504,85 +846,27 @@ function GroupDetailsStep({
   restaurantId: string;
   draft: GroupCreateDraft;
   detailsIssue: string | null;
-  sources: Array<{ code: string; name: string }>;
-  segments: Array<{ code: string; name: string }>;
+  sources: Array<{ id: string; code: string; name: string }>;
+  segments: Array<{ id: string; code: string; name: string }>;
   ratePlans: Array<{ id: string; code: string; name: string; roomTypeName: string }>;
   onChange: (partial: Partial<GroupCreateDraft>) => void;
 }) {
-  const [nameTouched, setNameTouched] = useState(false);
-  const showNameError =
-    !draft.name.trim() && (nameTouched || detailsIssue === "Enter a group name.");
-  const leaderGuest: PickedReservationGuest | null = draft.leader
-    ? {
-        id: draft.leader.id,
-        fullName: draft.leader.name,
-        profileNumber: "",
-        phone: null,
-        email: null,
-        vipStatus: false,
-      }
-    : null;
-
   return (
-    <div className="space-y-3" data-testid="group-create-step-details">
-      <section className={cn(PMS_OP_PANEL, "p-4")}>
-        <h2 className="text-sm font-semibold text-[#251605]">Group Details</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <Field
-            label="Group name"
-            htmlFor="group-create-name"
-            error={showNameError ? "Enter a group name." : undefined}
-          >
-            <Input
-              id="group-create-name"
-              data-testid="group-create-name"
-              className={cn(inputClass, showNameError && "border-[#9B3A3A]")}
-              value={draft.name}
-              onChange={(event) => onChange({ name: event.target.value })}
-              onBlur={() => setNameTouched(true)}
-              placeholder="Operational group name"
-            />
-          </Field>
-          <Field
-            label="Group Code / Reference"
-            htmlFor="group-create-code"
-            hint="Optional staff code. The property confirmation number is assigned on create."
-          >
-            <Input
-              id="group-create-code"
-              data-testid="group-create-code"
-              className={inputClass}
-              value={draft.code}
-              maxLength={40}
-              onChange={(event) => onChange({ code: event.target.value })}
-            />
-          </Field>
-          <Field label="Group Type" htmlFor="group-create-type">
-            <Select
-              value={draft.groupType}
-              onValueChange={(value) => onChange({ groupType: value as GroupType })}
-            >
-              <SelectTrigger
-                id="group-create-type"
-                className={selectClass}
-                data-testid="group-create-type"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GROUP_TYPES.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {GROUP_TYPE_LABELS[value]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field
-            label="Status"
-            htmlFor="group-create-status"
-            hint="Active room blocks still hold inventory. Status does not release rooms."
-          >
+    <div className="space-y-2" data-testid="group-create-step-details">
+      <GroupProfileField
+        restaurantId={restaurantId}
+        draft={draft}
+        sources={sources}
+        segments={segments}
+        onChange={onChange}
+      />
+      <section className={cn(PMS_OP_PANEL, "p-3")}>
+        <h2 className="text-sm font-semibold text-[#251605]">Stay Details</h2>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Status does not release held rooms. Cut-off is optional.
+        </p>
+        <div className="mt-2 grid gap-2 md:grid-cols-4">
+          <Field label="Status" htmlFor="group-create-status">
             <Select
               value={draft.status}
               onValueChange={(value) => onChange({ status: value as GroupCreateStatus })}
@@ -620,62 +904,26 @@ function GroupDetailsStep({
               onChange={(event) => onChange({ departureDate: event.target.value })}
             />
           </Field>
-          <div className="md:col-span-2" data-testid="group-leader-picker">
-            <Label className={PMS_OP_LABEL}>Group leader</Label>
-            <p className="mb-1.5 text-[11px] text-muted-foreground">
-              Search or Create Guest. Primary guest associated with this group.
-            </p>
-            {/* Guest search/create reuses listGuests via CreateReservationGuest. */}
-            <CreateReservationGuest
-              restaurantId={restaurantId}
-              canCreateGuest
-              guest={leaderGuest as PickedReservationGuest | null}
-              onGuestChange={(guest) =>
-                onChange({ leader: guest ? { id: guest.id, name: guest.fullName } : null })
-              }
-            >
-              <CreateReservationGuestCompact />
-            </CreateReservationGuest>
-          </div>
+          <Field label="Cut-off Date" htmlFor="group-create-cutoff">
+            <Input
+              id="group-create-cutoff"
+              data-testid="group-create-cutoff"
+              type="date"
+              className={dateClass}
+              value={draft.cutoffDate}
+              onChange={(event) => onChange({ cutoffDate: event.target.value })}
+            />
+          </Field>
         </div>
       </section>
 
-      <section className={cn(PMS_OP_PANEL, "p-4")} data-testid="group-create-commercial">
-        <h2 className="text-sm font-semibold text-[#251605]">Commercial & Classification</h2>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Optional links to existing company and travel-agency accounts. Linked reservations are not
-          automatically updated from these fields.
+      <section className={cn(PMS_OP_PANEL, "p-3")} data-testid="group-create-commercial">
+        <h2 className="text-sm font-semibold text-[#251605]">Commercial & Notes</h2>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Blank source or segment uses the profile default.
         </p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <CreateReservationMasterPicker
-            restaurantId={restaurantId}
-            kind="company"
-            canCreate={false}
-            hideCreate
-            compact
-            master={draft.company}
-            onMasterChange={(master) =>
-              onChange({
-                company: master ? { id: master.id, name: master.name, code: master.code } : null,
-              })
-            }
-          />
-          <CreateReservationMasterPicker
-            restaurantId={restaurantId}
-            kind="travel_agent"
-            canCreate={false}
-            hideCreate
-            compact
-            master={draft.travelAgent}
-            onMasterChange={(master) =>
-              onChange({
-                travelAgent: master
-                  ? { id: master.id, name: master.name, code: master.code }
-                  : null,
-              })
-            }
-          />
-          <Field label="Source" htmlFor="group-create-source">
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          <Field label="Source override" htmlFor="group-create-source">
             {sources.length > 0 ? (
               <Select
                 value={draft.source || "__none__"}
@@ -689,7 +937,7 @@ function GroupDetailsStep({
                   <SelectValue placeholder="Optional" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
+                  <SelectItem value="__none__">Use profile default</SelectItem>
                   {sources.map((row) => (
                     <SelectItem key={row.code} value={row.code}>
                       {row.name}
@@ -707,7 +955,7 @@ function GroupDetailsStep({
               />
             )}
           </Field>
-          <Field label="Market Segment" htmlFor="group-create-segment">
+          <Field label="Market segment override" htmlFor="group-create-segment">
             {segments.length > 0 ? (
               <Select
                 value={draft.marketSegment || "__none__"}
@@ -723,7 +971,7 @@ function GroupDetailsStep({
                   <SelectValue placeholder="Optional" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
+                  <SelectItem value="__none__">Use profile default</SelectItem>
                   {segments.map((row) => (
                     <SelectItem key={row.code} value={row.code}>
                       {row.name}
@@ -744,8 +992,7 @@ function GroupDetailsStep({
           <Field
             label="Preferred group rate plan"
             htmlFor="group-create-rate-plan"
-            hint="Offered as the preferred rate plan when creating linked reservations."
-            className="md:col-span-2"
+            hint="Preferred rate for linked reservations."
           >
             <Select
               value={draft.ratePlanId || "__none__"}
@@ -768,37 +1015,12 @@ function GroupDetailsStep({
               </SelectContent>
             </Select>
           </Field>
-        </div>
-      </section>
-
-      <section className={cn(PMS_OP_PANEL, "p-4")}>
-        <h2 className="text-sm font-semibold text-[#251605]">Controls</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <Field
-            label="Cut-off Date"
-            htmlFor="group-create-cutoff"
-            hint="Optional. Unused block inventory can be released after this business date."
-          >
-            <Input
-              id="group-create-cutoff"
-              data-testid="group-create-cutoff"
-              type="date"
-              className={dateClass}
-              value={draft.cutoffDate}
-              onChange={(event) => onChange({ cutoffDate: event.target.value })}
-            />
-          </Field>
-          <Field
-            label="Internal notes"
-            htmlFor="group-create-notes"
-            hint="Staff only."
-            className="md:col-span-2"
-          >
+          <Field label="Stay notes" htmlFor="group-create-notes" hint="This block only.">
             <Textarea
               id="group-create-notes"
               data-testid="group-create-notes"
-              className={cn(PMS_OP_TEXTAREA, PMS_OP_PLACEHOLDER, "min-h-[4.5rem]")}
-              rows={3}
+              className={cn(PMS_OP_TEXTAREA, PMS_OP_PLACEHOLDER, "min-h-[2.5rem]")}
+              rows={2}
               value={draft.notes}
               maxLength={2000}
               onChange={(event) => onChange({ notes: event.target.value })}
@@ -825,8 +1047,23 @@ function RoomAllotmentStep({
 }) {
   const summary = allotmentSummary(draft.allotments);
   const blocksEnabled = preflight.status === "ready" && preflight.quantityHoldsSupported;
+  const blocksDisabled = preflight.status === "ready" && !preflight.quantityHoldsSupported;
   return (
     <section className={cn(PMS_OP_PANEL, "p-4")} data-testid="group-create-step-allotment">
+      {blocksDisabled ? (
+        <div
+          className="rounded-md border border-[#E4D3A8] bg-[#FBF6EE] px-3 py-3"
+          data-testid="group-create-blocks-disabled"
+        >
+          <h2 className="font-display text-base font-semibold text-[#251605]">Room allotment</h2>
+          <p className="mt-1 text-sm font-medium text-[#251605]">{GROUP_BLOCKS_DISABLED_HELPER}</p>
+          <p className="mt-1 text-xs leading-snug text-[#6B5E4E]">
+            Room blocks are not enabled for this property. You can continue and create the group without a room allotment.
+          </p>
+        </div>
+      ) : null}
+      {blocksDisabled ? null : (
+      <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-base font-semibold text-[#251605]">Room allotment</h2>
@@ -836,9 +1073,7 @@ function RoomAllotmentStep({
           </p>
           {!blocksEnabled ? (
             <p className="mt-2 text-xs text-[#9B3A3A]" data-testid="group-create-blocks-disabled">
-              {preflight.status === "unknown"
-                ? "Could not confirm room-block eligibility. Try again."
-                : GROUP_BLOCKS_DISABLED_HELPER}
+              Could not confirm room-block eligibility. Try again.
             </p>
           ) : null}
         </div>
@@ -859,15 +1094,21 @@ function RoomAllotmentStep({
         </Button>
       </div>
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="border-b border-[#DDD4C5] text-[11px] uppercase tracking-wide text-muted-foreground">
+        <table className="w-full text-left text-sm">
+            <thead className="border-b border-[#DDD4C5]">
             <tr>
-              <th className="px-2 py-2">Room type</th>
-              <th className="px-2 py-2">Block dates</th>
-              <th className="px-2 py-2">Available</th>
-              <th className="px-2 py-2">Rooms blocked</th>
-              <th className="px-2 py-2">Cut-off</th>
-              <th className="px-2 py-2">Actions</th>
+              <th className="px-2 py-2 text-xs font-semibold text-[#251605]">Room type</th>
+              <th className="px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-[#8A7B68]">
+                Block dates
+              </th>
+              <th className="px-2 py-2 text-xs font-semibold text-[#251605]">Available</th>
+              <th className="px-2 py-2 text-xs font-semibold text-[#251605]">Rooms blocked</th>
+              <th className="px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-[#8A7B68]">
+                Override Cut-off
+              </th>
+              <th className="px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-[#8A7B68]">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -897,7 +1138,10 @@ function RoomAllotmentStep({
                         )
                       }
                     >
-                      <SelectTrigger className={selectClass} data-testid="group-create-row-type">
+                      <SelectTrigger
+                        className={cn(selectClass, "font-medium text-[#251605]")}
+                        data-testid="group-create-row-type"
+                      >
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -956,7 +1200,7 @@ function RoomAllotmentStep({
                     </div>
                   </td>
                   <td className="px-2 py-2 text-xs">
-                    <p data-testid="group-create-row-available">
+                    <p className="text-sm font-semibold text-[#251605]" data-testid="group-create-row-available">
                       Available: {available == null ? "—" : available}
                     </p>
                     <p>Requested: {row.allotted}</p>
@@ -970,7 +1214,7 @@ function RoomAllotmentStep({
                       type="number"
                       min={1}
                       max={500}
-                      className={cn(inputClass, "tabular-nums")}
+                      className={cn(inputClass, "font-medium tabular-nums text-[#251605]")}
                       data-testid="group-create-row-allotted"
                       value={row.allotted}
                       onChange={(event) =>
@@ -987,7 +1231,8 @@ function RoomAllotmentStep({
                   <td className="px-2 py-2">
                     <Input
                       type="date"
-                      className={dateClass}
+                      aria-label="Override Cut-off"
+                      className={cn(dateClass, "text-xs text-[#6B5E4E]")}
                       value={row.cutoffDate}
                       onChange={(event) =>
                         onChange(
@@ -999,6 +1244,13 @@ function RoomAllotmentStep({
                         )
                       }
                     />
+                    {row.cutoffDate ? null : (
+                      <p className="mt-1 text-[10px] leading-snug text-[#6B5E4E]">
+                        {draft.cutoffDate
+                          ? `Inherits stay cut-off ${formatStayDate(draft.cutoffDate)}`
+                          : "Inherits stay cut-off"}
+                      </p>
+                    )}
                   </td>
                   <td className="px-2 py-2">
                     <Button
@@ -1022,7 +1274,7 @@ function RoomAllotmentStep({
         </table>
       </div>
       <div
-        className="mt-4 grid gap-2 text-sm sm:grid-cols-4"
+        className="mt-3 grid gap-1.5 text-sm sm:grid-cols-4"
         data-testid="group-create-allotment-summary"
       >
         <SummaryStat label="Room types" value={String(summary.roomTypes)} />
@@ -1036,6 +1288,8 @@ function RoomAllotmentStep({
         />
         <SummaryStat label="Cut-off" value={summary.cutoffLabel} />
       </div>
+      </>
+      )}
     </section>
   );
 }
@@ -1043,6 +1297,8 @@ function RoomAllotmentStep({
 function GroupReviewStep({
   draft,
   roomTypes,
+  sources,
+  segments,
   preferredPlanName,
   availableByRow,
   preflight,
@@ -1050,6 +1306,8 @@ function GroupReviewStep({
 }: {
   draft: GroupCreateDraft;
   roomTypes: Array<{ id: string; name: string }>;
+  sources: Array<{ code: string; name: string }>;
+  segments: Array<{ code: string; name: string }>;
   preferredPlanName: string | null;
   availableByRow: Record<string, number | null | undefined>;
   preflight: GroupBlockPreflight;
@@ -1065,7 +1323,7 @@ function GroupReviewStep({
     .filter((item) => item.issue);
   const validRows = rows.filter((row) => !invalidRows.some((item) => item.row.key === row.key));
   return (
-    <div className="space-y-4" data-testid="group-create-step-review">
+    <div className="space-y-3" data-testid="group-create-step-review">
       <section className={cn(PMS_OP_PANEL, "p-4")}>
         <h2 className="font-display text-base font-semibold text-[#251605]">Group details</h2>
         <dl className="mt-3 grid gap-2 text-sm md:grid-cols-2">
@@ -1088,11 +1346,36 @@ function GroupReviewStep({
           <ReviewItem label="Company" value={draft.company?.name ?? "—"} />
           <ReviewItem label="Travel agent" value={draft.travelAgent?.name ?? "—"} />
           <ReviewItem label="Group leader" value={draft.leader?.name ?? "—"} />
-          <ReviewItem label="Source" value={draft.source || "—"} />
-          <ReviewItem label="Market segment" value={draft.marketSegment || "—"} />
+          <ReviewItem
+            label="Profile Source"
+            value={draft.profileSourceName || draft.profileSource || "—"}
+          />
+          <ReviewItem
+            label="Stay Source"
+            value={
+              draft.source.trim()
+                ? catalogueLabel(sources, draft.source)
+                : "Uses profile source"
+            }
+          />
+          <ReviewItem
+            label="Profile Market Segment"
+            value={draft.profileMarketSegmentName || draft.profileMarketSegment || "—"}
+          />
+          <ReviewItem
+            label="Stay Market Segment"
+            value={
+              draft.marketSegment.trim()
+                ? catalogueLabel(segments, draft.marketSegment)
+                : "Uses profile segment"
+            }
+          />
           <ReviewItem label="Preferred rate plan" value={preferredPlanName ?? "—"} />
+          {draft.profileNotes.trim() ? (
+            <ReviewItem label="Profile notes" value={draft.profileNotes} className="md:col-span-2" />
+          ) : null}
           {draft.notes.trim() ? (
-            <ReviewItem label="Internal notes" value={draft.notes} className="md:col-span-2" />
+            <ReviewItem label="Stay notes" value={draft.notes} className="md:col-span-2" />
           ) : null}
         </dl>
       </section>
@@ -1132,7 +1415,7 @@ function GroupReviewStep({
                 <th className="py-2">Room type</th>
                 <th className="py-2">Block dates</th>
                 <th className="py-2">Rooms blocked</th>
-                <th className="py-2">Cut-off</th>
+                <th className="py-2">Override Cut-off</th>
               </tr>
             </thead>
             <tbody>
@@ -1143,16 +1426,22 @@ function GroupReviewStep({
                     {row.startDate} → {row.endDate}
                   </td>
                   <td className="py-2 tabular-nums">{row.allotted}</td>
-                  <td className="py-2">{row.cutoffDate || "—"}</td>
+                  <td className="py-2">
+                    {row.cutoffDate
+                      ? formatStayDate(row.cutoffDate)
+                      : draft.cutoffDate
+                        ? `Inherits stay cut-off ${formatStayDate(draft.cutoffDate)}`
+                        : "Inherits stay cut-off"}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </section>
-      <section className={cn(PMS_OP_PANEL, "p-4")} data-testid="group-create-inventory-impact">
-        <h2 className="font-display text-base font-semibold text-[#251605]">Inventory impact</h2>
-        <p className="mt-2 text-sm text-[#251605]">
+      <section className={cn(PMS_OP_PANEL, "px-3 py-2")} data-testid="group-create-inventory-impact">
+        <h2 className="text-sm font-semibold text-[#251605]">Inventory impact</h2>
+        <p className="mt-0.5 text-xs leading-snug text-[#5C4E3E]">
           {invalidRows.length > 0 || validRows.length === 0
             ? GROUP_CREATE_NO_HOLD
             : GROUP_CREATE_INVENTORY_IMPACT}
@@ -1162,56 +1451,82 @@ function GroupReviewStep({
   );
 }
 
-function GroupCreateSummary({
+function catalogueLabel(rows: Array<{ code: string; name: string }>, code: string): string {
+  const match = rows.find((row) => row.code === code);
+  return match?.name?.trim() || code;
+}
+
+function groupBlockConfirmationInput({
   draft,
+  property,
+  sources,
+  segments,
+  roomTypes,
   preferredPlanName,
+  availableByRow,
+  preflight,
 }: {
   draft: GroupCreateDraft;
+  property: GroupBlockConfirmationProperty | null;
+  sources: Array<{ code: string; name: string }>;
+  segments: Array<{ code: string; name: string }>;
+  roomTypes: Array<{ id: string; name: string }>;
   preferredPlanName: string | null;
+  availableByRow: Record<string, number | null | undefined>;
+  preflight: GroupBlockPreflight;
 }) {
-  const summary = allotmentSummary(draft.allotments);
-  return (
-    <aside className={cn(PMS_OP_PANEL, "h-fit p-4")} data-testid="group-create-summary">
-      <div className="flex items-start gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#F4E9D0] text-[#8A641A]">
-          <Users className="size-4" />
-        </span>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Group summary
-          </p>
-          <p className="text-sm font-medium text-[#251605]">Not yet created</p>
-        </div>
-      </div>
-      <dl className="mt-3 space-y-2 text-sm">
-        <ReviewItem label="Group name" value={draft.name || "—"} />
-        <ReviewItem label="Status" value={GROUP_CREATE_STATUS_LABELS[draft.status]} />
-        <ReviewItem
-          label="Stay"
-          value={
-            draft.arrivalDate && draft.departureDate
-              ? `${draft.arrivalDate} → ${draft.departureDate}`
-              : "—"
-          }
-        />
-        {draft.company ? <ReviewItem label="Company" value={draft.company.name} /> : null}
-        {draft.travelAgent ? (
-          <ReviewItem label="Travel agent" value={draft.travelAgent.name} />
-        ) : null}
-        {preferredPlanName ? <ReviewItem label="Rate plan" value={preferredPlanName} /> : null}
-        <ReviewItem label="Cut-off" value={draft.cutoffDate || "—"} />
-        {draft.allotments.length > 0 ? (
-          <>
-            <ReviewItem label="Allotment rows" value={String(draft.allotments.length)} />
-            <ReviewItem
-              label="Total allotment quantity"
-              value={String(summary.totalAllotmentQuantity)}
-            />
-          </>
-        ) : null}
-      </dl>
-    </aside>
+  const typeName = (id: string) => roomTypes.find((type) => type.id === id)?.name ?? "Room type";
+  const rows = allotmentsForCreate(draft).filter(
+    (row) => !validateAllotmentRow(row, draft, availableByRow[row.key] ?? null, preflight),
   );
+  const summary = allotmentSummary(rows);
+  const nights =
+    groupStayIsValid(draft.arrivalDate, draft.departureDate)
+      ? nightsBetween(draft.arrivalDate, draft.departureDate)
+      : 0;
+  const stay =
+    draft.arrivalDate && draft.departureDate
+      ? `${formatStayDate(draft.arrivalDate)} – ${formatStayDate(draft.departureDate)}${nights > 0 ? ` · ${nights} ${nights === 1 ? "night" : "nights"}` : ""}`
+      : "Not set";
+  return {
+    property: {
+      name: property?.name?.trim() || "Property",
+      logoUrl: property?.logoUrl ?? null,
+      address: property?.address ?? null,
+      phone: property?.phone ?? null,
+      email: property?.email ?? null,
+    },
+    generatedAt: formatPrintDateTime(new Date()) ?? "",
+    groupName: draft.name.trim() || "Group",
+    groupCode: draft.code.trim() || "Assigned when the group is created",
+    status: GROUP_CREATE_STATUS_LABELS[draft.status],
+    stay,
+    cutoff: draft.cutoffDate ? formatStayDate(draft.cutoffDate) : "Not set",
+    company: draft.company?.name ?? "—",
+    travelAgency: draft.travelAgent?.name ?? "—",
+    groupLeader: draft.leader?.name ?? "—",
+    profileSource: draft.profileSourceName || draft.profileSource || "—",
+    staySource: draft.source.trim() ? catalogueLabel(sources, draft.source) : "Uses profile source",
+    profileMarketSegment: draft.profileMarketSegmentName || draft.profileMarketSegment || "—",
+    stayMarketSegment: draft.marketSegment.trim()
+      ? catalogueLabel(segments, draft.marketSegment)
+      : "Uses profile segment",
+    ratePlan: preferredPlanName ?? "—",
+    allotments: rows.map((row) => ({
+      roomType: typeName(row.roomTypeId),
+      dates: `${formatStayDate(row.startDate)} – ${formatStayDate(row.endDate)}`,
+      roomsBlocked: String(row.allotted),
+      cutoff: row.cutoffDate
+        ? formatStayDate(row.cutoffDate)
+        : draft.cutoffDate
+          ? `Inherits stay cut-off ${formatStayDate(draft.cutoffDate)}`
+          : "Inherits stay cut-off",
+    })),
+    roomTypes: String(summary.roomTypes),
+    totalRoomsBlocked: String(summary.totalAllotmentQuantity),
+    totalRoomNights: summary.totalRoomNights == null ? "—" : String(summary.totalRoomNights),
+    publicNotes: draft.profileSpecialRequests.trim() || null,
+  };
 }
 
 function Field({
@@ -1260,9 +1575,9 @@ function ReviewItem({
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F4] px-3 py-2">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="font-medium text-[#251605]">{value}</p>
+    <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F4] px-2.5 py-1.5">
+      <p className="text-[10px] uppercase tracking-wide text-[#6B5E4E]">{label}</p>
+      <p className="text-sm font-medium leading-5 text-[#251605]">{value}</p>
     </div>
   );
 }

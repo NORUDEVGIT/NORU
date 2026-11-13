@@ -21,6 +21,11 @@ import {
   type FrontOfficeStay,
 } from "../frontoffice.functions";
 import { addDays } from "../reservation-dates";
+import {
+  eachDateInclusive,
+  eventOverlapsWindow,
+  stayOverlapsWindow,
+} from "./section-week";
 import { loadOverbookingNights, overbookingShortageRows } from "../overbooking.functions";
 import {
   hasEffectivePermission,
@@ -698,6 +703,8 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
           .optional(),
         key: z.enum(RESERVATION_EXCEPTION_KEYS).optional(),
         status: z.enum(RESERVATION_STATUSES).optional(),
+        rangeStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        rangeEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       })
       .parse(input),
   )
@@ -720,12 +727,11 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
     if (!property) throw new Error("Property not found.");
 
     const businessDate = resolvePropertyBusinessDate(property.business_date, property.timezone);
-    const blockRangeEnd = addDays(businessDate, 7);
+    const ranged = Boolean(data.rangeStart && data.rangeEnd);
+    const blockRangeStart = ranged ? data.rangeStart! : businessDate;
+    const blockRangeEnd = ranged ? addDays(data.rangeEnd!, 1) : addDays(businessDate, 7);
 
-    const [arrivals, inHouse, departures, rooms, feeds, blockResult, hkSnapshot] = await Promise.all([
-      loadFrontOfficeArrivals(supabase, { restaurantId: data.restaurantId, date: businessDate }),
-      loadFrontOfficeInHouse(supabase, { restaurantId: data.restaurantId, today: businessDate }),
-      loadFrontOfficeDepartures(supabase, { restaurantId: data.restaurantId, date: businessDate }),
+    const [rooms, feeds, blockResult, hkSnapshot] = await Promise.all([
       loadRooms(supabase, data.restaurantId),
       loadFoExceptionFeeds({
         context: context as never,
@@ -733,9 +739,45 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
         businessDate,
         canResolveDiscrepancy,
       }),
-      loadActiveBlocks(supabase, data.restaurantId, businessDate, blockRangeEnd),
+      loadActiveBlocks(supabase, data.restaurantId, blockRangeStart, blockRangeEnd),
       loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false),
     ]);
+
+    let arrivals: FrontOfficeStay[];
+    let inHouse: FrontOfficeStay[];
+    let departures: FrontOfficeStay[];
+    if (ranged) {
+      const dates = eachDateInclusive(data.rangeStart!, data.rangeEnd!);
+      const [arrivalGroups, inHouseAll, departureGroups] = await Promise.all([
+        Promise.all(
+          dates.map((date) =>
+            loadFrontOfficeArrivals(supabase, { restaurantId: data.restaurantId, date }),
+          ),
+        ),
+        loadFrontOfficeInHouse(supabase, { restaurantId: data.restaurantId, today: businessDate }),
+        Promise.all(
+          dates.map((date) =>
+            loadFrontOfficeDepartures(supabase, { restaurantId: data.restaurantId, date }),
+          ),
+        ),
+      ]);
+      arrivals = uniqueStays(arrivalGroups);
+      inHouse = inHouseAll.filter((stay) =>
+        stayOverlapsWindow(stay.arrivalDate, stay.departureDate, data.rangeStart!, data.rangeEnd!),
+      );
+      departures = uniqueStays(departureGroups)
+        .filter((stay) => stay.departureDate >= data.rangeStart! && stay.departureDate <= data.rangeEnd!)
+        .map((stay) => ({
+          ...stay,
+          overstay: stay.status === "checked_in" && stay.departureDate < businessDate,
+        }));
+    } else {
+      [arrivals, inHouse, departures] = await Promise.all([
+        loadFrontOfficeArrivals(supabase, { restaurantId: data.restaurantId, date: businessDate }),
+        loadFrontOfficeInHouse(supabase, { restaurantId: data.restaurantId, today: businessDate }),
+        loadFrontOfficeDepartures(supabase, { restaurantId: data.restaurantId, date: businessDate }),
+      ]);
+    }
 
     const scoped = uniqueStays([arrivals, inHouse, departures]);
     const signalIds = scoped.map((stay) => stay.id).slice(0, FINANCIAL_SIGNAL_BATCH_CAP);
@@ -758,8 +800,8 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
     const overbookingNights = await loadOverbookingNights(
       supabaseAdmin as never,
       data.restaurantId,
-      businessDate,
-      addDays(businessDate, OVERBOOKING_HORIZON_DAYS - 1),
+      ranged ? data.rangeStart! : businessDate,
+      ranged ? data.rangeEnd! : addDays(businessDate, OVERBOOKING_HORIZON_DAYS - 1),
     );
     const fo = deriveExceptionRows({
       arrivals,
@@ -808,8 +850,18 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
       status: data.status ?? null,
     };
     const filtered = applyExceptionFilters(deduped, filters);
-    const itemTruncated = filtered.length > RESERVATION_EXCEPTION_ITEM_CAP;
-    const items = filtered.slice(0, RESERVATION_EXCEPTION_ITEM_CAP);
+    const windowed = ranged
+      ? filtered.filter((item) =>
+          eventOverlapsWindow(
+            item.stay.arrivalDate,
+            item.stay.departureDate,
+            data.rangeStart!,
+            data.rangeEnd!,
+          ),
+        )
+      : filtered;
+    const itemTruncated = windowed.length > RESERVATION_EXCEPTION_ITEM_CAP;
+    const items = windowed.slice(0, RESERVATION_EXCEPTION_ITEM_CAP);
 
     const warnings: ReservationExceptionWarningKey[] = [];
     if (folioLane === "permission_denied" || folioLane === "coming_soon") {

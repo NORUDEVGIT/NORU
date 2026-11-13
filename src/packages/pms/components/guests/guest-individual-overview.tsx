@@ -20,7 +20,10 @@ import {
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { useOptionalGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
 import { GuestStayActions } from "@/packages/pms/components/guests/guest-stay-actions";
-import { GUEST_ACCOUNT_TYPE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
+import { GUEST_ACCOUNT_TYPE_LABELS, GUEST_RELATIONSHIP_ROLE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
+import { isPlaceholderPreferenceLabel } from "@/packages/pms/lib/guest-preferences-workspace";
+import { nationalityValueForStored } from "@/packages/pms/lib/guest-nationalities";
+import { formatGroupedPhone } from "@/packages/pms/lib/pms-property-setup-phone";
 import { GUEST_GENDER_LABELS } from "@/packages/pms/lib/guest-profile-individual";
 import { listGuestAccountLinks } from "@/packages/pms/lib/guest-accounts.functions";
 import {
@@ -32,6 +35,7 @@ import {
   isPreferredContactMethod,
   isPreferredContactTime,
 } from "@/packages/pms/lib/guest-profile-overview";
+import { documentExpiryStatus } from "@/packages/pms/lib/guest-identity-documents";
 import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
 import { GUEST_DOCUMENT_STATUS_LABELS } from "@/packages/pms/lib/guest-profile-wave2";
 import { countryNameFromInput } from "@/packages/pms/lib/pms-geography";
@@ -47,6 +51,82 @@ import { isInHouseStay } from "@/packages/pms/lib/guest-profile-wave3";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { Button } from "@/shared/components/ui/button";
 import type { GuestDetailViewId } from "@/packages/pms/lib/guest-detail-view";
+
+type IdentityStatus = "expired" | "verified" | "rejected" | "unverified";
+
+function identityStatus(document: GuestDocument, today: string): IdentityStatus {
+  if (documentExpiryStatus(document.expiryDate, today) === "expired") return "expired";
+  return document.verificationStatus;
+}
+
+function maskStoredNumber(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  return `•••• ${trimmed.slice(-4)}`;
+}
+
+function IdentityStatusRows({
+  document,
+  extraCount,
+  profileType,
+  profileNumber,
+  profileExpiry,
+  today,
+}: {
+  document: GuestDocument | null;
+  extraCount: number;
+  profileType: GuestProfile["idDocumentType"];
+  profileNumber: string | null;
+  profileExpiry: string | null;
+  today: string;
+}) {
+  const typeLabel = document?.typeName || (profileType ? ID_DOCUMENT_LABELS[profileType] : null);
+  const number = document?.documentNumberMasked || maskStoredNumber(profileNumber);
+  const country = document?.issuingCountry ? countryNameFromInput(document.issuingCountry) : null;
+  const expiry = document?.expiryDate || profileExpiry;
+  const expired = Boolean(expiry) && documentExpiryStatus(expiry, today) === "expired";
+  const status = document ? identityStatus(document, today) : null;
+  const statusLabel =
+    status === "expired" ? "Expired" : status ? GUEST_DOCUMENT_STATUS_LABELS[status] : "Not recorded";
+  const statusClass =
+    status === "verified"
+      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+      : status === "rejected" || status === "expired"
+        ? "bg-rose-50 border-rose-200 text-rose-800"
+        : "bg-stone-100 border-stone-200 text-stone-600";
+
+  return (
+    <>
+      <InfoRow label="ID Document" value={typeLabel || "Not recorded"} />
+      <InfoRow label="ID Number" value={number || "Not recorded"} />
+      <InfoRow label="Issuing Country" value={country || (document ? null : "Not recorded")} />
+      <InfoRow
+        label="Expiration Date"
+        value={
+          expiry
+            ? expired
+              ? `Expired · ${formatStayDate(expiry)}`
+              : formatStayDate(expiry)
+            : "Not recorded"
+        }
+      />
+      <div className="flex items-center justify-between pt-2 border-t border-[#DDD4C5]/60">
+        <span className="text-[#756A5B]">Verification</span>
+        <span
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusClass}`}
+        >
+          {status === "verified" ? <CheckCircle2 className="size-3" /> : null}
+          {statusLabel}
+        </span>
+      </div>
+      {extraCount > 0 ? (
+        <p className="pt-1 text-[11px] text-[#756A5B]">
+          {extraCount} more document{extraCount === 1 ? "" : "s"} on the Identity tab.
+        </p>
+      ) : null}
+    </>
+  );
+}
 
 function calculateAge(dob: string): number | null {
   const birth = new Date(dob);
@@ -112,70 +192,6 @@ function InfoRow({
         {value != null && value !== "" ? value : "—"}
       </span>
     </div>
-  );
-}
-
-function maskStoredNumber(value: string | null | undefined): string | null {
-  const trimmed = value?.trim() ?? "";
-  if (!trimmed) return null;
-  return `•••• ${trimmed.slice(-4)}`;
-}
-
-function OverviewIdentity({
-  document,
-  extraCount,
-  profileType,
-  profileNumber,
-  profileExpiry,
-}: {
-  document: GuestDocument | null;
-  extraCount: number;
-  profileType: GuestProfile["idDocumentType"];
-  profileNumber: string | null;
-  profileExpiry: string | null;
-}) {
-  const typeLabel =
-    document?.typeName ||
-    (profileType ? ID_DOCUMENT_LABELS[profileType] : null) ||
-    null;
-  const number = document?.documentNumberMasked || maskStoredNumber(profileNumber);
-  const country = document?.issuingCountry
-    ? countryNameFromInput(document.issuingCountry)
-    : null;
-  const expiry = document?.expiryDate || profileExpiry;
-  const status = document?.verificationStatus ?? null;
-  const verified = status === "verified";
-
-  return (
-    <>
-      <InfoRow label="ID Document" value={typeLabel ?? "Not recorded"} />
-      <InfoRow label="ID Number" value={number} />
-      <InfoRow label="Issuing Country" value={country} />
-      <InfoRow label="Expiration Date" value={expiry ? formatStayDate(expiry) : "—"} />
-      <div className="flex items-center justify-between border-t border-[#DDD4C5]/60 pt-2">
-        <span className="text-[#756A5B]">Verification</span>
-        {document ? (
-          verified ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-              <CheckCircle2 className="size-3" /> {GUEST_DOCUMENT_STATUS_LABELS.verified}
-            </span>
-          ) : (
-            <span className="rounded-full border border-stone-200 bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
-              {GUEST_DOCUMENT_STATUS_LABELS[status ?? "unverified"]}
-            </span>
-          )
-        ) : (
-          <span className="rounded-full border border-stone-200 bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
-            Not recorded
-          </span>
-        )}
-      </div>
-      {extraCount > 0 ? (
-        <p className="pt-1 text-[11px] text-[#756A5B]">
-          {extraCount} more document{extraCount === 1 ? "" : "s"} on the Identity tab.
-        </p>
-      ) : null}
-    </>
   );
 }
 
@@ -261,6 +277,11 @@ export function GuestIndividualOverview({
       : "—";
   const company = (linksQuery.data ?? []).find(
     (link) => link.role === "employer" || link.role === "bill_to",
+  );
+  const currentDocument = documentsQuery.data?.documents?.[0] ?? null;
+  const preferenceChips = (prefsQuery.data?.chips ?? []).filter(
+    (chip) =>
+      !isPlaceholderPreferenceLabel(chip.label) && !isPlaceholderPreferenceLabel(chip.value),
   );
 
   const age = guest.dateOfBirth ? calculateAge(guest.dateOfBirth) : null;
@@ -366,7 +387,10 @@ export function GuestIndividualOverview({
           <InfoRow label="Profile No." value={guest.profileNumber} />
           <InfoRow label="Full Name" value={guest.fullName} />
           <InfoRow label="Guest Type" value={guest.profileType?.name ?? "Individual"} />
-          <InfoRow label="Nationality" value={guest.nationality} />
+          <InfoRow
+            label="Nationality"
+            value={guest.nationality ? nationalityValueForStored(guest.nationality) : null}
+          />
           <InfoRow label="Date of Birth" value={dobFormatted} />
           <InfoRow label="Gender" value={guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null} />
           <InfoRow label="Language" value={guest.language} />
@@ -388,8 +412,8 @@ export function GuestIndividualOverview({
           icon={MapPin}
           data-testid="guest-overview-contact"
         >
-          <InfoRow label="Mobile Phone" value={guest.phone} />
-          <InfoRow label="Alternate Phone" value={guest.phoneAlt} />
+          <InfoRow label="Mobile Phone" value={formatGroupedPhone(guest.phone) || null} />
+          <InfoRow label="Alternate Phone" value={formatGroupedPhone(guest.phoneAlt) || null} />
           <InfoRow label="Email" value={guest.email} truncate />
           <InfoRow label="Alternate Email" value={guest.emailAlt} truncate />
           <InfoRow label="Preferred Contact" value={method} />
@@ -512,11 +536,11 @@ export function GuestIndividualOverview({
         >
           {prefsQuery.isLoading ? (
             <p className="py-1 text-xs text-[#756A5B]">Loading preferences…</p>
-          ) : (prefsQuery.data?.chips.length ?? 0) === 0 ? (
+          ) : preferenceChips.length === 0 ? (
             <p className="py-1 text-xs text-[#756A5B]">{OVERVIEW_PREFERENCES_EMPTY}</p>
           ) : (
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {prefsQuery.data!.chips.slice(0, 8).map((chip) => (
+              {preferenceChips.slice(0, 8).map((chip) => (
                 <span
                   key={`${chip.code}-${chip.value}`}
                   className="inline-flex items-center rounded-md border border-[#DDD4C5] bg-[#FAF8F5] px-2 py-0.5 text-[11px] text-[#251605]"
@@ -537,13 +561,16 @@ export function GuestIndividualOverview({
         >
           {documentsQuery.isLoading ? (
             <p className="py-1 text-xs text-[#756A5B]">Loading identity…</p>
+          ) : documentsQuery.isError ? (
+            <p className="py-1 text-xs text-[#756A5B]">Identity documents could not be loaded.</p>
           ) : (
-            <OverviewIdentity
-              document={documentsQuery.data?.documents?.[0] ?? null}
+            <IdentityStatusRows
+              document={currentDocument}
               extraCount={Math.max((documentsQuery.data?.documents.length ?? 0) - 1, 0)}
               profileType={guest.idDocumentType}
               profileNumber={guest.idDocumentNumber}
               profileExpiry={guest.idDocumentExpiry}
+              today={today}
             />
           )}
         </SectionCard>
@@ -570,7 +597,10 @@ export function GuestIndividualOverview({
                   <div className="min-w-0">
                     <p className="truncate text-xs font-semibold text-[#251605]">{link.masterName}</p>
                     <p className="text-[10px] text-[#756A5B]">
-                      {GUEST_ACCOUNT_TYPE_LABELS[link.masterType]} · Role: {link.role}
+                      {GUEST_ACCOUNT_TYPE_LABELS[link.masterType]} ·{" "}
+                      {link.role in GUEST_RELATIONSHIP_ROLE_LABELS
+                        ? GUEST_RELATIONSHIP_ROLE_LABELS[link.role as keyof typeof GUEST_RELATIONSHIP_ROLE_LABELS]
+                        : link.role}
                     </p>
                   </div>
                 </div>

@@ -46,6 +46,32 @@ export function typeAllowedForNewDocument(
   return allowed.includes(profileTypeId);
 }
 
+export const IDENTITY_DOCUMENT_EXPIRED =
+  "This identity document is expired. Expiry date must be today or later.";
+export const IDENTITY_DOCUMENT_ISSUE_BEFORE_EXPIRY =
+  "Issue date must be before the expiry date.";
+
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+/** Date rules for an identity document. Types that do not expire skip both checks. */
+export function identityDocumentDateIssue(input: {
+  expiryDateActive?: boolean;
+  issueDate?: string | null;
+  expiryDate?: string | null;
+  today: string;
+}): { expiry: string | null; issue: string | null } {
+  if (input.expiryDateActive === false) return { expiry: null, issue: null };
+  const expiry = (input.expiryDate ?? "").trim();
+  const issue = (input.issueDate ?? "").trim();
+  const expiryMessage =
+    expiry && (!isIsoDate(expiry) || expiry < input.today) ? IDENTITY_DOCUMENT_EXPIRED : null;
+  const issueMessage =
+    isIsoDate(issue) && isIsoDate(expiry) && issue >= expiry ? IDENTITY_DOCUMENT_ISSUE_BEFORE_EXPIRY : null;
+  return { expiry: expiryMessage, issue: issueMessage };
+}
+
 export function documentExpiryStatus(
   expiryDate: string | null | undefined,
   today: string,

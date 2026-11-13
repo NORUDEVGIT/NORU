@@ -395,6 +395,7 @@ export const FoCheckInV2Registration = forwardRef<
           issuingCountry: issuingCountry.trim() || null,
           issueDate: issueDate.trim() || null,
           expiryDate: expiryDate.trim() || null,
+          today,
         })
       : null;
     const nextErrors = [...required, ...(documentError ? [documentError] : [])];

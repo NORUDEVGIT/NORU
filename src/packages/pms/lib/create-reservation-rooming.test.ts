@@ -10,9 +10,9 @@ import {
   addGroupRoom,
   applyActiveRoomSelection,
   applyRoomOccupancy,
+  applyRoomQuantity,
   assignExtraOccupant,
   buildGroupRoomGuestAssignments,
-  confirmSingleDowngrade,
   groupStayTotals,
   groupStep1Issue,
   initialStep1RoomingState,
@@ -71,7 +71,8 @@ describe("GROUP-RES-03 Step 1 rooming", () => {
   it("selector defaults to single and an older draft restores as single", () => {
     expect(initialStep1RoomingState().reservationMode).toBe("single");
     expect(page).toContain('useState<ReservationMode>("single")');
-    expect(page).toContain('data-testid="reservation-type-selector"');
+    expect(page).not.toContain('data-testid="reservation-type-selector"');
+    expect(page).toContain("applyRoomQuantity");
     expect(restoreStep1RoomingState({}).reservationMode).toBe("single");
     const restored = parseCreateReservationDraft({
       version: 1,
@@ -84,8 +85,8 @@ describe("GROUP-RES-03 Step 1 rooming", () => {
   it("single keeps one read-only room and hides the rooming list", () => {
     const single = initialStep1RoomingState();
     expect(groupStayTotals(single).rooms).toBe(1);
-    expect(page).toContain("roomsReadOnly");
-    expect(page).toContain("rooms={groupMode ? stayTotals.rooms : 1}");
+    expect(page).toContain("rooms={1 + extraRoomUnits.length}");
+    expect(page).toContain("onRoomsChange");
     expect(step).toContain('reservationMode === "group"');
     expect(step).toContain("<CreateReservationRoomingList");
     expect(step).not.toContain("<CreateReservationExtraRooms");
@@ -114,6 +115,31 @@ describe("GROUP-RES-03 Step 1 rooming", () => {
     expect(next.state.departure).toBe("2026-10-16");
     expect(next.state.room1.roomTypeId).toBe("twin");
     expect(next.state.reservationMode).toBe("group");
+  });
+
+  it("derives single or group from the room count and leaves the guest count alone", () => {
+    let keys = 0;
+    const single = {
+      ...initialStep1RoomingState(),
+      room1: {
+        roomTypeId: "twin",
+        adults: 3,
+        children: 2,
+        infants: 1,
+        ratePlanId: "bar",
+      },
+    };
+    const group = applyRoomQuantity(single, 3, () => `room-${++keys}`);
+    expect(group.reservationMode).toBe("group");
+    expect(group.extras).toHaveLength(2);
+    expect(group.room1.adults).toBe(3);
+    expect(group.room1.children).toBe(2);
+    expect(group.room1.infants).toBe(1);
+    const back = applyRoomQuantity(group, 1, () => `room-${++keys}`);
+    expect(back.reservationMode).toBe("single");
+    expect(back.extras).toHaveLength(0);
+    expect(back.room1.adults).toBe(3);
+    expect(back.room1.children).toBe(2);
   });
 
   it("adds a second room, derives room count and occupancy, and defaults room 1 to the lead guest", () => {
@@ -199,12 +225,12 @@ describe("GROUP-RES-03 Step 1 rooming", () => {
     expect(removed.extras.map((unit) => unit.occupant?.guestId)).toEqual(["guest-3"]);
     expect(buildGroupRoomGuestAssignments(removed).map((row) => row.unitSequence)).toEqual([1, 2]);
     expect(selectReservationMode(removed, "single").status).toBe("confirm");
-    const downgraded = confirmSingleDowngrade(removed);
+    const downgraded = applyRoomQuantity(removed, 1, () => "unused");
     expect(downgraded.reservationMode).toBe("single");
     expect(downgraded.extras).toEqual([]);
     expect(downgraded.room1.roomTypeId).toBe("twin");
     expect(downgraded.guestId).toBe("lead-guest");
-    expect(page).toContain('data-testid="group-to-single-confirm"');
+    expect(page).not.toContain('data-testid="group-to-single-confirm"');
   });
 
   it("sends a group create payload and leaves a single create payload compatible", () => {
@@ -257,7 +283,7 @@ describe("GROUP-RES-03 Step 1 rooming", () => {
     expect(restored?.extraRoomUnits).toHaveLength(1);
     expect(restored?.extraRoomUnits[0]?.occupant?.guestId).toBe("guest-2");
     expect(page).toContain("stored.activeRoomIndex");
-    expect(page).toContain('stored.reservationMode === "group"');
+    expect(page).toContain('stored.extraRoomUnits.length > 0 ? "group" : "single"');
   });
 
   it("uses the locked compact group row, totals, and active-room labels", () => {
@@ -266,8 +292,8 @@ describe("GROUP-RES-03 Step 1 rooming", () => {
       roomingList.indexOf("<RoomingCard"),
       roomingList.indexOf("{extras.map"),
     );
-    expect(page).toContain('data-testid="reservation-type-selector"');
-    expect(page).toContain("rooms={groupMode ? stayTotals.rooms : 1}");
+    expect(page).not.toContain('data-testid="reservation-type-selector"');
+    expect(page).toContain("rooms={1 + extraRoomUnits.length}");
     expect(page).toContain("occupancyReadOnly={groupMode}");
     expect(step).toContain('reservationMode === "group" ?');
     expect(step).toContain("<CreateReservationRoomingList");

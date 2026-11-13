@@ -7,7 +7,6 @@ import {
   CalendarPlus,
   CheckCircle2,
   Download,
-  ExternalLink,
   MoreHorizontal,
   Pencil,
   Percent,
@@ -16,11 +15,10 @@ import {
   X,
 } from "lucide-react";
 
-import { GuestTravelAgentQuickViewDrawer } from "@/packages/pms/components/guests/guest-travel-agent-quick-view-drawer";
 import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-profile-shell-slots";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { GuestTravelAgencyCreateModal } from "@/packages/pms/components/guests/guest-travel-agency-create-modal";
-import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
+import { DIRECTORY_HEAD_CLASS, DirectoryPager, StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -52,7 +50,6 @@ import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import { csvEscape } from "@/packages/pms/lib/guest-companies-workspace";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
@@ -80,6 +77,8 @@ function TravelAgentKpiCard({
   loading,
   icon,
   tone,
+  active = false,
+  onClick,
 }: {
   label: string;
   value?: number | null | undefined;
@@ -87,10 +86,21 @@ function TravelAgentKpiCard({
   loading?: boolean | undefined;
   icon: React.ReactNode;
   tone: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div
-      className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm text-left"
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      aria-pressed={Boolean(onClick) && active}
+      className={cn(
+        "flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3 text-left shadow-sm",
+        onClick && "transition-colors hover:bg-[#FBF7F1]",
+        !onClick && "disabled:cursor-default disabled:opacity-100",
+        active ? "border-[#C89933]" : "border-[#DDD4C5]",
+      )}
     >
       <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
         {icon}
@@ -108,7 +118,7 @@ function TravelAgentKpiCard({
         )}
         {hint ? <p className="truncate text-[9px] text-[#8C827A]">{hint}</p> : null}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -116,10 +126,14 @@ export function GuestTravelAgentDirectory({
   membership,
   returnCard,
   embedded = false,
+  statusValue,
+  onStatusChange,
 }: {
   membership: RestaurantMembership;
   returnCard?: GuestProfileCardId | undefined;
   embedded?: boolean;
+  statusValue?: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number];
+  onStatusChange?: (status: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number]) => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -131,16 +145,19 @@ export function GuestTravelAgentDirectory({
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [status, setStatus] = useState<string>(ALL);
+  const [statusState, setStatusState] = useState<"all" | (typeof GUEST_ACCOUNT_STATUSES)[number]>(ALL);
+  const status = statusValue ?? statusState;
+  function setStatus(next: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number]) {
+    if (onStatusChange) onStatusChange(next);
+    else setStatusState(next);
+  }
   const [agencyType, setAgencyType] = useState<string>(ALL);
   const [country, setCountry] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<(typeof LISTING_PAGE_SIZES)[number]>(
     LISTING_DEFAULT_PAGE_SIZE,
   );
-  const [selected, setSelected] = useState<string[]>([]);
 
-  const [quickViewAgencyId, setQuickViewAgencyId] = useState<string | null>(null);
   const [editAgencyId, setEditAgencyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -152,7 +169,6 @@ export function GuestTravelAgentDirectory({
 
   useEffect(() => {
     setPage(0);
-    setSelected([]);
   }, [debouncedSearch, status, agencyType, country, pageSize]);
 
   const permissions = usePmsPermissions(restaurantId);
@@ -224,7 +240,7 @@ export function GuestTravelAgentDirectory({
 
   function runExport() {
     if (!canPrintExport) return;
-    const rows = selected.length > 0 ? accounts.filter((row) => selected.includes(row.id)) : accounts;
+    const rows = accounts;
     const header = [
       "Profile No.",
       "Agency",
@@ -344,13 +360,16 @@ export function GuestTravelAgentDirectory({
       <PmsFilterChoiceRow
         label="Status"
         value={status}
-        current={status === ALL ? "" : status}
+        current={
+          status === "active" ? "Active" : status === "pending" ? "Pending" : status === "inactive" ? "Inactive" : ""
+        }
         options={[
           [ALL, "All statuses"],
           ["active", "Active"],
+          ["pending", "Pending"],
           ["inactive", "Inactive"],
         ]}
-        onChange={setStatus}
+        onChange={(value) => setStatus(value as "all" | (typeof GUEST_ACCOUNT_STATUSES)[number])}
       />
       <PmsFilterChoiceRow
         label="Agency Type"
@@ -390,16 +409,11 @@ export function GuestTravelAgentDirectory({
                 size="icon"
                 className={cn(SHELL_ICON_BUTTON, "relative")}
                 onClick={runExport}
-                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                aria-label="Export"
+                title="Export"
                 data-testid="travel-agent-export"
               >
                 <Download className="size-4" />
-                {selected.length > 0 ? (
-                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                    {selected.length}
-                  </span>
-                ) : null}
               </Button>
             </GuestProfileShellSlot>
           ) : null}
@@ -423,42 +437,9 @@ export function GuestTravelAgentDirectory({
             data-testid="travel-agent-register-new"
           >
             <Plus className="mr-1.5 size-4" />
-            Register New Travel Agency
+            New Travel Agency
           </Button>
         </div>
-      </div>
-
-      {/* KPI Summary Band */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <TravelAgentKpiCard
-          label="Total Agencies"
-          value={summaryQuery.data?.total}
-          loading={summaryQuery.isLoading}
-          icon={<Building2 className="size-4" />}
-          tone="bg-[#F4E9D0] text-[#8A641A]"
-        />
-        <TravelAgentKpiCard
-          label="Active"
-          value={summaryQuery.data?.active}
-          loading={summaryQuery.isLoading}
-          icon={<CheckCircle2 className="size-4" />}
-          tone="bg-emerald-50 text-emerald-700"
-        />
-        <TravelAgentKpiCard
-          label="Inactive"
-          value={summaryQuery.data?.inactive}
-          loading={summaryQuery.isLoading}
-          icon={<Building2 className="size-4" />}
-          tone="bg-stone-100 text-stone-600"
-        />
-        <TravelAgentKpiCard
-          label="Commission Configured"
-          hint="Active plans"
-          value={summaryQuery.data?.commissionConfigured}
-          loading={summaryQuery.isLoading}
-          icon={<Percent className="size-4" />}
-          tone="bg-amber-50 text-amber-700"
-        />
       </div>
 
       {/* Toolbar */}
@@ -497,13 +478,17 @@ export function GuestTravelAgentDirectory({
           </SelectContent>
         </Select>
 
-        <Select value={status} onValueChange={setStatus}>
+        <Select
+          value={status}
+          onValueChange={(value) => setStatus(value as "all" | (typeof GUEST_ACCOUNT_STATUSES)[number])}
+        >
           <SelectTrigger className="h-9 w-32 border-[#DDD4C5] text-xs bg-white" data-testid="travel-agent-status-filter">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL} className="text-xs">All Statuses</SelectItem>
             <SelectItem value="active" className="text-xs">Active</SelectItem>
+            <SelectItem value="pending" className="text-xs">Pending</SelectItem>
             <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
           </SelectContent>
         </Select>
@@ -537,22 +522,52 @@ export function GuestTravelAgentDirectory({
       </>
       )}
 
-      {/* Dense Table */}
-      <div className="overflow-hidden rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
+      {embedded ? null : (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="guest-directory-summary-band">
+        <TravelAgentKpiCard
+          label="Total Agencies"
+          value={summaryQuery.data?.total}
+          loading={summaryQuery.isLoading}
+          icon={<Building2 className="size-4" />}
+          tone="bg-[#F4E9D0] text-[#8A641A]"
+          active={status === ALL}
+          onClick={() => setStatus(ALL)}
+        />
+        <TravelAgentKpiCard
+          label="Active"
+          value={summaryQuery.data?.active}
+          loading={summaryQuery.isLoading}
+          icon={<CheckCircle2 className="size-4" />}
+          tone="bg-emerald-50 text-emerald-700"
+          active={status === "active"}
+          onClick={() => setStatus(status === "active" ? ALL : "active")}
+        />
+        <TravelAgentKpiCard
+          label="Inactive"
+          value={summaryQuery.data?.inactive}
+          loading={summaryQuery.isLoading}
+          icon={<Building2 className="size-4" />}
+          tone="bg-stone-100 text-stone-600"
+          active={status === "inactive"}
+          onClick={() => setStatus(status === "inactive" ? ALL : "inactive")}
+        />
+        <TravelAgentKpiCard
+          label="Commission Configured"
+          hint="Active plans"
+          value={summaryQuery.data?.commissionConfigured}
+          loading={summaryQuery.isLoading}
+          icon={<Percent className="size-4" />}
+          tone="bg-amber-50 text-amber-700"
+        />
+      </div>
+      )}
+
+      <div className="overflow-x-auto rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs" data-testid="travel-agent-table">
-            <thead>
-              <tr className="border-b border-[#DDD4C5] bg-[#FAF8F5] text-[11px] font-semibold text-[#756A5B] uppercase tracking-wider">
-                <th className="w-10 px-2 py-2.5">
-                  <Checkbox
-                    checked={accounts.length > 0 && accounts.every((row) => selected.includes(row.id))}
-                    onCheckedChange={(checked) =>
-                      setSelected(checked === true ? accounts.map((row) => row.id) : [])
-                    }
-                    aria-label="Select page"
-                  />
-                </th>
-                <th className="px-3.5 py-2.5">Profile No.</th>
+          <table className="w-full min-w-[900px] text-xs" data-testid="travel-agent-table">
+            <thead className={DIRECTORY_HEAD_CLASS}>
+              <tr>
+                <th className="px-2 py-2.5">Profile No.</th>
                 <th className="px-3.5 py-2.5">Agency</th>
                 <th className="px-3 py-2.5">Agency Type</th>
                 <th className="px-3 py-2.5">Primary Contact</th>
@@ -568,14 +583,14 @@ export function GuestTravelAgentDirectory({
               {accountsQuery.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td className="px-3.5 py-3" colSpan={11}>
+                    <td className="px-3.5 py-3" colSpan={10}>
                       <Skeleton className="h-5 w-full" />
                     </td>
                   </tr>
                 ))
               ) : accounts.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-[#8C827A] italic">
+                  <td colSpan={10} className="px-4 py-12 text-center text-[#8C827A] italic">
                     {debouncedSearch || status !== ALL || agencyType !== ALL || country
                       ? "No travel agencies match these filters."
                       : "No travel agencies registered yet."}
@@ -587,24 +602,11 @@ export function GuestTravelAgentDirectory({
                   return (
                     <tr
                       key={row.id}
-                      onClick={() => setQuickViewAgencyId(row.id)}
-                      className="cursor-pointer transition-colors hover:bg-[#FAF8F5]/80"
+                      onClick={() => openAgency(row.id)}
+                      className="cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]"
                       data-testid={`travel-agent-row-${row.id}`}
                     >
-                      <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selected.includes(row.id)}
-                          onCheckedChange={(checked) =>
-                            setSelected((prev) =>
-                              checked === true
-                                ? [...prev, row.id]
-                                : prev.filter((id) => id !== row.id),
-                            )
-                          }
-                          aria-label={`Select ${row.name}`}
-                        />
-                      </td>
-                      <td className="px-3.5 py-2.5 font-mono text-[11px] text-[#7A6B58]">
+                      <td className="px-2 py-2.5 font-mono text-[11px] text-[#7A6B58]">
                         {displayProfileNumber(row.id, row.code)}
                       </td>
                       <td className="px-3.5 py-2.5 font-medium text-[#251605]">
@@ -660,20 +662,13 @@ export function GuestTravelAgentDirectory({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 text-[#756A5B] hover:text-[#251605]"
+                              className="size-7 p-0 text-[#7A6B58] hover:text-[#251605]"
                               data-testid={`travel-agent-actions-${row.id}`}
                             >
                               <MoreHorizontal className="size-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="text-xs">
-                            <DropdownMenuItem onClick={() => setQuickViewAgencyId(row.id)}>
-                              Quick View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openAgency(row.id)}>
-                              <ExternalLink className="mr-2 size-3.5" />
-                              Full Workspace
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleCreateBooking(row.id)}>
                               <CalendarPlus className="mr-2 size-3.5" />
                               New Booking
@@ -695,64 +690,18 @@ export function GuestTravelAgentDirectory({
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between border-t border-[#DDD4C5] bg-[#FAF8F5] px-4 py-2.5 text-xs text-[#756A5B]">
-          <div>
-            Showing {accounts.length > 0 ? offset + 1 : 0}–{Math.min(offset + pageSize, total)} of {total}
-          </div>
-          <div className="flex items-center gap-2">
-            <Select
-              value={String(pageSize)}
-              onValueChange={(val) => setPageSize(Number(val) as (typeof LISTING_PAGE_SIZES)[number])}
-            >
-              <SelectTrigger className="h-7 w-20 border-[#DDD4C5] text-xs bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LISTING_PAGE_SIZES.map((size) => (
-                  <SelectItem key={size} value={String(size)} className="text-xs">
-                    {size} / page
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              className="h-7 border-[#DDD4C5] text-xs px-2.5"
-            >
-              Previous
-            </Button>
-            <span className="text-[11px]">
-              Page {page + 1} of {pageCount}
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page + 1 >= pageCount}
-              onClick={() => setPage((p) => p + 1)}
-              className="h-7 border-[#DDD4C5] text-xs px-2.5"
-            >
-              Next
-            </Button>
-          </div>
-        </div>
       </div>
-
-      {/* Quick View Drawer */}
-      <GuestTravelAgentQuickViewDrawer
-        restaurantId={restaurantId}
-        agencyId={quickViewAgencyId}
-        onClose={() => setQuickViewAgencyId(null)}
-        onEditAgency={(id) => {
-          setQuickViewAgencyId(null);
-          setEditAgencyId(id);
-        }}
+      <DirectoryPager
+        page={page}
+        pageCount={pageCount}
+        pageSize={pageSize}
+        pageSizes={LISTING_PAGE_SIZES}
+        total={total}
+        offset={offset}
+        noun="agencies"
+        disabled={accountsQuery.isFetching}
+        onPage={setPage}
+        onPageSize={(size) => setPageSize(size as (typeof LISTING_PAGE_SIZES)[number])}
       />
 
       {/* Focused Edit Dialog */}

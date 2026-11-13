@@ -105,7 +105,7 @@ export function CreateReservationPriceReminder({
 
   return (
     <section
-      className="h-fit rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none"
+      className="h-fit rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-none"
       data-testid="create-reservation-price-reminder"
     >
       <div className="flex items-start gap-2">

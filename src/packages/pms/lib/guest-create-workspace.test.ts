@@ -329,6 +329,79 @@ describe("Guest create workflow helpers", () => {
     assert.equal(issuesBeforeStep(clearedIssues, GUEST_CREATE_STEPS, "preferences").length, 0);
   });
 
+  it("blocks Step 2 when an identity document is expired or issued on or after expiry", () => {
+    const draft = emptyGuestCreateDraft();
+    draft.firstName = "John";
+    draft.documents = [
+      {
+        key: "doc-1",
+        idTypeId: "passport-type-id",
+        documentNumber: "AB1234567",
+        issuingCountry: "Ethiopia",
+        issueDate: "2024-01-01",
+        expiryDate: "2026-01-01",
+        issuingAuthority: "Immigration",
+        notes: "",
+        hasFront: true,
+        hasBack: false,
+      },
+    ];
+    const expiringType = {
+      id: "passport-type-id",
+      name: "Passport",
+      active: true,
+      expiryDateActive: true,
+      expiryDateRequired: true,
+    };
+    const expired = guestCreateFieldIssues(draft, {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      documentTypes: [expiringType],
+      identityActive: true,
+      today: "2026-11-11",
+    });
+    assert.ok(expired.some((issue) => issue.key === "DOC_doc-1_expiryDate" && issue.step === "identity" && /expired/i.test(issue.message)));
+    assert.ok(issuesBeforeStep(expired, GUEST_CREATE_STEPS, "preferences").some((issue) => issue.step === "identity"));
+
+    draft.documents[0].expiryDate = "2026-11-11";
+    const validToday = guestCreateFieldIssues(draft, {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      documentTypes: [expiringType],
+      identityActive: true,
+      today: "2026-11-11",
+    });
+    assert.equal(validToday.filter((issue) => issue.step === "identity").length, 0);
+
+    draft.documents[0].issueDate = "2030-01-01";
+    draft.documents[0].expiryDate = "2028-01-01";
+    const order = guestCreateFieldIssues(draft, {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      documentTypes: [expiringType],
+      identityActive: true,
+      today: "2026-11-11",
+    });
+    assert.ok(order.some((issue) => issue.key === "DOC_doc-1_issueDate" && /before the expiry date/i.test(issue.message)));
+
+    const nonExpiring = guestCreateFieldIssues(draft, {
+      rules: createFieldRules([field({ code: "FIRST_NAME", required: true })], null),
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+      documentTypes: [{ ...expiringType, expiryDateActive: false, expiryDateRequired: false }],
+      identityActive: true,
+      today: "2026-11-11",
+    });
+    assert.equal(nonExpiring.filter((issue) => issue.key.startsWith("DOC_doc-1_")).length, 0);
+  });
+
   it("enforces mandatory identity document when Card 4 marks IDENTITY_DOCUMENT required", () => {
     const draft = emptyGuestCreateDraft();
     draft.firstName = "John";

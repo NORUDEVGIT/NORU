@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Ban,
@@ -15,6 +15,7 @@ import {
   Search,
   Table2,
   UserRound,
+  Wrench,
   X,
 } from "lucide-react";
 
@@ -28,8 +29,6 @@ import {
   RoomTableFooter,
 } from "./room-inventory-shell";
 
-import { setRoomRestriction } from "@/packages/pms/lib/housekeeping.functions";
-import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import {
   listRoomBoardBlocks,
   listRoomBoardOccupancy,
@@ -49,32 +48,38 @@ import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
-import { CompactSelect, PmsSelect } from "./room-inventory-shared";
-import { RoomDetailPanel } from "./room-detail-panel";
+import { CompactSelect } from "./room-inventory-shared";
 import {
+  RoomBlockDialog,
+  RoomConfigurationDialog,
+  RoomEligibilityDialog,
+  RoomHistoryDialog,
+} from "./room-board-dialogs";
+import { RoomRestrictionDialog, type RoomRestrictionTarget } from "./room-restriction-dialog";
+import {
+  formatRoomTypeName,
+  hkStatusDot,
+  hkStatusLabel,
+  maintenanceBadgeClasses,
+  maintenanceNeedsAttention,
+  maintenanceStatusLabel,
   metricPercentage,
   naturalCompare,
+  ROOM_KPI_LABELS,
   ROOM_STATE_LABELS,
   roomBoardPrimaryState,
+  roomMatchesKpiFilter,
   roomStateClasses,
-  type RoomBoardPrimaryState,
+  type RoomKpiFilter,
 } from "./room-board-utils";
 
 type ViewMode = "grid" | "table";
+type RoomBoardAction = "restriction" | "block" | "eligibility" | "configuration" | "history";
 
 export function RoomsDashboardTab({
   restaurantId,
@@ -82,18 +87,16 @@ export function RoomsDashboardTab({
   canConfigure = false,
   canBlockEdit = false,
   canManageRestrictions = false,
-  onInspectAssignment,
-  onOpenBlocks,
+  kpiFilter = "all",
+  onKpiFilterChange,
 }: {
   restaurantId: string;
   commandSearch?: string;
   canConfigure?: boolean;
   canBlockEdit?: boolean;
   canManageRestrictions?: boolean;
-  onInspectAssignment?: (room: Pick<HotelRoom, "id" | "roomTypeId">) => void;
-  onOpenBlocks?: (
-    room: Pick<HotelRoom, "id" | "roomTypeId" | "roomNumber" | "roomTypeName">,
-  ) => void;
+  kpiFilter?: RoomKpiFilter;
+  onKpiFilterChange?: (filter: RoomKpiFilter) => void;
 }) {
   const fetchDashboard = useServerFn(getRoomsDashboard);
   const fetchRooms = useServerFn(listRooms);
@@ -101,8 +104,6 @@ export function RoomsDashboardTab({
   const fetchOccupancy = useServerFn(listRoomBoardOccupancy);
   const fetchBlocks = useServerFn(listRoomBoardBlocks);
   const fetchEvents = useServerFn(listRoomInventoryEvents);
-  const restrictRoom = useServerFn(setRoomRestriction);
-  const queryClient = useQueryClient();
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [search, setSearch] = useState(commandSearch);
@@ -112,15 +113,13 @@ export function RoomsDashboardTab({
   const [operational, setOperational] = useState("all");
   const [housekeeping, setHousekeeping] = useState("all");
   const [maintenance, setMaintenance] = useState("all");
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [boardAction, setBoardAction] = useState<{
+    roomId: string;
+    kind: RoomBoardAction;
+  } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [restrictionTarget, setRestrictionTarget] = useState<{
-    room: HotelRoom;
-    status: "available" | "out_of_order" | "out_of_service";
-  } | null>(null);
-  const [restrictionReason, setRestrictionReason] = useState("");
-  const [expectedReturn, setExpectedReturn] = useState("");
+  const [restrictionTarget, setRestrictionTarget] = useState<RoomRestrictionTarget | null>(null);
 
   useEffect(() => {
     setSearch(commandSearch);
@@ -129,7 +128,7 @@ export function RoomsDashboardTab({
 
   useEffect(() => {
     setPage(1);
-  }, [building, floor, roomType, operational, housekeeping, maintenance, search]);
+  }, [building, floor, roomType, operational, housekeeping, maintenance, search, kpiFilter]);
 
   const dashboardQuery = useQuery({
     queryKey: ["rooms-dashboard", restaurantId],
@@ -166,10 +165,6 @@ export function RoomsDashboardTab({
     () => new Map((blocksQuery.data?.rows ?? []).map((row) => [row.roomId, row])),
     [blocksQuery.data?.rows],
   );
-  const roomTypeById = useMemo(
-    () => new Map((roomTypesQuery.data ?? []).map((type) => [type.id, type])),
-    [roomTypesQuery.data],
-  );
   const rooms = useMemo(() => roomsQuery.data ?? [], [roomsQuery.data]);
 
   const locations = useMemo(() => {
@@ -200,6 +195,7 @@ export function RoomsDashboardTab({
         room.roomNumber,
         room.roomCode,
         room.roomTypeName,
+        formatRoomTypeName(room.roomTypeName),
         room.roomTypeCode,
         room.building,
         room.floor,
@@ -223,7 +219,8 @@ export function RoomsDashboardTab({
             ? !room.active
             : room.active && room.status === operational)) &&
         (housekeeping === "all" || room.housekeepingStatus === housekeeping) &&
-        (maintenance === "all" || room.maintenanceStatus === maintenance)
+        (maintenance === "all" || room.maintenanceStatus === maintenance) &&
+        roomMatchesKpiFilter(kpiFilter, primary)
       );
     });
   }, [
@@ -231,6 +228,7 @@ export function RoomsDashboardTab({
     building,
     floor,
     housekeeping,
+    kpiFilter,
     maintenance,
     occupancyByRoom,
     operational,
@@ -239,45 +237,12 @@ export function RoomsDashboardTab({
     search,
   ]);
 
-  useEffect(() => {
-    if (selectedRoomId && !filteredRooms.some((room) => room.id === selectedRoomId)) {
-      setSelectedRoomId(null);
-    }
-  }, [filteredRooms, selectedRoomId]);
-
-  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
+  const actionRoom = boardAction
+    ? (rooms.find((room) => room.id === boardAction.roomId) ?? null)
+    : null;
   const totalPages = Math.max(1, Math.ceil(filteredRooms.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedRooms = filteredRooms.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  const restrictionMutation = useMutation({
-    mutationFn: async () => {
-      if (!restrictionTarget) throw new Error("Choose a room restriction.");
-      return restrictRoom({
-        data: {
-          restaurantId,
-          roomId: restrictionTarget.room.id,
-          status: restrictionTarget.status,
-          reason:
-            restrictionTarget.status === "available"
-              ? undefined
-              : restrictionReason.trim() || undefined,
-          expectedReturn: restrictionTarget.status === "available" ? null : expectedReturn || null,
-        },
-      });
-    },
-    onSuccess: async () => {
-      setRestrictionTarget(null);
-      setRestrictionReason("");
-      setExpectedReturn("");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["room-board-rooms", restaurantId] }),
-        queryClient.invalidateQueries({ queryKey: ["rooms-dashboard", restaurantId] }),
-        queryClient.invalidateQueries({ queryKey: ["room-inventory-history", restaurantId] }),
-      ]);
-      invalidateFrontOfficeOwnerReads(queryClient);
-    },
-  });
 
   const loading =
     dashboardQuery.isLoading ||
@@ -318,6 +283,7 @@ export function RoomsDashboardTab({
     setOperational("all");
     setHousekeeping("all");
     setMaintenance("all");
+    onKpiFilterChange?.("all");
     setPage(1);
   }
 
@@ -327,34 +293,16 @@ export function RoomsDashboardTab({
     setPage(1);
   }
 
-  function selectRoom(room: HotelRoom) {
-    setSelectedRoomId(room.id);
+  function openRoomAction(room: HotelRoom, kind: RoomBoardAction) {
+    if (kind === "restriction") {
+      setRestrictionTarget({
+        room,
+        status: room.status === "out_of_service" ? "out_of_service" : "out_of_order",
+      });
+      return;
+    }
+    setBoardAction({ roomId: room.id, kind });
   }
-
-  function beginRestriction(
-    room: HotelRoom,
-    status: "available" | "out_of_order" | "out_of_service",
-  ) {
-    setRestrictionTarget({ room, status });
-    setRestrictionReason(room.restrictionReason ?? "");
-    setExpectedReturn(room.restrictionExpectedReturn?.slice(0, 10) ?? "");
-  }
-
-  const detail = selectedRoom ? (
-    <RoomDetailPanel
-      room={selectedRoom}
-      roomType={roomTypeById.get(selectedRoom.roomTypeId)}
-      occupancy={occupancyByRoom.get(selectedRoom.id)}
-      block={blockByRoom.get(selectedRoom.id)}
-      events={eventsQuery.data ?? []}
-      canManageRestrictions={canManageRestrictions}
-      canBlockEdit={canBlockEdit}
-      onClose={() => setSelectedRoomId(null)}
-      onInspect={() => onInspectAssignment?.(selectedRoom)}
-      onOpenBlocks={() => onOpenBlocks?.(selectedRoom)}
-      onSetRestriction={(status) => beginRestriction(selectedRoom, status)}
-    />
-  ) : null;
 
   const floorOptions = Array.from(
     new Set(
@@ -370,7 +318,8 @@ export function RoomsDashboardTab({
     (roomType !== "all" ? 1 : 0) +
     (operational !== "all" ? 1 : 0) +
     (housekeeping !== "all" ? 1 : 0) +
-    (maintenance !== "all" ? 1 : 0);
+    (maintenance !== "all" ? 1 : 0) +
+    (kpiFilter !== "all" ? 1 : 0);
   const operationalLabel =
     operational === "available"
       ? "Available"
@@ -453,8 +402,11 @@ export function RoomsDashboardTab({
       <PmsFilterChoiceRow
         label="Room Type"
         value={roomType}
-        current={roomTypeOptions.find((item) => item.id === roomType)?.name ?? ""}
-        options={[["all", "All Room Types"], ...roomTypeOptions.map((item) => [item.id, item.name] as const)]}
+        current={formatRoomTypeName(roomTypeOptions.find((item) => item.id === roomType)?.name)}
+        options={[
+          ["all", "All Room Types"],
+          ...roomTypeOptions.map((item) => [item.id, formatRoomTypeName(item.name)] as const),
+        ]}
         onChange={(value) => {
           setRoomType(value);
           setPage(1);
@@ -578,6 +530,25 @@ export function RoomsDashboardTab({
         </p>
       ) : null}
 
+      {kpiFilter !== "all" ? (
+        <div
+          className="flex items-center gap-2 rounded-lg border border-[#EADBBD] bg-[#FBF7EE] px-3 py-1.5 text-xs text-[#5C5346]"
+          data-testid="room-board-kpi-filter-chip"
+        >
+          <span>
+            Showing <strong className="text-[#251605]">{ROOM_KPI_LABELS[kpiFilter]}</strong> rooms
+            ({filteredRooms.length})
+          </span>
+          <button
+            type="button"
+            className="ml-auto inline-flex items-center gap-1 font-semibold text-[#8A641A] hover:underline"
+            onClick={() => onKpiFilterChange?.("all")}
+          >
+            <X className="size-3" /> Show all rooms
+          </button>
+        </div>
+      ) : null}
+
       <section className={ROOM_TABLE_WRAP}>
           {filteredRooms.length === 0 ? (
             <div className="flex min-h-96 items-center justify-center p-8 text-center">
@@ -598,9 +569,10 @@ export function RoomsDashboardTab({
                     room={room}
                     occupancy={occupancyByRoom.get(room.id)}
                     block={blockByRoom.get(room.id)}
-                    selected={room.id === selectedRoomId}
-                    onSelect={() => selectRoom(room)}
-                    onInspect={() => onInspectAssignment?.(room)}
+                    canConfigure={canConfigure}
+                    canBlockEdit={canBlockEdit}
+                    canManageRestrictions={canManageRestrictions}
+                    onAction={(kind) => openRoomAction(room, kind)}
                   />
                 ))}
               </div>
@@ -610,9 +582,10 @@ export function RoomsDashboardTab({
               rooms={pagedRooms}
               occupancyByRoom={occupancyByRoom}
               blockByRoom={blockByRoom}
-              selectedRoomId={selectedRoomId}
-              onSelect={selectRoom}
-              onInspect={(room) => onInspectAssignment?.(room)}
+              canConfigure={canConfigure}
+              canBlockEdit={canBlockEdit}
+              canManageRestrictions={canManageRestrictions}
+              onAction={openRoomAction}
             />
           )}
           {filteredRooms.length > 0 ? (
@@ -631,97 +604,49 @@ export function RoomsDashboardTab({
           ) : null}
         </section>
 
-      <Sheet
-        open={Boolean(selectedRoom)}
-        onOpenChange={(open) => {
-          if (!open) setSelectedRoomId(null);
-        }}
-      >
-        <SheetContent side="right" className="w-[92vw] max-w-md p-0">
-          {detail}
-        </SheetContent>
-      </Sheet>
       </>
       )}
 
-      <Dialog
-        open={Boolean(restrictionTarget)}
-        onOpenChange={(open) => !open && setRestrictionTarget(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {restrictionTarget?.status === "available"
-                ? `Return room ${restrictionTarget.room.roomNumber} to service`
-                : `Set operational restriction`}
-            </DialogTitle>
-            <DialogDescription>
-              This action uses the canonical room restriction service and may enforce maintenance,
-              approval, or inspection requirements.
-            </DialogDescription>
-          </DialogHeader>
-          {restrictionTarget?.status !== "available" ? (
-            <div className="grid gap-4 py-2">
-              <PmsSelect
-                label="Restriction"
-                value={restrictionTarget?.status ?? "out_of_order"}
-                onChange={(val) =>
-                  setRestrictionTarget((current) =>
-                    current
-                      ? {
-                          ...current,
-                          status: val as "out_of_order" | "out_of_service",
-                        }
-                      : null,
-                  )
-                }
-                options={[
-                  ["out_of_order", "Out of Order"],
-                  ["out_of_service", "Out of Service"],
-                ]}
-              />
-              <label className="grid gap-1.5 text-xs font-medium">
-                Reason
-                <textarea
-                  value={restrictionReason}
-                  onChange={(event) => setRestrictionReason(event.target.value)}
-                  className="min-h-20 rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                  maxLength={500}
-                />
-              </label>
-              <label className="grid gap-1.5 text-xs font-medium">
-                Expected return
-                <input
-                  type="date"
-                  value={expectedReturn}
-                  onChange={(event) => setExpectedReturn(event.target.value)}
-                  className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
-                />
-              </label>
-            </div>
-          ) : null}
-          {restrictionMutation.isError ? (
-            <p className="text-sm text-destructive">{restrictionMutation.error.message}</p>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRestrictionTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={restrictionMutation.isPending}
-              onClick={() => restrictionMutation.mutate()}
-            >
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RoomRestrictionDialog
+        restaurantId={restaurantId}
+        target={restrictionTarget}
+        onClose={() => setRestrictionTarget(null)}
+      />
+      <RoomBlockDialog
+        restaurantId={restaurantId}
+        room={boardAction?.kind === "block" ? actionRoom : null}
+        open={boardAction?.kind === "block"}
+        onClose={() => setBoardAction(null)}
+      />
+      <RoomEligibilityDialog
+        restaurantId={restaurantId}
+        room={boardAction?.kind === "eligibility" ? actionRoom : null}
+        open={boardAction?.kind === "eligibility"}
+        onClose={() => setBoardAction(null)}
+      />
+      <RoomConfigurationDialog
+        restaurantId={restaurantId}
+        room={boardAction?.kind === "configuration" ? actionRoom : null}
+        roomTypes={roomTypesQuery.data ?? []}
+        open={boardAction?.kind === "configuration"}
+        onClose={() => setBoardAction(null)}
+      />
+      <RoomHistoryDialog
+        room={boardAction?.kind === "history" ? actionRoom : null}
+        events={eventsQuery.data ?? []}
+        loading={eventsQuery.isLoading}
+        failed={eventsQuery.isError}
+        open={boardAction?.kind === "history"}
+        onClose={() => setBoardAction(null)}
+      />
     </div>
   );
 }
 
 function KpiRow({
   metrics,
+  active,
+  onSelect,
 }: {
   metrics: {
     total: number;
@@ -731,9 +656,19 @@ function KpiRow({
     ooo: number;
     blocked: number;
   };
+  active: RoomKpiFilter;
+  onSelect?: ((filter: RoomKpiFilter) => void) | undefined;
 }) {
-  const cards = [
+  const cards: Array<{
+    id: RoomKpiFilter;
+    label: string;
+    value: number;
+    detail: string;
+    icon: typeof BedDouble;
+    tone: string;
+  }> = [
     {
+      id: "all",
       label: "Total Rooms",
       value: metrics.total,
       detail: "All rooms",
@@ -741,6 +676,7 @@ function KpiRow({
       tone: "bg-[#F4E9D0] text-[#8A641A]",
     },
     {
+      id: "available",
       label: "Available",
       value: metrics.available,
       detail: metricPercentage(metrics.available, metrics.total),
@@ -748,6 +684,7 @@ function KpiRow({
       tone: "bg-emerald-50 text-emerald-700",
     },
     {
+      id: "occupied",
       label: "Occupied",
       value: metrics.occupied,
       detail: metricPercentage(metrics.occupied, metrics.total),
@@ -755,6 +692,7 @@ function KpiRow({
       tone: "bg-blue-50 text-blue-700",
     },
     {
+      id: "dirty",
       label: "Dirty",
       value: metrics.dirty,
       detail: metricPercentage(metrics.dirty, metrics.total),
@@ -762,6 +700,7 @@ function KpiRow({
       tone: "bg-amber-50 text-amber-700",
     },
     {
+      id: "ooo",
       label: "OOO",
       value: metrics.ooo,
       detail: metricPercentage(metrics.ooo, metrics.total),
@@ -769,6 +708,7 @@ function KpiRow({
       tone: "bg-red-50 text-red-700",
     },
     {
+      id: "blocked",
       label: "Blocked",
       value: metrics.blocked,
       detail: metricPercentage(metrics.blocked, metrics.total),
@@ -782,27 +722,49 @@ function KpiRow({
       aria-label="Room inventory KPIs"
       data-testid="room-board-kpis"
     >
-      {cards.map((card) => (
-        <div
-          key={card.label}
-          className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
-        >
-          <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
-            <card.icon className="size-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
-            <p className="font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
-              {card.value.toLocaleString()}
-            </p>
-          </div>
-        </div>
-      ))}
+      {cards.map((card) => {
+        const selected = active === card.id;
+        return (
+          <button
+            key={card.id}
+            type="button"
+            aria-pressed={selected}
+            data-testid={`room-board-kpi-${card.id}`}
+            title={card.id === "all" ? "Show all rooms" : `Show ${card.label} rooms`}
+            onClick={() => onSelect?.(selected && card.id !== "all" ? "all" : card.id)}
+            className={cn(
+              "flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border bg-white px-2.5 py-2 text-left shadow-sm outline-none transition-colors",
+              "hover:border-[#C89933]/70 hover:bg-[#FBF7EE] focus-visible:ring-2 focus-visible:ring-[#C89933]",
+              selected && card.id !== "all"
+                ? "border-[#C89933] bg-[#FBF7EE] ring-1 ring-[#C89933]/30"
+                : "border-[#DDD4C5]",
+            )}
+          >
+            <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
+              <card.icon className="size-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[10px] font-medium text-[#756A5B]">{card.label}</span>
+              <span className="block font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+                {card.value.toLocaleString()}
+              </span>
+            </span>
+          </button>
+        );
+      })}
     </section>
   );
 }
 
-export function RoomBoardKpiStrip({ restaurantId }: { restaurantId: string }) {
+export function RoomBoardKpiStrip({
+  restaurantId,
+  activeFilter = "all",
+  onSelectFilter,
+}: {
+  restaurantId: string;
+  activeFilter?: RoomKpiFilter;
+  onSelectFilter?: (filter: RoomKpiFilter) => void;
+}) {
   const fetchDashboard = useServerFn(getRoomsDashboard);
   const fetchRooms = useServerFn(listRooms);
   const fetchOccupancy = useServerFn(listRoomBoardOccupancy);
@@ -857,7 +819,7 @@ export function RoomBoardKpiStrip({ restaurantId }: { restaurantId: string }) {
       </section>
     );
   }
-  return <KpiRow metrics={metrics} />;
+  return <KpiRow metrics={metrics} active={activeFilter} onSelect={onSelectFilter} />;
 }
 
 type Location = { name: string; count: number; floors: Array<[string, number]> };
@@ -1059,91 +1021,157 @@ function LocationNavigator({
   );
 }
 
+function RoomBoardMenu({
+  roomNumber,
+  canConfigure,
+  canBlockEdit,
+  canManageRestrictions,
+  onAction,
+  compact = false,
+}: {
+  roomNumber: string;
+  canConfigure: boolean;
+  canBlockEdit: boolean;
+  canManageRestrictions: boolean;
+  onAction: (kind: RoomBoardAction) => void;
+  compact?: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {compact ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-7 text-[#7A6B58] hover:text-[#251605]"
+            aria-label={`More actions for room ${roomNumber}`}
+          >
+            <MoreHorizontal className="size-3.5" />
+          </Button>
+        ) : (
+          <button
+            type="button"
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+            aria-label={`More actions for room ${roomNumber}`}
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="z-[60] w-56 text-xs">
+        {canManageRestrictions ? (
+          <DropdownMenuItem onSelect={() => onAction("restriction")} className="text-xs font-medium">
+            Set OOS / OOO
+          </DropdownMenuItem>
+        ) : null}
+        {canBlockEdit ? (
+          <DropdownMenuItem onSelect={() => onAction("block")} className="text-xs font-medium">
+            Block Room
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onSelect={() => onAction("eligibility")} className="text-xs font-medium">
+          Check Assignment Eligibility
+        </DropdownMenuItem>
+        {canConfigure ? (
+          <DropdownMenuItem onSelect={() => onAction("configuration")} className="text-xs font-medium">
+            Room Configuration
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onSelect={() => onAction("history")} className="text-xs font-medium">
+          View History
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function RoomCard({
   room,
   occupancy,
   block,
-  selected,
-  onSelect,
-  onInspect,
+  canConfigure,
+  canBlockEdit,
+  canManageRestrictions,
+  onAction,
 }: {
   room: HotelRoom;
   occupancy?: RoomBoardOccupancyRow | undefined;
   block?: RoomBoardBlockRow | undefined;
-  selected: boolean;
-  onSelect: () => void;
-  onInspect: () => void | undefined;
+  canConfigure: boolean;
+  canBlockEdit: boolean;
+  canManageRestrictions: boolean;
+  onAction: (kind: RoomBoardAction) => void;
 }) {
   const state = roomBoardPrimaryState(room, occupancy, block);
+  const maintenanceAttention = maintenanceNeedsAttention(room.maintenanceStatus);
   return (
     <article
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") onSelect();
-      }}
-      className={cn(
-        "min-w-0 cursor-pointer rounded-lg border p-3 transition-colors hover:bg-[#FAF7EF]",
-        selected ? "border-[#C89933] bg-[#F4E9D0]/70" : "border-[#DDD4C5] bg-white",
-      )}
+      data-testid="room-board-card"
+      className="min-w-0 rounded-lg border border-[#DDD4C5] bg-white p-3"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-base font-bold text-[#251605] leading-tight">{room.roomNumber}</p>
           <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
-            {room.roomTypeName || "No room type"}
+            {formatRoomTypeName(room.roomTypeName) || "No room type"}
           </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              onClick={(event) => event.stopPropagation()}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
-              aria-label={`Actions for room ${room.roomNumber}`}
-            >
-              <MoreHorizontal className="size-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="text-xs">
-            <DropdownMenuItem onSelect={onSelect} className="text-xs font-medium">View details</DropdownMenuItem>
-            <DropdownMenuItem onSelect={onInspect} className="text-xs font-medium">Inspect assignment</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RoomBoardMenu
+          roomNumber={room.roomNumber}
+          canConfigure={canConfigure}
+          canBlockEdit={canBlockEdit}
+          canManageRestrictions={canManageRestrictions}
+          onAction={onAction}
+        />
       </div>
       <span
         className={`mt-2.5 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${roomStateClasses(state)}`}
+        title="Operational status"
       >
         {ROOM_STATE_LABELS[state]}
       </span>
-      <div className="mt-3 border-t border-border/70 pt-2.5 text-xs space-y-1">
-        <StatusLine
-          label="HK"
-          value={room.housekeepingStatus?.replaceAll("_", " ") ?? "N/A"}
-          good={room.housekeepingStatus === "clean" || room.housekeepingStatus === "inspected"}
-        />
-        <StatusLine
-          label="Maint."
-          value={
-            room.maintenanceStatus === "normal"
-              ? "Good"
-              : room.maintenanceStatus.replaceAll("_", " ")
-          }
-          good={room.maintenanceStatus === "normal"}
-        />
+      <div className="mt-3 space-y-1.5 border-t border-border/70 pt-2.5 text-xs">
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <BrushCleaning className="size-3 shrink-0 text-[#8A7B68]" aria-hidden />
+          <span className="w-10 font-medium">HK</span>
+          <span
+            className={`size-2 shrink-0 rounded-full ${hkStatusDot(room.housekeepingStatus)}`}
+            aria-hidden
+          />
+          <span className="truncate font-semibold text-[#251605]">
+            {hkStatusLabel(room.housekeepingStatus)}
+          </span>
+        </p>
+        <p
+          className={cn(
+            "flex items-center gap-2 text-xs",
+            maintenanceAttention ? "-mx-1 rounded-md px-1 py-0.5" : "text-muted-foreground",
+          )}
+        >
+          <Wrench
+            className={cn("size-3 shrink-0", maintenanceAttention ? "text-orange-600" : "text-[#8A7B68]")}
+            aria-hidden
+          />
+          <span className="w-10 font-medium text-muted-foreground">Maint.</span>
+          {maintenanceAttention ? (
+            <span
+              className={cn(
+                "truncate rounded-full border px-2 py-0.5 text-[11px] font-bold",
+                maintenanceBadgeClasses(room.maintenanceStatus),
+              )}
+              data-testid="room-board-card-maintenance-alert"
+            >
+              {maintenanceStatusLabel(room.maintenanceStatus)}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2 font-medium text-[#756A5B]">
+              <span className="size-2 shrink-0 rounded-full bg-emerald-600" aria-hidden />
+              Good
+            </span>
+          )}
+        </p>
       </div>
     </article>
-  );
-}
-
-function StatusLine({ label, value, good }: { label: string; value: string; good: boolean }) {
-  return (
-    <p className="flex items-center gap-2 text-xs text-muted-foreground">
-      <span className={`size-2 shrink-0 rounded-full ${good ? "bg-emerald-600" : "bg-amber-500"}`} />
-      <span className="w-10 font-medium text-muted-foreground">{label}</span>
-      <span className="truncate capitalize font-semibold text-[#251605]">{value}</span>
-    </p>
   );
 }
 
@@ -1151,16 +1179,18 @@ function RoomList({
   rooms,
   occupancyByRoom,
   blockByRoom,
-  selectedRoomId,
-  onSelect,
-  onInspect,
+  canConfigure,
+  canBlockEdit,
+  canManageRestrictions,
+  onAction,
 }: {
   rooms: HotelRoom[];
   occupancyByRoom: Map<string, RoomBoardOccupancyRow>;
   blockByRoom: Map<string, RoomBoardBlockRow>;
-  selectedRoomId: string | null;
-  onSelect: (room: HotelRoom) => void;
-  onInspect: (room: HotelRoom) => void;
+  canConfigure: boolean;
+  canBlockEdit: boolean;
+  canManageRestrictions: boolean;
+  onAction: (room: HotelRoom, kind: RoomBoardAction) => void;
 }) {
   return (
     <div>
@@ -1183,17 +1213,13 @@ function RoomList({
               const state = roomBoardPrimaryState(room, occupancy, blockByRoom.get(room.id));
               const building = room.building?.trim() || "Unassigned";
               const floor = room.floor?.trim() || "Unassigned";
+              const maintenanceAttention = maintenanceNeedsAttention(room.maintenanceStatus);
               return (
-                <tr
-                  key={room.id}
-                  onClick={() => onSelect(room)}
-                  className={cn(
-                    "cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]",
-                    room.id === selectedRoomId && "bg-[#F4E9D0]/70",
-                  )}
-                >
+                <tr key={room.id} className="border-t border-border">
                   <td className="px-2 py-2.5 font-semibold text-[#251605]">{room.roomNumber}</td>
-                  <td className="px-2 py-2.5 text-[#251605]">{room.roomTypeName || "—"}</td>
+                  <td className="px-2 py-2.5 text-[#251605]">
+                    {formatRoomTypeName(room.roomTypeName) || "—"}
+                  </td>
                   <td className="px-2 py-2.5 text-[#7A6B58]">
                     {building} / {floor}
                   </td>
@@ -1204,29 +1230,42 @@ function RoomList({
                       {ROOM_STATE_LABELS[state]}
                     </span>
                   </td>
-                  <td className="px-2 py-2.5 capitalize text-[#251605]">
-                    {room.housekeepingStatus?.replaceAll("_", " ") ?? "—"}
+                  <td className="px-2 py-2.5 text-[#251605]">
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className={`size-2 shrink-0 rounded-full ${hkStatusDot(room.housekeepingStatus)}`}
+                        aria-hidden
+                      />
+                      {hkStatusLabel(room.housekeepingStatus)}
+                    </span>
                   </td>
-                  <td className="px-2 py-2.5 capitalize text-[#251605]">
-                    {room.maintenanceStatus === "normal" ? "Clear" : room.maintenanceStatus.replaceAll("_", " ")}
+                  <td className="px-2 py-2.5">
+                    {maintenanceAttention ? (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                          maintenanceBadgeClasses(room.maintenanceStatus),
+                        )}
+                      >
+                        <Wrench className="size-3" aria-hidden />
+                        {maintenanceStatusLabel(room.maintenanceStatus)}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 text-[#756A5B]">
+                        <span className="size-2 shrink-0 rounded-full bg-emerald-600" aria-hidden />
+                        Good
+                      </span>
+                    )}
                   </td>
-                  <td className="px-2 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="size-7 text-[#7A6B58] hover:text-[#251605]"
-                          aria-label={`Actions for room ${room.roomNumber}`}
-                        >
-                          <MoreHorizontal className="size-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="text-xs">
-                        <DropdownMenuItem onSelect={() => onSelect(room)}>View details</DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onInspect(room)}>Inspect assignment</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <td className="px-2 py-2.5 text-right">
+                    <RoomBoardMenu
+                      roomNumber={room.roomNumber}
+                      canConfigure={canConfigure}
+                      canBlockEdit={canBlockEdit}
+                      canManageRestrictions={canManageRestrictions}
+                      onAction={(kind) => onAction(room, kind)}
+                      compact
+                    />
                   </td>
                 </tr>
               );

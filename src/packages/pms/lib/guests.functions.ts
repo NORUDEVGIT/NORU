@@ -38,6 +38,7 @@ import {
 } from "./room-charge-guest-total";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 import {
+  identityDocumentDateIssue,
   kindFromTypeCode,
   maskedDocumentNumber,
   typeAllowedForNewDocument,
@@ -4057,6 +4058,7 @@ export function validateDocumentFields(
     issueDate?: string | null;
     expiryDate: string | null;
     issuingAuthority?: string | null;
+    today?: string;
   },
 ): string | null {
   if (type.documentNumberActive !== false && type.documentNumberRequired && !input.documentNumber)
@@ -4067,6 +4069,14 @@ export function validateDocumentFields(
     return "Issue date is required.";
   if (type.expiryDateActive !== false && type.expiryDateRequired && !input.expiryDate)
     return "Expiry date is required.";
+  const dates = identityDocumentDateIssue({
+    expiryDateActive: type.expiryDateActive,
+    issueDate: input.issueDate,
+    expiryDate: input.expiryDate,
+    today: input.today ?? propertyToday("UTC"),
+  });
+  if (dates.expiry) return dates.expiry;
+  if (dates.issue) return dates.issue;
   if (type.issuingAuthorityActive !== false && type.issuingAuthorityRequired && !input.issuingAuthority)
     return "Issuing authority is required.";
   return null;
@@ -4393,12 +4403,19 @@ export const saveGuestDocument = createServerFn({ method: "POST" })
       const issueDate = blankToNull(data.issueDate);
       const expiryDate = blankToNull(data.expiryDate);
       const issuingAuthority = blankToNull(data.issuingAuthority);
+      const { data: restaurant } = await context.supabase
+        .from("restaurants")
+        .select("timezone")
+        .eq("id", data.restaurantId)
+        .maybeSingle();
+      const today = propertyToday((restaurant as { timezone?: string } | null)?.timezone ?? "UTC");
       const requiredError = validateDocumentFields(type, {
         documentNumber,
         issuingCountry,
         issueDate,
         expiryDate,
         issuingAuthority,
+        today,
       });
       if (requiredError) return { ok: false as const, message: requiredError };
 

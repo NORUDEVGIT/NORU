@@ -117,9 +117,11 @@ describe("reservation create step 3 policies and payment layout", () => {
     assert.match(policies, /testId="guest-deposit"/);
   });
 
-  it("keeps Cancel, Back, and Continue to Review & Confirm", () => {
+  it("keeps Cancel on step 1, Back later, and Continue toward review", () => {
     assert.match(page, />\s*Cancel\s*</);
-    assert.match(page, /← Back/);
+    assert.match(page, />\s*Back\s*</);
+    assert.match(page, />\s*Continue\s*$/m);
+    assert.match(page, /Confirm Reservation/);
     assert.match(page, /Continue to Review & Confirm/);
   });
 

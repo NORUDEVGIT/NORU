@@ -1,35 +1,28 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, BedDouble, Check, Printer } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Printer, X } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
-import {
-  formatStayDate,
-  ReservationStatusBadge,
-} from "@/packages/pms/components/bookings/reservation-bits";
-import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
-import {
-  channelLabel,
-  DETAIL_DASH,
-  parseDepositRequirementSnapshot,
-  sourceLabel,
-} from "@/packages/pms/lib/reservation-detail-overview";
+import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import { parseDepositRequirementSnapshot } from "@/packages/pms/lib/reservation-detail-overview";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import {
   CANCEL_COMM_GAP,
+  CANCEL_DASH,
   CANCEL_REASON_OPTIONS,
   CANCEL_REFUND_CASHIERING,
   CANCEL_RESERVATION_STEPS,
   canConfirmCancelReservation,
   canContinueCancelReview,
   cancelFinanceRows,
+  cancelPolicyStaffCopy,
   cancelPolicyView,
   composeCancelReason,
   folioCreditExposure,
-  persistedSystemUpdates,
-  pickCancelledHistory,
   postedCancelFeeAmount,
   predictedSystemUpdates,
   type CancelReservationStepId,
@@ -48,15 +41,12 @@ import {
   waiveCancelOrNoShowFee,
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { CancellationSettlementPanel } from "@/packages/pms/components/frontoffice/cancellation-settlement-panel";
-import type { CompleteCancelResult } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import {
   getBookingsAccess,
   getReservation,
-  getRoomTypeAvailability,
 } from "@/packages/pms/lib/reservations.functions";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -67,6 +57,19 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+
+const CONTROL =
+  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none hover:border-[#8A641A] focus:border-[#8A641A] focus:outline-none focus:ring-1 focus:ring-[#8A641A]";
+const SELECT =
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus-visible:border-[#8A641A] focus-visible:ring-1 focus-visible:ring-[#8A641A]";
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  checked_in: "Checked in",
+  checked_out: "Checked out",
+  cancelled: "Cancelled",
+  no_show: "No-show",
+};
 
 function SectionCard({
   title,
@@ -80,7 +83,7 @@ function SectionCard({
   className?: string;
 }) {
   return (
-    <section className={cn("rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm", className)}>
+    <section className={cn("rounded-lg border border-[#DDD4C5] bg-white p-4", className)}>
       <header className="mb-3">
         <h2 className="text-sm font-semibold text-[#251605]">{title}</h2>
         {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
@@ -94,8 +97,8 @@ export function ReservationCancelWorkspace({
   membership,
   reservationId,
   onBackToDesk,
-  onOpenReservation,
-  finishLabel = "Go to Reservation Desk",
+  onOpenReservation: _onOpenReservation,
+  finishLabel: _finishLabel = "Go to Reservation Desk",
 }: {
   membership: RestaurantMembership;
   reservationId: string;
@@ -106,10 +109,9 @@ export function ReservationCancelWorkspace({
   const restaurantId = membership.restaurant.id;
   const queryClient = useQueryClient();
   const money = useMoney();
-  const { dateTime, timezone } = useRestaurantTime();
+  const { timezone } = useRestaurantTime();
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchReservation = useServerFn(getReservation);
-  const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchCommercial = useServerFn(getReservationCommercialAttribution);
   const fetchCancelCtx = useServerFn(getCancelNoShowContext);
   const submitCancel = useServerFn(completeFoCancel);
@@ -121,8 +123,6 @@ export function ReservationCancelWorkspace({
   const [step, setStep] = useState<CancelReservationStepId>("details");
   const [reason, setReason] = useState(CANCEL_REASON_OPTIONS[0].value);
   const [notes, setNotes] = useState("");
-  const [assignedBefore, setAssignedBefore] = useState<string | null>(null);
-  const [cancelResult, setCancelResult] = useState<CompleteCancelResult | null>(null);
 
   const accessQuery = useQuery({
     queryKey: ["bookings-access", restaurantId],
@@ -138,34 +138,6 @@ export function ReservationCancelWorkspace({
     retry: false,
   });
   const reservation = detailQuery.data?.reservation;
-  const history = detailQuery.data?.history ?? [];
-
-  useEffect(() => {
-    if (!reservation) return;
-    setAssignedBefore((current) => current ?? reservation.roomNumber);
-  }, [reservation]);
-
-  const availabilityQuery = useQuery({
-    queryKey: [
-      "room-type-availability",
-      restaurantId,
-      reservation?.arrivalDate,
-      reservation?.departureDate,
-      reservationId,
-      "cancel",
-    ],
-    queryFn: () =>
-      fetchAvailability({
-        data: {
-          restaurantId,
-          arrival: reservation!.arrivalDate,
-          departure: reservation!.departureDate,
-          excludeReservationId: reservationId,
-        },
-      }),
-    enabled: canManage && Boolean(reservation),
-    retry: false,
-  });
 
   const commercialQuery = useQuery({
     queryKey: ["reservation-commercial", restaurantId, reservationId, reservation?.roomSubtotal],
@@ -213,7 +185,7 @@ export function ReservationCancelWorkspace({
     feeSatisfied: posted || waived,
     creditBalance: credit,
     money: moneyFmt,
-    afterCancel: step === "complete",
+    afterCancel: false,
   });
   const reviewOk = Boolean(
     reservation && canContinueCancelReview({ status: reservation.status, reason: composedReason }),
@@ -282,159 +254,154 @@ export function ReservationCancelWorkspace({
         data: { restaurantId, reservationId, reason: composedReason },
       }),
     onSuccess: async (result) => {
-      setCancelResult(result);
       await queryClient.invalidateQueries({
         queryKey: ["reservation", restaurantId, reservationId],
       });
       await queryClient.invalidateQueries({ queryKey: ["fo-cancel-noshow"] });
-      toast.success("Reservation cancelled.");
-      setStep("complete");
+      await queryClient.invalidateQueries({ queryKey: ["cancellation-settlement-exceptions"] });
+      if (result.settlementError) {
+        toast.warning("Reservation cancelled. Folio settlement did not complete.", {
+          description: `${result.settlementError} Run settlement again from Folio settlement needed on Cancellations.`,
+        });
+      } else {
+        toast.success("Reservation cancelled.");
+      }
+      onBackToDesk();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   if (detailQuery.isError) {
     return (
-      <div className="grid h-full place-items-center p-8 text-sm text-destructive">
-        Could not load this reservation.
-      </div>
+      <CancelShell onClose={onBackToDesk}>
+        <p className="grid h-full place-items-center p-8 text-sm text-destructive">
+          Could not load this reservation.
+        </p>
+      </CancelShell>
     );
   }
   if (!reservation || !policy) {
     return (
-      <div className="grid h-full place-items-center p-8 text-sm text-muted-foreground">
-        Loading reservation…
-      </div>
+      <CancelShell onClose={onBackToDesk}>
+        <p className="grid h-full place-items-center p-8 text-sm text-[#6B5E4E]">
+          Loading reservation…
+        </p>
+      </CancelShell>
     );
   }
 
-  const coverUrl =
-    (availabilityQuery.data ?? []).find((row) => row.roomTypeId === reservation.roomTypeId)
-      ?.coverUrl ?? null;
   const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
-  const audit = pickCancelledHistory(history);
-  const roomReleased = step === "complete" && Boolean(assignedBefore) && !reservation.roomId;
-  const systemRows =
-    step === "complete"
-      ? persistedSystemUpdates({
-          status: reservation.status,
-          roomReleased,
-          assignedBefore,
-          historyRecorded: Boolean(audit),
-        })
-      : predictedSystemUpdates({
-          assignedRoom: reservation.roomNumber,
-          feeRequired,
-        });
+  const staffPolicy = cancelPolicyStaffCopy(policy);
+  const policyFolioCharge =
+    policy.outcome === "within_free"
+      ? null
+      : feeRequired && (ctx?.policy.defaultAmount ?? 0) > 0
+        ? `Cancellation fee: ${moneyFmt(ctx?.policy.defaultAmount ?? 0)}.`
+        : policy.outcome === "penalty_applies"
+          ? "This policy does not add a cancellation charge."
+          : null;
+  const systemRows = predictedSystemUpdates({
+    assignedRoom: reservation.roomNumber,
+    feeRequired,
+  });
+  const steps = CANCEL_RESERVATION_STEPS.filter((item) => item.id !== "complete");
+  const currentStep = steps.findIndex((row) => row.id === step);
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col bg-[#F7F4EE]"
+      className="flex min-h-0 flex-1 flex-col bg-[#FBF7F1]"
       data-testid="cancel-reservation-workspace"
     >
-      <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-xl font-semibold text-[#251605]">
-                {step === "complete"
-                  ? "Reservation Cancelled"
-                  : `Cancellation Review — ${reservation.confirmationNumber}`}
-              </h1>
-              <ReservationStatusBadge status={reservation.status} />
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {step === "complete"
-                ? "The reservation has been successfully cancelled."
-                : "Review cancellation policy, applicable charges, and confirm cancellation."}
-            </p>
-            {step === "complete" ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Reservation {reservation.confirmationNumber} · Cancelled{" "}
-                {dateTime(reservation.updatedAt)}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
+      <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate font-display text-sm font-semibold text-[#F3E9D8]">
+            {reservation.confirmationNumber}
+          </h1>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-[#F3E9D8]">
+            {STATUS_LABELS[reservation.status] ?? reservation.status}
+          </span>
+          <span className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              data-testid="cancel-reservation-print"
+              aria-label="Print"
+              className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+              onClick={() => window.print()}
+            >
+              <Printer className="size-4" />
+            </button>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenReservation(reservation.id)}
+              size="icon"
+              variant="ghost"
+              className="size-8 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+              onClick={onBackToDesk}
+              aria-label="Close cancellation"
             >
-              View Reservation
+              <X className="size-4" />
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-              <Printer className="size-3.5" />
-              Print
-            </Button>
-          </div>
+          </span>
         </div>
-        <ol className="mt-4 grid grid-cols-3 gap-2" data-testid="cancel-reservation-stepper">
-          {CANCEL_RESERVATION_STEPS.map((item, index) => {
-            const current = CANCEL_RESERVATION_STEPS.findIndex((row) => row.id === step);
+        <p className="mt-0.5 truncate text-[11px] text-[#C4B6A0]">
+          Cancel reservation · {formatStayDate(reservation.arrivalDate)} →{" "}
+          {formatStayDate(reservation.departureDate)} · {reservation.guestName}
+        </p>
+      </header>
+      <nav
+        aria-label="Cancel reservation workflow"
+        className="flex h-9 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-[#DDD4C5] bg-white px-2"
+        data-testid="cancel-reservation-stepper"
+      >
+        <ol className="flex min-w-0 items-stretch">
+          {steps.map((item, index) => {
             const active = item.id === step;
+            const completed = index < currentStep;
             return (
-              <li
-                key={item.id}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-sm",
-                  active ? "border-[#1F6FEB] bg-[#EEF4FF]" : "border-[#E6DFD4] bg-white",
-                )}
-              >
-                <p
+              <li key={item.id} className="flex">
+                <button
+                  type="button"
+                  title={item.hint}
+                  aria-current={active ? "step" : undefined}
+                  disabled={item.id === "confirm" && !reviewOk}
+                  onClick={() => {
+                    if (item.id === "details") setStep("details");
+                    if (item.id === "confirm" && reviewOk) setStep("confirm");
+                  }}
                   className={cn(
-                    "font-medium",
-                    index <= current ? "text-[#1F6FEB]" : "text-[#251605]",
+                    "relative flex h-full items-center gap-1 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] disabled:cursor-default",
+                    completed && "text-[#436436]",
+                    active && "text-[#251605]",
+                    !completed && !active && "text-muted-foreground",
                   )}
                 >
-                  {index + 1}. {item.label}
-                </p>
-                <p className="text-xs text-muted-foreground">{item.hint}</p>
+                  {completed ? <Check className="size-3" /> : <span className="tabular-nums">{index + 1}</span>}
+                  <span className="whitespace-nowrap">{item.label}</span>
+                  {completed ? (
+                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                  ) : null}
+                  {active ? (
+                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                  ) : null}
+                </button>
               </li>
             );
           })}
         </ol>
-      </header>
+      </nav>
 
-      {step === "complete" ? (
-        <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <p className="font-semibold">Cancellation Completed</p>
-          <p>
-            The reservation was cancelled and its folio was settled. Room and package charges
-            that are no longer billable were reversed. Deposits and payments stay on the folio.
-          </p>
-        </div>
-      ) : null}
-
-      <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          <div
-            className={cn("grid gap-4", step === "complete" ? "xl:grid-cols-2" : "xl:grid-cols-2")}
-          >
-            <SectionCard
-              title={step === "complete" ? "Cancelled Reservation Details" : "Reservation Details"}
-            >
-              <div className="flex gap-3">
-                {coverUrl ? (
-                  <img src={coverUrl} alt="" className="h-24 w-32 rounded-lg object-cover" />
-                ) : (
-                  <div className="grid h-24 w-32 place-items-center rounded-lg bg-[#F4E9D0] text-[#765719]">
-                    <BedDouble className="size-8" />
-                  </div>
-                )}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-5">
+        {step === "details" ? (
+          <div className="grid gap-4 xl:grid-cols-2">
+            <SectionCard title="Reservation Details">
+              <dl className="grid gap-2 text-sm sm:grid-cols-2">
                 <div>
-                  <p className="font-semibold text-[#251605]">{reservation.roomTypeName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {reviewDash(reservation.ratePlanName)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {reservation.adults} Adults · 1 Room · {reservation.nights} nights
-                    {reservation.roomNumber ? ` · Room ${reservation.roomNumber}` : " · Unassigned"}
-                  </p>
+                  <dt className="text-xs text-muted-foreground">Guest</dt>
+                  <dd>{reservation.guestName}</dd>
                 </div>
-              </div>
-              <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs text-muted-foreground">Reservation No.</dt>
+                  <dd>{reservation.confirmationNumber}</dd>
+                </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">Stay Dates</dt>
                   <dd>
@@ -443,256 +410,128 @@ export function ReservationCancelWorkspace({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Reservation No.</dt>
-                  <dd>{reservation.confirmationNumber}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Guest</dt>
-                  <dd>{reservation.guestName}</dd>
-                </div>
-                <div>
                   <dt className="text-xs text-muted-foreground">Assigned room</dt>
-                  <dd>
-                    {reservation.roomNumber ? `Room ${reservation.roomNumber}` : "Unassigned"}
-                  </dd>
+                  <dd>{reservation.roomNumber ? `Room ${reservation.roomNumber}` : "Unassigned"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Room type</dt>
+                  <dd>{reservation.roomTypeName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Rate plan</dt>
+                  <dd>{reviewDash(reservation.ratePlanName)}</dd>
                 </div>
               </dl>
             </SectionCard>
-
-            {step === "complete" ? (
-              <SectionCard title="Cancellation Information">
-                <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Reason for Cancellation</dt>
-                    <dd>{reviewDash(reservation.cancellationReason ?? composedReason)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Additional Notes</dt>
-                    <dd>{reviewDash(notes)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Cancelled By</dt>
-                    <dd>{reviewDash(audit?.actorName)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Date & Time</dt>
-                    <dd>
-                      {audit?.createdAt
-                        ? dateTime(audit.createdAt)
-                        : dateTime(reservation.updatedAt)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Reference</dt>
-                    <dd>{reservation.confirmationNumber}</dd>
-                  </div>
-                </dl>
-              </SectionCard>
-            ) : (
-              <SectionCard title="Cancellation Policy">
-                <p className="text-sm font-medium text-[#251605]">{policy.name}</p>
-                <p className="text-sm text-muted-foreground">{policy.deadlineLabel}</p>
-                <div
-                  className={cn(
-                    "mt-3 rounded-lg px-3 py-2 text-sm",
-                    policy.outcome === "within_free"
-                      ? "bg-emerald-50 text-emerald-800"
-                      : policy.outcome === "penalty_applies"
-                        ? "bg-amber-50 text-amber-900"
-                        : "bg-[#F7F4EE] text-muted-foreground",
-                  )}
-                >
-                  {policy.outcomeLabel}.
-                  {policy.outcome === "within_free"
-                    ? " No cancellation fee is charged."
-                    : feeRequired && (ctx?.policy.defaultAmount ?? 0) > 0
-                      ? ` Folio charge: ${moneyFmt(ctx?.policy.defaultAmount ?? 0)}.`
-                      : policy.outcome === "penalty_applies"
-                        ? " This policy does not add a cancellation charge."
-                        : ""}
+            <PolicyCard policyName={policy.name} staff={staffPolicy} penaltyRule={policy.outcome === "penalty_applies" ? policy.penaltyRule : CANCEL_DASH} folioCharge={policyFolioCharge} />
+            <SectionCard title="Cancellation Reason">
+              <div className="grid gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Reason for Cancellation</Label>
+                  <Select value={reason} onValueChange={setReason}>
+                    <SelectTrigger className={SELECT}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CANCEL_REASON_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Penalty rule: {policy.penaltyRule}
-                </p>
-              </SectionCard>
-            )}
+                <div className="grid gap-1.5">
+                  <Label>Additional Notes (Optional)</Label>
+                  <Textarea
+                    rows={3}
+                    maxLength={500}
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    className={cn(CONTROL, "h-auto min-h-16 py-2")}
+                  />
+                  <p className="text-right text-[11px] text-muted-foreground">{notes.length}/500</p>
+                </div>
+              </div>
+            </SectionCard>
+            <CommunicationNote />
+          </div>
+        ) : null}
 
-            <SectionCard title={step === "complete" ? "Financial Summary" : "Financial Impact"}>
-              <table className="w-full text-sm" data-testid="cancel-finance-table">
-                <thead className="text-left text-[11px] uppercase text-muted-foreground">
-                  <tr>
-                    <th className="py-2">Description</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {financeRows.map((row) => (
-                    <tr key={row.description} className="border-t border-[#EEE7DC]">
-                      <td className="py-2">{row.description}</td>
-                      <td>{row.amount}</td>
-                      <td>{row.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-2 text-xs text-muted-foreground">{CANCEL_REFUND_CASHIERING}</p>
+        {step === "confirm" ? (
+          <div className="grid gap-4 xl:grid-cols-2">
+            <PolicyCard policyName={policy.name} staff={staffPolicy} penaltyRule={policy.outcome === "penalty_applies" ? policy.penaltyRule : CANCEL_DASH} folioCharge={policyFolioCharge} />
+            <SectionCard title="Financial Impact">
+              <ul className="divide-y divide-[#E8DFD0] text-sm" data-testid="cancel-finance-table">
+                {financeRows.map((row) => (
+                  <li key={row.description} className="flex items-baseline justify-between gap-3 py-1.5">
+                    <span className="text-[#5C4E3E]">{row.description}</span>
+                    <span className="text-right">
+                      <span className="font-medium text-[#251605]">{row.amount}</span>
+                      <span className="ml-2 text-xs text-[#6B5E4E]">{row.status}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-[#6B5E4E]">{CANCEL_REFUND_CASHIERING}</p>
               {credit != null && credit > 0 ? (
-                <Button type="button" variant="outline" size="sm" className="mt-2" asChild>
-                  <a href={cashieringRefundHref(ctx?.folio.folioNumber)}>
-                    {REFUND_IN_CASHIERING_CTA}
-                  </a>
+                <Button type="button" variant="outline" size="sm" className="mt-2 h-8" asChild>
+                  <a href={cashieringRefundHref(ctx?.folio.folioNumber)}>{REFUND_IN_CASHIERING_CTA}</a>
                 </Button>
               ) : null}
               {deposit?.amount != null ? (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Stored deposit requirement: {moneyFmt(deposit.amount)}. Not a refund posting.
+                <p className="mt-2 text-xs text-[#6B5E4E]">
+                  Stored deposit requirement: {moneyFmt(deposit.amount)}. This is not a refund.
                 </p>
               ) : null}
               <div className="mt-3 border-t border-[#EEE7DC] pt-3">
                 <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-                  {step === "complete" ? "Folio settlement" : "Folio after cancellation"}
+                  Folio after cancellation
                 </p>
-                {step === "complete" ? (
-                  cancelResult ? (
-                    <CancellationSettlementPanel
-                      restaurantId={restaurantId}
-                      reservationId={reservationId}
-                      kind="cancel"
-                      mode="result"
-                      settlement={cancelResult.settlement}
-                      settlementError={cancelResult.settlementError}
-                    />
-                  ) : null
-                ) : (
-                  <CancellationSettlementPanel
-                    restaurantId={restaurantId}
-                    reservationId={reservationId}
-                    kind="cancel"
-                    mode="preview"
-                  />
-                )}
+                <CancellationSettlementPanel
+                  restaurantId={restaurantId}
+                  reservationId={reservationId}
+                  kind="cancel"
+                  mode="preview"
+                />
               </div>
             </SectionCard>
-
-            <div className="grid gap-4">
-              {step !== "complete" ? (
-                <SectionCard title="Room Inventory Impact">
-                  <ul className="space-y-2 text-sm">
-                    <li className="flex gap-2">
-                      <Check className="mt-0.5 size-4 text-emerald-600" />
-                      {reservation.roomNumber
-                        ? `Room ${reservation.roomNumber} (${reservation.roomTypeName}) will be released back to inventory.`
-                        : "No assigned room to release."}
-                    </li>
-                    <li className="flex gap-2">
-                      <Check className="mt-0.5 size-4 text-emerald-600" />
-                      Availability is updated because the reservation leaves the live inventory set.
-                    </li>
-                  </ul>
-                </SectionCard>
-              ) : null}
-
-              <SectionCard
-                title={step === "complete" ? "System Updates" : "Related System Updates"}
-              >
-                <ul className="space-y-2 text-sm">
-                  {systemRows.map((row) => (
-                    <li key={row.id} className="flex gap-2">
-                      <Check
-                        className={cn(
-                          "mt-0.5 size-4",
-                          row.guaranteed ? "text-emerald-600" : "text-muted-foreground",
-                        )}
-                      />
-                      <span>
-                        <span className="font-medium">{row.title}</span>
-                        <span className="block text-xs text-muted-foreground">{row.detail}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </SectionCard>
-
-              {step === "complete" ? (
-                <SectionCard title="Communication">
-                  <p className="text-sm text-muted-foreground">{CANCEL_COMM_GAP}</p>
-                </SectionCard>
-              ) : (
-                <>
-                  <SectionCard title="Cancellation Reason">
-                    <div className="grid gap-3">
-                      <div className="grid gap-1.5">
-                        <Label>Reason for Cancellation</Label>
-                        <Select value={reason} onValueChange={setReason}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CANCEL_REASON_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-1.5">
-                        <Label>Additional Notes (Optional)</Label>
-                        <Textarea
-                          rows={3}
-                          maxLength={500}
-                          value={notes}
-                          onChange={(event) => setNotes(event.target.value)}
-                        />
-                        <p className="text-right text-[11px] text-muted-foreground">
-                          {notes.length}/500
-                        </p>
-                      </div>
-                    </div>
-                  </SectionCard>
-                  <SectionCard title="Communication">
-                    <div className="space-y-2 text-sm">
-                      <label className="flex items-center gap-2 text-muted-foreground">
-                        <Checkbox disabled checked={false} />
-                        Send cancellation email to guest
-                      </label>
-                      <label className="flex items-center gap-2 text-muted-foreground">
-                        <Checkbox disabled checked={false} />
-                        Send notification to company / travel agent
-                      </label>
-                      <label className="flex items-center gap-2 text-muted-foreground">
-                        <Checkbox disabled checked={false} />
-                        Send internal notification to staff
-                      </label>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">{CANCEL_COMM_GAP}</p>
-                  </SectionCard>
-                </>
-              )}
-            </div>
-          </div>
-
-          {step === "confirm" ? (
-            <SectionCard
-              className="mt-4"
-              title="Confirm cancellation"
-              subtitle="Nothing is written until you confirm."
-            >
-              <dl className="grid gap-2 text-sm sm:grid-cols-2">
+            <SectionCard title="Room Inventory Impact">
+              <ul className="space-y-2 text-sm">
+                <li className="flex gap-2">
+                  <Check className="mt-0.5 size-4 text-[#436436]" />
+                  {reservation.roomNumber
+                    ? `Room ${reservation.roomNumber} (${reservation.roomTypeName}) will be released back to inventory.`
+                    : "No assigned room to release."}
+                </li>
+                <li className="flex gap-2">
+                  <Check className="mt-0.5 size-4 text-[#436436]" />
+                  The room becomes available for other reservations on these dates.
+                </li>
+              </ul>
+            </SectionCard>
+            <SectionCard title="Related System Updates">
+              <ul className="space-y-2 text-sm">
+                {systemRows.map((row) => (
+                  <li key={row.id} className="flex gap-2">
+                    <Check className="mt-0.5 size-4 text-[#436436]" />
+                    <span>
+                      <span className="font-medium text-[#251605]">{row.title}</span>
+                      <span className="block text-xs text-[#6B5E4E]">{row.detail}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+            <SectionCard title="Cancellation Reason" subtitle="This reason will be saved with the cancellation.">
+              <dl className="grid gap-2 text-sm">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Reason</dt>
+                  <dt className="text-xs text-muted-foreground">Reason for Cancellation</dt>
                   <dd>{composedReason}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Policy outcome</dt>
-                  <dd>{policy.outcomeLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Room release</dt>
-                  <dd>
-                    {reservation.roomNumber ? `Room ${reservation.roomNumber}` : "Unassigned"}
-                  </dd>
+                  <dt className="text-xs text-muted-foreground">Additional Notes</dt>
+                  <dd>{reviewDash(notes)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">Fee</dt>
@@ -708,11 +547,11 @@ export function ReservationCancelWorkspace({
                 </div>
               </dl>
               {feeRequired && !posted && !waived ? (
-                <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <div className="mt-3 rounded-lg bg-[#F4E9D0] px-3 py-2 text-sm text-[#251605]">
                   <p>{FEE_REQUIRED_BANNER}</p>
                   {(ctx?.policy.defaultAmount ?? 0) > 0 ? (
                     <p className="mt-1 text-xs">
-                      Frozen policy amount: {moneyFmt(ctx?.policy.defaultAmount ?? 0)}
+                      Cancellation fee from policy: {moneyFmt(ctx?.policy.defaultAmount ?? 0)}
                     </p>
                   ) : null}
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -721,6 +560,7 @@ export function ReservationCancelWorkspace({
                         type="button"
                         variant="outline"
                         size="sm"
+                        className="h-8"
                         disabled={ensureFolio.isPending}
                         onClick={() => ensureFolio.mutate()}
                       >
@@ -732,6 +572,7 @@ export function ReservationCancelWorkspace({
                         type="button"
                         variant="outline"
                         size="sm"
+                        className="h-8"
                         disabled={postFee.isPending}
                         onClick={() => postFee.mutate()}
                       >
@@ -743,6 +584,7 @@ export function ReservationCancelWorkspace({
                         type="button"
                         variant="outline"
                         size="sm"
+                        className="h-8"
                         disabled={waive.isPending}
                         onClick={() => waive.mutate()}
                       >
@@ -753,80 +595,21 @@ export function ReservationCancelWorkspace({
                 </div>
               ) : null}
             </SectionCard>
-          ) : null}
-        </div>
-
-        <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-[#DDD4C5] bg-white p-4 xl:block">
-          <h2 className="text-sm font-semibold text-[#251605]">Reservation Summary</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            {step === "complete"
-              ? "This reservation has been cancelled."
-              : "This summary will be cancelled."}
-          </p>
-          <div className="space-y-4 text-sm">
-            <div className="flex gap-2">
-              <span className="grid size-10 place-items-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
-                {guestInitials(reservation.guestName)}
-              </span>
-              <div>
-                <p className="font-medium">{reservation.guestName}</p>
-                <p className="text-xs text-muted-foreground">{reservation.confirmationNumber}</p>
-                <p className="text-xs">{reviewDash(reservation.guestPhone)}</p>
-                <p className="text-xs">{reviewDash(reservation.guestEmail)}</p>
-              </div>
-            </div>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Stay Information
-              </p>
-              <p>
-                {formatStayDate(reservation.arrivalDate)} →{" "}
-                {formatStayDate(reservation.departureDate)} ({reservation.nights} nights)
-              </p>
-            </section>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Room & Rate Information
-              </p>
-              {coverUrl ? (
-                <img src={coverUrl} alt="" className="mb-2 h-20 w-full rounded-lg object-cover" />
-              ) : null}
-              <p className="font-medium">{reservation.roomTypeName}</p>
-              <p className="text-xs text-muted-foreground">
-                {reviewDash(reservation.ratePlanName)}
-              </p>
-              <p className="font-semibold">
-                {reservation.roomSubtotal == null
-                  ? DETAIL_DASH
-                  : moneyFmt(reservation.roomSubtotal)}
-              </p>
-            </section>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Additional Information
-              </p>
-              <p>Source {sourceLabel(reservation.source, reservation.commercialBookingSource)}</p>
-              <p>Channel {channelLabel(reservation.source, reservation.salesChannel)}</p>
-              <p>Company {reviewDash(reservation.companyName)}</p>
-              <p>Travel Agent {reviewDash(reservation.travelAgentName)}</p>
-            </section>
-            <p className="border-t border-[#EEE7DC] pt-3 text-sm font-semibold">
-              Total Amount{" "}
-              {reservation.roomSubtotal == null ? DETAIL_DASH : moneyFmt(reservation.roomSubtotal)}
-            </p>
+            <CommunicationNote />
           </div>
-        </aside>
+        ) : null}
       </div>
 
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white px-5 py-3">
+      <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#E8DFD0] bg-white px-4 py-2">
         {step === "details" ? (
           <>
-            <Button type="button" variant="ghost" onClick={onBackToDesk}>
+            <Button type="button" variant="ghost" className="h-9 text-[#4a2c1a]" onClick={onBackToDesk}>
               <ArrowLeft className="size-3.5" />
               Back
             </Button>
             <Button
               type="button"
+              className={SHELL_PRIMARY_BUTTON}
               disabled={!reviewOk || !isStayCancellable(reservation.status)}
               onClick={() => setStep("confirm")}
             >
@@ -834,16 +617,16 @@ export function ReservationCancelWorkspace({
               <ArrowRight className="size-3.5" />
             </Button>
           </>
-        ) : null}
-        {step === "confirm" ? (
+        ) : (
           <>
-            <Button type="button" variant="ghost" onClick={() => setStep("details")}>
+            <Button type="button" variant="ghost" className="h-9 text-[#4a2c1a]" onClick={() => setStep("details")}>
               <ArrowLeft className="size-3.5" />
-              Back to Reservation
+              Back
             </Button>
             <Button
               type="button"
               variant="destructive"
+              className="h-9"
               disabled={!confirmOk || cancelMut.isPending}
               onClick={() => cancelMut.mutate()}
             >
@@ -851,20 +634,76 @@ export function ReservationCancelWorkspace({
               <ArrowRight className="size-3.5" />
             </Button>
           </>
-        ) : null}
-        {step === "complete" ? (
-          <>
-            <Button type="button" variant="ghost" onClick={() => onOpenReservation(reservation.id)}>
-              <ArrowLeft className="size-3.5" />
-              Back to Reservation
-            </Button>
-            <Button type="button" onClick={onBackToDesk}>
-              {finishLabel}
-              <ArrowRight className="size-3.5" />
-            </Button>
-          </>
-        ) : null}
+        )}
       </footer>
     </div>
+  );
+}
+
+function CancelShell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[#FBF7F1]" data-testid="cancel-reservation-workspace">
+      <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-sm font-semibold text-[#F3E9D8]">Cancel reservation</h1>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="ml-auto size-8 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+            onClick={onClose}
+            aria-label="Close cancellation"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      </header>
+      {children}
+    </div>
+  );
+}
+
+function PolicyCard({
+  policyName,
+  staff,
+  penaltyRule,
+  folioCharge,
+}: {
+  policyName: string;
+  staff: { headline: string; detail: string };
+  penaltyRule: string;
+  folioCharge: string | null;
+}) {
+  const penalty = staff.headline === "Cancellation penalty applies";
+  return (
+    <SectionCard title="Cancellation Policy">
+      <p className="text-sm font-medium text-[#251605]">{policyName}</p>
+      <div
+        className={cn(
+          "mt-3 rounded-lg px-3 py-2 text-sm",
+          penalty ? "bg-[#F4E9D0] text-[#251605]" : "bg-[#F7F4EE] text-[#251605]",
+        )}
+      >
+        <p className="font-semibold">{staff.headline}</p>
+        <p className="mt-1">{staff.detail}</p>
+        {folioCharge ? <p className="mt-1 font-medium">{folioCharge}</p> : null}
+      </div>
+      {penalty && penaltyRule !== CANCEL_DASH ? (
+        <p className="mt-2 text-xs text-[#6B5E4E]">Penalty rule: {penaltyRule}</p>
+      ) : null}
+    </SectionCard>
+  );
+}
+
+function CommunicationNote() {
+  return (
+    <SectionCard title="Communication" subtitle="Not available from this cancellation.">
+      <p className="text-sm text-[#5C4E3E]">{CANCEL_COMM_GAP}</p>
+      <ul className="mt-2 space-y-1 text-sm text-[#6B5E4E]">
+        <li>Cancellation email to the guest — not available</li>
+        <li>Company or travel agent notification — not available</li>
+        <li>Internal staff notification — not available</li>
+      </ul>
+    </SectionCard>
   );
 }

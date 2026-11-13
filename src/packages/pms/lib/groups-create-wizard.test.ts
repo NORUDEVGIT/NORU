@@ -12,6 +12,8 @@ import {
   canSelectGroupCreateStep,
   emptyAllotmentRow,
   emptyGroupCreateDraft,
+  groupProfileMasterPatch,
+  groupTypeFromProfileName,
   executeGroupBlockCreate,
   GB05_NON_ATOMIC_CREATE_DEBT,
   GROUP_CREATE_INVENTORY_IMPACT,
@@ -74,6 +76,7 @@ function sampleGroup(partial: Partial<GroupRecord> = {}): GroupRecord {
 function validDraft(partial: Partial<GroupCreateDraft> = {}): GroupCreateDraft {
   return {
     ...emptyGroupCreateDraft(),
+    groupProfileId: "profile-1",
     name: "Crew allotment",
     groupType: "corporate",
     status: "definite",
@@ -109,9 +112,14 @@ describe("GB05 Create Group / Block wizard", () => {
   });
 
   it("renders supported group fields and omits unsupported policy or financial fields", () => {
+    expect(wizardUi).toContain('data-testid="group-profile-search"');
+    expect(wizardUi).toContain('data-testid="create-group-profile"');
+    expect(wizardUi).toContain("GuestGroupCreateModal");
+    expect(wizardUi).toContain("groupProfileMasterPatch");
+    expect(wizardUi).toContain('accountType: "group"');
     expect(wizardUi).toContain('data-testid="group-create-name"');
     expect(wizardUi).toContain('data-testid="group-create-code"');
-    expect(wizardUi).toContain('data-testid="group-create-type"');
+    expect(wizardUi).toContain('testId="group-create-type"');
     expect(wizardUi).toContain('data-testid="group-create-status"');
     expect(wizardUi).toContain('data-testid="group-create-arrival"');
     expect(wizardUi).toContain('data-testid="group-create-departure"');
@@ -122,7 +130,11 @@ describe("GB05 Create Group / Block wizard", () => {
     expect(wizardUi).toContain('data-testid="group-create-rate-plan"');
     expect(wizardUi).toContain("Preferred group rate plan");
     expect(wizardUi).toContain("Group leader");
-    expect(wizardUi).toContain("Internal notes");
+    expect(wizardUi).toContain("Stay notes");
+    expect(wizardUi).not.toContain("View Profile");
+    expect(wizardUi).toContain("Change Profile");
+    expect(wizardUi).toContain("Default source");
+    expect(wizardUi).toContain("Profile notes");
     expect(wizardUi).not.toMatch(
       /deposit requirement|cancellation policy|no-show policy|billing instructions|routing instructions|master folio|negotiated/i,
     );
@@ -141,12 +153,87 @@ describe("GB05 Create Group / Block wizard", () => {
     expect(validateGroupCreateDetails(validDraft({ departureDate: "2026-11-10" }))).toBe(
       "Departure must be after arrival.",
     );
+    expect(validateGroupCreateDetails(validDraft({ groupProfileId: null }))).toBe(
+      "Select a group profile.",
+    );
     expect(GROUP_CREATE_STATUSES).toEqual(["tentative", "definite"]);
     expect(wizardUi).toContain('value="tentative"');
     expect(wizardUi).toContain('value="definite"');
     expect(wizardUi).not.toContain('value="cancelled"');
     expect(wizardUi).not.toContain('value="completed"');
-    expect(wizardUi).toContain("Active room blocks still hold inventory");
+    expect(wizardUi).toContain("does not release held rooms");
+  });
+
+  it("copies group profile master details and sends the profile id", () => {
+    const draft = validDraft({
+      arrivalDate: "2026-12-01",
+      departureDate: "2026-12-04",
+      status: "tentative",
+      ratePlanId: "rate-stay",
+      cutoffDate: "2026-11-20",
+      allotments: [emptyAllotmentRow("2026-12-01", "2026-12-04", "keep")],
+    });
+    expect(groupTypeFromProfileName("Corporate")).toBe("corporate");
+    const patch = groupProfileMasterPatch(
+      draft,
+      {
+        id: "master-9",
+        name: "Summit",
+        code: "SUM",
+        notes: "Reusable profile",
+        groupTypeName: "Association",
+        companyMasterId: "co-1",
+        companyMasterName: "Summit Co",
+        travelAgentMasterId: null,
+        travelAgentMasterName: null,
+        primaryContactGuestId: "guest-1",
+        primaryContactName: "Ada",
+        sourceCodeId: "src-1",
+        marketSegmentId: "seg-1",
+      },
+      {
+        sources: [{ id: "src-1", code: "CORP" }],
+        segments: [{ id: "seg-1", code: "MEET" }],
+      },
+    );
+    expect(patch).toMatchObject({
+      groupProfileId: "master-9",
+      name: "Summit",
+      code: "SUM",
+      profileNotes: "Reusable profile",
+      profileGroupTypeName: "Association",
+      groupType: "association",
+      profileSource: "CORP",
+      profileSourceName: "CORP",
+      profileMarketSegment: "MEET",
+      profileMarketSegmentName: "MEET",
+      company: { id: "co-1", name: "Summit Co" },
+      leader: { id: "guest-1", name: "Ada" },
+      travelAgent: null,
+    });
+    expect(patch).not.toHaveProperty("arrivalDate");
+    expect(patch).not.toHaveProperty("ratePlanId");
+    expect(patch).not.toHaveProperty("cutoffDate");
+    expect(patch).not.toHaveProperty("allotments");
+    expect(patch).not.toHaveProperty("source");
+    expect(patch).not.toHaveProperty("marketSegment");
+    expect(patch).not.toHaveProperty("notes");
+    const selected = { ...draft, ...patch, notes: "Block note" };
+    expect(toGroupCreateCommand("rest-1", selected).groupAccountMasterId).toBe("master-9");
+    expect(toGroupCreateCommand("rest-1", selected)).toMatchObject({
+      arrivalDate: "2026-12-01",
+      departureDate: "2026-12-04",
+      status: "tentative",
+      ratePlanId: "rate-stay",
+      cutoffDate: "2026-11-20",
+      source: "CORP",
+      marketSegment: "MEET",
+      notes: "Block note",
+    });
+    expect(toGroupCreateCommand("rest-1", { ...selected, source: "WALK", marketSegment: "LEIS" })).toMatchObject({
+      source: "WALK",
+      marketSegment: "LEIS",
+    });
   });
 
   it("binds stay validation in CreateGroupWizard so the availability memo cannot throw ReferenceError", () => {
@@ -173,13 +260,16 @@ describe("GB05 Create Group / Block wizard", () => {
     ).toEqual([{ arrival: "2026-11-10", departure: "2026-11-12" }]);
   });
 
-  it("reuses existing company, travel-agent, guest, and rate-plan reads", () => {
-    expect(wizardUi).toContain("CreateReservationMasterPicker");
-    expect(wizardUi).toContain('kind="company"');
-    expect(wizardUi).toContain('kind="travel_agent"');
-    expect(wizardUi).toContain("listGuests");
-    expect(wizardUi).toContain('data-testid="group-leader-picker"');
-    expect(wizardUi).not.toContain("View Profile");
+  it("reads company, travel agency, and leader from the group profile and still lists rate plans", () => {
+    expect(wizardUi).not.toContain("GuestGroupQuickViewDrawer");
+    expect(wizardUi).not.toContain('data-testid="view-group-profile"');
+    expect(wizardUi).toContain('data-testid="change-group-profile"');
+    expect(wizardUi).toContain("Change Profile");
+    expect(wizardUi).toContain('testId="group-leader-picker"');
+    expect(wizardUi).toContain('testId="group-profile-company"');
+    expect(wizardUi).toContain('testId="group-profile-travel-agency"');
+    expect(wizardUi).not.toContain("CreateReservationMasterPicker");
+    expect(wizardUi).not.toContain("CreateReservationGuest");
     expect(wizardUi).toContain("listRatePlans");
     expect(wizardUi).toContain("activeOnly: true");
     expect(wizardUi).not.toContain("baseRate");
@@ -255,7 +345,7 @@ describe("GB05 Create Group / Block wizard", () => {
     expect(wizardUi).not.toContain("pms_create_operational_block");
     expect(wizardUi).not.toContain("addGroupBlock for");
     const reviewStart = wizardUi.indexOf("function GroupReviewStep");
-    const reviewEnd = wizardUi.indexOf("function GroupCreateSummary");
+    const reviewEnd = wizardUi.indexOf("function catalogueLabel");
     const reviewChunk = wizardUi.slice(reviewStart, reviewEnd);
     expect(reviewChunk).not.toContain("<Input");
     expect(reviewChunk).not.toContain("<Select");
@@ -309,6 +399,9 @@ describe("GB05 Create Group / Block wizard", () => {
     });
     expect(wizardUi).toContain("if (busy || detailsIssue) return");
     expect(wizardUi).toContain("disabled={busy || Boolean(allotmentIssue)}");
+    expect(wizardUi).toContain("Print Confirmation");
+    expect(wizardUi).toContain("printGroupBlockConfirmation");
+    expect(wizardUi).not.toContain("window.print(");
     expect(wizardUi).toContain("Create Group & Block");
     expect(wizardUi).toContain("Creating group…");
     expect(wizardUi).toContain("Creating allotment…");

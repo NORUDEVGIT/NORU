@@ -25,7 +25,7 @@ export function CreateReservationGroupContext({
 }) {
   const emptyCopy = noActiveAllotmentCopy(hasActiveBlocks);
   return (
-    <section className={cn(PMS_OP_PANEL, "p-3")} data-testid="create-reservation-group-context">
+    <section className={cn(PMS_OP_PANEL, "!rounded-lg !border-[#DDD4C5] !shadow-none p-3")} data-testid="create-reservation-group-context">
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         Group context
       </p>

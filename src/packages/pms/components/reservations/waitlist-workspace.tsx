@@ -142,6 +142,8 @@ export function WaitlistWorkspace({
   restaurantId,
   search = "",
   onSearchChange: _onSearchChange,
+  rangeStart,
+  rangeEnd,
   canWrite,
   onOpenReservation,
 }: {
@@ -149,6 +151,9 @@ export function WaitlistWorkspace({
   /** Search text (guest, request number, notes). Owned by the parent so the header search can drive it too. */
   search?: string;
   onSearchChange?: (value: string) => void;
+  /** Shared Reservations week. Requests whose stay overlaps it are loaded. */
+  rangeStart: string;
+  rangeEnd: string;
   canWrite: boolean;
   onOpenReservation: (reservationId: string) => void;
 }) {
@@ -178,12 +183,14 @@ export function WaitlistWorkspace({
   const [menuDraft, setMenuDraft] = useState<WaitlistMenuDraft>(DEFAULT_MENU_DRAFT);
 
   const listQuery = useQuery({
-    queryKey: ["pms-waitlist", restaurantId, status],
+    queryKey: ["pms-waitlist", restaurantId, status, rangeStart, rangeEnd],
     queryFn: () =>
       loadList({
         data: {
           restaurantId,
           status: status === "all" ? undefined : status,
+          stayOverlapStart: rangeStart,
+          stayOverlapEnd: rangeEnd,
         },
       }) as Promise<{ requests: WaitlistListRow[] }>,
     placeholderData: keepPreviousData,

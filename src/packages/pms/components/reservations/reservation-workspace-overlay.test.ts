@@ -22,13 +22,6 @@ const createPage = readFileSync(
   resolve(process.cwd(), "src/packages/pms/components/bookings/create-reservation-page.tsx"),
   "utf8",
 );
-const confirmation = readFileSync(
-  resolve(
-    process.cwd(),
-    "src/packages/pms/components/bookings/create-reservation-confirmation.tsx",
-  ),
-  "utf8",
-);
 const route = readFileSync(
   resolve(process.cwd(), "src/routes/restaurant/bookings/new.tsx"),
   "utf8",
@@ -93,13 +86,13 @@ describe("Phase 1 workspace overlay routing", () => {
     expect(overlay).not.toContain("RoomInventoryChrome");
   });
 
-  it("keeps create confirmation inside the overlay and can return to the Desk", () => {
-    expect(createPage).toContain("onOpenCreatedReservation");
-    expect(createPage).toContain("onReturnToDesk");
+  it("closes the create wizard back to the Desk after a successful confirm", () => {
+    expect(createPage).toContain("onReturnToDesk()");
+    expect(createPage).toContain("toast.success(`Reservation ${result.confirmationNumber} created`)");
+    expect(createPage).not.toContain("<CreateReservationConfirmation");
     expect(createPage).toContain("embedded = false");
-    expect(confirmation).toContain("Return to Reservation Desk");
-    expect(confirmation).toContain("onCreateAnother");
-    expect(workspace).toContain("onOpenCreatedReservation={(reservationId) => {");
+    expect(workspace).toContain("onCreated={() => invalidateReservationReads()}");
+    expect(workspace).toContain("onReturnToDesk={() => closeWorkspaceOverlay(false)}");
   });
 
   it("does not route Desk folio actions to the Cashiering page", () => {
@@ -130,8 +123,8 @@ describe("Phase 1 workspace overlay routing", () => {
     expect(createPage).toContain("Review & Confirm");
     expect(createPage).toContain("<CreateReservationReview");
     expect(createPage).toContain('data-testid="create-reservation-stepper"');
-    expect(createPage).toContain("CREATE_RESERVATION_PENDING_LABEL");
-    expect(createPage).toContain("CREATE_RESERVATION_CONFIRM_LABEL");
+    expect(createPage).toContain("Confirm Reservation");
+    expect(createPage).toContain('data-testid="confirm-guarantee"');
   });
 
   it("gives embedded Detail one header, Overview, and no All reservations chrome", () => {

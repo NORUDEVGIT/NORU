@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  BedDouble,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleSlash2,
   Ellipsis,
-  ExternalLink,
-  Hammer,
   Layers3,
   RefreshCw,
+  X,
 } from "lucide-react";
 
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
@@ -24,14 +22,9 @@ import {
   type RoomTypeInventoryAvailability,
 } from "@/packages/pms/lib/room-inventory.functions";
 import { listRooms, type HotelRoom } from "@/packages/pms/lib/rooms.functions";
+import { maintenanceStatusLabel } from "@/packages/pms/components/rooms/room-board-utils";
 import { Button } from "@/shared/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
+import { cn } from "@/shared/lib/utils";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { CompactSelect, InventoryState } from "./room-inventory-shared";
 import {
@@ -57,10 +50,8 @@ interface CalendarGroup {
 
 interface RestrictionNote {
   id: string;
-  type: "out_of_order" | "out_of_service" | "maintenance";
+  label: string;
   target: string;
-  dates: string;
-  impact: string;
 }
 
 const INK = "#251605";
@@ -147,13 +138,9 @@ function cellState({
 export function RoomInventoryCalendarView({
   restaurantId,
   propertyName,
-  onViewAffectedRooms,
-  onEditBlocks,
 }: {
   restaurantId: string;
   propertyName: string;
-  onViewAffectedRooms: (search: string) => void;
-  onEditBlocks: () => void;
 }) {
   const loadBusinessDate = useServerFn(getPropertyBusinessDate);
   const loadAvailability = useServerFn(listRoomTypeInventoryAvailability);
@@ -165,7 +152,7 @@ export function RoomInventoryCalendarView({
   const [roomTypeId, setRoomTypeId] = useState("all");
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const initializedFromBusinessDate = useRef(false);
   const periodEnd = periodStart ? monthEnd(periodStart) : "";
@@ -340,10 +327,8 @@ export function RoomInventoryCalendarView({
         return [
           {
             id: `${room.id}-ooo`,
-            type: "out_of_order" as const,
-            target: `Room ${room.roomNumber}`,
-            dates: dateLabel(businessDate),
-            impact: "Operational status removes this room from current sellable inventory.",
+            label: "Out of Order",
+            target: room.roomNumber,
           },
         ];
       }
@@ -351,10 +336,8 @@ export function RoomInventoryCalendarView({
         return [
           {
             id: `${room.id}-oos`,
-            type: "out_of_service" as const,
-            target: `Room ${room.roomNumber}`,
-            dates: dateLabel(businessDate),
-            impact: "Operational status removes this room from current sellable inventory.",
+            label: "Out of Service",
+            target: room.roomNumber,
           },
         ];
       }
@@ -362,16 +345,14 @@ export function RoomInventoryCalendarView({
         return [
           {
             id: `${room.id}-maintenance`,
-            type: "maintenance" as const,
-            target: `Room ${room.roomNumber}`,
-            dates: dateLabel(businessDate),
-            impact: `Maintenance condition: ${titleCase(room.maintenanceStatus)}.`,
+            label: maintenanceStatusLabel(room.maintenanceStatus),
+            target: room.roomNumber,
           },
         ];
       }
       return [];
     });
-  }, [businessDate, selectedRooms, showCurrentRestrictions]);
+  }, [selectedRooms, showCurrentRestrictions]);
 
   function movePeriod(amount: number) {
     if (!periodStart) return;
@@ -389,7 +370,7 @@ export function RoomInventoryCalendarView({
   function selectCell(row: RoomTypeInventoryAvailability, date: string) {
     setSelectedTypeId(row.roomTypeId);
     setSelectedDate(date);
-    setMobileSummaryOpen(true);
+    setSummaryOpen(true);
   }
 
   const panelProps = {
@@ -408,8 +389,7 @@ export function RoomInventoryCalendarView({
     blocksLoading: blocksQuery.isLoading,
     blocksError: blocksQuery.isError,
     restrictions: restrictionNotes,
-    onViewAffectedRooms: () => onViewAffectedRooms(selectedRow?.name ?? selectedBuilding),
-    onEditBlocks,
+    onClose: () => setSummaryOpen(false),
   } satisfies CalendarSummaryPanelProps;
 
   const loading =
@@ -421,8 +401,7 @@ export function RoomInventoryCalendarView({
     );
   }
 
-  const calendarFilterCount =
-    (building !== "all" ? 1 : 0) + (roomTypeId !== "all" ? 1 : 0);
+  const calendarFilterCount = (building !== "all" ? 1 : 0) + (roomTypeId !== "all" ? 1 : 0);
   const calendarControls = (
     <div className="flex min-w-0 flex-1 items-center gap-1.5">
       <Button
@@ -487,7 +466,9 @@ export function RoomInventoryCalendarView({
       <PmsFilterChoiceRow
         label="Room Type"
         value={roomTypeId}
-        current={(availabilityQuery.data ?? []).find((row) => row.roomTypeId === roomTypeId)?.name ?? ""}
+        current={
+          (availabilityQuery.data ?? []).find((row) => row.roomTypeId === roomTypeId)?.name ?? ""
+        }
         options={[
           ["all", "All Room Types"],
           ...(availabilityQuery.data ?? []).map((row) => [row.roomTypeId, row.name] as const),
@@ -515,16 +496,18 @@ export function RoomInventoryCalendarView({
           testId="calendar-refresh"
         />
       </RoomShellSlot>
-      <CalendarLegend />
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="min-w-0 flex-1 space-y-3">
+          <CalendarLegend />
 
-      <section className="overflow-hidden rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
+          <section className="overflow-hidden rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
             {loading ? (
               <InventoryState state="loading" />
             ) : availabilityQuery.isError ? (
               <InventoryState
                 state="error"
                 title="Calendar could not be loaded"
-                description="The canonical monthly room-type availability request failed."
+                description="Monthly availability could not be loaded."
                 onRetry={() => availabilityQuery.refetch()}
               />
             ) : visibleRows.length === 0 ? (
@@ -546,20 +529,26 @@ export function RoomInventoryCalendarView({
               />
             )}
           </section>
-          <p className="text-xs text-muted-foreground">
-            Building groups show where each room type exists. Availability remains the canonical
-            property-wide room-type value; room types spanning buildings are grouped separately.
-          </p>
+        </div>
 
-      <Sheet open={mobileSummaryOpen} onOpenChange={setMobileSummaryOpen}>
-        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
-          <SheetHeader className="sr-only">
-            <SheetTitle>Calendar inventory summary</SheetTitle>
-            <SheetDescription>Selected room type and date calendar details.</SheetDescription>
-          </SheetHeader>
-          <CalendarSummaryPanel {...panelProps} />
-        </SheetContent>
-      </Sheet>
+        {summaryOpen ? (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 bg-[#251605]/40 lg:hidden"
+              aria-label="Close inventory details"
+              onClick={() => setSummaryOpen(false)}
+            />
+            <aside
+              className="fixed inset-y-0 right-0 z-50 w-[360px] max-w-full overflow-y-auto border-l border-[#DDD4C5] bg-white shadow-xl lg:sticky lg:inset-auto lg:top-3 lg:z-auto lg:h-[calc(100vh-11.5rem)] lg:max-h-[calc(100vh-11.5rem)] lg:shrink-0 lg:rounded-lg lg:border lg:shadow-sm"
+              data-testid="calendar-detail-drawer"
+              aria-label="Inventory details"
+            >
+              <CalendarSummaryPanel {...panelProps} />
+            </aside>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -637,7 +626,12 @@ function CalendarControls({
         >
           <ChevronRight className="size-4" />
         </Button>
-        <Button size="sm" variant="outline" className="h-9 px-3.5 text-xs font-medium" onClick={onToday}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 px-3.5 text-xs font-medium"
+          onClick={onToday}
+        >
           Today
         </Button>
         <CompactSelect
@@ -689,17 +683,21 @@ function CalendarLegend() {
     ],
   ];
   return (
-    <section className="grid grid-cols-2 gap-3 rounded-lg border border-[#E5DED4] bg-white p-3 shadow-sm sm:grid-cols-3 xl:grid-cols-6">
+    <section
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-[#E5DED4] bg-white px-2.5 py-1.5 shadow-sm"
+      aria-label="Calendar legend"
+    >
       {items.map(([label, detail, color]) => (
-        <div key={label} className="flex items-center gap-2.5">
-          <span className={`size-3.5 shrink-0 rounded-full ${color}`} />
-          <div>
-            <p className="text-xs font-bold" style={{ color: INK }}>
-              {label}
-            </p>
-            <p className="text-[11px] text-muted-foreground">{detail}</p>
-          </div>
-        </div>
+        <span
+          key={label}
+          title={detail}
+          className="inline-flex items-center gap-1.5 text-[11px] text-[#5C5346]"
+        >
+          <span className={`size-2.5 shrink-0 rounded-full ${color}`} />
+          <span className="font-semibold" style={{ color: INK }}>
+            {label}
+          </span>
+        </span>
       ))}
     </section>
   );
@@ -725,43 +723,58 @@ function CalendarMatrix({
   onSelect: (row: RoomTypeInventoryAvailability, date: string) => void;
 }) {
   return (
-    <div className="max-h-[calc(100vh-310px)] overflow-auto">
-      <table className="min-w-max border-collapse text-xs">
-        <thead className="sticky top-0 z-30 bg-white">
-          <tr className="border-b border-[#DDD5CA]">
-            <th className="sticky left-0 z-40 w-48 min-w-48 bg-white px-3 py-2.5 text-left text-xs font-bold text-[#251605]">
+    <div className="max-h-[calc(100vh-250px)] overflow-auto">
+      <table
+        className="w-full border-separate border-spacing-0 text-xs"
+        style={{ minWidth: `calc(18rem + ${Math.max(dates.length, 1)} * 2.75rem)` }}
+      >
+        <thead className="sticky top-0 z-30 bg-white shadow-[0_1px_0_#DDD5CA]">
+          <tr>
+            <th className="sticky left-0 z-40 w-48 min-w-48 max-w-48 border-b border-r border-[#DDD5CA] bg-white px-3 py-2.5 text-left text-xs font-bold text-[#251605]">
               Room Type
             </th>
-            <th className="sticky left-48 z-40 w-24 min-w-24 bg-white px-2 py-2.5 text-center text-xs font-bold text-[#251605]">
+            <th className="sticky left-48 z-40 w-24 min-w-24 max-w-24 border-b border-r border-[#DDD5CA] bg-white px-2 py-2.5 text-center text-xs font-bold text-[#251605] shadow-[1px_0_0_#DDD4C5]">
               Total Rooms
             </th>
             <th
               colSpan={dates.length}
-              className="border-l border-[#E8E1D7] px-3 py-2.5 text-left text-sm font-bold"
+              className="border-b border-l border-[#E8E1D7] bg-white px-3 py-2.5 text-left text-sm font-bold"
               style={{ color: INK }}
             >
               {monthLabel(dates[0] ?? businessDate)}
             </th>
           </tr>
           <tr className="border-b border-[#DDD5CA]">
-            <th className="sticky left-0 z-40 bg-white" />
-            <th className="sticky left-48 z-40 bg-white" />
+            <th className="sticky left-0 z-40 border-b border-r border-[#DDD5CA] bg-white" />
+            <th className="sticky left-48 z-40 border-b border-r border-[#DDD5CA] bg-white shadow-[1px_0_0_#DDD4C5]" />
             {dates.map((date) => {
               const parsed = new Date(`${date}T00:00:00Z`);
               const weekend = parsed.getUTCDay() === 0 || parsed.getUTCDay() === 6;
+              const today = date === businessDate;
+              const selectedColumn = date === selectedDate;
               return (
                 <th
                   key={date}
-                  className={`min-w-10 border-l border-[#EEE8E0] px-1.5 py-2 text-center ${
-                    date === selectedDate
-                      ? "bg-[#FBF1DA]"
-                      : date === businessDate
-                        ? "bg-[#F8F2E7]"
-                        : "bg-white"
-                  } ${weekend ? "text-[#7D5E27]" : "text-muted-foreground"}`}
+                  className={cn(
+                    "min-w-11 w-[1%] border-b border-l border-[#EEE8E0] px-1 py-1.5 text-center",
+                    selectedColumn
+                      ? "bg-[#F8E7C2] text-[#1F140A]"
+                      : today
+                        ? "bg-[#F4E4C4] text-[#251605]"
+                        : weekend
+                          ? "bg-[#F6F1E8] text-[#7D5E27]"
+                          : "bg-white text-muted-foreground",
+                  )}
                 >
-                  <span className="block text-xs font-bold">{parsed.getUTCDate()}</span>
-                  <span className="block text-[10px] font-medium">
+                  <span
+                    className={cn(
+                      "mx-auto grid size-6 place-items-center text-xs font-bold",
+                      today && "rounded-full bg-[#C89933] text-[#1F140A]",
+                    )}
+                  >
+                    {parsed.getUTCDate()}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] font-medium">
                     {parsed.toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" })}
                   </span>
                 </th>
@@ -810,9 +823,9 @@ function CalendarGroupRows({
 }) {
   return (
     <>
-      <tr className="border-y border-[#DDD5CA] bg-[#F7F3ED]">
+      <tr className="bg-[#F7F3ED]">
         <td
-          className="sticky left-0 z-20 w-48 min-w-48 bg-[#F7F3ED] px-3 py-2 text-xs font-bold"
+          className="sticky left-0 z-20 w-48 min-w-48 max-w-48 border-y border-r border-[#DDD5CA] bg-[#F7F3ED] px-3 py-2 text-xs font-bold"
           style={{ color: INK }}
         >
           <span className="flex items-center gap-1.5">
@@ -820,21 +833,23 @@ function CalendarGroupRows({
             {group.name}
           </span>
         </td>
-        <td className="sticky left-48 z-20 w-24 min-w-24 bg-[#F7F3ED] px-2 py-2 text-center text-xs font-bold text-[#251605]">
+        <td className="sticky left-48 z-20 w-24 min-w-24 max-w-24 border-y border-r border-[#DDD5CA] bg-[#F7F3ED] px-2 py-2 text-center text-xs font-bold text-[#251605] shadow-[1px_0_0_#DDD4C5]">
           {group.roomCount}
         </td>
-        <td colSpan={dates.length} className="bg-[#F7F3ED]" />
+        <td colSpan={dates.length} className="border-y border-[#DDD5CA] bg-[#F7F3ED]" />
       </tr>
       {group.rows.map((row) => {
         const typeRooms = rooms.filter((room) => room.roomTypeId === row.roomTypeId);
         const typeBlocks = blocks.filter((block) => block.roomTypeId === row.roomTypeId);
         return (
-          <tr key={row.roomTypeId} className="border-b border-[#EEE8E0]">
+          <tr key={row.roomTypeId}>
             <td
               role="button"
               tabIndex={0}
-              className={`sticky left-0 z-20 w-48 min-w-48 cursor-pointer bg-white px-4 py-2.5 text-xs font-semibold text-[#251605] ${
-                selectedTypeId === row.roomTypeId ? "border-l-[3px] border-l-[#C89933] bg-[#FFFCF5]" : ""
+              className={`sticky left-0 z-20 w-48 min-w-48 max-w-48 cursor-pointer border-b border-r border-[#EEE8E0] bg-white px-4 py-2.5 text-xs font-semibold text-[#251605] ${
+                selectedTypeId === row.roomTypeId
+                  ? "border-l-[3px] border-l-[#C89933] bg-[#FFFCF5]"
+                  : ""
               }`}
               onClick={() => onSelect(row, selectedDate)}
               onKeyDown={(event) => {
@@ -847,8 +862,8 @@ function CalendarGroupRows({
               {row.name}
             </td>
             <td
-              className="sticky left-48 z-20 w-24 min-w-24 bg-white px-2 py-2.5 text-center text-xs font-medium text-[#5C5346]"
-              title={`Canonical sellable pool: ${row.physicalCapacity}`}
+              className="sticky left-48 z-20 w-24 min-w-24 max-w-24 border-b border-r border-[#EEE8E0] bg-white px-2 py-2.5 text-center text-xs font-medium text-[#5C5346] shadow-[1px_0_0_#DDD4C5]"
+              title={`${typeRooms.length} rooms of this type`}
             >
               {typeRooms.length}
             </td>
@@ -894,10 +909,19 @@ function CalendarCell({
   selected: boolean;
   onSelect: (row: RoomTypeInventoryAvailability, date: string) => void;
 }) {
+  const [tip, setTip] = useState<{ left: number; top: number; above: boolean } | null>(null);
   if (!night) {
-    return <td className="border-l border-[#EEE8E0] bg-zinc-50 px-1 py-2 text-center text-xs text-muted-foreground">—</td>;
+    return (
+      <td className="min-w-11 w-[1%] border-b border-l border-[#EEE8E0] bg-zinc-50 px-1 py-2 text-center text-xs text-muted-foreground">
+        —
+      </td>
+    );
   }
   const state = cellState({ night, date, businessDate, rooms, blocks });
+  const weekend = [0, 6].includes(new Date(`${date}T00:00:00Z`).getUTCDay());
+  const today = date === businessDate;
+  const restricted = today ? rooms.filter(isRestrictedRoom).length : null;
+  const blocked = nightlyBlocked(night);
   const colors: Record<CalendarState, string> = {
     healthy: "bg-emerald-100/80 text-emerald-900 font-semibold",
     low: "bg-amber-100 text-amber-900 font-semibold",
@@ -907,15 +931,33 @@ function CalendarCell({
     contains_restricted:
       "bg-[repeating-linear-gradient(135deg,#E4E4E7_0_4px,#FAFAFA_4px_8px)] text-zinc-800 font-semibold",
   };
+  function showTip(target: HTMLElement) {
+    const rect = target.getBoundingClientRect();
+    const above = rect.top > 96;
+    setTip({
+      left: Math.min(window.innerWidth - 176, Math.max(8, rect.left + rect.width / 2 - 80)),
+      top: above ? rect.top - 8 : rect.bottom + 8,
+      above,
+    });
+  }
   return (
     <td
       role="button"
       tabIndex={0}
-      aria-label={`${row.name}, ${compactDate(date)}, ${night.available} available, ${titleCase(state)}`}
-      className={`cursor-pointer border-l border-[#EEE8E0] px-1 py-2 text-center text-xs ${colors[state]} ${
-        selected ? "ring-2 ring-inset ring-[#C89933]" : ""
-      } ${date === businessDate && !selected ? "border-t-2 border-t-[#C89933]" : ""}`}
+      aria-label={`${row.name}, ${compactDate(date)}, available ${night.available}, total ${night.physicalCapacity}, blocked ${blocked}, restricted ${restricted ?? "not shown"}, ${titleCase(state)}`}
+      className={cn(
+        "relative min-w-11 w-[1%] cursor-pointer border-b border-l border-[#EEE8E0] px-1 py-2 text-center text-xs",
+        selected
+          ? "bg-[#C89933] font-bold text-[#1F140A] ring-2 ring-inset ring-[#8A641A]"
+          : colors[state],
+        !selected && weekend && "shadow-[inset_0_-2px_0_#C8B48A]",
+        !selected && today && "ring-1 ring-inset ring-[#C89933]",
+      )}
       onClick={() => onSelect(row, date)}
+      onMouseEnter={(event) => showTip(event.currentTarget)}
+      onMouseLeave={() => setTip(null)}
+      onFocus={(event) => showTip(event.currentTarget)}
+      onBlur={() => setTip(null)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -924,6 +966,25 @@ function CalendarCell({
       }}
     >
       {night.available}
+      {tip && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              role="tooltip"
+              className="pointer-events-none fixed z-[80] w-40 rounded-md border border-[#DDD4C5] bg-[#1F140A] px-2.5 py-1.5 text-left text-[11px] leading-4 text-[#FBF7F1] shadow-lg"
+              style={{
+                left: tip.left,
+                top: tip.top,
+                transform: tip.above ? "translateY(-100%)" : undefined,
+              }}
+            >
+              <p>Available {night.available}</p>
+              <p>Total {night.physicalCapacity}</p>
+              <p>Blocked {blocked}</p>
+              <p>Restricted {restricted ?? "—"}</p>
+            </div>,
+            document.body,
+          )
+        : null}
     </td>
   );
 }
@@ -951,8 +1012,7 @@ interface CalendarSummaryPanelProps {
   blocksLoading: boolean;
   blocksError: boolean;
   restrictions: RestrictionNote[];
-  onViewAffectedRooms: () => void;
-  onEditBlocks: () => void;
+  onClose: () => void;
 }
 
 function CalendarSummaryPanel({
@@ -971,49 +1031,55 @@ function CalendarSummaryPanel({
   blocksLoading,
   blocksError,
   restrictions,
-  onViewAffectedRooms,
-  onEditBlocks,
+  onClose,
 }: CalendarSummaryPanelProps) {
-  const affectedCount = restrictions.length + blocks.length;
+  const quiet = !blocksLoading && !blocksError && restrictions.length === 0 && blocks.length === 0;
   return (
-    <div className="min-h-full bg-white p-4">
-      <header className="border-b border-[#E8E1D7] pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-xl font-bold" style={{ color: INK }}>
+    <div className="min-h-full bg-white">
+      <header className="border-b border-[#E8E1D7] px-4 py-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-display text-lg font-bold leading-tight" style={{ color: INK }}>
               {compactDate(selectedDate)}
             </h2>
-            <p className="mt-1 text-xs text-muted-foreground">{propertyName}</p>
-            <p className="text-xs font-medium text-[#5C5346]">
+            <p className="mt-1 text-xs leading-4 text-[#5C5346]">
+              {propertyName}
+              {" · "}
               {selectedBuilding}
               {selectedRow ? ` · ${selectedRow.name}` : ""}
             </p>
           </div>
-          <span className="rounded-full bg-[#F4EFE7] px-2.5 py-1 text-xs font-semibold text-[#5F492D]">
+          <span className="mt-0.5 shrink-0 rounded-full bg-[#F4EFE7] px-2.5 py-1 text-xs font-semibold text-[#5F492D]">
             1 night
           </span>
+          <button
+            type="button"
+            aria-label="Close"
+            className="grid size-8 shrink-0 place-items-center rounded-md text-[#251605] hover:bg-[#F3EEE4]"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </button>
         </div>
       </header>
 
-      <section className="border-b border-[#E8E1D7] py-4">
-        <h3 className="text-xs font-bold" style={{ color: INK }}>
+      <section className="border-b border-[#E8E1D7] px-4 py-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
           Inventory Summary
         </h3>
-        <dl className="mt-2 divide-y divide-[#EEE8E0]">
+        <dl className="mt-1">
           <SummaryLine label="Physical Capacity" value={masterCapacity} />
           <SummaryLine
             label="Out of Order"
             value={outOfOrder ?? "—"}
-            hint={selectedDate !== businessDate ? "Business date only" : undefined}
+            hint={selectedDate !== businessDate ? "Business date" : undefined}
           />
           <SummaryLine
             label="Out of Service"
             value={outOfService ?? "—"}
-            hint={selectedDate !== businessDate ? "Business date only" : undefined}
+            hint={selectedDate !== businessDate ? "Business date" : undefined}
           />
           <SummaryLine label="Total Sellable Inventory" value={summary.physical} />
-        </dl>
-        <dl className="mt-3 divide-y divide-[#EEE8E0]">
           <SummaryLine
             label="Reserved / Demand"
             value={summary.demand}
@@ -1034,84 +1100,57 @@ function CalendarSummaryPanel({
             value={summary.blocked}
             percentage={percent(summary.blocked, summary.physical)}
           />
-          <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
-            <dt className="font-semibold">Remaining Available</dt>
-            <dd className="flex items-center gap-3 font-bold">
-              <span className="text-sm">{summary.available}</span>
-              <span>{percent(summary.available, summary.physical)}</span>
+          <div className="mt-1.5 flex items-center justify-between rounded-md bg-[#F4E9D0] px-3 py-2 text-[#251605] ring-1 ring-[#C89933]">
+            <dt className="text-sm font-bold">Remaining Available</dt>
+            <dd className="flex items-baseline gap-2">
+              <span className="font-display text-xl font-bold leading-none">
+                {summary.available}
+              </span>
+              <span className="text-xs font-semibold text-[#8A641A]">
+                {percent(summary.available, summary.physical)}
+              </span>
             </dd>
           </div>
         </dl>
         {selectedNight ? (
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Values map directly to canonical nightly availability for the selected date.
-          </p>
+          <p className="mt-1.5 text-[11px] text-[#756A5B]">Availability for the selected date.</p>
         ) : null}
       </section>
 
-      <section className="py-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold" style={{ color: INK }}>
-            Operational Notes
-          </h3>
-          {affectedCount > 0 ? (
-            <span className="text-xs text-muted-foreground">{affectedCount} items</span>
-          ) : null}
-        </div>
-        <div className="mt-2.5 space-y-2.5">
-          {restrictions.map((note) => (
-            <RestrictionCard key={note.id} note={note} />
-          ))}
-          {blocksLoading ? (
-            <p className="py-4 text-center text-xs text-muted-foreground">Loading blocks…</p>
-          ) : blocksError ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              Block details require owner or manager access. Canonical cell availability remains
-              available.
-            </div>
-          ) : (
-            blocks.map((block) => (
-              <BlockNote
-                key={block.id}
-                block={block}
-                roomNumber={
-                  block.roomId
-                    ? (roomNumbers.get(block.roomId) ?? null)
-                    : null
-                }
-                roomTypeName={selectedRow?.name ?? null}
-              />
-            ))
-          )}
-          {!blocksLoading && !blocksError && blocks.length === 0 && restrictions.length === 0 ? (
-            <p className="py-5 text-center text-xs text-muted-foreground">
-              No current restrictions or operational blocks affect this selection.
-            </p>
-          ) : null}
-          {selectedDate !== businessDate && restrictions.length === 0 ? (
-            <p className="text-[11px] leading-4 text-muted-foreground">
-              Room-level OOO/OOS status is only available for the property business date; it is not
-              reconstructed for future dates.
-            </p>
-          ) : null}
-        </div>
+      <section className="px-4 py-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
+          Operational Notes
+        </h3>
+        {quiet ? (
+          <p className="mt-1 text-xs text-[#5C5346]">No current restrictions.</p>
+        ) : (
+          <div className="mt-2 space-y-2">
+            {restrictions.length > 0 ? <RestrictionBreakdown notes={restrictions} /> : null}
+            {blocksLoading ? (
+              <p className="text-xs text-[#756A5B]">Loading blocks…</p>
+            ) : blocksError ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+                Block details require owner or manager access. Availability for the selected date is
+                still shown.
+              </p>
+            ) : (
+              blocks.map((block) => (
+                <BlockNote
+                  key={block.id}
+                  block={block}
+                  roomNumber={block.roomId ? (roomNumbers.get(block.roomId) ?? null) : null}
+                  roomTypeName={selectedRow?.name ?? null}
+                />
+              ))
+            )}
+          </div>
+        )}
+        {selectedDate !== businessDate ? (
+          <p className="mt-1.5 text-[11px] leading-4 text-[#756A5B]">
+            Out of Order and Out of Service reflect the current business date.
+          </p>
+        ) : null}
       </section>
-
-      <footer className="grid grid-cols-2 gap-2.5 border-t border-[#E8E1D7] pt-4">
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-9 text-xs font-medium"
-          onClick={onViewAffectedRooms}
-        >
-          <BedDouble className="mr-1.5 size-3.5" />
-          View Affected Rooms
-        </Button>
-        <Button variant="outline" size="sm" className="h-9 text-xs font-medium" onClick={onEditBlocks}>
-          <ExternalLink className="mr-1.5 size-3.5" />
-          Edit Blocks
-        </Button>
-      </footer>
     </div>
   );
 }
@@ -1128,7 +1167,7 @@ function SummaryLine({
   hint?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2 text-xs">
+    <div className="flex items-center justify-between gap-3 py-1 text-xs">
       <dt className="text-muted-foreground">
         {label}
         {hint ? <span className="ml-1 text-[10px]">({hint})</span> : null}
@@ -1136,33 +1175,40 @@ function SummaryLine({
       <dd className="flex items-center gap-3 font-semibold text-[#251605]">
         <span>{value}</span>
         {percentage ? (
-          <span className="min-w-10 text-right text-xs font-normal text-muted-foreground">{percentage}</span>
+          <span className="min-w-10 text-right text-xs font-normal text-muted-foreground">
+            {percentage}
+          </span>
         ) : null}
       </dd>
     </div>
   );
 }
 
-function RestrictionCard({ note }: { note: RestrictionNote }) {
-  const Icon = note.type === "maintenance" ? Hammer : CircleSlash2;
+function RestrictionBreakdown({ notes }: { notes: RestrictionNote[] }) {
+  const order = ["Out of Order", "Out of Service"];
+  const groups = new Map<string, string[]>();
+  for (const note of notes) {
+    const targets = groups.get(note.label) ?? [];
+    targets.push(note.target);
+    groups.set(note.label, targets);
+  }
+  const labels = [...groups.keys()].sort((left, right) => {
+    const leftIndex = order.indexOf(left);
+    const rightIndex = order.indexOf(right);
+    if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right);
+    if (leftIndex === -1) return 1;
+    if (rightIndex === -1) return -1;
+    return leftIndex - rightIndex;
+  });
   return (
-    <article className="rounded-lg border border-[#E8E1D7] p-3">
-      <div className="flex gap-2.5">
-        <Icon
-          className={`mt-0.5 size-4 shrink-0 ${
-            note.type === "maintenance" ? "text-amber-700" : "text-zinc-600"
-          }`}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-xs font-bold text-[#251605]">{note.target}</p>
-            <span className="whitespace-nowrap text-[10px] text-muted-foreground">{note.dates}</span>
-          </div>
-          <p className="text-xs font-medium text-muted-foreground">{titleCase(note.type)}</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{note.impact}</p>
-        </div>
-      </div>
-    </article>
+    <ul className="space-y-1">
+      {labels.map((label) => (
+        <li key={label} className="text-xs leading-5 text-[#251605]">
+          <span className="font-semibold">{label}</span>
+          <span className="text-[#5C5346]"> · {groups.get(label)?.join(", ")}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -1225,8 +1271,8 @@ function BlockNote({
           </div>
           <p className="text-xs text-[#5F554B]">
             {titleCase(block.blockType)} block · {dateLabel(block.startDate)} to{" "}
-            {dateLabel(block.endDate)} ({nights} night{nights === 1 ? "" : "s"}, released on
-            the morning of {dateLabel(block.endDate)})
+            {dateLabel(block.endDate)} ({nights} night{nights === 1 ? "" : "s"}, released on the
+            morning of {dateLabel(block.endDate)})
           </p>
           <p className="text-xs font-medium text-violet-800">
             {IMPACT_DESCRIPTIONS[block.inventoryImpact] ?? titleCase(block.inventoryImpact)}

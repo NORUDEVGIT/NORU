@@ -1,5 +1,5 @@
-import { useMemo, type ReactNode } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useMemo, type ComponentProps, type ReactNode } from "react";
+import { Building2, FileText, Globe, Hash, MapPin, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -39,9 +39,28 @@ import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-
 import { validateCompanyPhone } from "@/packages/pms/lib/guest-company-create-workspace";
 import { cn } from "@/shared/lib/utils";
 
-const CONTROL_CLASS = "h-8 text-xs bg-[#FAF8F5] border-[#DDD4C5] focus:bg-white rounded-[6px]";
-const SELECT_TRIGGER_CLASS = "h-8 text-xs bg-[#FAF8F5] border-[#DDD4C5] focus:bg-white rounded-[6px]";
-const TEXTAREA_CLASS = "text-xs bg-[#FAF8F5] border-[#DDD4C5] focus:bg-white resize-none rounded-[6px]";
+const CONTROL_CLASS =
+  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none transition-colors placeholder:text-[#8C7E72] hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#8A641A] disabled:cursor-not-allowed disabled:bg-[#FAF8F5] disabled:text-[#8C7E72]";
+const SELECT_TRIGGER_CLASS =
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus:border-[#8A641A] focus:ring-1 focus:ring-[#8A641A]";
+const TEXTAREA_CLASS =
+  "min-h-[4.5rem] w-full rounded-[6px] border border-[#CCCCCC] bg-white p-3 text-sm text-[#251605] shadow-none hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#8A641A]";
+const PHONE_GROUP = "h-9 gap-0 overflow-hidden rounded-[6px] border border-[#CCCCCC] bg-white";
+const PHONE_TRIGGER = "h-9 w-[7.75rem] rounded-none border-0 bg-white shadow-none hover:bg-white";
+const PHONE_INPUT = "h-9 rounded-none border-0 bg-white shadow-none focus-visible:ring-0";
+
+function IconInput({
+  icon,
+  className,
+  ...props
+}: ComponentProps<typeof Input> & { icon: ReactNode }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8C7E72]">{icon}</span>
+      <Input {...props} className={cn(CONTROL_CLASS, "pl-9", className)} />
+    </div>
+  );
+}
 
 function StepField({
   label,
@@ -157,19 +176,6 @@ export function BasicInfoStep({
 
   return (
     <div className="space-y-4" data-testid="travel-agency-basic-info-step">
-      {/* Profile Type Read-only Context */}
-      {showBasicInfo && (
-        <div className="rounded-xl border border-[#EDE6D8] bg-white p-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-[#756A5B]">Profile Type:</span>
-            <span className="rounded-[4px] bg-[#FAF8F5] border border-[#EDE6D8] px-2 py-0.5 text-xs font-semibold text-[#8A641A]">
-              Travel Agency (TRA)
-            </span>
-          </div>
-          <span className="text-[11px] text-[#A89F91]">Canonical Guest & Services Master</span>
-        </div>
-      )}
-
       {/* 1. Agency Details Section */}
       {showBasicInfo && (
         <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
@@ -182,11 +188,11 @@ export function BasicInfoStep({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <StepField label="Agency name" required={req("TA_NAME", true)} error={fieldError("name", "basic_info")}>
-            <Input
+            <IconInput
+              icon={<Building2 className="size-4" />}
               data-testid="travel-agent-create-name"
               value={draft.name}
               onChange={(e) => set("name", e.target.value)}
-              className={CONTROL_CLASS}
               placeholder="e.g. Blue Nile Travel & Tours"
             />
           </StepField>
@@ -250,14 +256,16 @@ export function BasicInfoStep({
             />
           </StepField>
 
-          <StepField label="Agency code" required={req("TA_CODE")} error={fieldError("code", "basic_info")} hint="Automatically generated from agency type">
-            <Input
-              data-testid="travel-agent-create-code"
-              value={draft.code}
-              onChange={(e) => set("code", e.target.value)}
-              className={cn(CONTROL_CLASS, "font-mono font-medium")}
-              placeholder="e.g. TA-001"
-            />
+          <StepField label="Agency code" required={req("TA_CODE")} error={fieldError("code", "basic_info")} hint="Auto-generated">
+            <div className="flex h-9 items-center gap-2 rounded-[6px] border border-[#E8E1D7] bg-[#FAF8F5] px-3 text-sm text-[#6B5E4E]">
+              <Hash className="size-3.5 shrink-0" />
+              <span className="min-w-0 flex-1 truncate font-mono" data-testid="travel-agent-create-code">
+                {draft.code || "Assigned from agency type"}
+              </span>
+              <span className="rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-medium text-[#765719]">
+                Auto-generated
+              </span>
+            </div>
           </StepField>
 
           <StepField label="Status" required={req("TA_ACCOUNT_STATUS")} error={fieldError("accountStatus", "basic_info")}>
@@ -276,29 +284,29 @@ export function BasicInfoStep({
           </StepField>
 
           <StepField label="Licence number" required={req("TA_IATA_NUMBER")} error={fieldError("iataLicenseNumber", "basic_info")}>
-            <Input
+            <IconInput
+              icon={<FileText className="size-4" />}
               value={draft.iataLicenseNumber}
               onChange={(e) => set("iataLicenseNumber", e.target.value)}
-              className={CONTROL_CLASS}
               placeholder="e.g. 12-34567 8 / Licence #"
             />
           </StepField>
 
           <StepField label="TIN number" required={req("TA_TAX_ID")} error={fieldError("taxId", "basic_info")}>
-            <Input
+            <IconInput
+              icon={<Hash className="size-4" />}
               value={draft.taxId}
               onChange={(e) => set("taxId", e.target.value)}
-              className={CONTROL_CLASS}
-              placeholder="Tax Identification Number"
+              placeholder="10-digit TIN"
             />
           </StepField>
 
           <StepField label="Website" required={req("TA_WEBSITE")} error={fieldError("website", "basic_info")}>
-            <Input
+            <IconInput
+              icon={<Globe className="size-4" />}
               value={draft.website}
               onChange={(e) => set("website", e.target.value)}
-              className={CONTROL_CLASS}
-              placeholder="https://agency.com"
+              placeholder="https://example.com"
             />
           </StepField>
         </div>
@@ -473,9 +481,12 @@ export function BasicInfoStep({
                       )
                     }
                     error={Boolean(validateCompanyPhone(contact.phone) || (!contact.phone && req("TA_CONTACT_PHONE")))}
-                    placeholder="e.g. 911 234 567"
-                    size="sm"
+                    placeholder="Enter phone number"
                     maxDigits={9}
+                    containerClassName={PHONE_GROUP}
+                    triggerClassName={PHONE_TRIGGER}
+                    className={PHONE_INPUT}
+                    popoverClassName="z-[90]"
                   />
                 </StepField>
 
@@ -493,9 +504,12 @@ export function BasicInfoStep({
                       )
                     }
                     error={Boolean(validateCompanyPhone(contact.whatsapp) || (!contact.whatsapp && req("TA_CONTACT_WHATSAPP")))}
-                    placeholder="e.g. 911 234 567"
-                    size="sm"
+                    placeholder="Enter phone number"
                     maxDigits={9}
+                    containerClassName={PHONE_GROUP}
+                    triggerClassName={PHONE_TRIGGER}
+                    className={PHONE_INPUT}
+                    popoverClassName="z-[90]"
                   />
                 </StepField>
 
@@ -630,10 +644,10 @@ export function BasicInfoStep({
           </StepField>
 
           <StepField label="Address line 1" required={req("TA_ADDRESS_LINE1")} error={fieldError("addressLine1", "basic_info")}>
-            <Input
+            <IconInput
+              icon={<MapPin className="size-4" />}
               value={draft.addressLine1}
               onChange={(e) => set("addressLine1", e.target.value)}
-              className={CONTROL_CLASS}
               placeholder="Street address or P.O. Box"
             />
           </StepField>

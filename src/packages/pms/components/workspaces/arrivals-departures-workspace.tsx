@@ -181,6 +181,8 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 export function ArrivalsDeparturesWorkspace({
   restaurantId,
   search = "",
+  rangeStart,
+  rangeEnd,
   timezone,
   currencyCode,
   foAccess,
@@ -189,6 +191,9 @@ export function ArrivalsDeparturesWorkspace({
   restaurantId: string;
   /** Guest, confirmation or room, from the shared Reservations search. Runs on loaded rows. */
   search?: string;
+  /** Shared Reservations week. Arrivals and departures inside it are listed. */
+  rangeStart: string;
+  rangeEnd: string;
   timezone: string;
   currencyCode: string;
   foAccess: FrontOfficeDeskAccess;
@@ -221,11 +226,16 @@ export function ArrivalsDeparturesWorkspace({
     staleTime: 5 * 60_000,
   });
 
+  const dateInWeek = !date || (date >= rangeStart && date <= rangeEnd);
+  const singleDay = Boolean(date) && dateInWeek;
+
   const snapshotQuery = useQuery({
     queryKey: [
       "pms-arrivals-departures",
       restaurantId,
-      date,
+      singleDay ? date : "",
+      rangeStart,
+      rangeEnd,
       vip,
       assignment,
       roomTypeId,
@@ -237,7 +247,9 @@ export function ArrivalsDeparturesWorkspace({
       loadSnapshot({
         data: {
           restaurantId,
-          date: date || undefined,
+          date: singleDay ? date : undefined,
+          dateFrom: singleDay ? undefined : rangeStart,
+          dateTo: singleDay ? undefined : rangeEnd,
           vip: vip || undefined,
           assignment: assignment === "all" ? undefined : assignment,
           roomTypeId: roomTypeId === "all" ? undefined : roomTypeId,
@@ -246,13 +258,11 @@ export function ArrivalsDeparturesWorkspace({
           departureStatus: departureStatus === "all" ? undefined : departureStatus,
         },
       }) as Promise<ReservationArrivalsDeparturesSnapshot>,
+    enabled: dateInWeek,
     placeholderData: keepPreviousData,
   });
 
-  const snapshot = snapshotQuery.data;
-  useEffect(() => {
-    if (!date && snapshot?.businessDate) setDate(snapshot.businessDate);
-  }, [date, snapshot?.businessDate]);
+  const snapshot = dateInWeek ? snapshotQuery.data : undefined;
 
   const searchTerm = search.trim().toLowerCase();
   const arrivals = useMemo(() => {
@@ -298,17 +308,16 @@ export function ArrivalsDeparturesWorkspace({
 
   /* Filter menu bookkeeping */
   const businessDate = snapshot?.businessDate ?? "";
-  const dateChanged = !!date && !!businessDate && date !== businessDate;
 
   const activeFilterCount =
-    (dateChanged ? 1 : 0) +
+    (date ? 1 : 0) +
     (roomTypeId !== "all" ? 1 : 0) +
     (mode === "arrivals"
       ? (assignment !== "all" ? 1 : 0) + (arrivalStatus !== "all" ? 1 : 0) + (vip ? 1 : 0)
       : (departureStatus !== "all" ? 1 : 0) + (overstay ? 1 : 0));
 
   function resetFilters() {
-    setDate(businessDate);
+    setDate("");
     setRoomTypeId("all");
     setAssignment("all");
     setArrivalStatus("all");
@@ -322,7 +331,6 @@ export function ArrivalsDeparturesWorkspace({
       ? ((roomTypesQuery.data ?? []).find((type) => type.id === roomTypeId)?.name ?? "Room type")
       : null;
 
-  const shownDate = date || businessDate;
   const totals = snapshot?.totals;
 
   const kpis = useMemo(() => {
@@ -420,10 +428,14 @@ export function ArrivalsDeparturesWorkspace({
             </ModeButton>
           </div>
 
-          {shownDate ? (
+          {rangeStart ? (
             <p className="min-w-0 truncate text-xs text-[#7A6B58]">
-              <span className="font-semibold text-[#4a2c1a]">{formatStayDate(shownDate)}</span>
-              {snapshot && snapshot.businessDate !== shownDate
+              <span className="font-semibold text-[#4a2c1a]">
+                {date
+                  ? formatStayDate(date)
+                  : `${formatStayDate(rangeStart)} – ${formatStayDate(rangeEnd)}`}
+              </span>
+              {date && snapshot && snapshot.businessDate !== date
                 ? ` · Business date ${formatStayDate(snapshot.businessDate)}`
                 : ""}
               {snapshotQuery.isFetching ? " · Updating…" : ""}
@@ -526,14 +538,14 @@ export function ArrivalsDeparturesWorkspace({
         </div>
 
         {/* Active filter chips */}
-        {dateChanged ||
+        {date ||
         roomTypeChipName ||
         (mode === "arrivals" && (assignment !== "all" || arrivalStatus !== "all" || vip)) ||
         (mode === "departures" && (departureStatus !== "all" || overstay)) ? (
           <ul className="flex flex-wrap gap-2" data-testid="arrivals-departures-filter-chips">
-            {dateChanged ? (
+            {date ? (
               <li>
-                <FilterChip label={formatStayDate(date)} onRemove={() => setDate(businessDate)} />
+                <FilterChip label={formatStayDate(date)} onRemove={() => setDate("")} />
               </li>
             ) : null}
             {roomTypeChipName ? (

@@ -66,7 +66,7 @@ function guestInitials(name: string): string {
   return letters.join("") || "G";
 }
 
-const CARD = "min-w-0 h-full rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none";
+const CARD = "min-w-0 h-full rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-none";
 
 function PanelHeading({ icon, title, helper }: { icon: ReactNode; title: string; helper: string }) {
   return (

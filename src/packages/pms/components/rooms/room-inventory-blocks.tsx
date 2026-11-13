@@ -3,19 +3,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  BedDouble,
   Boxes,
+  Calendar,
   CalendarClock,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleSlash2,
-  Clock3,
   Ellipsis,
   Eye,
+  Hash,
   Layers3,
-  LockKeyhole,
   Plus,
   ShieldCheck,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,7 +47,15 @@ import {
   PmsFilterSelect,
 } from "@/packages/pms/components/pms-filter-popover";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
+import {
+  PMS_OP_DATE,
+  PMS_OP_INPUT,
+  PMS_OP_PLACEHOLDER,
+  PMS_OP_SELECT_TRIGGER,
+  PMS_OP_TEXTAREA,
+} from "@/packages/pms/lib/pms-operational-surface";
+import { cn } from "@/shared/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -73,16 +82,19 @@ import {
   RoomSummaryChips,
   RoomTableFooter,
 } from "./room-inventory-shell";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/shared/components/ui/sheet";
 import { CompactSelect, InventoryState, PmsSelect } from "./room-inventory-shared";
 import { addDays, dateLabel } from "./room-inventory-utils";
+import {
+  blockStatusLabel,
+  displayName,
+  groupReservationLabel,
+  hotelDateTime,
+  inventoryImpactSentence,
+  inventoryImpactTable,
+  lifecycleLine,
+  removedRoomCount,
+  staffNoteText,
+} from "./room-block-display";
 
 type ConfirmAction =
   | { kind: "release"; block: OperationalInventoryBlock }
@@ -105,10 +117,6 @@ const INK = "#251605";
 
 function titleCase(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function shortReference(value: string): string {
-  return `${value.slice(0, 8)}…`;
 }
 
 function blockCode(block: OperationalInventoryBlock): string {
@@ -190,7 +198,6 @@ export function RoomInventoryBlocksView({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [createOpen, setCreateOpen] = useState(false);
   const [detailBlock, setDetailBlock] = useState<OperationalInventoryBlock | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -245,6 +252,13 @@ export function RoomInventoryBlocksView({
     () => new Map(roomTypes.map((roomType) => [roomType.id, roomType])),
     [roomTypes],
   );
+  const roomCountByType = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const room of rooms) {
+      counts.set(room.roomTypeId, (counts.get(room.roomTypeId) ?? 0) + 1);
+    }
+    return counts;
+  }, [rooms]);
   const buildings = useMemo(
     () => Array.from(new Set(rooms.map((room) => room.building?.trim() || "Unassigned"))).sort(),
     [rooms],
@@ -270,7 +284,8 @@ export function RoomInventoryBlocksView({
   useEffect(() => {
     if (!createPrefill || enabledRules.length === 0) return;
     setForm((current) => {
-      if (current.targetKind !== "room" || current.targetId !== createPrefill.roomId) return current;
+      if (current.targetKind !== "room" || current.targetId !== createPrefill.roomId)
+        return current;
       if (enabledRules.some((rule) => rule.blockType === current.blockType)) return current;
       return { ...current, blockType: enabledRules[0]?.blockType ?? current.blockType };
     });
@@ -333,12 +348,11 @@ export function RoomInventoryBlocksView({
       const room = block.roomId ? roomById.get(block.roomId) : null;
       const roomType = typeById.get(block.roomTypeId);
       return [
-        block.id,
         blockCode(block),
         block.reason,
-        block.notes ?? "",
+        staffNoteText(block.notes) ?? "",
         block.blockType,
-        block.createdByMembershipId,
+        block.createdByName ?? "",
         room?.roomNumber ?? "",
         roomType?.name ?? "",
       ]
@@ -602,127 +616,134 @@ export function RoomInventoryBlocksView({
         />
       </RoomShellSlot>
       {canBlockEdit ? (
-      <RoomShellSlot name="cta">
-        <Button
-          type="button"
-          className={ROOM_SHELL_PRIMARY_BUTTON}
-          disabled={managerDenied}
-          onClick={openCreate}
-        >
-          <Plus className="mr-1.5 size-4" />
-          New Block
-        </Button>
-      </RoomShellSlot>
+        <RoomShellSlot name="cta">
+          <Button
+            type="button"
+            className={ROOM_SHELL_PRIMARY_BUTTON}
+            disabled={managerDenied}
+            onClick={openCreate}
+          >
+            <Plus className="mr-1.5 size-4" />
+            New Block
+          </Button>
+        </RoomShellSlot>
       ) : null}
-      <RoomSummaryChips
-        items={[
-          { label: "Active", value: activeBlocks.length, tone: "success" },
-          { label: "Pending", value: pendingApprovals, tone: "warning" },
-          { label: "Rooms", value: uniqueRoomTargets, tone: "info" },
-          { label: "Ending soon", value: endingSoon, tone: "neutral" },
-        ]}
-      />
-
-      {blocksQuery.isLoading ? (
-        <InventoryState state="loading" />
-      ) : managerDenied ? (
-        <InventoryState
-          state="error"
-          title="Blocks are unavailable for your role"
-          description="Block edit permission is required to list and change operational blocks. Availability, Calendar, and Room Board remain available."
-          onRetry={() => blocksQuery.refetch()}
-        />
-      ) : filteredBlocks.length === 0 ? (
-        <InventoryState
-          state="empty"
-          title="No matching blocks"
-          description="Clear filters or create an operational block."
-        />
-      ) : (
-        <section className={ROOM_TABLE_WRAP}>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1280px] text-left text-xs">
-              <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
-                <tr>
-                  <th className="w-10 px-3 py-2">
-                    <Checkbox
-                      checked={
-                        pageRows.length > 0 && pageRows.every((block) => selectedIds.has(block.id))
-                      }
-                      onCheckedChange={(checked) => {
-                        const next = new Set(selectedIds);
-                        for (const block of pageRows) {
-                          if (checked) next.add(block.id);
-                          else next.delete(block.id);
-                        }
-                        setSelectedIds(next);
-                      }}
-                      aria-label="Select current page"
-                    />
-                  </th>
-                  {[
-                    "Block Code",
-                    "Target",
-                    "Type",
-                    "Start Date",
-                    "End Date",
-                    "Inventory Impact",
-                    "Approval Status",
-                    "Created By",
-                    "Current Status",
-                    "Actions",
-                  ].map((heading) => (
-                    <th key={heading} className="whitespace-nowrap px-3 py-2 font-semibold">
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map((block) => (
-                  <BlockTableRow
-                    key={block.id}
-                    block={block}
-                    room={block.roomId ? (roomById.get(block.roomId) ?? null) : null}
-                    roomType={typeById.get(block.roomTypeId) ?? null}
-                    selected={selectedIds.has(block.id)}
-                    pending={mutation.isPending}
-                    canMutate={canBlockEdit}
-                    onSelected={(checked) => {
-                      const next = new Set(selectedIds);
-                      if (checked) next.add(block.id);
-                      else next.delete(block.id);
-                      setSelectedIds(next);
-                    }}
-                    onDetails={() => setDetailBlock(block)}
-                    onActivate={() => mutation.mutate({ kind: "activate", blockId: block.id })}
-                    onApprove={() => mutation.mutate({ kind: "approve", blockId: block.id })}
-                    onRelease={() => {
-                      setConfirmNote("");
-                      setConfirmAction({ kind: "release", block });
-                    }}
-                    onCancel={() => {
-                      setConfirmNote("");
-                      setConfirmAction({ kind: "cancel", block });
-                    }}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <BlocksPagination
-            total={filteredBlocks.length}
-            loadedTotal={allBlocks.length}
-            page={safePage}
-            pageCount={pageCount}
-            pageSize={pageSize}
-            start={pageStart}
-            end={Math.min(pageStart + pageRows.length, filteredBlocks.length)}
-            onPage={setPage}
-            onPageSize={setPageSize}
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="min-w-0 flex-1 space-y-3">
+          <RoomSummaryChips
+            items={[
+              { label: "Active", value: activeBlocks.length, tone: "success" },
+              { label: "Pending", value: pendingApprovals, tone: "warning" },
+              { label: "Rooms", value: uniqueRoomTargets, tone: "info" },
+              { label: "Ending soon", value: endingSoon, tone: "neutral" },
+            ]}
           />
-        </section>
-      )}
+
+          {blocksQuery.isLoading ? (
+            <InventoryState state="loading" />
+          ) : managerDenied ? (
+            <InventoryState
+              state="error"
+              title="Blocks are unavailable for your role"
+              description="Block edit permission is required to list and change operational blocks. Availability, Calendar, and Room Board remain available."
+              onRetry={() => blocksQuery.refetch()}
+            />
+          ) : filteredBlocks.length === 0 ? (
+            <InventoryState
+              state="empty"
+              title="No matching blocks"
+              description="Clear filters or create an operational block."
+            />
+          ) : (
+            <section className={ROOM_TABLE_WRAP}>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1080px] text-left text-xs">
+                  <thead className="border-b border-[#E5DED4] bg-[#F8F5F0] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+                    <tr>
+                      {[
+                        "Block Code",
+                        "Target",
+                        "Type",
+                        "Start Date",
+                        "End Date",
+                        "Inventory Impact",
+                        "Approval Status",
+                        "Created By",
+                        "Current Status",
+                        "Actions",
+                      ].map((heading) => (
+                        <th key={heading} className="whitespace-nowrap px-3 py-2 font-semibold">
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((block) => (
+                      <BlockTableRow
+                        key={block.id}
+                        block={block}
+                        room={block.roomId ? (roomById.get(block.roomId) ?? null) : null}
+                        roomType={typeById.get(block.roomTypeId) ?? null}
+                        typeRoomCount={roomCountByType.get(block.roomTypeId) ?? 0}
+                        pending={mutation.isPending}
+                        canMutate={canBlockEdit}
+                        open={detailBlock?.id === block.id}
+                        onDetails={() => setDetailBlock(block)}
+                        onActivate={() => mutation.mutate({ kind: "activate", blockId: block.id })}
+                        onApprove={() => mutation.mutate({ kind: "approve", blockId: block.id })}
+                        onRelease={() => {
+                          setConfirmNote("");
+                          setConfirmAction({ kind: "release", block });
+                        }}
+                        onCancel={() => {
+                          setConfirmNote("");
+                          setConfirmAction({ kind: "cancel", block });
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <BlocksPagination
+                total={filteredBlocks.length}
+                loadedTotal={allBlocks.length}
+                page={safePage}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                start={pageStart}
+                end={Math.min(pageStart + pageRows.length, filteredBlocks.length)}
+                onPage={setPage}
+                onPageSize={setPageSize}
+              />
+            </section>
+          )}
+        </div>
+        {detailBlock ? (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 bg-[#251605]/40 lg:hidden"
+              aria-label="Close block details"
+              onClick={() => setDetailBlock(null)}
+            />
+            <aside
+              className="fixed inset-y-0 right-0 z-50 w-[360px] max-w-full overflow-y-auto border-l border-[#DDD4C5] bg-white shadow-xl lg:sticky lg:inset-auto lg:top-3 lg:z-auto lg:h-[calc(100vh-11.5rem)] lg:max-h-[calc(100vh-11.5rem)] lg:shrink-0 lg:rounded-lg lg:border lg:shadow-sm"
+              data-testid="block-detail-drawer"
+              aria-label="Block details"
+            >
+              <BlockDetailDrawer
+                block={detailBlock}
+                room={detailBlock.roomId ? (roomById.get(detailBlock.roomId) ?? null) : null}
+                roomType={typeById.get(detailBlock.roomTypeId) ?? null}
+                typeRoomCount={roomCountByType.get(detailBlock.roomTypeId) ?? 0}
+                timeZone={businessDateQuery.data?.timezone ?? null}
+                onClose={() => setDetailBlock(null)}
+              />
+            </aside>
+          </>
+        ) : null}
+      </div>
 
       <CreateBlockDrawer
         open={createOpen}
@@ -746,15 +767,6 @@ export function RoomInventoryBlocksView({
         onOpenChange={setCreateOpen}
         onForm={setForm}
         onCreate={(intent) => mutation.mutate({ kind: "create", intent })}
-      />
-
-      <BlockDetailDrawer
-        block={detailBlock}
-        room={detailBlock?.roomId ? (roomById.get(detailBlock.roomId) ?? null) : null}
-        roomType={detailBlock ? (typeById.get(detailBlock.roomTypeId) ?? null) : null}
-        onOpenChange={(open) => {
-          if (!open) setDetailBlock(null);
-        }}
       />
 
       <ActionConfirmation
@@ -970,7 +982,12 @@ function BlocksFilters({
             className="h-9 text-xs text-[#251605]"
           />
         </label>
-        <Button variant="outline" size="sm" className="h-9 px-3.5 text-xs font-medium" onClick={onClear}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 px-3.5 text-xs font-medium"
+          onClick={onClear}
+        >
           Clear
         </Button>
       </div>
@@ -978,15 +995,36 @@ function BlocksFilters({
   );
 }
 
+function blockTargetLabel(
+  block: OperationalInventoryBlock,
+  room: HotelRoom | null,
+  roomType: RoomType | null,
+): string {
+  if (block.targetKind === "room") {
+    return room?.roomNumber ? `Room ${room.roomNumber}` : "Room";
+  }
+  const typeName = roomType?.name ?? "Room type";
+  if (block.targetKind === "quantity") {
+    const count = block.quantity ?? 0;
+    return `${count} × ${typeName}`;
+  }
+  return typeName;
+}
+
+function targetTypeLabel(kind: OperationalBlockTargetKind): string {
+  if (kind === "room") return "Room";
+  if (kind === "quantity") return "Quantity";
+  return "Room type";
+}
 
 function BlockTableRow({
   block,
   room,
   roomType,
-  selected,
+  typeRoomCount,
   pending,
   canMutate,
-  onSelected,
+  open,
   onDetails,
   onActivate,
   onApprove,
@@ -996,22 +1034,17 @@ function BlockTableRow({
   block: OperationalInventoryBlock;
   room: HotelRoom | null;
   roomType: RoomType | null;
-  selected: boolean;
+  typeRoomCount: number;
   pending: boolean;
   canMutate: boolean;
-  onSelected: (checked: boolean) => void;
+  open: boolean;
   onDetails: () => void;
   onActivate: () => void;
   onApprove: () => void;
   onRelease: () => void;
   onCancel: () => void;
 }) {
-  const target =
-    block.targetKind === "room"
-      ? `Room ${room?.roomNumber ?? shortReference(block.roomId ?? block.id)}`
-      : block.targetKind === "quantity"
-        ? `${block.quantity ?? 0} × ${roomType?.name ?? shortReference(block.roomTypeId)}`
-        : (roomType?.name ?? shortReference(block.roomTypeId));
+  const target = blockTargetLabel(block, room, roomType);
   const approval = !block.approvalRequired
     ? "Not required"
     : block.status === "pending_approval"
@@ -1019,54 +1052,47 @@ function BlockTableRow({
       : block.approvedByMembershipId
         ? "Approved"
         : "Required";
+  const impact = inventoryImpactTable(
+    removedRoomCount(block, typeRoomCount),
+    block.inventoryImpact,
+  );
   return (
     <tr
-      className="cursor-pointer border-b border-[#EEE8E0] last:border-0 hover:bg-[#FAF8F4] transition-colors"
+      className={`cursor-pointer border-b border-[#EEE8E0] transition-colors last:border-0 hover:bg-[#FAF8F4] ${
+        open ? "bg-[#F4E9D0]/70" : ""
+      }`}
       onClick={onDetails}
     >
-      <td className="px-3.5 py-3" onClick={(event) => event.stopPropagation()}>
-        <Checkbox
-          checked={selected}
-          onCheckedChange={(checked) => onSelected(checked === true)}
-          aria-label={`Select ${blockCode(block)}`}
-        />
-      </td>
       <td className="px-3.5 py-3 font-mono text-xs font-bold text-[#251605]">{blockCode(block)}</td>
       <td className="max-w-52 px-3.5 py-3">
         <p className="truncate text-xs font-bold text-[#251605]">{target}</p>
-        <p className="text-[11px] text-muted-foreground">{titleCase(block.targetKind)}</p>
+        <p className="text-[11px] text-muted-foreground">{targetTypeLabel(block.targetKind)}</p>
       </td>
       <td className="px-3.5 py-3">
-        <span className="inline-flex rounded-full bg-[#F3EFE8] px-2.5 py-1 text-xs font-medium text-[#5F492D]">
+        <span className="inline-flex rounded-full border border-[#DDD4C5] bg-[#F4EFE7] px-2 py-0.5 text-[11px] font-medium text-[#5F492D]">
           {titleCase(block.blockType)}
         </span>
       </td>
-      <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#3D352B]">{dateLabel(block.startDate)}</td>
-      <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#3D352B]">{dateLabel(block.endDate)}</td>
+      <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#3D352B]">
+        {dateLabel(block.startDate)}
+      </td>
+      <td className="whitespace-nowrap px-3.5 py-3 text-xs font-medium text-[#3D352B]">
+        {dateLabel(block.endDate)}
+      </td>
+      <td className="whitespace-nowrap px-3.5 py-3 text-xs font-semibold text-[#251605]">
+        {impact}
+      </td>
       <td className="px-3.5 py-3">
-        {block.inventoryImpact === "remove_from_inventory" ? (
-          <p className="text-xs font-semibold text-[#251605]">
-            {block.targetKind === "quantity"
-              ? `-${block.quantity ?? 0} rooms`
-              : block.targetKind === "room"
-                ? "-1 room"
-                : "Full room type"}
-          </p>
+        {approval === "Not required" ? (
+          <span className="text-[11px] text-[#756A5B]">Not required</span>
         ) : (
-          <p className="text-xs font-semibold text-[#251605]">{titleCase(block.inventoryImpact)}</p>
+          <BlockStatusChip
+            label={approval}
+            tone={approval === "Approved" ? "active" : approval === "Pending" ? "pending" : "draft"}
+          />
         )}
       </td>
-      <td className="px-3.5 py-3">
-        <StatusPill
-          label={approval}
-          tone={
-            approval === "Approved" ? "success" : approval === "Pending" ? "warning" : "neutral"
-          }
-        />
-      </td>
-      <td className="px-3.5 py-3 font-mono text-xs text-muted-foreground" title={block.createdByMembershipId}>
-        {shortReference(block.createdByMembershipId)}
-      </td>
+      <td className="px-3.5 py-3 text-xs text-[#251605]">{displayName(block.createdByName)}</td>
       <td className="px-3.5 py-3">
         <BlockStatus status={block.status} />
       </td>
@@ -1119,6 +1145,43 @@ function BlockTableRow({
   );
 }
 
+function BlockStatusChip({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: "draft" | "pending" | "active" | "released" | "cancelled";
+}) {
+  const tones = {
+    draft: "border-[#DDD4C5] bg-[#FAF8F4] text-[#5C5346]",
+    pending: "border-amber-200 bg-amber-50 text-amber-800",
+    active: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    released: "border-[#DDD4C5] bg-white text-[#5C5346]",
+    cancelled: "border-red-200 bg-red-50 text-red-800",
+  };
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tones[tone]}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function BlockStatus({ status }: { status: OperationalBlockStatus }) {
+  const tone =
+    status === "active"
+      ? "active"
+      : status === "pending_approval"
+        ? "pending"
+        : status === "released"
+          ? "released"
+          : status === "cancelled"
+            ? "cancelled"
+            : "draft";
+  return <BlockStatusChip label={blockStatusLabel(status)} tone={tone} />;
+}
+
 function StatusPill({
   label,
   tone,
@@ -1137,18 +1200,6 @@ function StatusPill({
       {label}
     </span>
   );
-}
-
-function BlockStatus({ status }: { status: OperationalBlockStatus }) {
-  const tone =
-    status === "active"
-      ? "danger"
-      : status === "pending_approval"
-        ? "warning"
-        : status === "released"
-          ? "success"
-          : "neutral";
-  return <StatusPill label={titleCase(status)} tone={tone} />;
 }
 
 function BlocksPagination({
@@ -1220,6 +1271,14 @@ function BlocksPagination({
   );
 }
 
+function impactStatusLabel(impact: string): string {
+  if (impact === "remove_from_inventory") return "Remove from inventory";
+  if (impact === "assignment_only") return "Cannot assign";
+  if (impact === "warning_only") return "Warning only";
+  if (impact === "no_inventory_impact") return "No inventory change";
+  return "—";
+}
+
 function CreateBlockDrawer({
   open,
   form,
@@ -1260,6 +1319,7 @@ function CreateBlockDrawer({
   onForm: (form: BlockForm) => void;
   onCreate: (intent: CreateIntent) => void;
 }) {
+  const [attempted, setAttempted] = useState(false);
   const selectedRoom =
     form.targetKind === "room" ? rooms.find((room) => room.id === form.targetId) : null;
   const selectedTypeId = form.targetKind === "room" ? selectedRoom?.roomTypeId : form.targetId;
@@ -1279,53 +1339,96 @@ function CreateBlockDrawer({
         : form.targetKind === "room"
           ? null
           : Math.max(0, previewAvailability - requestedImpact);
-  const impactPercent =
-    previewAvailability && after != null
-      ? `${Math.round(((previewAvailability - after) / previewAvailability) * 100)}%`
-      : "—";
+  const inventoryShort =
+    removesInventory &&
+    previewAvailability != null &&
+    ((form.targetKind === "quantity" && requestedImpact > previewAvailability) ||
+      (form.targetKind === "room" && previewAvailability < 1));
+  const issues: string[] = [];
+  if (!form.blockType || !selectedRule) issues.push("Choose a block type.");
+  if (!form.targetId) issues.push("Choose a target.");
+  if (!form.startDate) issues.push("Start date is required.");
+  if (!form.endDate) issues.push("End date is required.");
+  if (form.startDate && form.endDate && form.endDate <= form.startDate) {
+    issues.push("End date must be after the start date.");
+  }
+  if (form.targetKind === "quantity" && !(Number(form.quantity) > 0)) {
+    issues.push("Quantity must be greater than zero.");
+  }
+  if (!form.reason.trim()) issues.push("Reason is required.");
+  const targetLabel =
+    form.targetKind === "room"
+      ? selectedRoom?.roomNumber
+        ? `Room ${selectedRoom.roomNumber}`
+        : (pinnedRoom?.label ?? "Room")
+      : (selectedType?.name ?? "Room type");
+  const heldLabel = !removesInventory
+    ? "None"
+    : form.targetKind === "room"
+      ? "1 room"
+      : form.targetKind === "room_type"
+        ? "All currently sellable rooms"
+        : `${requestedImpact} ${requestedImpact === 1 ? "room" : "rooms"}`;
+  const quantityLabel =
+    form.targetKind === "quantity"
+      ? form.quantity || "—"
+      : form.targetKind === "room"
+        ? "1 room"
+        : "All rooms of this type";
+  const approvalRequired = selectedRule?.approvalRequired === true;
+
+  function submit(intent: CreateIntent) {
+    setAttempted(true);
+    if (!ready || issues.length > 0) return;
+    onCreate(intent);
+  }
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
-        <SheetHeader className="border-b border-[#E5DED4] px-6 py-4 text-left">
-          <div className="flex items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-50 text-[#C89933] border border-amber-200/60 shadow-2xs">
-              <LockKeyhole className="size-4.5" />
-            </span>
-            <div>
-              <SheetTitle className="font-display text-xl font-bold" style={{ color: INK }}>
-                Create New Block
-              </SheetTitle>
-              <SheetDescription className="text-xs text-muted-foreground mt-0.5">
-                Create an inventory block for operational purposes.
-              </SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
-        <div className="space-y-5 px-6 py-5">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setAttempted(false);
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent
+        data-testid="create-block-modal"
+        className="z-[80] flex max-h-[88vh] w-[min(92vw,840px)] max-w-[840px] flex-col gap-0 overflow-hidden rounded-2xl border-0 bg-[#FBF7F1] p-0 shadow-2xl sm:max-w-[840px] sm:rounded-2xl [&>button.absolute]:hidden"
+      >
+        <header className="relative shrink-0 bg-[#1F140A] px-5 py-3 pr-12 text-left text-[#F3E9D8]">
+          <DialogTitle className="font-display text-sm font-semibold text-white">
+            Create New Block
+          </DialogTitle>
+          <DialogDescription className="text-[11px] text-[#C4B6A0]">
+            Create an inventory block for operational purposes.
+          </DialogDescription>
+          <button
+            type="button"
+            className="absolute right-3 top-2.5 rounded-md p-1 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </button>
+          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-[#C89933]" aria-hidden />
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           {pinnedRoom && form.targetKind === "room" ? (
-            <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-amber-100/90 text-amber-900 font-semibold">
-                  <LockKeyhole className="size-3.5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="font-bold text-amber-950 truncate">{pinnedRoom.label}</p>
-                  <p className="text-[11px] text-amber-800">Blocking this specific room</p>
-                </div>
-              </div>
-              <span className="shrink-0 text-[11px] font-semibold text-amber-900 bg-amber-200/70 px-2 py-0.5 rounded-md">
-                Pinned Room
-              </span>
-            </div>
+            <p className="rounded-md border border-[#DDD4C5] bg-white px-3 py-2 text-xs text-[#5C5346]">
+              This block is for{" "}
+              <span className="font-semibold text-[#251605]">{pinnedRoom.label}</span>.
+            </p>
           ) : null}
 
-          <div className="rounded-xl border border-[#EDE7DF] bg-[#FAF8F5]/60 p-4 space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+          <section className="space-y-3 rounded-lg border border-[#DDD4C5] bg-white p-4">
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
               Block Configuration
-            </h4>
+            </h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <DrawerSelect
-                label="Block Type *"
+              <FieldSelect
+                icon={Layers3}
+                label="Block type"
                 value={form.blockType}
                 onChange={(value) => onForm({ ...form, blockType: value })}
                 options={
@@ -1334,8 +1437,9 @@ function CreateBlockDrawer({
                     : [["", "No enabled block types"]]
                 }
               />
-              <DrawerSelect
-                label="Target Level *"
+              <FieldSelect
+                icon={Boxes}
+                label="Target level"
                 value={form.targetKind}
                 onChange={(value) =>
                   onForm({
@@ -1351,17 +1455,18 @@ function CreateBlockDrawer({
                 ]}
               />
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-xl border border-[#EDE7DF] bg-white p-4 space-y-4 shadow-2xs">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+          <section className="space-y-3 rounded-lg border border-[#DDD4C5] bg-white p-4">
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
               Target & Dates
-            </h4>
+            </h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 {form.targetKind === "room" ? (
-                  <DrawerSelect
-                    label="Room *"
+                  <FieldSelect
+                    icon={BedDouble}
+                    label="Room"
                     value={form.targetId}
                     onChange={(value) => onForm({ ...form, targetId: value })}
                     options={[
@@ -1371,37 +1476,31 @@ function CreateBlockDrawer({
                         : []),
                       ...rooms.map(
                         (room) =>
-                          [room.id, `${room.roomNumber} · ${room.roomTypeName}`] as [string, string],
+                          [room.id, `${room.roomNumber} · ${room.roomTypeName}`] as [
+                            string,
+                            string,
+                          ],
                       ),
                     ]}
                   />
                 ) : (
-                  <DrawerSelect
-                    label="Room Type *"
+                  <FieldSelect
+                    icon={BedDouble}
+                    label="Room type"
                     value={form.targetId}
                     onChange={(value) => onForm({ ...form, targetId: value })}
                     options={[
                       ["", "Select room type"],
-                      ...roomTypes.map((roomType) => [roomType.id, roomType.name]),
+                      ...roomTypes.map(
+                        (roomType) => [roomType.id, roomType.name] as [string, string],
+                      ),
                     ]}
                   />
                 )}
               </div>
-
-              {form.targetKind === "quantity" ? (
-                <div className="sm:col-span-2">
-                  <DrawerInput
-                    label="Quantity *"
-                    type="number"
-                    min="1"
-                    value={form.quantity}
-                    onChange={(value) => onForm({ ...form, quantity: value })}
-                  />
-                </div>
-              ) : null}
-
-              <DrawerInput
-                label="Start Date *"
+              <FieldInput
+                icon={Calendar}
+                label="Start date"
                 type="date"
                 value={form.startDate}
                 onChange={(value) =>
@@ -1412,185 +1511,248 @@ function CreateBlockDrawer({
                   })
                 }
               />
-              <DrawerInput
-                label="End Date *"
+              <FieldInput
+                icon={Calendar}
+                label="End date"
                 type="date"
-                min={addDays(form.startDate, 1)}
+                min={form.startDate ? addDays(form.startDate, 1) : undefined}
                 value={form.endDate}
                 onChange={(value) => onForm({ ...form, endDate: value })}
               />
+              {form.targetKind === "quantity" ? (
+                <div className="sm:col-span-2">
+                  <FieldInput
+                    icon={Hash}
+                    label="Quantity"
+                    type="number"
+                    min="1"
+                    value={form.quantity}
+                    onChange={(value) => onForm({ ...form, quantity: value })}
+                  />
+                </div>
+              ) : null}
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-xl border border-[#EDE7DF] bg-white p-4 space-y-3.5 shadow-2xs">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+          <section className="space-y-3 rounded-lg border border-[#DDD4C5] bg-white p-4">
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
               Reason & Notes
-            </h4>
-            <DrawerInput
-              label="Reason *"
+            </h3>
+            <FieldInput
+              label="Reason"
               value={form.reason}
               onChange={(value) => onForm({ ...form, reason: value })}
+              placeholder="Why this block is needed"
             />
-            <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
+            <label className="grid gap-1.5 text-xs font-semibold text-[#5C5346]">
               Notes
               <textarea
                 value={form.notes}
                 onChange={(event) => onForm({ ...form, notes: event.target.value })}
                 rows={3}
-                placeholder="Optional notes or operational context for staff..."
-                className="rounded-lg border border-[#DED7CD] bg-white px-3 py-2 text-xs outline-none focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20 resize-none transition-all"
+                placeholder="Optional note for staff"
+                className={cn(PMS_OP_TEXTAREA, PMS_OP_PLACEHOLDER, "resize-none")}
               />
             </label>
-          </div>
+          </section>
 
-          <section className="rounded-xl border border-[#E5DED4] bg-[#FAF8F5] p-4.5 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+          <section className="rounded-lg border border-[#DDD4C5] bg-white p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
                 Inventory Impact Preview
               </h3>
               {selectedRule ? (
-                <StatusPill
-                  label={titleCase(selectedRule.inventoryImpact)}
-                  tone={removesInventory ? "warning" : "neutral"}
-                />
+                <span className="rounded-full border border-[#DDD4C5] bg-[#F4EFE7] px-2 py-0.5 text-[11px] font-semibold text-[#5F492D]">
+                  {impactStatusLabel(selectedRule.inventoryImpact)}
+                </span>
               ) : null}
             </div>
             {previewLoading ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">
-                Loading canonical availability…
-              </p>
+              <p className="mt-2 text-xs text-[#756A5B]">Loading availability…</p>
             ) : selectedType && previewAvailability != null ? (
-              <dl className="mt-3 divide-y divide-[#E8E1D7] text-xs">
-                <PreviewLine label="Room Type" value={selectedType.name} />
+              <dl className="mt-1">
+                <PreviewLine label="Target" value={targetLabel} />
                 <PreviewLine
-                  label="Rooms to Block"
+                  label="Date range"
                   value={
-                    removesInventory
-                      ? form.targetKind === "room_type"
-                        ? "Entire room type"
-                        : requestedImpact
-                      : "No inventory reduction"
+                    form.startDate && form.endDate
+                      ? `${dateLabel(form.startDate)} – ${dateLabel(form.endDate)}`
+                      : "—"
                   }
                 />
-                <PreviewLine label="Available Rooms Current" value={previewAvailability} />
+                <PreviewLine label="Quantity" value={quantityLabel} />
+                <PreviewLine label="Sellable inventory before" value={previewAvailability} />
+                <PreviewLine label="Inventory removed or held" value={heldLabel} />
                 <PreviewLine
-                  label="Available Rooms After"
+                  label="Remaining sellable inventory"
                   value={
-                    after != null
-                      ? after
-                      : form.targetKind === "room"
-                        ? "Validated on activation"
-                        : "—"
+                    form.targetKind === "room"
+                      ? "Checked when the block is activated"
+                      : after == null
+                        ? "—"
+                        : after
                   }
                 />
-                <PreviewLine label="Impact" value={impactPercent} />
               </dl>
             ) : (
-              <p className="py-6 text-center text-xs text-muted-foreground">
-                Select a target and valid dates to preview canonical availability.
+              <p className="mt-2 text-xs text-[#756A5B]">
+                Choose a target and dates to see the inventory impact.
               </p>
             )}
-            {selectedRule ? (
-              <p className="mt-3 text-xs leading-5 text-muted-foreground border-t border-[#E8E1D7] pt-2.5">
-                Approval and impact come from Card 2 rules.{" "}
-                <span className="font-semibold text-[#251605]">
-                  {selectedRule.approvalRequired
-                    ? "This block type requires approval."
-                    : "Approval is not required."}
-                </span>
+            {inventoryShort ? (
+              <p className="mt-2 text-xs font-medium text-amber-800" role="alert">
+                This target does not have enough sellable inventory for these dates.
               </p>
+            ) : null}
+            {selectedRule ? (
+              approvalRequired ? (
+                <p className="mt-2 text-xs font-semibold text-[#8A641A]">
+                  Approval: Required before this block can be activated.
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-[#756A5B]">Approval: Not required</p>
+              )
             ) : (
-              <p className="mt-3 text-xs leading-5 text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-lg">
-                No Card 2 block type is enabled. Enable a configured type before creating a block.
+              <p className="mt-2 text-xs text-amber-800">
+                No block type is available. Enable a block type before creating a block.
               </p>
             )}
           </section>
         </div>
-        <SheetFooter className="sticky bottom-0 z-10 border-t border-[#E5DED4] bg-white/95 backdrop-blur-sm px-6 py-3.5 flex sm:flex-row items-center justify-end gap-2.5 shadow-xs">
+
+        {attempted && issues.length > 0 ? (
+          <ul className="space-y-1 border-t border-[#DDD4C5] px-5 py-2" role="alert">
+            {issues.map((issue) => (
+              <li key={issue} className="text-xs text-destructive">
+                {issue}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        <footer className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-[#DDD4C5] bg-[#FBF7F1] px-5 py-3">
           <Button
+            type="button"
             variant="outline"
-            className="h-9 px-4 text-xs font-semibold"
+            className="h-9 border-[#DDD4C5] px-4 text-xs font-semibold"
             onClick={() => onOpenChange(false)}
           >
             Cancel
           </Button>
-          <Button
-            variant="outline"
-            className="h-9 px-4 text-xs font-semibold"
-            disabled={!ready || pending}
-            onClick={() => onCreate("create")}
-          >
-            {selectedRule?.approvalRequired ? "Submit for Approval" : "Create Block"}
-          </Button>
-          {selectedRule && !selectedRule.approvalRequired ? (
-            <Button
-              className="h-9 px-4 text-xs font-semibold bg-[#C89933] text-[#251605] hover:bg-[#B5882D] shadow-xs"
-              disabled={!ready || pending}
-              onClick={() => onCreate("create_activate")}
-            >
-              Create & Activate
-            </Button>
-          ) : null}
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+          <div className="flex items-center gap-2">
+            {approvalRequired ? (
+              <Button
+                type="button"
+                className={SHELL_PRIMARY_BUTTON}
+                disabled={pending}
+                onClick={() => submit("create")}
+              >
+                Create Block
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 border-[#DDD4C5] px-4 text-xs font-semibold"
+                  disabled={pending || !selectedRule}
+                  onClick={() => submit("create")}
+                >
+                  Create Block
+                </Button>
+                <Button
+                  type="button"
+                  className={SHELL_PRIMARY_BUTTON}
+                  disabled={pending || !selectedRule}
+                  onClick={() => submit("create_activate")}
+                >
+                  Create & Activate
+                </Button>
+              </>
+            )}
+          </div>
+        </footer>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function DrawerSelect({
+function FieldSelect({
+  icon: Icon,
   label,
   value,
   options,
   onChange,
 }: {
+  icon: typeof Layers3;
   label: string;
   value: string;
   options: string[][];
   onChange: (value: string) => void;
 }) {
   return (
-    <PmsSelect
-      label={label}
-      value={value}
-      options={options}
-      onChange={onChange}
-      triggerClassName="focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20"
-    />
+    <div className="grid gap-1.5">
+      <span className="text-xs font-semibold text-[#5C5346]">{label}</span>
+      <div className="relative">
+        <Icon className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-[#8A641A]" />
+        <PmsSelect
+          value={value}
+          onChange={onChange}
+          options={options.map((option) => [option[0], option[1]])}
+          triggerClassName={cn(PMS_OP_SELECT_TRIGGER, "pl-9")}
+        />
+      </div>
+    </div>
   );
 }
 
-function DrawerInput({
+function FieldInput({
+  icon: Icon,
   label,
   value,
   onChange,
   type = "text",
   min,
+  placeholder,
 }: {
+  icon?: typeof Calendar;
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   min?: string;
+  placeholder?: string;
 }) {
   return (
-    <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
+    <label className="grid gap-1.5 text-xs font-semibold text-[#5C5346]">
       {label}
-      <Input
-        type={type}
-        min={min}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9 text-xs rounded-lg border-[#DED7CD] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20"
-      />
+      <span className="relative">
+        {Icon ? (
+          <Icon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8A641A]" />
+        ) : null}
+        <Input
+          type={type}
+          min={min}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            PMS_OP_INPUT,
+            type === "date" && PMS_OP_DATE,
+            PMS_OP_PLACEHOLDER,
+            Icon && "pl-9",
+          )}
+        />
+      </span>
     </label>
   );
 }
 
 function PreviewLine({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2 text-xs">
-      <dt className="text-muted-foreground font-medium">{label}</dt>
-      <dd className="font-bold text-[#251605]">{value}</dd>
+    <div className="flex items-start justify-between gap-3 py-1 text-xs">
+      <dt className="text-[#756A5B]">{label}</dt>
+      <dd className="max-w-[58%] text-right font-semibold text-[#251605]">{value}</dd>
     </div>
   );
 }
@@ -1599,97 +1761,140 @@ function BlockDetailDrawer({
   block,
   room,
   roomType,
-  onOpenChange,
+  typeRoomCount,
+  timeZone,
+  onClose,
 }: {
-  block: OperationalInventoryBlock | null;
+  block: OperationalInventoryBlock;
   room: HotelRoom | null;
   roomType: RoomType | null;
-  onOpenChange: (open: boolean) => void;
+  typeRoomCount: number;
+  timeZone: string | null;
+  onClose: () => void;
 }) {
-  if (!block) return null;
-  const target =
-    block.targetKind === "room"
-      ? `Room ${room?.roomNumber ?? shortReference(block.roomId ?? block.id)}`
-      : block.targetKind === "quantity"
-        ? `${block.quantity ?? 0} × ${roomType?.name ?? shortReference(block.roomTypeId)}`
-        : (roomType?.name ?? shortReference(block.roomTypeId));
-  const values: Array<[string, string | number | null]> = [
-    ["Target", target],
-    ["Target Type", titleCase(block.targetKind)],
-    ["Block Type", titleCase(block.blockType)],
-    ["Inventory Impact", titleCase(block.inventoryImpact)],
-    ["Current Status", titleCase(block.status)],
-    ["Approval", block.approvalRequired ? "Required" : "Not required"],
-    ["Start Date", dateLabel(block.startDate)],
-    ["End Date", dateLabel(block.endDate)],
-    ["Quantity", block.quantity],
-    ["Reason", block.reason],
-    ["Notes", block.notes],
-    ["Created By", block.createdByMembershipId],
-    ["Created At", new Date(block.createdAt).toLocaleString()],
-    ["Approved By", block.approvedByMembershipId],
-    ["Approved At", block.approvedAt ? new Date(block.approvedAt).toLocaleString() : null],
-    ["Activated By", block.activatedByMembershipId],
-    ["Activated At", block.activatedAt ? new Date(block.activatedAt).toLocaleString() : null],
-    ["Released By", block.releasedByMembershipId],
-    ["Released At", block.releasedAt ? new Date(block.releasedAt).toLocaleString() : null],
-    ["Release Reason", block.releaseReason],
-    ["Cancelled By", block.cancelledByMembershipId],
-    ["Cancelled At", block.cancelledAt ? new Date(block.cancelledAt).toLocaleString() : null],
+  const target = blockTargetLabel(block, room, roomType);
+  const removed = removedRoomCount(block, typeRoomCount);
+  const impact = inventoryImpactSentence(removed, block.inventoryImpact);
+  const note = staffNoteText(block.notes);
+  const releaseNote = staffNoteText(block.releaseReason);
+  const groupLabel = groupReservationLabel(block);
+  const approvalStatus = !block.approvalRequired
+    ? "Not required"
+    : block.status === "pending_approval"
+      ? "Pending"
+      : block.approvedAt
+        ? "Approved"
+        : "Required";
+  const when = (iso: string | null) => hotelDateTime(iso, timeZone);
+  const lifecycle = [
+    lifecycleLine("Created", block.createdByName, when(block.createdAt)),
+    lifecycleLine("Activated", block.activatedByName, when(block.activatedAt)),
+    lifecycleLine("Released", block.releasedByName, when(block.releasedAt)),
+    ...(block.status === "cancelled"
+      ? [lifecycleLine("Cancelled", block.cancelledByName, when(block.cancelledAt))]
+      : []),
   ];
   return (
-    <Sheet open={Boolean(block)} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg md:max-w-xl">
-        <SheetHeader className="border-b border-[#E5DED4] px-6 py-4 text-left">
-          <div className="flex items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-zinc-100 text-[#251605] border border-zinc-200 shadow-2xs">
-              <Boxes className="size-4.5" />
-            </span>
-            <div>
-              <SheetTitle className="font-display text-2xl font-bold" style={{ color: INK }}>
-                {blockCode(block)}
-              </SheetTitle>
-              <SheetDescription className="text-xs text-muted-foreground mt-0.5">
-                Operational inventory block details and lifecycle.
-              </SheetDescription>
-            </div>
+    <div className="min-h-full bg-white">
+      <header className="border-b border-[#E8E1D7] px-4 py-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-display text-lg font-bold leading-tight" style={{ color: INK }}>
+              {blockCode(block)}
+            </h2>
+            <p className="mt-1 text-xs leading-4 text-[#5C5346]">{target}</p>
           </div>
-        </SheetHeader>
-        <div className="px-6 py-5 space-y-4">
-          <div className="flex items-center justify-between rounded-xl border border-[#EDE7DF] bg-[#FAF8F5] p-4 shadow-2xs">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Target Entity
-              </p>
-              <p className="text-sm font-bold text-[#251605] mt-0.5">{target}</p>
-            </div>
+          <span className="mt-0.5 shrink-0">
             <BlockStatus status={block.status} />
-          </div>
-          <div className="rounded-xl border border-[#EDE7DF] bg-white p-4 shadow-2xs">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#5C5346] mb-2">
-              Block Lifecycle & Properties
-            </h4>
-            <dl className="divide-y divide-[#EEE8E0]">
-              {values.map(([label, value]) => (
-                <div key={label} className="grid grid-cols-[140px_1fr] gap-3 py-2.5 text-xs">
-                  <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-                  <dd className="break-words text-xs font-bold text-[#251605]">{value ?? "—"}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-        <SheetFooter className="sticky bottom-0 z-10 border-t border-[#E5DED4] bg-white/95 backdrop-blur-sm px-6 py-3.5 flex sm:flex-row items-center justify-end">
-          <Button
-            variant="outline"
-            className="h-9 px-4 text-xs font-semibold"
-            onClick={() => onOpenChange(false)}
+          </span>
+          <button
+            type="button"
+            aria-label="Close"
+            className="grid size-8 shrink-0 place-items-center rounded-md text-[#251605] hover:bg-[#F3EEE4]"
+            onClick={onClose}
           >
-            Close
-          </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+            <X className="size-4" />
+          </button>
+        </div>
+      </header>
+
+      <section className="border-b border-[#E8E1D7] px-4 py-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
+          Block Summary
+        </h3>
+        <dl className="mt-1">
+          <DetailLine label="Target" value={target} />
+          <DetailLine label="Target Type" value={targetTypeLabel(block.targetKind)} />
+          <DetailLine label="Block Type" value={titleCase(block.blockType)} />
+          <DetailLine label="Start Date" value={dateLabel(block.startDate)} />
+          <DetailLine label="End Date" value={dateLabel(block.endDate)} />
+          <DetailLine label="Quantity" value={block.quantity ?? "—"} />
+          <DetailLine label="Current Status" value={blockStatusLabel(block.status)} />
+          <DetailLine label="Reason" value={block.reason} />
+          {groupLabel ? <DetailLine label="Group" value={groupLabel} /> : null}
+        </dl>
+      </section>
+
+      <section className="border-b border-[#E8E1D7] px-4 py-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
+          Inventory Impact
+        </h3>
+        <p
+          className={
+            removed
+              ? "mt-1.5 rounded-md bg-[#F4E9D0] px-3 py-2 text-sm font-bold text-[#251605] ring-1 ring-[#C89933]"
+              : "mt-1 text-xs font-medium text-[#251605]"
+          }
+        >
+          {impact}
+        </p>
+      </section>
+
+      <section className="border-b border-[#E8E1D7] px-4 py-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
+          Approval
+        </h3>
+        {approvalStatus === "Not required" ? (
+          <p className="mt-1 text-xs text-[#5C5346]">Not required</p>
+        ) : (
+          <dl className="mt-1">
+            <DetailLine label="Approval status" value={approvalStatus} />
+            <DetailLine label="Approved by" value={displayName(block.approvedByName)} />
+            <DetailLine label="Approved at" value={when(block.approvedAt) ?? "—"} />
+          </dl>
+        )}
+      </section>
+
+      <section className="border-b border-[#E8E1D7] px-4 py-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
+          Lifecycle
+        </h3>
+        <ul className="mt-1 space-y-1">
+          {lifecycle.map((line) => (
+            <li key={line} className="text-xs leading-5 text-[#251605]">
+              {line}
+            </li>
+          ))}
+          {releaseNote ? (
+            <li className="text-xs leading-5 text-[#5C5346]">Release reason: {releaseNote}</li>
+          ) : null}
+        </ul>
+      </section>
+
+      <section className="px-4 py-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">Notes</h3>
+        <p className="mt-1 text-xs leading-5 text-[#5C5346]">{note ?? "No notes recorded"}</p>
+      </section>
+    </div>
+  );
+}
+
+function DetailLine({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1 text-xs">
+      <dt className="text-[#756A5B]">{label}</dt>
+      <dd className="max-w-[58%] text-right font-semibold text-[#251605]">{value}</dd>
+    </div>
   );
 }
 
@@ -1728,7 +1933,9 @@ function ActionConfirmation({
             value={note}
             onChange={(event) => onNote(event.target.value)}
             rows={3}
-            placeholder={releasing ? "Enter reason for releasing block..." : "Enter cancellation notes..."}
+            placeholder={
+              releasing ? "Enter reason for releasing block..." : "Enter cancellation notes..."
+            }
             className="rounded-lg border border-[#DED7CD] bg-white px-3 py-2 text-xs outline-none focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933]/20 resize-none"
           />
         </label>

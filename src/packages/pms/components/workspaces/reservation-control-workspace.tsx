@@ -119,6 +119,8 @@ export function ReservationControlWorkspace({
   restaurantId,
   search = "",
   onSearchChange,
+  rangeStart,
+  rangeEnd,
   currencyCode,
   canManage,
   onOpenReservation,
@@ -128,6 +130,9 @@ export function ReservationControlWorkspace({
   /** Search text (guest, reservation, room, type, reason). Owned by the parent so the header search can drive it too. */
   search?: string;
   onSearchChange?: (value: string) => void;
+  /** Shared Reservations week. Exceptions outside it are omitted. */
+  rangeStart: string;
+  rangeEnd: string;
   currencyCode: string;
   canManage: boolean;
   onOpenReservation: (reservationId: string) => void;
@@ -164,6 +169,8 @@ export function ReservationControlWorkspace({
       sourceModule,
       responsibleModule,
       status,
+      rangeStart,
+      rangeEnd,
     ],
     queryFn: () =>
       loadExceptions({
@@ -174,6 +181,8 @@ export function ReservationControlWorkspace({
           sourceModule: sourceModule === "all" ? undefined : sourceModule,
           responsibleModule: responsibleModule === "all" ? undefined : responsibleModule,
           status: status === "all" ? undefined : status,
+          rangeStart,
+          rangeEnd,
         },
       }),
     placeholderData: keepPreviousData,

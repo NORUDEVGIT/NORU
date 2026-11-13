@@ -43,8 +43,6 @@ import {
   type ReservationStatus,
 } from "@/packages/pms/lib/guest-bookings-workspace";
 import {
-  isInHouseStay,
-  isUpcomingStay,
   stayRoomNumberLabel,
   type GuestStay,
 } from "@/packages/pms/lib/guest-profile-wave3";
@@ -167,6 +165,14 @@ export function GuestStaysReservationsView({
     retry: false,
   });
 
+  // KPI Metrics for Summary Strip
+  const upcomingCount = allStays.filter((s) => s.arrivalDate >= today && s.status !== "cancelled").length;
+  const inHouseCount = allStays.filter((s) => s.status === "checked_in").length;
+  const pastCount = allStays.filter((s) => s.departureDate < today || s.status === "checked_out").length;
+  const cancelledCount = allStays.filter((s) => s.status === "cancelled" || s.status === "no_show").length;
+  const totalStays = allStays.length;
+  const totalNights = allStays.reduce((sum, s) => sum + (s.nights || 0), 0);
+
   const canPrintExport = profileActions?.canPrintExport ?? false;
 
   function exportCsv() {
@@ -232,6 +238,33 @@ export function GuestStaysReservationsView({
 
   return (
     <div className="space-y-4" data-testid="guest-stay-history">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Upcoming</p>
+          <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{upcomingCount}</p>
+        </div>
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">In-House</p>
+          <p className="mt-0.5 font-display text-lg font-semibold text-[#8A641A]">{inHouseCount}</p>
+        </div>
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Past Stays</p>
+          <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{pastCount}</p>
+        </div>
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Cancelled / No-Show</p>
+          <p className="mt-0.5 font-display text-lg font-semibold text-[#756A5B]">{cancelledCount}</p>
+        </div>
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Total Stays</p>
+          <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{totalStays}</p>
+        </div>
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Total Nights</p>
+          <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{totalNights}</p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -611,4 +644,3 @@ export function GuestStaysReservationsView({
     </div>
   );
 }
-
