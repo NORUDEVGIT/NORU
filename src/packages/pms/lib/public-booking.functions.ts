@@ -11,6 +11,7 @@ import {
   type StayProperty,
   type StayPropertyStatus,
 } from "./public-booking.server";
+import { cancelDirectBookingUnits, type CancelRpcClient } from "./direct-booking-cancel";
 import { signRoomImages } from "./rooms.server";
 import { parseSnapshot, rateError, toQuote, type StayQuote } from "./rates.server";
 import { nightsBetween, propertyToday } from "./reservation-dates";
@@ -497,8 +498,8 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
 
       const db = await admin();
       const {
+        applySettlementAndRecord,
         loadCancellationPenaltyQuote,
-        processReservationCancellation,
         propertyLedgerMembershipId,
       } = await import("./reservation-cancellation.server");
       const penalty = await loadCancellationPenaltyQuote(db, found.property.id, found.row.id);
@@ -506,19 +507,38 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
         return { ok: false, message: CANCEL_PENALTY_MESSAGE };
       }
 
-      try {
-        await processReservationCancellation(db, {
-          restaurantId: found.property.id,
-          reservationId: found.row.id,
-          source: "public",
-          reason: "Cancelled by the guest online.",
-          actorMembershipId: null,
-          ledgerMembershipId: await propertyLedgerMembershipId(db, found.property.id),
-          historyNotes: "Cancelled by the guest through direct booking.",
-        });
-      } catch {
-        return { ok: false, message: "We couldn't cancel that booking. Please contact the property." };
-      }
+      // Room units own stay status; the header is rolled up inside this one
+      // transaction. The unit RPC also writes the reservation history event.
+      const cancelled = await cancelDirectBookingUnits(
+        db as unknown as CancelRpcClient,
+        found.property.id,
+        found.row.id,
+      );
+      if (!cancelled.ok) return { ok: false, message: cancelled.message };
+
+      // Settle the folio after the cancel is committed. A settlement failure is
+      // recorded on the reservation for staff; the guest's cancellation stands.
+      await applySettlementAndRecord(db, {
+        restaurantId: found.property.id,
+        reservationId: found.row.id,
+        kind: "cancel",
+        ledgerMembershipId: await propertyLedgerMembershipId(db, found.property.id),
+        actorMembershipId: null,
+      });
+
+      const actor = await db
+        .from("restaurant_memberships")
+        .select("id")
+        .eq("restaurant_id", found.property.id)
+        .limit(1)
+        .maybeSingle();
+      const { resyncGroupBlockInventoryForReservation } = await import("./groups.functions");
+      await resyncGroupBlockInventoryForReservation(
+        db,
+        (actor.data as { id?: string } | null)?.id ?? null,
+        found.property.id,
+        found.row.id,
+      );
 
       await logDistribution({
         restaurantId: found.property.id,

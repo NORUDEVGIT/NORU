@@ -1,0 +1,195 @@
+erDiagram
+%% NORU PMS — Detailed ERD 01: Property Core (NORU-DB-ARCH-04)
+%% Source: live Supabase metadata (project qcwptraosaudcbjasmul), 2026-11-10, plus ARCH-01/ARCH-02.
+%% Owned tables: the 14 tables in ARCH-01 group 01-property-core. External stubs: pms_tax_groups, pms_property_currencies.
+%% Every line is a deployed FK. Composite tenant FKs (x_id, restaurant_id) are drawn once, on x_id.
+%% Tenant FK restaurant_id -> restaurants.id exists on all 13 child tables; only the 5 sub-domain roots are drawn.
+%% Actor FKs to restaurant_users and restaurants.approved_by -> auth.users are documented in the notes, not drawn.
+%% Cardinality: || exactly one   |o zero or one   o{ zero or more
+
+    %% ───────────── PROPERTY ANCHOR ─────────────
+    restaurants["restaurants [Property]"] {
+        uuid id PK
+        text name
+        text slug UK "public property slug"
+        text property_code
+        text legal_name
+        text timezone
+        text currency_code "default currency"
+        date business_date "current business date (Night Audit RPC transitions)"
+        jsonb business_date_config
+        uuid default_room_tax_group_id FK
+        boolean active "platform-protected"
+        boolean approved "platform-protected"
+        boolean pms_set1_live "go-live activation flag"
+    }
+
+    %% ───────────── PHYSICAL STRUCTURE ─────────────
+    hotel_buildings["hotel_buildings [Building]"] {
+        uuid id PK
+        text code UK "unique per property"
+        text name
+        text building_type
+        int floor_count
+        text status
+        boolean active
+    }
+    hotel_floors["hotel_floors [Floor]"] {
+        uuid id PK
+        uuid building_id FK
+        uuid wing_id FK "optional"
+        text code UK "unique per building"
+        text name
+        int floor_number
+        boolean active
+    }
+    hotel_wings["hotel_wings [Wing]"] {
+        uuid id PK
+        uuid parent_building_id FK "XOR parent_floor_id"
+        uuid parent_floor_id FK "XOR parent_building_id"
+        text code
+        text name UK "unique per property"
+        boolean active
+    }
+    pms_property_areas["pms_property_areas [Named Property Area]"] {
+        uuid id PK
+        text name UK "unique per property"
+        text description
+        int sort_order
+        boolean active
+    }
+
+    %% ───────────── DEPARTMENTS & OUTLETS ─────────────
+    pms_departments["pms_departments [Department]"] {
+        uuid id PK
+        uuid parent_id FK "self: parent department"
+        text code UK "unique per property"
+        text name
+        text department_type
+        text cost_center
+        text revenue_center
+        uuid manager_user_id "FK restaurant_users (actor)"
+        boolean active
+    }
+    pms_work_centers["pms_work_centers [Work Centre]"] {
+        uuid id PK
+        uuid department_id FK
+        text code UK "unique per property"
+        text name
+        boolean active
+    }
+    pms_department_routing_rules["pms_department_routing_rules [Service Routing Rule]"] {
+        uuid id PK
+        uuid department_id FK
+        text service_key UK "unique per property"
+        text default_role
+        boolean active
+    }
+    pms_property_department_contacts["pms_property_department_contacts [Department Contact]"] {
+        uuid id PK
+        uuid department_id FK
+        text contact_name
+        text phone
+        text email
+        boolean active
+    }
+    pms_outlets["pms_outlets [Outlet / Facility]"] {
+        uuid id PK
+        uuid department_id FK
+        uuid building_id FK
+        uuid floor_id FK
+        uuid wing_id FK
+        uuid tax_group_id FK
+        text currency_code FK "-> pms_property_currencies.code"
+        text code UK "unique per property"
+        text name
+        text facility_category
+        boolean is_default_rooms "max one per property"
+        boolean active
+    }
+
+    %% ───────────── GO-LIVE GOVERNANCE ─────────────
+    pms_golive_plans["pms_golive_plans [Go-Live Plan]"] {
+        uuid id PK
+        uuid restaurant_id FK,UK "one plan per property"
+        text status
+        boolean business_date_confirmed
+        boolean opening_state_confirmed
+        boolean cutover_lock_acknowledgement
+    }
+    pms_golive_tasks["pms_golive_tasks [Go-Live Task]"] {
+        uuid id PK
+        uuid golive_plan_id FK
+        uuid owner_department_id FK
+        text task_key UK "unique per property"
+        text category
+        text title
+        boolean required
+        text status
+    }
+
+    %% ───────────── OFFLINE POLICY ─────────────
+    pms_offline_policies["pms_offline_policies [Offline & Sync Policy]"] {
+        uuid id PK
+        uuid restaurant_id FK,UK "one policy per property"
+        boolean offline_mode_enabled
+        boolean configured
+        text sync_mode
+        text conflict_policy
+        text financial_offline_policy
+    }
+    pms_offline_capabilities["pms_offline_capabilities [Offline Capability]"] {
+        uuid id PK
+        uuid restaurant_id FK "references pms_offline_policies.restaurant_id"
+        text capability_key UK "unique per property"
+        text policy_state
+        int sync_priority
+        boolean controlled_financial
+        boolean active
+    }
+
+    %% ───────────── EXTERNAL REFERENCE STUBS ─────────────
+    pms_tax_groups["pms_tax_groups [STUB · 08 Taxes & Fees]"] {
+        uuid id PK
+    }
+    pms_property_currencies["pms_property_currencies [STUB · 13b Fiscal / Finance]"] {
+        uuid id PK
+        text code UK "FK target: unique (restaurant_id, code)"
+    }
+
+    %% ═════════════ RELATIONSHIPS ═════════════
+
+    %% Property anchor -> sub-domain roots (tenant FKs, ON DELETE CASCADE)
+    restaurants ||--o{ hotel_buildings : "has buildings"
+    restaurants ||--o{ pms_property_areas : "names areas"
+    restaurants ||--o{ pms_departments : "organises departments"
+    restaurants ||--o| pms_golive_plans : "go-live plan"
+    restaurants ||--o| pms_offline_policies : "offline policy"
+    restaurants |o--o| pms_tax_groups : "default room tax group"
+
+    %% Physical structure
+    hotel_buildings ||--o{ hotel_floors : "contains floor"
+    hotel_buildings |o--o{ hotel_wings : "parent of wing"
+    hotel_floors |o--o{ hotel_wings : "parent of wing"
+    hotel_wings |o--o{ hotel_floors : "groups floor"
+
+    %% Departments
+    pms_departments |o--o{ pms_departments : "parent of"
+    pms_departments ||--o{ pms_work_centers : "has work centre"
+    pms_departments ||--o{ pms_department_routing_rules : "receives service"
+    pms_departments ||--o{ pms_property_department_contacts : "contact channel"
+
+    %% Outlets
+    pms_departments |o--o{ pms_outlets : "operates outlet"
+    hotel_buildings |o--o{ pms_outlets : "located in"
+    hotel_floors |o--o{ pms_outlets : "located on"
+    hotel_wings |o--o{ pms_outlets : "located in"
+    pms_tax_groups |o--o{ pms_outlets : "taxes outlet"
+    pms_property_currencies |o--o{ pms_outlets : "outlet currency"
+
+    %% Go-live
+    pms_golive_plans ||--o{ pms_golive_tasks : "checklist task"
+    pms_departments |o--o{ pms_golive_tasks : "owns task"
+
+    %% Offline
+    pms_offline_policies ||--o{ pms_offline_capabilities : "capability rule"

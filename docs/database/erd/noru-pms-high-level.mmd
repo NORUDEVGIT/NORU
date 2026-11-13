@@ -1,0 +1,306 @@
+erDiagram
+%% NORU PMS — High-Level Domain ERD (NORU-DB-ARCH-03)
+%% Source: live Supabase FK metadata (project qcwptraosaudcbjasmul), 2026-11-10.
+%% Scope: the 22 approved anchor tables only. Every line below is backed by a deployed FK
+%% (or, for inventory_items ↔ purchase_orders, by two deployed FKs through the bridge table
+%% purchase_order_items). No inferred or speculative relationships.
+%% Conventions
+%% - Tenant-scoped composite FKs (x_id, restaurant_id) are drawn once, on x_id.
+%% - Every anchor carries restaurant_id → restaurants (tenant FK). Only the domain-root
+%%   tenant links are drawn; the rest are implicit (see notes file).
+%% - Header-copy FKs on hotel_reservations (room_type_id, room_id, rate_plan_id) are
+%%   intentionally not drawn: hotel_reservation_rooms is the source of truth for them.
+%% - Cardinality: ||  exactly one   |o  zero or one   o{  zero or more
+
+    %% ───────────── PROPERTY / STAFF ─────────────
+    restaurants["restaurants — Property (Tenant)"] {
+        uuid id PK
+        text name
+        text slug "unique property slug"
+        text timezone
+        text currency_code
+        date business_date "current hotel business date"
+        boolean active
+        boolean approved
+    }
+    restaurant_users["restaurant_users — Staff Membership"] {
+        uuid id PK
+        uuid restaurant_id FK
+        uuid user_id "auth user"
+        text role
+        uuid hotel_role_id
+        boolean active
+    }
+    staff_shifts["staff_shifts — Staff Rota Shift"] {
+        uuid id PK
+        uuid restaurant_id FK
+        uuid staff_membership_id FK
+        date shift_date
+        time start_time
+        time end_time
+        text status
+    }
+
+    %% ───────────── GUESTS ─────────────
+    guest_profiles["guest_profiles — Guest Profile (PMS identity)"] {
+        uuid id PK
+        uuid restaurant_id FK
+        text profile_number
+        text first_name
+        text last_name
+        text email
+        text guest_status
+        boolean vip_status
+        boolean blacklisted
+    }
+    guest_account_masters["guest_account_masters — Company / Group / Travel Agent"] {
+        uuid id PK
+        uuid restaurant_id FK
+        uuid primary_contact_guest_id FK
+        text account_type "company | group | travel_agent"
+        text name
+        text code
+        text tax_id
+        text account_status
+        boolean credit_account_enabled
+    }
+
+    %% ───────────── RESERVATIONS ─────────────
+    hotel_reservations["hotel_reservations — Reservation Header (booking aggregate)"] {
+        uuid id PK
+        uuid restaurant_id FK
+        uuid guest_id FK "primary guest"
+        uuid company_master_id FK
+        text confirmation_number
+        date arrival_date
+        date departure_date
+        text status "derived rollup of units"
+        text source
+        numeric room_subtotal "derived sum of units"
+    }
+    hotel_reservation_rooms["hotel_reservation_rooms — Stay Unit (lifecycle source)"] {
+        uuid id PK
+        uuid reservation_id FK
+        uuid room_type_id FK
+        uuid room_id FK "nullable until assigned"
+        uuid rate_plan_id FK
+        int unit_sequence
+        date arrival_date
+        date departure_date
+        text status "lifecycle source of truth"
+        numeric room_subtotal
+    }
+
+    %% ───────────── ROOMS / OPERATIONS ─────────────
+    room_types["room_types — Room Type"] {
+        uuid id PK
+        uuid restaurant_id FK
+        text code
+        text name
+        int max_occupancy
+        numeric base_nightly_rate
+        boolean sellable
+        boolean active
+    }
+    hotel_rooms["hotel_rooms — Physical Room"] {
+        uuid id PK
+        uuid room_type_id FK
+        text room_number
+        text floor
+        text status
+        text housekeeping_status
+        text maintenance_status
+        boolean sellable
+    }
+    housekeeping_tasks["housekeeping_tasks — Housekeeping Task"] {
+        uuid id PK
+        uuid room_id FK
+        uuid assigned_membership_id FK
+        text task_type
+        text status
+        text priority
+        timestamptz completed_at
+    }
+    night_audit_runs["night_audit_runs — Night Audit Run"] {
+        uuid id PK
+        uuid restaurant_id FK
+        uuid started_by_membership_id FK
+        uuid closed_by_membership_id FK
+        date business_date
+        text status
+        text current_step
+        timestamptz closed_at
+    }
+
+    %% ───────────── CASHIERING / FINANCE ─────────────
+    guest_folios["guest_folios — Guest Folio"] {
+        uuid id PK
+        uuid guest_id FK
+        uuid reservation_id FK "nullable; max one folio per reservation"
+        text folio_number
+        text status
+        text currency
+        timestamptz opened_at
+        timestamptz closed_at
+    }
+    folio_transactions["folio_transactions — Ledger Line (single PMS ledger)"] {
+        uuid id PK
+        uuid folio_id FK "XOR financial_account_id"
+        uuid financial_account_id FK "XOR folio_id"
+        uuid reservation_room_id FK
+        uuid hotel_cashier_shift_id FK
+        uuid posted_by_membership_id FK
+        text transaction_type
+        text category
+        numeric amount
+        timestamptz posted_at
+    }
+    financial_accounts["financial_accounts — AR / Master Billing Account"] {
+        uuid id PK
+        uuid master_id FK "one account per master"
+        text account_number
+        text account_kind
+        text currency
+        text status
+        timestamptz opened_at
+    }
+    hotel_cashier_shifts["hotel_cashier_shifts — Cashier Drawer Shift (PMS)"] {
+        uuid id PK
+        uuid membership_id FK "max one open per cashier"
+        text status
+        numeric opening_cash
+        numeric closing_count
+        timestamptz opened_at
+        timestamptz closed_at
+    }
+
+    %% ───────────── RATES / TAX ─────────────
+    hotel_rate_plans["hotel_rate_plans — Rate Plan"] {
+        uuid id PK
+        uuid room_type_id FK
+        text code
+        text name
+        text currency
+        numeric base_rate
+        date valid_from
+        date valid_to
+        boolean active
+    }
+    pms_taxes["pms_taxes — PMS Tax Definition"] {
+        uuid id PK
+        uuid restaurant_id FK
+        text code
+        text name
+        text charge_type
+        numeric amount
+        text basis
+        text applicability_scope
+        boolean active
+    }
+
+    %% ───────────── INVOICING / FISCAL ─────────────
+    guest_folio_invoices["guest_folio_invoices — Issued Guest Invoice (immutable)"] {
+        uuid id PK
+        uuid folio_id FK
+        text issued_number
+        int sequence_number
+        text coverage_scope "legacy_folio | charge_groups"
+        timestamptz issued_at
+        jsonb snapshot
+    }
+    fiscal_registrations["fiscal_registrations — Fiscal Registration (outbox)"] {
+        uuid id PK
+        uuid restaurant_id FK
+        text source_type "polymorphic source (no FK)"
+        uuid source_id "polymorphic source (no FK)"
+        text fiscal_document_type
+        text trnx_id
+        text status
+        text external_irn
+        timestamptz registered_at
+    }
+
+    %% ───────────── DISTRIBUTION ─────────────
+    distribution_channels["distribution_channels — Distribution Channel"] {
+        uuid id PK
+        uuid restaurant_id FK
+        text channel_type
+        text code
+        text name
+        text status
+        text mapping_status
+        boolean sync_active
+    }
+
+    %% ───────────── INVENTORY / PROCUREMENT ─────────────
+    inventory_items["inventory_items — Stock Item"] {
+        uuid id PK
+        uuid restaurant_id FK
+        text name
+        text inventory_type
+        numeric current_quantity
+        numeric minimum_stock_level
+        numeric unit_cost
+        boolean active
+    }
+    purchase_orders["purchase_orders — Purchase Order"] {
+        uuid id PK
+        uuid restaurant_id FK
+        uuid supplier_id
+        text po_number
+        text status
+        date order_date
+        numeric total
+    }
+
+    %% ═════════════ RELATIONSHIPS ═════════════
+
+    %% Property (tenant root) — domain-root tenant FKs only
+    restaurants ||--o{ restaurant_users : "employs"
+    restaurants ||--o{ guest_profiles : "owns guest"
+    restaurants ||--o{ guest_account_masters : "owns account master"
+    restaurants ||--o{ room_types : "defines"
+    restaurants ||--o{ night_audit_runs : "closes day"
+    restaurants ||--o{ pms_taxes : "configures"
+    restaurants ||--o{ distribution_channels : "connects"
+    restaurants ||--o{ fiscal_registrations : "registers"
+    restaurants ||--o{ inventory_items : "stocks"
+    restaurants ||--o{ purchase_orders : "orders"
+
+    %% Guests → Reservations
+    guest_profiles ||--o{ hotel_reservations : "primary guest of"
+    guest_account_masters |o--o{ hotel_reservations : "company / group / agent (3 FKs)"
+    guest_profiles |o--o{ guest_account_masters : "primary contact of"
+
+    %% Reservation → Stay units → Rooms / Room types / Rate plans
+    hotel_reservations ||--o{ hotel_reservation_rooms : "contains unit"
+    room_types ||--o{ hotel_reservation_rooms : "booked as"
+    hotel_rooms |o--o{ hotel_reservation_rooms : "assigned to"
+    hotel_rate_plans |o--o{ hotel_reservation_rooms : "prices"
+    room_types ||--o{ hotel_rooms : "classifies"
+    room_types ||--o{ hotel_rate_plans : "sold under"
+
+    %% Rooms → Operations
+    hotel_rooms ||--o{ housekeeping_tasks : "serviced by"
+
+    %% Reservation / Guest → Folio → Ledger
+    hotel_reservations |o--o| guest_folios : "billed on"
+    guest_profiles ||--o{ guest_folios : "folio holder"
+    guest_folios |o--o{ folio_transactions : "posts to"
+    financial_accounts |o--o{ folio_transactions : "posts to (AR)"
+    hotel_reservation_rooms |o--o{ folio_transactions : "charged to unit"
+    hotel_cashier_shifts |o--o{ folio_transactions : "taken in shift"
+    guest_account_masters ||--o| financial_accounts : "billing account"
+
+    %% Folio → Invoice
+    guest_folios ||--o{ guest_folio_invoices : "invoiced as"
+
+    %% Staff → Operations
+    restaurant_users ||--o{ staff_shifts : "rostered"
+    restaurant_users ||--o{ hotel_cashier_shifts : "operates drawer"
+    restaurant_users |o--o{ housekeeping_tasks : "assigned"
+    restaurant_users |o--o{ folio_transactions : "posted by"
+    restaurant_users |o--o{ night_audit_runs : "started / closed by (2 FKs)"
+
+    %% Inventory → Procurement (N:M via bridge purchase_order_items, 2 deployed FKs)
+    inventory_items }o--o{ purchase_orders : "via purchase_order_items"

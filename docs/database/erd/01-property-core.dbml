@@ -1,0 +1,269 @@
+// NORU PMS — Detailed ERD 01: Property Core (NORU-DB-ARCH-04)
+// Source: live Supabase metadata (project qcwptraosaudcbjasmul), 2026-11-10, plus ARCH-01/ARCH-02.
+// Owned tables: 14 (ARCH-01 group 01-property-core). External stubs: pms_tax_groups, pms_property_currencies.
+//
+// DBML conventions / limitations:
+// 1. Tenant-scoped composite FKs (x_id, restaurant_id) -> (id, restaurant_id) are written as
+//    single-column refs on x_id. The constraint name is in the ref comment.
+// 2. Tenant FKs restaurant_id -> restaurants.id (ON DELETE CASCADE) exist on all 13 child tables.
+//    Only the 5 sub-domain roots are declared as Refs; the others are marked "tenant FK (implicit)".
+// 3. restaurants.default_room_tax_group_id is the composite FK (default_room_tax_group_id, id)
+//    -> pms_tax_groups (id, restaurant_id): the default group must belong to the same property.
+// 4. pms_outlets.currency_code is the composite FK (restaurant_id, currency_code)
+//    -> pms_property_currencies (restaurant_id, code), a natural-key FK rather than an id FK.
+// 5. pms_offline_capabilities.restaurant_id has two FKs: one to restaurants.id (tenant) and one to
+//    pms_offline_policies.restaurant_id (unique), which makes the property's offline policy the parent.
+// 6. Actor FKs to restaurant_users (restaurant_id, user_id) and restaurants.approved_by -> auth.users
+//    are listed as column notes only; those tables are not stubbed (see notes, section D.3).
+// 7. CHECK hotel_wings_parent_xor and the partial unique pms_outlets_one_default_rooms are notes only.
+
+Project noru_pms_01_property_core {
+  database_type: 'PostgreSQL'
+  Note: 'Detailed ERD 01 — Property Core. Current approved architecture; no proposed objects.'
+}
+
+TableGroup property_anchor {
+  restaurants
+}
+
+TableGroup physical_structure {
+  hotel_buildings
+  hotel_floors
+  hotel_wings
+  pms_property_areas
+}
+
+TableGroup departments_outlets {
+  pms_departments
+  pms_work_centers
+  pms_department_routing_rules
+  pms_property_department_contacts
+  pms_outlets
+}
+
+TableGroup golive_governance {
+  pms_golive_plans
+  pms_golive_tasks
+}
+
+TableGroup offline_policy {
+  pms_offline_policies
+  pms_offline_capabilities
+}
+
+TableGroup external_stubs {
+  pms_tax_groups
+  pms_property_currencies
+}
+
+// ───────────── PROPERTY ANCHOR ─────────────
+Table restaurants [note: 'Property (tenant root). Type MASTER. Owner Property Core. Scope SHARED. 11 rows. 117 non-audit columns; only key fields shown. Column groups are edited by settings cards (see notes F).'] {
+  id uuid [pk]
+  name text [not null]
+  slug text [not null, unique, note: 'platform-protected']
+  property_code text
+  legal_name text
+  timezone text [not null]
+  currency_code text [not null, note: 'default property currency']
+  business_date date [note: 'current business date; transitions only via adjust_business_date / close_business_date']
+  business_date_config jsonb [not null, note: 'business-date configuration (Property Setup card 1)']
+  default_room_tax_group_id uuid [note: 'composite FK restaurants_default_room_tax_group_fk']
+  active boolean [not null, note: 'platform-protected']
+  approved boolean [not null, note: 'platform-protected']
+  approved_by uuid [note: 'FK auth.users (restaurants_approved_by_fkey); platform-protected']
+  pms_set1_live boolean [not null, note: 'go-live activation flag (card 8 activation)']
+}
+
+// ───────────── PHYSICAL STRUCTURE ─────────────
+Table hotel_buildings [note: 'Building master. Type MASTER. Owner Property Core. Scope PMS. 13 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  code text [not null, note: 'unique (restaurant_id, code)']
+  name text [not null]
+  building_type text
+  floor_count integer
+  status text
+  active boolean [not null]
+}
+
+Table hotel_floors [note: 'Floor master. Type MASTER. Owner Property Core. Scope PMS. 31 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  building_id uuid [not null]
+  wing_id uuid
+  code text [not null, note: 'unique (restaurant_id, building_id, code)']
+  name text [not null]
+  floor_number integer
+  active boolean [not null]
+}
+
+Table hotel_wings [note: 'Wing master. Type MASTER. Owner Property Core. Scope PMS. 16 rows. CHECK hotel_wings_parent_xor: exactly one of parent_building_id / parent_floor_id.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  parent_building_id uuid [note: 'XOR parent_floor_id']
+  parent_floor_id uuid [note: 'XOR parent_building_id']
+  code text
+  name text [not null, note: 'unique (restaurant_id, name)']
+  active boolean [not null]
+}
+
+Table pms_property_areas [note: 'Named property areas. Type MASTER. Owner Property Core. Scope PMS. 4 rows. Table source; restaurants.property_areas JSON is a compatibility snapshot.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  name text [not null, note: 'unique (restaurant_id, name)']
+  description text
+  sort_order integer [not null]
+  active boolean [not null]
+}
+
+// ───────────── DEPARTMENTS & OUTLETS ─────────────
+Table pms_departments [note: 'Department master (revenue / cost centres). Type MASTER. Owner Property Core. Scope PMS. 15 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  parent_id uuid
+  code text [not null, note: 'unique (restaurant_id, code)']
+  name text [not null]
+  department_type text [not null]
+  cost_center text
+  revenue_center text
+  manager_user_id uuid [note: 'actor FK (restaurant_id, manager_user_id) -> restaurant_users (restaurant_id, user_id)']
+  escalation_manager_user_id uuid [note: 'actor FK -> restaurant_users (restaurant_id, user_id)']
+  active boolean [not null]
+}
+
+Table pms_work_centers [note: 'Work centre under a department. Type MASTER. Owner Property Core. Scope PMS. 3 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  department_id uuid [not null, note: 'single-column FK (not tenant-composite)']
+  code text [not null, note: 'unique (restaurant_id, code)']
+  name text [not null]
+  active boolean [not null]
+}
+
+Table pms_department_routing_rules [note: 'Service-key to department routing. Type CONFIGURATION. Owner Property Core. Scope PMS. 0 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  service_key text [not null, note: 'unique (restaurant_id, service_key)']
+  department_id uuid [not null]
+  default_role text [not null]
+  active boolean [not null]
+}
+
+Table pms_property_department_contacts [note: 'Department contact channels. Type MASTER. Owner Property Core. Scope PMS. 0 rows, no app writer.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  department_id uuid [not null]
+  contact_name text
+  phone text
+  email text
+  active boolean [not null]
+}
+
+Table pms_outlets [note: 'Outlet / facility master. Type MASTER. Owner Property Core. Scope PMS. 10 rows. Partial unique pms_outlets_one_default_rooms: max one is_default_rooms outlet per property.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  department_id uuid
+  building_id uuid
+  floor_id uuid
+  wing_id uuid
+  tax_group_id uuid
+  currency_code text [note: 'composite FK (restaurant_id, currency_code) -> pms_property_currencies (restaurant_id, code)']
+  manager_user_id uuid [note: 'actor FK -> restaurant_users (restaurant_id, user_id)']
+  code text [not null, note: 'unique (restaurant_id, code)']
+  name text [not null]
+  facility_category text [not null]
+  is_default_rooms boolean [not null]
+  active boolean [not null]
+}
+
+// ───────────── GO-LIVE GOVERNANCE ─────────────
+Table pms_golive_plans [note: 'Go-live governance plan. Type CONFIGURATION. Owner Property Core. Scope PMS. 0 rows. status ready must never write restaurants.pms_set1_live.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, unique]
+  status text [not null]
+  business_date_confirmed boolean [not null]
+  opening_state_confirmed boolean [not null]
+  cutover_lock_acknowledgement boolean [not null]
+}
+
+Table pms_golive_tasks [note: 'Go-live checklist task. Type TRANSACTION. Owner Property Core. Scope PMS. 0 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'tenant FK (implicit)']
+  golive_plan_id uuid [not null]
+  owner_department_id uuid
+  owner_user_id uuid [note: 'actor FK -> restaurant_users (restaurant_id, user_id)']
+  task_key text [not null, note: 'unique (restaurant_id, task_key)']
+  category text [not null]
+  title text [not null]
+  required boolean [not null]
+  status text [not null]
+}
+
+// ───────────── OFFLINE POLICY ─────────────
+Table pms_offline_policies [note: 'Offline & sync tenant policy (setup only). Type CONFIGURATION. Owner Property Core. Scope PMS. 2 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, unique]
+  offline_mode_enabled boolean [not null]
+  configured boolean [not null]
+  sync_mode text [not null]
+  conflict_policy text [not null]
+  financial_offline_policy text [not null]
+}
+
+Table pms_offline_capabilities [note: 'Per-capability offline rule. Type CONFIGURATION. Owner Property Core. Scope PMS. 14 rows.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null, note: 'FK to restaurants.id (tenant) and to pms_offline_policies.restaurant_id']
+  capability_key text [not null, note: 'unique (restaurant_id, capability_key)']
+  policy_state text [not null]
+  sync_priority integer [not null]
+  controlled_financial boolean [not null]
+  active boolean [not null]
+}
+
+// ───────────── EXTERNAL REFERENCE STUBS ─────────────
+Table pms_tax_groups [note: 'STUB — owned by 08-taxes-fees. Columns limited to the FK target.'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+}
+
+Table pms_property_currencies [note: 'STUB — owned by 13b-fiscal-finance. FK target is unique (restaurant_id, code).'] {
+  id uuid [pk]
+  restaurant_id uuid [not null]
+  code text [not null]
+}
+
+// ═════════════ RELATIONSHIPS ═════════════
+// Property anchor -> sub-domain roots (tenant FKs)
+Ref: hotel_buildings.restaurant_id > restaurants.id [delete: cascade] // hotel_buildings_restaurant_id_fkey
+Ref: pms_property_areas.restaurant_id > restaurants.id [delete: cascade] // pms_property_areas_restaurant_id_fkey
+Ref: pms_departments.restaurant_id > restaurants.id [delete: cascade] // pms_departments_restaurant_id_fkey
+Ref: pms_golive_plans.restaurant_id - restaurants.id [delete: cascade] // pms_golive_plans_restaurant_id_fkey (+ unique)
+Ref: pms_offline_policies.restaurant_id - restaurants.id [delete: cascade] // pms_offline_policies_restaurant_id_fkey (+ unique)
+Ref: restaurants.default_room_tax_group_id - pms_tax_groups.id [delete: set null] // restaurants_default_room_tax_group_fk (composite)
+
+// Physical structure
+Ref: hotel_floors.building_id > hotel_buildings.id // hotel_floors_building_fk
+Ref: hotel_wings.parent_building_id > hotel_buildings.id // hotel_wings_building_fk
+Ref: hotel_wings.parent_floor_id > hotel_floors.id // hotel_wings_floor_fk
+Ref: hotel_floors.wing_id > hotel_wings.id [delete: restrict] // hotel_floors_wing_fk
+
+// Departments
+Ref: pms_departments.parent_id > pms_departments.id [delete: set null] // pms_departments_parent_fk
+Ref: pms_work_centers.department_id > pms_departments.id [delete: cascade] // pms_work_centers_department_id_fkey
+Ref: pms_department_routing_rules.department_id > pms_departments.id [delete: cascade] // pms_department_routing_rules_department_fk
+Ref: pms_property_department_contacts.department_id > pms_departments.id [delete: restrict] // pms_property_department_contacts_department_fk
+
+// Outlets
+Ref: pms_outlets.department_id > pms_departments.id [delete: set null] // pms_outlets_department_fk
+Ref: pms_outlets.building_id > hotel_buildings.id [delete: set null] // pms_outlets_building_fk
+Ref: pms_outlets.floor_id > hotel_floors.id [delete: set null] // pms_outlets_floor_fk
+Ref: pms_outlets.wing_id > hotel_wings.id [delete: set null] // pms_outlets_wing_fk
+Ref: pms_outlets.tax_group_id > pms_tax_groups.id [delete: set null] // pms_outlets_tax_group_fk
+Ref: pms_outlets.(restaurant_id, currency_code) > pms_property_currencies.(restaurant_id, code) [delete: set null] // pms_outlets_currency_fk
+
+// Go-live
+Ref: pms_golive_tasks.golive_plan_id > pms_golive_plans.id [delete: cascade] // pms_golive_tasks_plan_fk
+Ref: pms_golive_tasks.owner_department_id > pms_departments.id [delete: set null] // pms_golive_tasks_department_fk
+
+// Offline
+Ref: pms_offline_capabilities.restaurant_id > pms_offline_policies.restaurant_id [delete: cascade] // pms_offline_capabilities_policy_fk

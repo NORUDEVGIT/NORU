@@ -254,9 +254,11 @@ describe("entry points share the cancellation workflow", () => {
     assert.match(reservations, /kind: "unit_removal"/);
   });
 
-  it("the guest cancels online only when the penalty is zero", () => {
+  it("the guest cancels online only when the penalty is zero, through the unit cancel and then settles", () => {
     assert.match(publicBooking, /publicCancelAllowed\(penalty\)/);
-    assert.match(publicBooking, /source: "public"/);
-    assert.doesNotMatch(publicBooking, /restaurant_memberships/);
+    // Direct-booking cancel writes through room units; the header is never set directly.
+    assert.match(publicBooking, /cancelDirectBookingUnits\(/);
+    assert.doesNotMatch(publicBooking, /processReservationCancellation/);
+    assert.match(publicBooking, /applySettlementAndRecord\(db, \{[\s\S]*?kind: "cancel"/);
   });
 });
