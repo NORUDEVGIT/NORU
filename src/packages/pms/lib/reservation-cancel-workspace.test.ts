@@ -9,6 +9,7 @@ import {
   canContinueCancelReview,
   cancelFinanceRows,
   cancelPolicyView,
+  computeCancellationPenalty,
   composeCancelReason,
   folioCreditExposure,
   persistedSystemUpdates,
@@ -54,6 +55,57 @@ describe("reservation cancel workspace helpers", () => {
       new Date(),
     );
     expect(nr.outcome).toBe("penalty_applies");
+  });
+
+  it("charges the frozen cancellation amount after the free window", () => {
+    const within = computeCancellationPenalty({
+      snapshot: {
+        name: "BAR Flexible",
+        policy_kind: "free_cancellation",
+        window_value: 2,
+        window_unit: "days_before_arrival",
+        cutoff_time: "18:00",
+        penalty_type: "percentage",
+        penalty_value: 50,
+      },
+      arrivalDate: "2026-09-22",
+      timeZone: "Africa/Addis_Ababa",
+      now: new Date("2026-09-19T10:00:00.000Z"),
+      roomSubtotal: 1000,
+      nightlyRates: [{ date: "2026-09-22", rate: 500 }],
+      currency: "ETB",
+    });
+    expect(within.basis).toBe("within_free");
+    expect(within.amount).toBe(0);
+    expect(within.required).toBe(false);
+
+    const late = computeCancellationPenalty({
+      snapshot: {
+        policy_kind: "free_cancellation",
+        deadline_hours: 24,
+        penalty_type: "first_night",
+      },
+      arrivalDate: "2026-09-22",
+      timeZone: "UTC",
+      now: new Date("2026-09-22T10:00:00.000Z"),
+      roomSubtotal: 1000,
+      nightlyRates: [{ date: "2026-09-22", rate: 500 }],
+      currency: "ETB",
+    });
+    expect(late.amount).toBe(500);
+    expect(late.required).toBe(true);
+
+    const missing = computeCancellationPenalty({
+      snapshot: null,
+      arrivalDate: "2026-09-22",
+      timeZone: "UTC",
+      now: new Date(),
+      roomSubtotal: 1000,
+      nightlyRates: [],
+      currency: "ETB",
+    });
+    expect(missing.basis).toBe("not_evaluated");
+    expect(missing.calculable).toBe(false);
   });
 
   it("keeps financial rows on stored values and cashiering refund honesty", () => {

@@ -186,14 +186,20 @@ export type CompanyDetailNavId = (typeof COMPANY_DETAIL_NAV_IDS)[number];
 
 export const TRAVEL_AGENT_DETAIL_NAV_IDS = [
   "overview",
+  "details",
   "contacts",
+  "travelers",
+  "contacts-travelers",
   "bookings",
   "commission",
+  "commercial-commission",
   "agreements",
   "payment",
   "documents",
   "notes",
+  "communication-notes",
   "history",
+  "activity",
   "settings",
 ] as const;
 export type TravelAgentDetailNavId = (typeof TRAVEL_AGENT_DETAIL_NAV_IDS)[number];

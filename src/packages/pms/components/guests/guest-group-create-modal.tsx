@@ -92,6 +92,7 @@ import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/g
 import { applyGroupTemplateToDraft, GROUP_TEMPLATE_COPY, listGroupTemplates } from "@/packages/pms/lib/guest-group-templates";
 import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import { validateCompanyPhone } from "@/packages/pms/lib/guest-company-create-workspace";
 
 const MODAL_CONTROL_CLASS =
   "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none transition-colors placeholder:text-[#8C7E72] hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#8A641A] disabled:cursor-not-allowed disabled:bg-[#FAF8F5] disabled:text-[#8C7E72]";
@@ -1263,11 +1264,13 @@ function DetailsStep({
                 placeholder="contact@group.com"
               />
             </ModalField>
-            <ModalField label="Contact Phone">
+            <ModalField label="Contact Phone" error={validateCompanyPhone(draft.contactPhone) ?? undefined}>
               <CanonicalPhoneInput
                 value={draft.contactPhone}
                 onChange={(phone) => set("contactPhone", phone)}
+                error={Boolean(validateCompanyPhone(draft.contactPhone))}
                 placeholder="Enter phone number"
+                maxDigits={9}
                 containerClassName={PHONE_GROUP}
                 triggerClassName={PHONE_TRIGGER}
                 className={PHONE_INPUT}
@@ -1480,11 +1483,13 @@ function GuestsStep({
               placeholder="guest@example.com"
             />
           </ModalField>
-          <ModalField label="Phone">
+          <ModalField label="Phone" error={validateCompanyPhone(memberDraft.phone) ?? undefined}>
             <CanonicalPhoneInput
               value={memberDraft.phone}
               onChange={(phone) => onMemberDraft({ ...memberDraft, phone })}
+              error={Boolean(validateCompanyPhone(memberDraft.phone))}
               placeholder="Enter phone number"
+              maxDigits={9}
               containerClassName={PHONE_GROUP}
               triggerClassName={PHONE_TRIGGER}
               className={PHONE_INPUT}

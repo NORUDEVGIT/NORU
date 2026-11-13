@@ -831,7 +831,11 @@ export function GuestDirectoryWorkspace({
                               onSelect={() => {
                                 void navigate({
                                   to: "/restaurant/pms/reservations",
-                                  search: { create: "new", guestId: g.id },
+                                  search: {
+                                    create: "new",
+                                    guestId: g.id,
+                                    returnTo: "/restaurant/pms/guests",
+                                  },
                                 });
                               }}
                             >

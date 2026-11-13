@@ -60,7 +60,8 @@ function ledgerFolio(folio: CashieringSummaryFolio): FolioDetail {
 
 /**
  * Without a folio, every ledger field is null. A folio with no matching lines
- * returns zero for those buckets. Deposit required stays the snapshot amount.
+ * returns zero for those buckets. Deposit required is the amount check-in must collect:
+ * the snapshot amount, or zero when the snapshot says the deposit is not required.
  */
 export function projectReservationCashieringSummary(input: {
   reservationRoomTotal: number | null;

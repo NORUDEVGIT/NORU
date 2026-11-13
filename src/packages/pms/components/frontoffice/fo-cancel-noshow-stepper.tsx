@@ -62,7 +62,11 @@ import {
   waiveCancelOrNoShowFee,
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { getNoShowReadiness } from "@/packages/pms/lib/fo-no-show-readiness.functions";
+import type { CancellationSettlement } from "@/packages/pms/lib/reservation-cancellation-settlement";
+import { CancellationSettlementPanel } from "@/packages/pms/components/frontoffice/cancellation-settlement-panel";
 import { cn } from "@/shared/lib/utils";
+
+type SettledResult = { settlement: CancellationSettlement | null; settlementError: string | null };
 
 const HEADER_BG = "bg-[#1F140A]";
 const CONTROL =
@@ -128,6 +132,7 @@ export function FoCancelNoShowStepper({
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [waiveOpen, setWaiveOpen] = useState(false);
   const [postFieldError, setPostFieldError] = useState<string | null>(null);
+  const [done, setDone] = useState<SettledResult | null>(null);
   const [reservationRoomId, setReservationRoomId] = useState(
     stay.reservationRoomId ?? initialReservationRoomId ?? "",
   );
@@ -199,6 +204,7 @@ export function FoCancelNoShowStepper({
     setLedgerOpen(false);
     setWaiveOpen(false);
     setPostFieldError(null);
+    setDone(null);
     setReservationRoomId(stay.reservationRoomId ?? initialReservationRoomId ?? "");
   }, [open, stay.id, stay.reservationRoomId, initialReservationRoomId, kind]);
 
@@ -323,7 +329,7 @@ export function FoCancelNoShowStepper({
   });
 
   const completeMut = useMutation({
-    mutationFn: async (): Promise<{ id: string; status: string }> => {
+    mutationFn: async (): Promise<{ id: string; status: string } & SettledResult> => {
       const room = reservationRoomId ? { reservationRoomId } : {};
       if (kind === "cancel") {
         return completeCancel({
@@ -340,7 +346,7 @@ export function FoCancelNoShowStepper({
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success(
         kind === "cancel"
           ? multiRoom
@@ -351,7 +357,8 @@ export function FoCancelNoShowStepper({
             : "Marked as no-show.",
       );
       refreshDesk();
-      onOpenChange(false);
+      setDirty(false);
+      setDone({ settlement: result.settlement, settlementError: result.settlementError });
     },
     onError: (error) => toast.error(errorText(error)),
   });
@@ -509,7 +516,22 @@ export function FoCancelNoShowStepper({
                   <PermissionDeniedPanel className="mb-4" message={denyMessage} />
                 ) : null}
 
-                {step === "stay" ? (
+                {done ? (
+                  <div className="space-y-2 rounded-lg border border-[#DDD4C5] bg-white p-3">
+                    <p className="text-sm font-semibold text-[#251605]">Folio settlement</p>
+                    <CancellationSettlementPanel
+                      restaurantId={restaurantId}
+                      reservationId={stay.id}
+                      reservationRoomId={reservationRoomId || null}
+                      kind={kind}
+                      mode="result"
+                      settlement={done.settlement}
+                      settlementError={done.settlementError}
+                    />
+                  </div>
+                ) : null}
+
+                {!done && step === "stay" ? (
                   <div className="space-y-3">
                     <RoomUnitTargetSelect
                       units={stay.roomUnits}
@@ -540,7 +562,7 @@ export function FoCancelNoShowStepper({
                   </div>
                 ) : null}
 
-                {step === "reason" ? (
+                {!done && step === "reason" ? (
                   <div className="space-y-3 rounded-lg border border-[#DDD4C5] bg-white p-3">
                     {kind === "noshow" ? (
                       <>
@@ -597,7 +619,7 @@ export function FoCancelNoShowStepper({
                   </div>
                 ) : null}
 
-                {step === "money" ? (
+                {!done && step === "money" ? (
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-[#DDD4C5] bg-white px-3 py-2 text-sm">
                         <span>
@@ -787,7 +809,7 @@ export function FoCancelNoShowStepper({
                     </div>
                 ) : null}
 
-                {step === "confirm" ? (
+                {!done && step === "confirm" ? (
                   <div className="space-y-3 text-sm">
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-[#DDD4C5] bg-white p-3">
                       <StayFact label="Guest" value={guestLabel} />
@@ -823,6 +845,18 @@ export function FoCancelNoShowStepper({
                         </a>
                       </Button>
                     ) : null}
+                    <div className="rounded-lg border border-[#DDD4C5] bg-white p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                        Financial impact
+                      </p>
+                      <CancellationSettlementPanel
+                        restaurantId={restaurantId}
+                        reservationId={stay.id}
+                        reservationRoomId={reservationRoomId || null}
+                        kind={kind}
+                        mode="preview"
+                      />
+                    </div>
                   </div>
                 ) : null}
               </>
@@ -830,6 +864,17 @@ export function FoCancelNoShowStepper({
           </div>
 
           <div className="shrink-0 border-t border-[#DDD4C5] bg-white px-4 py-2">
+            {done ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  className={SHELL_PRIMARY_BUTTON}
+                  onClick={() => onOpenChange(false)}
+                >
+                  Done
+                </Button>
+              </div>
+            ) : (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Button type="button" variant="outline" className={OUTLINE} onClick={requestClose}>
                 Cancel
@@ -866,6 +911,7 @@ export function FoCancelNoShowStepper({
                 </div>
               </div>
             </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

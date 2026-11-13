@@ -8,6 +8,7 @@ import { COMPANY_TYPES, isCompanyType } from "./guest-profile-company.ts";
 import { GUEST_ACCOUNT_STATUSES, type GuestAccountStatus } from "./guest-profile-wave4.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
 import { isPlausibleHttpUrl, validateTinFormat } from "./pms-property-setup-card1.ts";
+import { validateNineDigitPhone } from "./pms-property-setup-phone.ts";
 import {
   COMPANY_CREATION_FIELDS,
   ALL_COMPANY_CREATION_FIELDS,
@@ -724,33 +725,11 @@ function contractDateError(start: string, end: string): string | null {
 }
 
 export function isValidCompanyPhone(value: string): boolean {
-  if (!value || !value.trim()) return true;
-  const trimmed = value.trim();
-  const digitsOnly = trimmed.replace(/\D/g, "");
-  // Ethiopian mobile: +251 9... / +251 7...
-  if (/^(\+?251)[79]\d{8}$/.test(trimmed.replace(/[\s\-()]/g, ""))) {
-    return true;
-  }
-  // Ethiopian local: 09... / 07...
-  if (/^0[79]\d{8}$/.test(trimmed.replace(/[\s\-()]/g, ""))) {
-    return true;
-  }
-  // International E.164 with +
-  if (/^\+[1-9]\d{6,14}$/.test(trimmed.replace(/[\s\-()]/g, ""))) {
-    return true;
-  }
-  // Generic numeric between 9 and 15 digits
-  if (digitsOnly.length >= 9 && digitsOnly.length <= 15) {
-    return true;
-  }
-  return false;
+  return validateNineDigitPhone(value) == null;
 }
 
 export function validateCompanyPhone(phone: string): string | null {
-  if (!phone || !phone.trim()) return null;
-  return isValidCompanyPhone(phone)
-    ? null
-    : "Enter a valid phone number (+251..., 09..., or 07...)";
+  return validateNineDigitPhone(phone);
 }
 
 export type CompanyCreateFieldCode =
@@ -1388,12 +1367,22 @@ export function companyCreateFieldIssues(
     if (phoneErr) {
       issues.push({ key: "contacts", message: phoneErr, step: "contacts" });
     }
+    const whatsappErr = validateCompanyPhone(contact.whatsapp);
+    if (whatsappErr) {
+      issues.push({ key: "contacts", message: whatsappErr, step: "contacts" });
+    }
   }
   for (const contact of draft.contacts) {
     if (!filled(contact.name) && filled(contact.phone)) {
       const phoneErr = validateCompanyPhone(contact.phone);
       if (phoneErr) {
         issues.push({ key: "contacts", message: phoneErr, step: "contacts" });
+      }
+    }
+    if (!filled(contact.name) && filled(contact.whatsapp)) {
+      const whatsappErr = validateCompanyPhone(contact.whatsapp);
+      if (whatsappErr) {
+        issues.push({ key: "contacts", message: whatsappErr, step: "contacts" });
       }
     }
   }

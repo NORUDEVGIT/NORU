@@ -1,17 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  Briefcase,
-  Building2,
-  ExternalLink,
-  MapPin,
-  Pencil,
-  Phone,
-  ShieldAlert,
-  User,
-  Users,
-} from "lucide-react";
+import { Briefcase, ExternalLink, MapPin, Pencil, Phone, ShieldAlert, User } from "lucide-react";
 
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { GuestTaxIdentitiesCard } from "@/packages/pms/components/guests/guest-tax-identities-card";
@@ -52,49 +42,54 @@ function calculateAge(dob: string): number | null {
 function SectionPanel({
   title,
   icon: Icon,
-  actions,
   testId,
   "data-testid": dataTestId,
   children,
 }: {
   title: string;
   icon?: React.ComponentType<{ className?: string }>;
-  actions?: ReactNode;
   testId?: string;
   "data-testid"?: string;
   children: ReactNode;
 }) {
   return (
-    <div
-      className="flex flex-col rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+    <section
+      className="rounded-lg border border-[#DDD4C5] bg-white px-3 py-2.5"
       data-testid={dataTestId || testId}
     >
-      <div className="flex items-center justify-between border-b border-[#DDD4C5]/60 pb-3 mb-3">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="size-4 text-[#8A641A]" />}
-          <h2 className="font-display text-base font-semibold text-[#251605]">{title}</h2>
-        </div>
-        {actions}
+      <div className="mb-2 flex items-center gap-1.5">
+        {Icon ? <Icon className="size-3.5 text-[#8A641A]" /> : null}
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-[#756A5B]">{title}</h2>
       </div>
-      <div className="flex-1 space-y-2 text-xs">{children}</div>
-    </div>
+      {children}
+    </section>
   );
 }
 
-function DataRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
+function relationshipRoleLabel(role: string): string {
+  return role in GUEST_RELATIONSHIP_ROLE_LABELS
+    ? GUEST_RELATIONSHIP_ROLE_LABELS[role as keyof typeof GUEST_RELATIONSHIP_ROLE_LABELS]
+    : role;
+}
+
+function hasValue(value: ReactNode): boolean {
+  return value != null && value !== "" && value !== false;
+}
+
+function FieldGrid({ fields }: { fields: Array<{ label: string; value: ReactNode }> }) {
+  const filled = fields.filter((field) => hasValue(field.value));
+  if (filled.length === 0) {
+    return <p className="text-xs text-[#8C827A]">Nothing recorded.</p>;
+  }
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5 border-b border-[#EFE9DF]/70 last:border-b-0">
-      <span className="shrink-0 text-[#756A5B]">{label}</span>
-      <span className="text-right font-medium text-[#251605]">
-        {value != null && value !== "" ? value : "—"}
-      </span>
-    </div>
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+      {filled.map((field) => (
+        <div key={field.label} className="min-w-0">
+          <dt className="text-[10px] leading-none text-[#8C827A]">{field.label}</dt>
+          <dd className="mt-0.5 break-words text-xs font-medium text-[#251605]">{field.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -151,192 +146,155 @@ export function GuestPersonalContactView({
   const age = guest.dateOfBirth ? calculateAge(guest.dateOfBirth) : null;
   const dobFormatted = guest.dateOfBirth
     ? `${formatStayDate(guest.dateOfBirth)}${age !== null ? ` (${age} yrs)` : ""}`
-    : "—";
+    : null;
 
   const company = (linksQuery.data ?? []).find(
     (link) => link.role === "employer" || link.role === "bill_to",
   );
+  const otherAccounts = (linksQuery.data ?? []).filter((link) => link.id !== company?.id);
 
   return (
-    <div className="space-y-4" data-testid="guest-personal-contact-view">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-display text-lg font-bold text-[#251605]">Personal & Contact</h2>
-          <p className="text-xs text-[#756A5B]">
-            Consolidated demographic identity, direct communications, residential address, and emergency details.
-          </p>
-        </div>
-        {onEdit && (
+    <div className="space-y-3" data-testid="guest-personal-contact-view">
+      {onEdit ? (
+        <div className="flex justify-end">
           <Button
             size="sm"
             onClick={onEdit}
-            className="border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm font-medium"
+            className="h-8 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm font-medium"
             variant="outline"
           >
             <Pencil className="mr-1.5 size-3.5" /> Edit Information
           </Button>
-        )}
-      </div>
+        </div>
+      ) : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Panel 1: Personal Information */}
-        <SectionPanel
-          title="Personal Information"
-          icon={User}
-          data-testid="personal-info-panel"
-        >
-          <DataRow
-            label="Title"
-            value={guest.title ? GUEST_TITLE_LABELS[guest.title] : null}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <SectionPanel title="Personal Information" icon={User} data-testid="personal-info-panel">
+          <FieldGrid
+            fields={[
+              { label: "Title", value: guest.title ? GUEST_TITLE_LABELS[guest.title] : null },
+              { label: "Full Name", value: guest.fullName },
+              { label: "Preferred Name", value: guest.preferredName },
+              { label: "Middle Name", value: guest.middleName },
+              { label: "Gender", value: guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null },
+              { label: "Date of Birth", value: dobFormatted },
+              {
+                label: "Nationality",
+                value: guest.nationality ? nationalityValueForStored(guest.nationality) : null,
+              },
+              { label: "Language", value: guest.language },
+            ]}
           />
-          <DataRow label="Full Name" value={guest.fullName} />
-          <DataRow label="Preferred Name" value={guest.preferredName} />
-          <DataRow label="Middle Name" value={guest.middleName} />
-          <DataRow
-            label="Gender"
-            value={guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null}
-          />
-          <DataRow label="Date of Birth" value={dobFormatted} />
-          <DataRow
-            label="Nationality"
-            value={guest.nationality ? nationalityValueForStored(guest.nationality) : null}
-          />
-          <DataRow label="Language" value={guest.language} />
         </SectionPanel>
 
-        {/* Panel 2: Contact Information */}
-        <SectionPanel
-          title="Contact Channels"
-          icon={Phone}
-          data-testid="contact-info-panel"
-        >
-          <DataRow label="Mobile Phone" value={formatGroupedPhone(guest.phone) || null} />
-          <DataRow label="Alternate Phone" value={formatGroupedPhone(guest.phoneAlt) || null} />
-          <DataRow label="Email Address" value={guest.email} />
-          <DataRow label="Alternate Email" value={guest.emailAlt} />
-          <DataRow label="Preferred Method" value={method} />
-          <DataRow label="Preferred Contact Time" value={time} />
+        <SectionPanel title="Contact Channels" icon={Phone} data-testid="contact-info-panel">
+          <FieldGrid
+            fields={[
+              { label: "Mobile Phone", value: formatGroupedPhone(guest.phone) || null },
+              { label: "Alternate Phone", value: formatGroupedPhone(guest.phoneAlt) || null },
+              { label: "Email Address", value: guest.email },
+              { label: "Alternate Email", value: guest.emailAlt },
+              { label: "Preferred Method", value: method },
+              { label: "Preferred Contact Time", value: time },
+            ]}
+          />
         </SectionPanel>
 
-        {/* Panel 3: Address & Location */}
-        <SectionPanel
-          title="Residential Address"
-          icon={MapPin}
-          data-testid="address-info-panel"
-        >
-          <DataRow label="Address Line 1" value={guest.addressLine1} />
-          <DataRow label="Address Line 2" value={guest.addressLine2} />
-          <DataRow label="City" value={guest.city} />
-          <DataRow label="State / Region" value={guest.region} />
-          <DataRow label="Postal / ZIP Code" value={guest.postalCode} />
-          <DataRow label="Country" value={guest.country} />
-          {/* Caution 2: Truthful map check only */}
-          {mapHref && (
-            <div className="pt-2 text-right">
-              <a
-                className="inline-flex items-center gap-1 text-xs text-[#8A641A] hover:text-[#725215] font-semibold underline"
-                href={mapHref}
-                target="_blank"
-                rel="noreferrer"
-                data-testid="guest-overview-map"
-              >
-                <ExternalLink className="size-3" /> View on Map
-              </a>
-            </div>
-          )}
+        <SectionPanel title="Residential Address" icon={MapPin} data-testid="address-info-panel">
+          <FieldGrid
+            fields={[
+              { label: "Address Line 1", value: guest.addressLine1 },
+              { label: "Address Line 2", value: guest.addressLine2 },
+              { label: "City", value: guest.city },
+              { label: "State / Region", value: guest.region },
+              { label: "Postal / ZIP Code", value: guest.postalCode },
+              { label: "Country", value: guest.country },
+            ]}
+          />
+          {mapHref ? (
+            <a
+              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#8A641A] underline hover:text-[#725215]"
+              href={mapHref}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="guest-overview-map"
+            >
+              <ExternalLink className="size-3" /> View on Map
+            </a>
+          ) : null}
         </SectionPanel>
 
-        {/* Panel 4: Employment & Corporate Affiliation */}
         <SectionPanel
           title="Employment & Affiliations"
           icon={Briefcase}
           data-testid="employment-info-panel"
         >
-          <DataRow label="Position / Title" value={guest.position} />
-          <DataRow label="Department" value={guest.department} />
-          <DataRow label="Source of Business" value={guest.sourceOfBusiness} />
-          {company ? (
-            <DataRow
-              label="Primary Company"
-              value={`${company.masterName} (${GUEST_ACCOUNT_TYPE_LABELS[company.masterType]})`}
-            />
-          ) : (
-            <DataRow label="Primary Company" value="No company linked" />
-          )}
-          {linksQuery.data && linksQuery.data.length > 1 && (
-            <div className="pt-2 space-y-1">
-              <span className="text-[#756A5B] text-[11px] font-semibold">Other Accounts:</span>
-              <ul className="text-[#251605] text-xs list-disc list-inside space-y-0.5">
-                {linksQuery.data.slice(1).map((l) => (
-                  <li key={l.id}>
-                    {l.masterName} (
-                    {l.role in GUEST_RELATIONSHIP_ROLE_LABELS
-                      ? GUEST_RELATIONSHIP_ROLE_LABELS[l.role as keyof typeof GUEST_RELATIONSHIP_ROLE_LABELS]
-                      : l.role}
-                    )
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <FieldGrid
+            fields={[
+              { label: "Position / Title", value: guest.position },
+              { label: "Department", value: guest.department },
+              { label: "Source of Business", value: guest.sourceOfBusiness },
+              {
+                label: "Primary Company",
+                value: company
+                  ? `${company.masterName} (${GUEST_ACCOUNT_TYPE_LABELS[company.masterType]})`
+                  : null,
+              },
+            ]}
+          />
+          {otherAccounts.length > 0 ? (
+            <p className="mt-2 text-[11px] text-[#756A5B]">
+              <span className="font-semibold">Other accounts: </span>
+              {otherAccounts
+                .map((link) => `${link.masterName} (${relationshipRoleLabel(link.role)})`)
+                .join(" · ")}
+            </p>
+          ) : null}
         </SectionPanel>
+      </div>
 
-        {filteredCustomFields.length > 0 ? (
-        <SectionPanel
-          title="Other profile details"
-          icon={User}
-          data-testid="additional-info-panel"
-        >
+      {filteredCustomFields.length > 0 ? (
+        <SectionPanel title="Other profile details" icon={User} data-testid="additional-info-panel">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
             {filteredCustomFields.map((field) => (
-              <div
-                key={field.fieldId}
-                className="flex items-baseline justify-between gap-4 py-1.5 border-b border-[#EFE9DF]/70 last:border-b-0"
-              >
-                <div className="flex items-center gap-1.5 shrink-0 text-[#756A5B]">
-                  <span>{field.name}</span>
-                  {!field.active && (
+              <div key={field.fieldId} className="min-w-0">
+                <dt className="flex items-center gap-1.5 text-[10px] leading-none text-[#8C827A]">
+                  <span className="truncate">{field.name}</span>
+                  {!field.active ? (
                     <Badge
                       variant="outline"
-                      className="text-[10px] text-muted-foreground py-0 px-1 font-normal"
+                      className="px-1 py-0 text-[10px] font-normal text-muted-foreground"
                     >
                       Inactive
                     </Badge>
-                  )}
-                </div>
-                <span className="text-right font-medium text-[#251605]">
+                  ) : null}
+                </dt>
+                <dd className="mt-0.5 break-words text-xs font-medium text-[#251605]">
                   {field.formattedValue || "—"}
-                </span>
+                </dd>
               </div>
             ))}
+          </dl>
         </SectionPanel>
-        ) : null}
-      </div>
+      ) : null}
 
-      {/* Emergency Contacts Panel (Full Width) */}
-      <SectionPanel
-        title="Emergency Contacts"
-        icon={ShieldAlert}
-        data-testid="emergency-info-panel"
-      >
+      <SectionPanel title="Emergency Contacts" icon={ShieldAlert} data-testid="emergency-info-panel">
         {guest.emergencyContacts.length === 0 ? (
-          <p className="text-[#8C827A] text-xs py-2">No emergency contacts recorded for this guest.</p>
+          <p className="text-xs text-[#8C827A]">No emergency contacts recorded for this guest.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {guest.emergencyContacts.map((contact) => (
-              <div
-                key={contact.id}
-                className="rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-3 space-y-1"
-              >
-                <p className="font-semibold text-[#251605] text-xs">{contact.name}</p>
-                <p className="text-[11px] text-[#8A641A] font-semibold">
-                  {contact.relationship || "Contact"}
+              <div key={contact.id} className="min-w-0 text-xs">
+                <p className="font-medium text-[#251605]">{contact.name}</p>
+                <p className="break-words text-[11px] text-[#756A5B]">
+                  {[
+                    contact.relationship,
+                    contact.phone ? formatGroupedPhone(contact.phone) : null,
+                    contact.email,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "Contact"}
                 </p>
-                {contact.phone && (
-                  <p className="text-[11px] text-[#251605]">Tel: {formatGroupedPhone(contact.phone)}</p>
-                )}
-                {contact.email && (
-                  <p className="text-[11px] text-[#756A5B] truncate">Email: {contact.email}</p>
-                )}
               </div>
             ))}
           </div>

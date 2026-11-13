@@ -115,7 +115,7 @@ export type StayMoneySignal = {
   depositPosted: number | null;
   /** Net folio payments toward the reservation requirement. Deposit lines are excluded. */
   paymentPosted?: number | null;
-  /** Snapshot computed_amount. Null when the stay has no requirement amount. */
+  /** Amount check-in must collect. Zero when the snapshot says the deposit is not required. */
   paymentRequired?: number | null;
   depositWaived: boolean;
   checkoutOverride: boolean;

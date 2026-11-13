@@ -46,6 +46,15 @@ import {
   guestProfileSearch,
 } from "@/packages/pms/lib/guest-profile-wave1";
 
+function individualGuestProfileSearch() {
+  return guestProfileSearch({
+    type: "individual",
+    nav: "overview",
+    view: "overview",
+    tab: "overview",
+  });
+}
+
 type OverviewData = Awaited<
   ReturnType<typeof import("@/packages/pms/lib/guest-travel-agent-detail.functions").getTravelAgentDetailWorkspace>
 >;
@@ -299,7 +308,7 @@ export function GuestTravelAgentOverviewView({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => onNavigate("contacts-travelers")}
+              onClick={() => onNavigate("contacts")}
               className="h-7 text-xs text-[#8A641A] hover:text-[#251605]"
             >
               Manage
@@ -427,7 +436,7 @@ export function GuestTravelAgentOverviewView({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => onNavigate("contacts-travelers")}
+              onClick={() => onNavigate("travelers")}
               className="h-7 text-xs text-[#8A641A] hover:text-[#251605]"
             >
               View All ({links.data?.length ?? 0})
@@ -443,7 +452,14 @@ export function GuestTravelAgentOverviewView({
             <div className="space-y-1.5">
               {links.data.slice(0, 3).map((l) => (
                 <div key={l.id} className="flex items-center justify-between py-1 border-b border-[#EFE9DF]/50 last:border-b-0">
-                  <span className="font-medium text-[#251605]">{l.guestName}</span>
+                  <Link
+                    to={GUEST_PROFILE_DETAIL_PATH}
+                    params={{ guestId: l.guestId }}
+                    search={individualGuestProfileSearch()}
+                    className="font-medium text-[#251605] hover:text-[#8A641A] hover:underline"
+                  >
+                    {l.guestName}
+                  </Link>
                   <span className="text-[11px] text-[#756A5B]">{l.role.replaceAll("_", " ")}</span>
                 </div>
               ))}

@@ -508,29 +508,87 @@ async function decorateTaContacts(
     const result = await db.from("pms_departments").select("id, name").eq("restaurant_id", restaurantId).in("id", departmentIds);
     for (const row of (result.data ?? []) as Array<{ id: string; name: string }>) departments.set(row.id, row.name);
   }
+  const roleIdsByContact = new Map<string, string[]>();
+  const roleNamesByContact = new Map<string, string[]>();
+  const preferredByContact = new Map<string, string | null>();
+  const contactIds = rows.map((row) => row.id);
+  if (contactIds.length > 0) {
+    const pendingRoleIds = new Set<string>();
+    const direct = await db
+      .from("guest_company_contacts")
+      .select("id, role_id, preferred_method")
+      .in("id", contactIds);
+    if (!direct.error) {
+      for (const row of (direct.data ?? []) as Array<{
+        id: string;
+        role_id?: string | null;
+        preferred_method?: string | null;
+      }>) {
+        if (row.role_id) {
+          roleIdsByContact.set(row.id, [row.role_id]);
+          pendingRoleIds.add(row.role_id);
+        }
+        if (row.preferred_method) preferredByContact.set(row.id, row.preferred_method);
+      }
+    }
+    const junction = await db
+      .from("guest_company_contact_roles")
+      .select("contact_id, role_id")
+      .in("contact_id", contactIds);
+    if (!junction.error) {
+      for (const row of (junction.data ?? []) as Array<{ contact_id: string; role_id: string }>) {
+        const list = roleIdsByContact.get(row.contact_id) ?? [];
+        if (!list.includes(row.role_id)) list.push(row.role_id);
+        roleIdsByContact.set(row.contact_id, list);
+        pendingRoleIds.add(row.role_id);
+      }
+    }
+    if (pendingRoleIds.size > 0) {
+      const roles = await db
+        .from("pms_business_contact_roles")
+        .select("id, name")
+        .eq("restaurant_id", restaurantId)
+        .in("id", [...pendingRoleIds]);
+      const names = new Map<string, string>();
+      if (!roles.error) {
+        for (const role of (roles.data ?? []) as Array<{ id: string; name: string }>) {
+          names.set(role.id, role.name);
+        }
+      }
+      for (const [contactId, ids] of roleIdsByContact) {
+        roleNamesByContact.set(
+          contactId,
+          ids.map((id) => names.get(id) ?? "Role"),
+        );
+      }
+    }
+  }
   const signed = await signRoomImages(
     rows.map((row) => row.photo_storage_path).filter((path): path is string => Boolean(path)),
   );
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    position: row.position,
-    departmentId: row.department_id,
-    departmentName: row.department_id ? departments.get(row.department_id) ?? null : null,
-    phone: row.phone,
-    email: row.email,
-    whatsapp: row.whatsapp ?? null,
-    photoUrl: row.photo_storage_path ? signed.get(row.photo_storage_path) ?? null : null,
-    photoStoragePath: row.photo_storage_path,
-    status: row.status === "inactive" ? "inactive" : "active",
-    isPrimary: row.is_primary,
-    notes: row.notes,
-    roleIds: [],
-    roleNames: [],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }));
+  return rows.map((row) => {
+    return {
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      position: row.position,
+      departmentId: row.department_id,
+      departmentName: row.department_id ? departments.get(row.department_id) ?? null : null,
+      phone: row.phone,
+      email: row.email,
+      whatsapp: row.whatsapp ?? null,
+      photoUrl: row.photo_storage_path ? signed.get(row.photo_storage_path) ?? null : null,
+      photoStoragePath: row.photo_storage_path,
+      status: row.status === "inactive" ? "inactive" : "active",
+      isPrimary: row.is_primary,
+      notes: row.notes,
+      roleIds: roleIdsByContact.get(row.id) ?? [],
+      roleNames: roleNamesByContact.get(row.id) ?? [],
+      preferredMethod: preferredByContact.get(row.id) ?? null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  });
 }
 
 export const listTravelAgentContacts = createServerFn({ method: "POST" })
@@ -544,7 +602,7 @@ export const listTravelAgentContacts = createServerFn({ method: "POST" })
         status: z.enum(["all", ...COMPANY_CONTACT_STATUSES]).optional(),
         primary: z.enum(["all", "yes", "no"]).optional(),
         offset: z.number().int().min(0).optional(),
-        limit: z.number().int().min(1).max(50).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
       })
       .parse(input),
   )

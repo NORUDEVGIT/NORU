@@ -16,7 +16,6 @@ export const GUEST_DETAIL_VIEW_IDS = [
   "relationships",
   "services",
   "communication-notes",
-  "privacy",
   "activity",
   "loyalty",
 ] as const;
@@ -100,13 +99,6 @@ export const GUEST_DETAIL_VIEW_DEFINITIONS: readonly GuestDetailViewDefinition[]
     description: "Staff notes, communications and recorded interactions.",
   },
   {
-    id: "privacy",
-    label: "Privacy & Administration",
-    group: "more",
-    legacyCard: "admin-privacy",
-    description: "Consent preferences and privacy audit history.",
-  },
-  {
     id: "activity",
     label: "Activity / History",
     group: "more",
@@ -168,7 +160,6 @@ export function resolveGuestDetailView(
   if (card === "stay-history") return "stays";
   if (card === "relationships") return "relationships";
   if (card === "services") return "services";
-  if (card === "admin-privacy") return "privacy";
   if (card === "loyalty") return "loyalty";
   if (card === "notes-comms") {
     return nav === "history" ? "activity" : "communication-notes";

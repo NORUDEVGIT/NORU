@@ -3022,6 +3022,7 @@ export const amendPreArrivalRoomCount = createServerFn({ method: "POST" })
     if (currentCount < 1) throw new Error("This reservation has no active rooms to amend.");
     if (currentCount === data.rooms) return { id: data.reservationId };
 
+    const removedUnitIds: string[] = [];
     if (data.rooms > currentCount) {
       const template = active[0];
       const roomTypeId = template?.room_type_id ?? stay.room_type_id;
@@ -3116,6 +3117,7 @@ export const amendPreArrivalRoomCount = createServerFn({ method: "POST" })
           .eq("reservation_id", data.reservationId)
           .eq("id", id);
         if (cancelError) throw new Error(cancelError.message);
+        removedUnitIds.push(id);
       }
     }
 
@@ -3134,6 +3136,20 @@ export const amendPreArrivalRoomCount = createServerFn({ method: "POST" })
       _reservation_id: data.reservationId,
     });
     if (syncError) throw reservationError(syncError.message);
+
+    if (removedUnitIds.length > 0) {
+      const { applySettlementAndRecord } = await import("./reservation-cancellation.server");
+      for (const id of removedUnitIds) {
+        await applySettlementAndRecord(supabaseAdmin, {
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          reservationRoomId: id,
+          kind: "unit_removal",
+          ledgerMembershipId: me.id,
+          actorMembershipId: me.id,
+        });
+      }
+    }
 
     await recordReservationEvent({
       restaurantId: data.restaurantId,
@@ -3366,7 +3382,8 @@ export const manageReservationRoomGuest = createServerFn({ method: "POST" })
 /**
  * Reservation-owned pending/confirmed/cancelled only.
  * Front Office operational cancel (fees + room clear) must use `completeFoCancel`.
- * Do not call this from Front Office UI with status cancelled.
+ * Cancelled goes through the same fee gate and folio settlement as the desk.
+ * Restoring a cancelled stay posts its reversed room and package charges again.
  */
 export const setReservationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -3404,6 +3421,30 @@ export const setReservationStatus = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    if (data.status === "cancelled") {
+      const { assertCancelFeeSatisfied } = await import("./fo-cancel-noshow.functions");
+      const { processReservationCancellation } = await import("./reservation-cancellation.server");
+      const canWaive = hasEffectivePermission(
+        await resolveEffectivePermissions(context as never, data.restaurantId),
+        PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+      );
+      await assertCancelFeeSatisfied(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        membershipId: me.id,
+        canWaive,
+      });
+      await processReservationCancellation(supabaseAdmin, {
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        source: "booking",
+        reason: data.reason ?? null,
+        actorMembershipId: me.id,
+        ledgerMembershipId: me.id,
+      });
+      return { id: data.reservationId, status: "cancelled" };
+    }
+
     // Restoring a cancelled reservation has to win a capacity check again.
     if (existing.status === "cancelled") {
       const { error: capacityError } = await supabaseAdmin.rpc("assert_reservation_capacity", {
@@ -3436,6 +3477,31 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       throw new Error(unitStatus.error.message);
     }
 
+    let repostedCharges = 0;
+    if (existing.status === "cancelled") {
+      const { data: reposted, error: repostError } = (await supabaseAdmin.rpc(
+        "repost_reservation_charges_after_restore" as never,
+        {
+          _restaurant_id: data.restaurantId,
+          _reservation_id: data.reservationId,
+          _membership_id: me.id,
+        } as never,
+      )) as { data: unknown; error: { message: string } | null };
+      if (repostError) {
+        await recordReservationEvent({
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          eventType: "amended",
+          newValues: { restore_repost_failed: true, error: repostError.message },
+          notes:
+            "Fee reversal or room charge repost did not finish after restore. Check the folio in Cashiering.",
+          actorMembershipId: me.id,
+        });
+      } else {
+        repostedCharges = Number(reposted ?? 0);
+      }
+    }
+
     const eventType: ReservationEventType =
       data.status === "cancelled"
         ? "cancelled"
@@ -3448,7 +3514,10 @@ export const setReservationStatus = createServerFn({ method: "POST" })
       reservationId: data.reservationId,
       eventType,
       previousValues: { status: existing.status },
-      newValues: { status: data.status },
+      newValues: {
+        status: data.status,
+        ...(repostedCharges > 0 ? { reposted_folio_charges: repostedCharges } : {}),
+      },
       notes: data.status === "cancelled" ? blankToNull(data.reason) : null,
       actorMembershipId: me.id,
     });

@@ -14,6 +14,8 @@ import {
   createFieldRules,
   emptyGuestCreateDraft,
   guestCreateCompletion,
+  guestCreateDiffers,
+  guestCreateHasChanges,
   guestCreateHoldKey,
   guestCreateFieldIssues,
   guestCreateStepErrors,
@@ -200,6 +202,30 @@ describe("Guest create workflow helpers", () => {
       dataProcessingRequired: false,
     });
     assert.ok(errors.length > 0);
+  });
+
+  it("rejects an incomplete phone while it is being entered", () => {
+    const draft = emptyGuestCreateDraft();
+    draft.firstName = "Abebe";
+    draft.phone = "+25191";
+    const issues = guestCreateFieldIssues(draft, {
+      rules: [],
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+    });
+    assert.ok(issues.some((issue) => issue.key === "PHONE" && issue.step === "basic"));
+    draft.phone = "+251911234567";
+    const valid = guestCreateFieldIssues(draft, {
+      rules: [],
+      set3: null,
+      requiredPreferenceTypeIds: [],
+      dataProcessingRequired: false,
+    });
+    assert.equal(
+      valid.some((issue) => issue.key === "PHONE"),
+      false,
+    );
   });
 
   it("names the missing field and the step that holds it", () => {
@@ -498,6 +524,32 @@ describe("Guest create honesty", () => {
     assert.match(reservation, /GuestFormDialog/);
     assert.match(dialog, /createGuest/);
     assert.doesNotMatch(workspace, /Airport Pickup|Laundry|Wake-up Call/);
+  });
+
+  it("asks to leave only after the user enters something", () => {
+    const opened = emptyGuestCreateDraft();
+    opened.dataProcessingConsent = "granted";
+    opened.documents = [
+      {
+        key: "auto",
+        idTypeId: "passport",
+        documentNumber: "",
+        issuingCountry: "",
+        issueDate: "",
+        expiryDate: "",
+        issuingAuthority: "",
+        notes: "",
+        hasFront: false,
+        hasBack: false,
+      },
+    ];
+    assert.equal(guestCreateHasChanges(opened), false);
+    assert.equal(guestCreateHasChanges({ ...opened, firstName: "Ada" }), true);
+    const loaded = emptyGuestCreateDraft();
+    loaded.firstName = "Ada";
+    loaded.dataProcessingConsent = "granted";
+    assert.equal(guestCreateDiffers(loaded, loaded), false);
+    assert.equal(guestCreateDiffers({ ...loaded, phone: "+251911" }, loaded), true);
   });
 
   it("keeps dual-lane 0093 drafts off guest_profiles", () => {

@@ -933,6 +933,7 @@ function ContactsStep({
         {contactsError ? <p className="text-xs text-destructive">{contactsError}</p> : null}
         {draft.contacts.map((contact, index) => {
           const phoneErr = contact.phone ? validateCompanyPhone(contact.phone) : null;
+          const whatsappErr = contact.whatsapp ? validateCompanyPhone(contact.whatsapp) : null;
           return (
             <div key={contact.key} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
               <Field
@@ -995,12 +996,13 @@ function ContactsStep({
                   }
                   error={Boolean(phoneErr || (!contact.phone && required("CONTACT_PHONE")))}
                   placeholder="e.g. 911 234 567"
+                  maxDigits={9}
                 />
               </Field>
               <Field
                 label="WhatsApp"
                 required={required("CONTACT_WHATSAPP")}
-                error={!contact.whatsapp && required("CONTACT_WHATSAPP") ? (fieldError("CONTACT_WHATSAPP", "contacts") || "WhatsApp is required") : undefined}
+                error={whatsappErr || (!contact.whatsapp && required("CONTACT_WHATSAPP") ? (fieldError("CONTACT_WHATSAPP", "contacts") || "WhatsApp is required") : undefined)}
               >
                 <CanonicalPhoneInput
                   value={contact.whatsapp}
@@ -1010,8 +1012,9 @@ function ContactsStep({
                       draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp } : row)),
                     )
                   }
-                  error={Boolean(!contact.whatsapp && required("CONTACT_WHATSAPP"))}
+                  error={Boolean(whatsappErr || (!contact.whatsapp && required("CONTACT_WHATSAPP")))}
                   placeholder="e.g. 911 234 567"
+                  maxDigits={9}
                 />
               </Field>
               <Field

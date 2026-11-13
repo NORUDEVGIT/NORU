@@ -36,6 +36,8 @@ import {
   isPreferredContactTime,
 } from "@/packages/pms/lib/guest-profile-overview";
 import { documentExpiryStatus } from "@/packages/pms/lib/guest-identity-documents";
+import { ID_DOCUMENT_LABELS } from "@/packages/pms/lib/fo-check-in";
+import { GUEST_DOCUMENT_STATUS_LABELS } from "@/packages/pms/lib/guest-profile-wave2";
 import { countryNameFromInput } from "@/packages/pms/lib/pms-geography";
 import {
   listGuestDocuments,
@@ -50,61 +52,62 @@ import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { Button } from "@/shared/components/ui/button";
 import type { GuestDetailViewId } from "@/packages/pms/lib/guest-detail-view";
 
-function identityStatusLabel(document: GuestDocument, today: string): "Expired" | "Verified" | "Rejected" | "Unverified" {
-  if (documentExpiryStatus(document.expiryDate, today) === "expired") return "Expired";
-  if (document.verificationStatus === "verified") return "Verified";
-  if (document.verificationStatus === "rejected") return "Rejected";
-  return "Unverified";
+type IdentityStatus = "expired" | "verified" | "rejected" | "unverified";
+
+function identityStatus(document: GuestDocument, today: string): IdentityStatus {
+  if (documentExpiryStatus(document.expiryDate, today) === "expired") return "expired";
+  return document.verificationStatus;
+}
+
+function maskStoredNumber(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  return `•••• ${trimmed.slice(-4)}`;
 }
 
 function IdentityStatusRows({
   document,
+  extraCount,
+  profileType,
+  profileNumber,
+  profileExpiry,
   today,
 }: {
   document: GuestDocument | null;
+  extraCount: number;
+  profileType: GuestProfile["idDocumentType"];
+  profileNumber: string | null;
+  profileExpiry: string | null;
   today: string;
 }) {
-  if (!document) {
-    return (
-      <>
-        <InfoRow label="ID Document" value="Not recorded" />
-        <InfoRow label="ID Number" value="Not recorded" />
-        <InfoRow label="Issuing Country" value="Not recorded" />
-        <InfoRow label="Expiration Date" value="Not recorded" />
-        <div className="flex items-center justify-between pt-2 border-t border-[#DDD4C5]/60">
-          <span className="text-[#756A5B]">Verification</span>
-          <span className="rounded-full bg-stone-100 border border-stone-200 px-2 py-0.5 text-[10px] font-medium text-stone-600">
-            Not recorded
-          </span>
-        </div>
-      </>
-    );
-  }
-
-  const status = identityStatusLabel(document, today);
+  const typeLabel = document?.typeName || (profileType ? ID_DOCUMENT_LABELS[profileType] : null);
+  const number = document?.documentNumberMasked || maskStoredNumber(profileNumber);
+  const country = document?.issuingCountry ? countryNameFromInput(document.issuingCountry) : null;
+  const expiry = document?.expiryDate || profileExpiry;
+  const expired = Boolean(expiry) && documentExpiryStatus(expiry, today) === "expired";
+  const status = document ? identityStatus(document, today) : null;
+  const statusLabel =
+    status === "expired" ? "Expired" : status ? GUEST_DOCUMENT_STATUS_LABELS[status] : "Not recorded";
   const statusClass =
-    status === "Verified"
+    status === "verified"
       ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-      : status === "Rejected" || status === "Expired"
+      : status === "rejected" || status === "expired"
         ? "bg-rose-50 border-rose-200 text-rose-800"
         : "bg-stone-100 border-stone-200 text-stone-600";
 
   return (
     <>
-      <InfoRow label="ID Document" value={document.typeName || "Not recorded"} />
-      <InfoRow label="ID Number" value={document.documentNumberMasked} />
-      <InfoRow
-        label="Issuing Country"
-        value={document.issuingCountry ? countryNameFromInput(document.issuingCountry) : null}
-      />
+      <InfoRow label="ID Document" value={typeLabel || "Not recorded"} />
+      <InfoRow label="ID Number" value={number || "Not recorded"} />
+      <InfoRow label="Issuing Country" value={country || (document ? null : "Not recorded")} />
       <InfoRow
         label="Expiration Date"
         value={
-          status === "Expired" && document.expiryDate
-            ? `Expired · ${formatStayDate(document.expiryDate)}`
-            : document.expiryDate
-              ? formatStayDate(document.expiryDate)
-              : null
+          expiry
+            ? expired
+              ? `Expired · ${formatStayDate(expiry)}`
+              : formatStayDate(expiry)
+            : "Not recorded"
         }
       />
       <div className="flex items-center justify-between pt-2 border-t border-[#DDD4C5]/60">
@@ -112,10 +115,15 @@ function IdentityStatusRows({
         <span
           className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusClass}`}
         >
-          {status === "Verified" ? <CheckCircle2 className="size-3" /> : null}
-          {status}
+          {status === "verified" ? <CheckCircle2 className="size-3" /> : null}
+          {statusLabel}
         </span>
       </div>
+      {extraCount > 0 ? (
+        <p className="pt-1 text-[11px] text-[#756A5B]">
+          {extraCount} more document{extraCount === 1 ? "" : "s"} on the Identity tab.
+        </p>
+      ) : null}
     </>
   );
 }
@@ -556,7 +564,14 @@ export function GuestIndividualOverview({
           ) : documentsQuery.isError ? (
             <p className="py-1 text-xs text-[#756A5B]">Identity documents could not be loaded.</p>
           ) : (
-            <IdentityStatusRows document={currentDocument} today={today} />
+            <IdentityStatusRows
+              document={currentDocument}
+              extraCount={Math.max((documentsQuery.data?.documents.length ?? 0) - 1, 0)}
+              profileType={guest.idDocumentType}
+              profileNumber={guest.idDocumentNumber}
+              profileExpiry={guest.idDocumentExpiry}
+              today={today}
+            />
           )}
         </SectionCard>
 

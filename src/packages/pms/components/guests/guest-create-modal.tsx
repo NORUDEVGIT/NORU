@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -35,6 +35,7 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import { validateCompanyPhone } from "@/packages/pms/lib/guest-company-create-workspace";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Switch } from "@/shared/components/ui/switch";
@@ -94,6 +95,7 @@ import {
   emptyGuestCreateDraft,
   guestCreateCompletion,
   guestCreateFieldIssues,
+  guestCreateDiffers,
   guestCreateHasChanges,
   guestDisplayName,
   readGuestCreateHold,
@@ -108,6 +110,8 @@ import {
   saveGuestCreateDraft,
 } from "@/packages/pms/lib/guest-create.functions";
 import {
+  clearGuestDocumentImage,
+  clearGuestPhoto,
   createGuest,
   createGuestDocumentUpload,
   createGuestPhotoUpload,
@@ -115,6 +119,7 @@ import {
   findGuestDuplicates,
   getGuestDocument,
   listGuestDocuments,
+  listGuestPreferenceWorkspace,
   saveGuestConsent,
   saveGuestDocument,
   saveGuestDocumentImage,
@@ -275,6 +280,7 @@ function guestProfileToCreateDraft(
     guestStatus: (guest.guestStatus as any) ?? "active",
     position: guest.position ?? "",
     department: guest.department ?? "",
+    companyName: guest.companyName ?? "",
     sourceOfBusiness: guest.sourceOfBusiness ?? "",
     notes: guest.notes ?? "",
     restricted: Boolean(guest.restricted),
@@ -285,6 +291,32 @@ function guestProfileToCreateDraft(
     emergencyContacts,
     documents,
   };
+}
+
+function individualCustomPayload(
+  values: Record<string, unknown>,
+  fields: Array<{ id: string; code: string; fieldType: string }>,
+): Record<string, unknown> {
+  const blocked = new Set(["COMPANY_NAME", "company_name"]);
+  for (const field of fields) {
+    if (
+      isCompanyFieldCode(field.code) ||
+      isTravelAgencyFieldCode(field.code) ||
+      isGroupFieldCode(field.code) ||
+      field.fieldType === "document" ||
+      field.fieldType === "lookup"
+    ) {
+      blocked.add(field.id);
+      blocked.add(field.code);
+      blocked.add(field.code.toUpperCase());
+    }
+  }
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (blocked.has(key) || blocked.has(key.toUpperCase())) continue;
+    next[key] = value;
+  }
+  return next;
 }
 
 export function GuestCreateModal({
@@ -333,7 +365,13 @@ export function GuestCreateModal({
   const persistPhoto = useServerFn(saveGuestPhoto);
   const saveCustomValues = useServerFn(saveGuestCustomFieldValues);
   const loadCustomValues = useServerFn(listGuestCustomFieldValues);
+  const loadPreferences = useServerFn(listGuestPreferenceWorkspace);
   const loadDocs = useServerFn(listGuestDocuments);
+  const clearDocImage = useServerFn(clearGuestDocumentImage);
+  const removePhoto = useServerFn(clearGuestPhoto);
+  const prefsLoaded = useRef(false);
+  const editBaseline = useRef<GuestCreateDraft | null>(null);
+  const customBaseline = useRef("{}");
   const loadDocDetail = useServerFn(getGuestDocument);
   const deleteDoc = useServerFn(deleteGuestDocument);
   const propertyTimezone = useRestaurantTimezone();
@@ -354,7 +392,9 @@ export function GuestCreateModal({
   );
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(() => (isEdit && guest ? (guest.photoUrl ?? null) : null));
+  const [photoRemoved, setPhotoRemoved] = useState(false);
   const [docFiles, setDocFiles] = useState<Record<string, File | undefined>>({});
+  const [docPreviews, setDocPreviews] = useState<Record<string, string>>({});
   const [deletedDocIds, setDeletedDocIds] = useState<string[]>([]);
   const [duplicates, setDuplicates] = useState<GuestSummary[] | null>(null);
   const [startOverOpen, setStartOverOpen] = useState(false);
@@ -391,12 +431,18 @@ export function GuestCreateModal({
   useEffect(() => {
     if (!open) return;
     if (isEdit && guest) {
-      setDraft(guestProfileToCreateDraft(guest, context.data?.documentTypes));
+      const loaded = guestProfileToCreateDraft(guest, context.data?.documentTypes);
+      editBaseline.current = loaded;
+      setDraft(loaded);
       setStep("basic");
       setDefaultsApplied(true);
       setDeletedDocIds([]);
       setPhotoFile(null);
       setPhotoPreview(guest.photoUrl ?? null);
+      setPhotoRemoved(false);
+      setDocFiles({});
+      setDocPreviews({});
+      prefsLoaded.current = false;
       setAttemptedSteps(new Set());
       void loadCustomValues({ data: { restaurantId, guestId: guest.id } })
         .then((items) => {
@@ -404,7 +450,26 @@ export function GuestCreateModal({
           for (const item of items) {
             initial[item.fieldId] = item.value;
           }
+          customBaseline.current = JSON.stringify(initial);
           setCustomValues(initial);
+        })
+        .catch(() => undefined);
+
+      void loadPreferences({ data: { restaurantId, guestId: guest.id } })
+        .then((workspace) => {
+          const answers = workspace.categories.flatMap((category) =>
+            category.types
+              .filter((type) => type.values.length > 0)
+              .map((type) => ({ typeId: type.id, values: type.values })),
+          );
+          setDraft((current) => {
+            if (current.preferenceAnswers.length > 0) return current;
+            if (editBaseline.current) {
+              editBaseline.current = { ...editBaseline.current, preferenceAnswers: answers };
+            }
+            return { ...current, preferenceAnswers: answers };
+          });
+          prefsLoaded.current = true;
         })
         .catch(() => undefined);
 
@@ -447,6 +512,9 @@ export function GuestCreateModal({
               backImageUrl: doc.backUrl ?? null,
             };
           });
+          if (editBaseline.current) {
+            editBaseline.current = { ...editBaseline.current, documents: mappedDocs };
+          }
           setDraft((curr) => ({
             ...curr,
             documents: mappedDocs,
@@ -718,6 +786,124 @@ export function GuestCreateModal({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  function stagePhoto(file: File | null) {
+    setPhotoFile(file);
+    setPhotoRemoved(!file);
+    setPhotoPreview((current) => {
+      if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+      if (!file || !file.type.startsWith("image/")) return null;
+      return URL.createObjectURL(file);
+    });
+  }
+
+  function stageScan(key: string, side: "front" | "back", file: File | null) {
+    const slot = `${key}-${side}`;
+    setDocFiles((current) => {
+      const next = { ...current };
+      if (file) next[slot] = file;
+      else delete next[slot];
+      return next;
+    });
+    setDocPreviews((current) => {
+      const previous = current[slot];
+      if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous);
+      const next = { ...current };
+      if (file && file.type.startsWith("image/")) next[slot] = URL.createObjectURL(file);
+      else delete next[slot];
+      return next;
+    });
+    setDraft((current) => ({
+      ...current,
+      documents: current.documents.map((row) => {
+        if (row.key !== key) return row;
+        if (side === "front") {
+          return {
+            ...row,
+            hasFront: Boolean(file),
+            clearFront: !file,
+            frontImageUrl: file ? row.frontImageUrl : null,
+          };
+        }
+        return {
+          ...row,
+          hasBack: Boolean(file),
+          clearBack: !file,
+          backImageUrl: file ? row.backImageUrl : null,
+        };
+      }),
+    }));
+  }
+
+  async function uploadDocumentFile(
+    guestId: string,
+    documentId: string,
+    side: "front" | "back",
+    file: File,
+    typeName: string,
+  ) {
+    const contentType = (file.type || "image/jpeg") as
+      | "image/jpeg"
+      | "image/png"
+      | "image/webp"
+      | "application/pdf";
+    const started = await startDocUpload({
+      data: {
+        restaurantId,
+        guestId,
+        kind: kindFromTypeCode(typeName),
+        contentType,
+        size: file.size,
+      },
+    });
+    if (!started.ok) throw new Error(started.message);
+    const uploaded = await supabase.storage
+      .from("property-images")
+      .uploadToSignedUrl(started.path, started.token, file);
+    if (uploaded.error) throw uploaded.error;
+    const attached = await attachDocImage({
+      data: {
+        restaurantId,
+        guestId,
+        documentId,
+        side,
+        storagePath: started.path,
+        mimeType: contentType,
+        size: file.size,
+      },
+    });
+    if (!attached.ok) throw new Error(attached.message);
+  }
+
+  async function uploadProfilePhoto(guestId: string, file: File) {
+    const contentType = file.type as "image/jpeg" | "image/png" | "image/webp";
+    const started = await startPhoto({
+      data: { restaurantId, guestId, contentType, size: file.size },
+    });
+    if (!started.ok) throw new Error(started.message);
+    const uploaded = await supabase.storage
+      .from("property-images")
+      .uploadToSignedUrl(started.path, started.token, file);
+    if (uploaded.error) throw uploaded.error;
+    await persistPhoto({ data: { restaurantId, guestId, path: started.path } });
+  }
+
+  async function persistPreferenceAnswers(guestId: string) {
+    const saved = await persistPrefs({
+      data: {
+        restaurantId,
+        guestId,
+        applyToFutureReservations: false,
+        answers: draft.preferenceAnswers,
+        contactDefaults: {
+          language: draft.language,
+          preferredContactMethod: draft.preferredContactMethod,
+          preferredContactTime: draft.preferredContactTime,
+        },
+      },
+    });
+    if (!saved.ok) throw new Error(saved.message);
+  }
+
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!isIndividualActive) {
@@ -823,6 +1009,7 @@ export function GuestCreateModal({
             postalCode: draft.postalCode,
             position: draft.position,
             department: draft.department,
+            companyName: draft.companyName,
             notes: draft.notes,
             sourceOfBusiness: draft.sourceOfBusiness,
             restricted: draft.restricted,
@@ -835,15 +1022,23 @@ export function GuestCreateModal({
         },
       });
 
-      // Save Card 4 dynamic custom fields
-      if (Object.keys(customValues).length > 0) {
+      const customPayload = individualCustomPayload(customValues, dynamicFieldRules);
+      if (Object.keys(customPayload).length > 0) {
         try {
           await saveCustomValues({
-            data: { restaurantId, guestId: createdGuest.id, values: customValues },
+            data: { restaurantId, guestId: createdGuest.id, values: customPayload },
           });
         } catch {
           toast.warning("Guest created, but some custom fields failed to save.");
         }
+      }
+
+      if (draft.preferenceAnswers.length > 0) {
+        await persistPreferenceAnswers(createdGuest.id);
+      }
+
+      if (photoFile) {
+        await uploadProfilePhoto(createdGuest.id, photoFile);
       }
 
       for (const document of draft.documents) {
@@ -865,50 +1060,10 @@ export function GuestCreateModal({
         const docId = saved.documentId;
         const front = docFiles[`${document.key}-front`];
         const back = docFiles[`${document.key}-back`];
-        if (type?.scanImageAllowed && (front || back)) {
-          for (const [side, file] of [["front", front], ["back", back]] as const) {
-            if (!file) continue;
-            const started = await startDocUpload({
-              data: {
-                restaurantId,
-                guestId: createdGuest.id,
-                kind: kindFromTypeCode(type.name),
-                contentType: file.type as "image/jpeg" | "image/png" | "image/webp" | "application/pdf",
-                size: file.size,
-              },
-            });
-            if (!started.ok) throw new Error(started.message);
-            const uploaded = await supabase.storage.from("property-images").uploadToSignedUrl(started.path, started.token, file);
-            if (uploaded.error) throw uploaded.error;
-            await attachDocImage({
-              data: {
-                restaurantId,
-                guestId: createdGuest.id,
-                documentId: docId,
-                side,
-                filePath: started.path,
-                mimeType: file.type,
-                byteSize: file.size,
-              },
-            });
-          }
+        if (type?.scanImageAllowed !== false) {
+          if (front) await uploadDocumentFile(createdGuest.id, docId, "front", front, type?.name ?? "identity");
+          if (back) await uploadDocumentFile(createdGuest.id, docId, "back", back, type?.name ?? "identity");
         }
-      }
-
-      if (draft.preferenceAnswers.length > 0) {
-        await persistPrefs({
-          data: {
-            restaurantId,
-            guestId: createdGuest.id,
-            applyToFutureReservations: false,
-            answers: draft.preferenceAnswers,
-            contactDefaults: {
-              language: draft.language,
-              preferredContactMethod: draft.preferredContactMethod,
-              preferredContactTime: draft.preferredContactTime,
-            },
-          },
-        });
       }
 
       for (const link of draft.links) {
@@ -929,21 +1084,6 @@ export function GuestCreateModal({
           marketing: draft.marketingConsent,
         },
       });
-
-      if (photoFile) {
-        const started = await startPhoto({
-          data: {
-            restaurantId,
-            guestId: createdGuest.id,
-            contentType: photoFile.type as "image/jpeg" | "image/png" | "image/webp",
-            size: photoFile.size,
-          },
-        });
-        if (!started.ok) throw new Error(started.message);
-        const uploaded = await supabase.storage.from("property-images").uploadToSignedUrl(started.path, started.token, photoFile);
-        if (uploaded.error) throw uploaded.error;
-        await persistPhoto({ data: { restaurantId, guestId: createdGuest.id, path: started.path } });
-      }
 
       clearGuestCreateHold(restaurantId);
       await clearDraft({ data: { restaurantId } }).catch(() => undefined);
@@ -1044,6 +1184,7 @@ export function GuestCreateModal({
             postalCode: draft.postalCode || null,
             position: draft.position || null,
             department: draft.department || null,
+            companyName: draft.companyName || null,
             sourceOfBusiness: draft.sourceOfBusiness || null,
             notes: draft.notes || null,
             restricted: draft.restricted,
@@ -1058,6 +1199,16 @@ export function GuestCreateModal({
           },
         },
       });
+
+      if (prefsLoaded.current || draft.preferenceAnswers.length > 0) {
+        await persistPreferenceAnswers(guest.id);
+      }
+
+      if (photoFile) {
+        await uploadProfilePhoto(guest.id, photoFile);
+      } else if (photoRemoved) {
+        await removePhoto({ data: { restaurantId, guestId: guest.id } });
+      }
 
       // Delete removed existing documents
       for (const delId of deletedDocIds) {
@@ -1092,42 +1243,42 @@ export function GuestCreateModal({
         const docId = saved.documentId;
         const front = docFiles[`${document.key}-front`];
         const back = docFiles[`${document.key}-back`];
-        if (type?.scanImageAllowed && (front || back)) {
-          for (const [side, file] of [["front", front], ["back", back]] as const) {
-            if (!file) continue;
-            const started = await startDocUpload({
-              data: {
-                restaurantId,
-                guestId: guest.id,
-                kind: kindFromTypeCode(type.name),
-                contentType: file.type as "image/jpeg" | "image/png" | "image/webp" | "application/pdf",
-                size: file.size,
-              },
-            });
-            if (!started.ok) throw new Error(started.message);
-            const uploaded = await supabase.storage.from("property-images").uploadToSignedUrl(started.path, started.token, file);
-            if (uploaded.error) throw uploaded.error;
-            await attachDocImage({
-              data: {
-                restaurantId,
-                guestId: guest.id,
-                documentId: docId,
-                side,
-                filePath: started.path,
-                mimeType: file.type,
-                byteSize: file.size,
-              },
-            });
-          }
+        const imagesAllowed = type?.scanImageAllowed !== false;
+        if (imagesAllowed && front) {
+          await uploadDocumentFile(guest.id, docId, "front", front, type?.name ?? "identity");
+        } else if (document.clearFront && document.existingDocumentId) {
+          const cleared = await clearDocImage({
+            data: {
+              restaurantId,
+              guestId: guest.id,
+              documentId: document.existingDocumentId,
+              side: "front",
+            },
+          });
+          if (!cleared.ok) throw new Error(cleared.message);
+        }
+        if (imagesAllowed && back) {
+          await uploadDocumentFile(guest.id, docId, "back", back, type?.name ?? "identity");
+        } else if (document.clearBack && document.existingDocumentId) {
+          const cleared = await clearDocImage({
+            data: {
+              restaurantId,
+              guestId: guest.id,
+              documentId: document.existingDocumentId,
+              side: "back",
+            },
+          });
+          if (!cleared.ok) throw new Error(cleared.message);
         }
       }
 
-      if (Object.keys(customValues).length > 0) {
+      const customPayload = individualCustomPayload(customValues, dynamicFieldRules);
+      if (Object.keys(customPayload).length > 0) {
         await saveCustomValues({
           data: {
             restaurantId,
             guestId: guest.id,
-            values: customValues,
+            values: customPayload,
           },
         });
       }
@@ -1165,16 +1316,23 @@ export function GuestCreateModal({
     }
   }
 
-  function handleAttemptClose() {
+  function hasEnteredData() {
+    if (created) return false;
     if (isEdit) {
-      handleActualClose();
+      if (photoFile || photoRemoved) return true;
+      if (Object.values(docFiles).some(Boolean)) return true;
+      if (JSON.stringify(customValues) !== customBaseline.current) return true;
+      return editBaseline.current ? guestCreateDiffers(draft, editBaseline.current) : false;
+    }
+    return guestCreateHasChanges(draft, context.data?.profileType?.defaults);
+  }
+
+  function handleAttemptClose() {
+    if (hasEnteredData()) {
+      setDiscardConfirmOpen(true);
       return;
     }
-    if (guestCreateHasChanges(draft, context.data?.profileType?.defaults) && !created) {
-      setDiscardConfirmOpen(true);
-    } else {
-      handleActualClose();
-    }
+    handleActualClose();
   }
 
   function resetForm() {
@@ -1188,7 +1346,9 @@ export function GuestCreateModal({
     setStep("basic");
     setPhotoFile(null);
     setPhotoPreview(null);
+    setPhotoRemoved(false);
     setDocFiles({});
+    setDocPreviews({});
     setDuplicates(null);
     setCustomValues({});
     setHoldState("idle");
@@ -1236,7 +1396,7 @@ export function GuestCreateModal({
               e.preventDefault();
               return;
             }
-            if (guestCreateHasChanges(draft, context.data?.profileType?.defaults) && !created) {
+            if (hasEnteredData()) {
               e.preventDefault();
               setDiscardConfirmOpen(true);
             }
@@ -1406,10 +1566,8 @@ export function GuestCreateModal({
                   required={required}
                   fieldError={fieldError}
                   photoPreview={photoPreview}
-                  onPhoto={(file) => {
-                    setPhotoFile(file);
-                    setPhotoPreview(file ? URL.createObjectURL(file) : null);
-                  }}
+                  photoName={photoFile?.name ?? (photoPreview ? "Photo on file" : null)}
+                  onPhoto={stagePhoto}
                 />
               ) : null}
 
@@ -1420,7 +1578,8 @@ export function GuestCreateModal({
                   types={context.data?.documentTypes ?? []}
                   profileTypeId={context.data?.profileType?.id ?? null}
                   docFiles={docFiles}
-                  setDocFiles={setDocFiles}
+                  docPreviews={docPreviews}
+                  onScan={stageScan}
                   error={fieldError("IDENTITY_DOCUMENT", "identity")}
                   fieldError={fieldError}
                   today={documentToday}
@@ -1605,9 +1764,13 @@ export function GuestCreateModal({
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
         <AlertDialogContent className="z-[90] rounded-2xl border border-[#DDD4C5] bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-display text-lg text-[#251605]">Discard new guest?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display text-lg text-[#251605]">
+              {isEdit ? "Leave without saving?" : "Discard new guest?"}
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-muted-foreground">
-              Your entered information will be lost if not saved as a draft.
+              {isEdit
+                ? "You have changes that are not saved."
+                : "Your entered information will be lost if not saved as a draft."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1619,7 +1782,7 @@ export function GuestCreateModal({
                 handleActualClose();
               }}
             >
-              Discard
+              Leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1699,30 +1862,6 @@ function IconInput({
   );
 }
 
-function UploadControl({
-  accept,
-  label,
-  onFile,
-}: {
-  accept: string;
-  label: string;
-  onFile: (file: File | null) => void;
-}) {
-  return (
-    <label className="flex h-9 cursor-pointer items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#8C7E72] hover:border-[#8A641A]">
-      <Upload className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="text-xs font-medium text-[#8A641A]">Browse</span>
-      <input
-        type="file"
-        accept={accept}
-        className="sr-only"
-        onChange={(event) => onFile(event.target.files?.[0] ?? null)}
-      />
-    </label>
-  );
-}
-
 function BasicStep({
   draft,
   set,
@@ -1730,6 +1869,7 @@ function BasicStep({
   required,
   fieldError,
   photoPreview,
+  photoName,
   onPhoto,
 }: {
   draft: GuestCreateDraft;
@@ -1738,12 +1878,15 @@ function BasicStep({
   required: (code: string) => boolean;
   fieldError: (key: string, stepId?: GuestCreateStepId) => string | undefined;
   photoPreview: string | null;
+  photoName: string | null;
   onPhoto: (file: File | null) => void;
 }) {
   const countryOptions = useMemo(
     () => ISO_COUNTRIES.map((row) => ({ value: row.code, label: row.name })),
     [],
   );
+  const phoneError = draft.phone ? validateCompanyPhone(draft.phone) : null;
+  const phoneAltError = draft.phoneAlt ? validateCompanyPhone(draft.phoneAlt) : null;
   const countryCode = countryCodeFromInput(draft.country) || (draft.country ? draft.country : "");
   const availableRegions = regionsForCountry(draft.country);
   const regionOptions = useMemo(
@@ -1873,16 +2016,13 @@ function BasicStep({
             />
           </div>
           <Field label="Guest Photo" required={required("GUEST_PHOTO")} error={fieldError("GUEST_PHOTO", "basic")}>
-            <div className="flex items-center gap-2">
-              <UploadControl
-                accept="image/jpeg,image/png,image/webp"
-                label={photoPreview ? "Photo selected" : "Upload guest photo"}
-                onFile={onPhoto}
-              />
-              {photoPreview ? (
-                <img src={photoPreview} alt="" className="size-9 shrink-0 rounded-[6px] border border-[#CCCCCC] object-cover" />
-              ) : null}
-            </div>
+            <GuestImagePicker
+              previewUrl={photoPreview}
+              fileName={photoName === "Photo on file" ? null : photoName}
+              statusLabel="Photo on file"
+              onPick={onPhoto}
+              onClear={() => onPhoto(null)}
+            />
           </Field>
         </div>
       </section>
@@ -1892,12 +2032,17 @@ function BasicStep({
         <h2 className="font-display text-base font-semibold text-[#251605]">Contact Information</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {visible("PHONE") ? (
-            <Field label="Mobile Phone" required={required("PHONE")} error={fieldError("PHONE", "basic")}>
+            <Field
+              label="Mobile Phone"
+              required={required("PHONE")}
+              error={phoneError || fieldError("PHONE", "basic")}
+            >
               <CanonicalPhoneInput
                 value={draft.phone}
                 onChange={(phone) => set("phone", phone)}
-                error={Boolean(fieldError("PHONE", "basic"))}
+                error={Boolean(phoneError || fieldError("PHONE", "basic"))}
                 placeholder="Enter phone number"
+                maxDigits={9}
                 containerClassName={PHONE_GROUP}
                 triggerClassName={PHONE_TRIGGER}
                 className={PHONE_INPUT}
@@ -1905,12 +2050,17 @@ function BasicStep({
               />
             </Field>
           ) : null}
-          <Field label="Alternative Phone" required={required("PHONE_ALT")} error={fieldError("PHONE_ALT", "basic")}>
+          <Field
+            label="Alternative Phone"
+            required={required("PHONE_ALT")}
+            error={phoneAltError || fieldError("PHONE_ALT", "basic")}
+          >
             <CanonicalPhoneInput
               value={draft.phoneAlt}
               onChange={(phoneAlt) => set("phoneAlt", phoneAlt)}
-              error={Boolean(fieldError("PHONE_ALT", "basic"))}
+              error={Boolean(phoneAltError || fieldError("PHONE_ALT", "basic"))}
               placeholder="Enter phone number"
+              maxDigits={9}
               containerClassName={PHONE_GROUP}
               triggerClassName={PHONE_TRIGGER}
               className={PHONE_INPUT}
@@ -2060,13 +2210,89 @@ function BasicStep({
   );
 }
 
+function GuestImagePicker({
+  previewUrl,
+  fileName,
+  onPick,
+  onClear,
+  accept = "image/jpeg,image/png,image/webp",
+  statusLabel,
+}: {
+  previewUrl: string | null;
+  fileName: string | null;
+  onPick: (file: File | null) => void;
+  onClear: () => void;
+  accept?: string;
+  statusLabel?: string;
+}) {
+  const [inputKey, setInputKey] = useState(0);
+  const hasImage = Boolean(previewUrl || fileName);
+  const savedUrl = previewUrl && !previewUrl.startsWith("blob:") ? previewUrl : null;
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <label className="flex h-9 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#8C7E72] hover:border-[#8A641A] focus-within:border-[#8A641A] focus-within:ring-1 focus-within:ring-[#8A641A]">
+          <Upload className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{hasImage ? "Replace image" : "Upload image"}</span>
+          <span className="text-xs font-medium text-[#8A641A]">Browse</span>
+          <input
+            key={inputKey}
+            type="file"
+            accept={accept}
+            className="sr-only"
+            onChange={(event) => onPick(event.target.files?.[0] ?? null)}
+          />
+        </label>
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt=""
+            className="size-9 shrink-0 rounded-[6px] border border-[#CCCCCC] object-cover"
+          />
+        ) : null}
+        {hasImage ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 px-2 text-destructive hover:bg-destructive/10"
+            aria-label="Remove image"
+            onClick={() => {
+              setInputKey((current) => current + 1);
+              onClear();
+            }}
+          >
+            <X className="size-3.5" />
+          </Button>
+        ) : null}
+      </div>
+      {hasImage ? (
+        <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+          <span className="truncate">✓ {fileName || statusLabel || "Image on file"}</span>
+          {savedUrl ? (
+            <a
+              href={savedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 underline text-emerald-800 hover:text-emerald-950"
+            >
+              (View)
+            </a>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function IdentityStep({
   draft,
   setDraft,
   types,
   profileTypeId,
   docFiles,
-  setDocFiles,
+  docPreviews,
+  onScan,
   error,
   fieldError,
   today,
@@ -2094,7 +2320,8 @@ function IdentityStep({
   }>;
   profileTypeId: string | null;
   docFiles: Record<string, File | undefined>;
-  setDocFiles: React.Dispatch<React.SetStateAction<Record<string, File | undefined>>>;
+  docPreviews: Record<string, string>;
+  onScan: (key: string, side: "front" | "back", file: File | null) => void;
   error?: string;
   fieldError?: (key: string, stepId?: GuestCreateStepId) => string | undefined;
   today: string;
@@ -2314,67 +2541,27 @@ function IdentityStep({
                 <>
                   <Field
                     label="Front Scan/Image"
-                    required={type?.scanImageRequired && !document.hasFront}
+                    required={type?.scanImageRequired && !document.hasFront && !document.frontImageUrl}
                     error={fieldError?.(`DOC_${document.key}_scan`, "identity")}
                   >
-                    <UploadControl
+                    <GuestImagePicker
+                      previewUrl={docPreviews[`${document.key}-front`] ?? document.frontImageUrl ?? null}
+                      fileName={docFiles[`${document.key}-front`]?.name ?? null}
+                      statusLabel="Front scan on file"
                       accept="image/jpeg,image/png,image/webp,application/pdf"
-                      label={docFiles[`${document.key}-front`]?.name || (document.hasFront ? "Front scan on file" : "Upload front scan")}
-                      onFile={(file) => {
-                        setDocFiles((current) => ({ ...current, [`${document.key}-front`]: file ?? undefined }));
-                        setDraft((current) => ({
-                          ...current,
-                          documents: current.documents.map((row) =>
-                            row.key === document.key ? { ...row, hasFront: Boolean(file) } : row,
-                          ),
-                        }));
-                      }}
+                      onPick={(file) => onScan(document.key, "front", file)}
+                      onClear={() => onScan(document.key, "front", null)}
                     />
-                    {document.hasFront ? (
-                      <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
-                        <span>✓ Front scan on file</span>
-                        {document.frontImageUrl ? (
-                          <a
-                            href={document.frontImageUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline text-emerald-800 hover:text-emerald-950"
-                          >
-                            (View)
-                          </a>
-                        ) : null}
-                      </p>
-                    ) : null}
                   </Field>
                   <Field label="Back Scan/Image">
-                    <UploadControl
+                    <GuestImagePicker
+                      previewUrl={docPreviews[`${document.key}-back`] ?? document.backImageUrl ?? null}
+                      fileName={docFiles[`${document.key}-back`]?.name ?? null}
+                      statusLabel="Back scan on file"
                       accept="image/jpeg,image/png,image/webp,application/pdf"
-                      label={docFiles[`${document.key}-back`]?.name || (document.hasBack ? "Back scan on file" : "Upload back scan")}
-                      onFile={(file) => {
-                        setDocFiles((current) => ({ ...current, [`${document.key}-back`]: file ?? undefined }));
-                        setDraft((current) => ({
-                          ...current,
-                          documents: current.documents.map((row) =>
-                            row.key === document.key ? { ...row, hasBack: Boolean(file) } : row,
-                          ),
-                        }));
-                      }}
+                      onPick={(file) => onScan(document.key, "back", file)}
+                      onClear={() => onScan(document.key, "back", null)}
                     />
-                    {document.hasBack ? (
-                      <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
-                        <span>✓ Back scan on file</span>
-                        {document.backImageUrl ? (
-                          <a
-                            href={document.backImageUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline text-emerald-800 hover:text-emerald-950"
-                          >
-                            (View)
-                          </a>
-                        ) : null}
-                      </p>
-                    ) : null}
                   </Field>
                 </>
               ) : null}
@@ -2676,13 +2863,6 @@ function PreferencesStep({
   );
 }
 
-function isCompanyField(f: { code?: string | null; label?: string | null }): boolean {
-  const code = f.code?.toUpperCase();
-  if (code === "COMPANY_NAME" || code === "COMPANY") return true;
-  const text = (f.label ?? "").toLowerCase();
-  return text === "company name" || text === "company";
-}
-
 function AdditionalStep({
   draft,
   set,
@@ -2698,19 +2878,8 @@ function AdditionalStep({
   customValues: Record<string, unknown>;
   onCustomValueChange: (fieldIdOrCode: string, value: unknown) => void;
 }) {
-  const companyField = dynamicFields.find(isCompanyField);
-
-  const companyName =
-    (customValues[companyField?.id ?? ""] as string) ??
-    (customValues["COMPANY_NAME"] as string) ??
-    (customValues["company_name"] as string) ??
-    "";
-
   function handleCompanyChange(val: string) {
-    onCustomValueChange("COMPANY_NAME", val);
-    if (companyField) {
-      onCustomValueChange(companyField.id, val);
-    }
+    set("companyName", val);
   }
 
   return (
@@ -2750,7 +2919,7 @@ function AdditionalStep({
             <IconInput
               id="guest-create-company-name"
               icon={<Building className="size-3.5" />}
-              value={companyName}
+              value={draft.companyName ?? ""}
               onChange={(event) => handleCompanyChange(event.target.value)}
               placeholder="Employer or company"
               className="pl-8"
@@ -2813,7 +2982,7 @@ function AdditionalStep({
                   className="pl-8"
                 />
               </Field>
-              <Field label="Phone">
+              <Field label="Phone" error={validateCompanyPhone(contact.phone) ?? undefined}>
                 <CanonicalPhoneInput
                   value={contact.phone}
                   onChange={(phone) =>
@@ -2824,7 +2993,9 @@ function AdditionalStep({
                       ),
                     )
                   }
+                  error={Boolean(validateCompanyPhone(contact.phone))}
                   placeholder="Enter phone number"
+                  maxDigits={9}
                   containerClassName={PHONE_GROUP}
                   triggerClassName={PHONE_TRIGGER}
                   className={PHONE_INPUT}
@@ -2931,12 +3102,7 @@ function ReviewStep({
         }));
 
 
-  const companyField = dynamicFields.find(isCompanyField);
-  const companyName =
-    (customValues[companyField?.id ?? ""] as string) ??
-    (customValues["COMPANY_NAME"] as string) ??
-    (customValues["company_name"] as string) ??
-    "";
+  const companyName = draft.companyName;
 
   return (
     <div className="space-y-4">

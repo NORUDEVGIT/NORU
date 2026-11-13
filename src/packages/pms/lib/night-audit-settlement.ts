@@ -132,19 +132,35 @@ export function folioLedgerExceptions(input: {
     closedAt: string | null;
   }[];
   transactions: readonly {
+    id?: string;
     folioId: string;
     amount: number;
     postedAt: string;
     referenceType: string | null;
     referenceId: string | null;
+    originalTransactionId?: string | null;
   }[];
   missingFolios: readonly { id: string; confirmationNumber: string; status: string }[];
 }): { exceptions: SettlementException[]; balances: Map<string, number> } {
   const balances = new Map<string, number>();
   const roomChargeCount = new Map<string, number>();
+  // A room charge reversed by a correction (cancel, restore, rate change) is not a live duplicate.
+  const linkedReductions = new Map<string, number>();
+  for (const txn of input.transactions) {
+    if (txn.originalTransactionId && txn.amount < 0) {
+      linkedReductions.set(
+        txn.originalTransactionId,
+        (linkedReductions.get(txn.originalTransactionId) ?? 0) + txn.amount,
+      );
+    }
+  }
   for (const txn of input.transactions) {
     balances.set(txn.folioId, roundGuestMoney((balances.get(txn.folioId) ?? 0) + txn.amount));
     if (txn.referenceType === "reservation_room_charge" && txn.referenceId) {
+      const live = txn.id
+        ? roundGuestMoney(txn.amount + (linkedReductions.get(txn.id) ?? 0))
+        : txn.amount;
+      if (live < GUEST_ALLOCATION_TOLERANCE) continue;
       roomChargeCount.set(txn.referenceId, (roomChargeCount.get(txn.referenceId) ?? 0) + 1);
     }
   }

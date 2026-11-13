@@ -80,9 +80,11 @@ describe("FO Check-In workspace — Phase 1", () => {
   it("does not fabricate package rows, tax math, or card PAN", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
     assert.match(sheet, /getReservationCommercialAttribution/);
+    assert.match(sheet, /quoteFrontOfficeStayCharges/);
     assert.match(sheet, /foBuildFolioPreviewDisplay/);
     assert.doesNotMatch(sheet, /\*\*\*\*/);
-    assert.match(sheet, /FO_FOLIO_PREVIEW_TAXES_UNAVAILABLE/);
+    assert.match(sheet, /label="Tax"/);
+    assert.match(sheet, /label="Service"/);
     assert.match(sheet, /GUARANTEE_HOLD_UNSUPPORTED/);
   });
 
@@ -313,21 +315,38 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.doesNotMatch(sheet, /autoAssign/i);
   });
 
-  it("folio preview does not sum taxes or estimated totals in the browser", () => {
+  it("folio preview shows tax and service only when the quoted amounts are above zero", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
-    assert.match(sheet, /foBuildFolioPreviewDisplay/);
+    assert.match(sheet, /quoteFrontOfficeStayCharges/);
     assert.doesNotMatch(sheet, /roomSubtotal\s*\+/);
     assert.doesNotMatch(sheet, /packagesSubtotal\s*\+/);
-    const preview = foBuildFolioPreviewDisplay({
+    assert.doesNotMatch(sheet, /Taxes & Service/);
+    const neither = foBuildFolioPreviewDisplay({
       money: (n) => `$${n}`,
       roomSubtotal: 18000,
       packages: [{ packageName: "Breakfast", appliedAmount: 0 }],
       packagesSubtotal: 0,
-      grandCommercialSubtotal: 18000,
+      tax: 0,
+      serviceCharge: 0,
+      estimatedTotal: 18000,
       folioBalance: null,
     });
-    assert.equal(preview.taxesAndService, null);
-    assert.equal(preview.estimatedTotal, "$18000");
+    assert.equal(neither.tax, null);
+    assert.equal(neither.service, null);
+    assert.equal(neither.estimatedTotal, "$18000");
+    const both = foBuildFolioPreviewDisplay({
+      money: (n) => `$${n}`,
+      roomSubtotal: 1000,
+      packages: [],
+      packagesSubtotal: 0,
+      tax: 150,
+      serviceCharge: 100,
+      estimatedTotal: 1250,
+      folioBalance: null,
+    });
+    assert.equal(both.tax, "$150");
+    assert.equal(both.service, "$100");
+    assert.equal(both.estimatedTotal, "$1250");
   });
 
   it("payment card avoids PAN/CVV and fake card verified copy", () => {

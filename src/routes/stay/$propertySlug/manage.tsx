@@ -155,9 +155,13 @@ function ManagePanel({ slug }: { slug: string }) {
                 {drop.isPending ? "Cancelling…" : "Cancel this booking"}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground">
-                Cancellation charges are not yet automated — the property will contact you if any apply.
+                Free cancellation applies to this booking.
               </p>
             </div>
+          ) : booking.status === "pending" || booking.status === "confirmed" ? (
+            <p className="mt-5 text-sm text-muted-foreground">
+              To cancel this booking, please contact the property.
+            </p>
           ) : null}
 
           <div className="mt-5">

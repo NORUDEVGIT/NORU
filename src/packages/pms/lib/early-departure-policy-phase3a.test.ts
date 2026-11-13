@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { resolvedEarlyDeparturePenaltyValue } from "./early-departure-policy.ts";
+import {
+  computeEarlyDeparturePenalty,
+  resolvedEarlyDeparturePenaltyValue,
+} from "./early-departure-policy.ts";
 import { foreignRatePlanPolicyMessage } from "./rate-plan-policy-link.ts";
 
 function read(relativePath: string) {
@@ -193,6 +196,34 @@ describe("early departure policy master and rate plan link", () => {
     assert.doesNotMatch(earlyUi, /LOCAL_STAY_POLICY_OPTIONS/);
     assert.doesNotMatch(earlyUi, /<select/);
     assert.match(createPage, /earlyDepartureReviewLabel/);
+  });
+
+  it("charges unused nights for a shortened stay", () => {
+    const quote = computeEarlyDeparturePenalty({
+      snapshot: { penalty_type: "full_stay", penalty_value: 0 },
+      roomSubtotal: 3000,
+      quotedSubtotal: 1000,
+      nightlyRates: [{ rate: 1000 }],
+      currency: "ETB",
+    });
+    assert.equal(quote.amount, 2000);
+    assert.equal(quote.calculable, true);
+    const none = computeEarlyDeparturePenalty({
+      snapshot: { penalty_type: "none" },
+      roomSubtotal: 3000,
+      quotedSubtotal: 1000,
+      nightlyRates: [{ rate: 1000 }],
+      currency: "ETB",
+    });
+    assert.equal(none.amount, 0);
+    const fixed = computeEarlyDeparturePenalty({
+      snapshot: { penalty_type: "fixed_amount", penalty_value: 250 },
+      roomSubtotal: 3000,
+      quotedSubtotal: 1000,
+      nightlyRates: [],
+      currency: "ETB",
+    });
+    assert.equal(fixed.amount, 250);
   });
 
   it("does not start Additional Policy", () => {

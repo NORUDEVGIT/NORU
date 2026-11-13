@@ -58,6 +58,20 @@ import type { CompanyContactRow } from "@/packages/pms/lib/guest-company-detail.
 import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import { cn } from "@/shared/lib/utils";
 
+function contactRoleLabel(row: CompanyContactRow | null | undefined) {
+  if (!row) return "—";
+  const role = row.roleNames.filter(Boolean).join(", ");
+  const parts = [row.position, role].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+function preferredMethodLabel(value: string) {
+  if (value === "phone") return "Phone";
+  if (value === "email") return "Email";
+  if (value === "whatsapp") return "WhatsApp";
+  return value.replaceAll("_", " ");
+}
+
 export function GuestTravelAgentContacts({
   restaurantId,
   agencyId,
@@ -96,7 +110,7 @@ export function GuestTravelAgentContacts({
           agencyId,
           q,
           status: status as "all" | "active" | "inactive",
-          limit: 100,
+          limit: 50,
           offset: 0,
         },
       }),
@@ -283,6 +297,12 @@ export function GuestTravelAgentContacts({
                     Loading contacts…
                   </td>
                 </tr>
+              ) : query.isError ? (
+                <tr>
+                  <td colSpan={8} className="p-6 text-center text-[#756A5B]">
+                    Agency contacts could not be loaded. {(query.error as Error).message}
+                  </td>
+                </tr>
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-[#8C827A] italic">
@@ -312,7 +332,7 @@ export function GuestTravelAgentContacts({
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-[#756A5B]">{row.position ?? "—"}</td>
+                    <td className="px-3 py-2.5 text-[#756A5B]">{contactRoleLabel(row)}</td>
                     <td className="px-3 py-2.5 font-mono text-[11px] text-[#251605]">{row.phone ?? "—"}</td>
                     <td className="px-3 py-2.5 text-[#756A5B]">{row.email ?? "—"}</td>
                     <td className="px-3 py-2.5 font-mono text-[11px] text-[#251605]">{row.whatsapp ?? "—"}</td>
@@ -398,8 +418,8 @@ export function GuestTravelAgentContacts({
                 </Button>
               )}
             </div>
-            {selected?.position && (
-              <p className="text-xs text-[#756A5B]">{selected.position}</p>
+            {contactRoleLabel(selected) !== "—" && (
+              <p className="text-xs text-[#756A5B]">{contactRoleLabel(selected)}</p>
             )}
           </SheetHeader>
 
@@ -412,10 +432,16 @@ export function GuestTravelAgentContacts({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[#756A5B]">Role:</span>
-                  <span className="font-medium text-[#251605]">
-                    {selected.isPrimary ? "Primary Representative" : "Representative"}
-                  </span>
+                  <span className="font-medium text-[#251605]">{contactRoleLabel(selected)}</span>
                 </div>
+                {selected.preferredMethod ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#756A5B]">Preferred method:</span>
+                    <span className="font-medium text-[#251605]">
+                      {preferredMethodLabel(selected.preferredMethod)}
+                    </span>
+                  </div>
+                ) : null}
                 {selected.phone && (
                   <div className="flex items-center justify-between">
                     <span className="text-[#756A5B]">Phone:</span>

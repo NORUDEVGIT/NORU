@@ -552,16 +552,6 @@ export function CreateReservationPage({
     }
   }, [initialGroupMasterId, groupOverride, groupMaster, initialGroupQuery.data]);
 
-  useEffect(() => {
-    if (initialPrefQuery.data?.applyToFutureReservations && initialPrefQuery.data.specialRequests) {
-      setSpecialRequests((prev) => (prev ? prev : (initialPrefQuery.data.specialRequests ?? "")));
-    }
-    if (initialPrefQuery.data?.applyToFutureReservations && initialPrefQuery.data.roomTypeId) {
-      const nextRoomTypeId = initialPrefQuery.data.roomTypeId;
-      setRoomTypeId((current) => current || nextRoomTypeId);
-    }
-  }, [initialPrefQuery.data]);
-
   const set6Query = useQuery({
     queryKey: ["pms-set6-snapshot", restaurantId, "create-reservation"],
     queryFn: () => fetchSet6({ data: { restaurantId } }),
@@ -824,6 +814,62 @@ export function CreateReservationPage({
     enabled: canManage,
     retry: false,
   });
+  useEffect(() => {
+    if (!draftReady) return;
+    const defaults = initialPrefQuery.data;
+    if (!defaults?.applyToFutureReservations) return;
+    if (defaults.roomTypeId) {
+      const nextRoomTypeId = defaults.roomTypeId;
+      setSearchRoomTypeFilter((current) => current || nextRoomTypeId);
+      setRoomTypeId((current) => current || nextRoomTypeId);
+      const catalogType = (roomCatalogQuery.data ?? []).find((row) => row.id === nextRoomTypeId);
+      if (catalogType) {
+        setSelectedRoomType((current) =>
+          current
+            ? current
+            : {
+                roomTypeId: catalogType.id,
+                name: catalogType.name,
+                code: catalogType.code,
+                maxOccupancy: catalogType.maxOccupancy,
+                adultCapacity: catalogType.adultCapacity,
+                childCapacity: catalogType.childCapacity,
+              },
+        );
+      }
+    }
+    if (defaults.ratePlanId) {
+      const nextRatePlanId = defaults.ratePlanId;
+      setRatePreference((current) => current || nextRatePlanId);
+      setRatePlanId((current) => current || nextRatePlanId);
+    }
+    if (defaults.roomTypeId && arrival && departure) {
+      const nextRoomTypeId = defaults.roomTypeId;
+      const nextRatePlanId = defaults.ratePlanId ?? "";
+      setAvailabilitySearchCommitted((current) =>
+        current ?? {
+          arrival,
+          departure,
+          rooms: roomsRequested,
+          adults,
+          children,
+          infants,
+          roomTypePreference: nextRoomTypeId,
+          ratePreference: nextRatePlanId,
+        },
+      );
+    }
+  }, [
+    adults,
+    arrival,
+    children,
+    departure,
+    draftReady,
+    infants,
+    initialPrefQuery.data,
+    roomCatalogQuery.data,
+    roomsRequested,
+  ]);
   const currencyQuery = useQuery({
     queryKey: ["create-reservation-currencies", restaurantId],
     queryFn: () => fetchCurrencies({ data: { restaurantId } }),
@@ -875,8 +921,16 @@ export function CreateReservationPage({
   if (observedRatePlanOptions.length > 0) {
     ratePreferenceOptionsRef.current = observedRatePlanOptions;
   }
-  const ratePreferenceOptions =
+  const quotedRateOptions =
     observedRatePlanOptions.length > 0 ? observedRatePlanOptions : ratePreferenceOptionsRef.current;
+  const preferredRateId = initialPrefQuery.data?.applyToFutureReservations
+    ? initialPrefQuery.data.ratePlanId
+    : null;
+  const preferredRateLabel = initialPrefQuery.data?.ratePlanLabel?.trim() ?? "";
+  const ratePreferenceOptions =
+    preferredRateId && !quotedRateOptions.some((row) => row.id === preferredRateId)
+      ? [{ id: preferredRateId, name: preferredRateLabel || "Preferred rate" }, ...quotedRateOptions]
+      : quotedRateOptions;
   const savedPreferenceRows = useMemo(() => {
     if (!guestConfigQuery.data || !preferenceWorkspaceQuery.data) return [];
     return savedPreferencesForProfileType({

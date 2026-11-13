@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -35,9 +35,12 @@ import {
 } from "@/packages/pms/lib/fo-cancel-noshow";
 import {
   completeFoCancel,
+  ensureCancelNoShowFolio,
   getCancelNoShowContext,
+  postCancelOrNoShowFee,
   waiveCancelOrNoShowFee,
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
+import { CancellationSettlementPanel } from "@/packages/pms/components/frontoffice/cancellation-settlement-panel";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import {
   getBookingsAccess,
@@ -113,6 +116,9 @@ export function ReservationCancelWorkspace({
   const fetchCancelCtx = useServerFn(getCancelNoShowContext);
   const submitCancel = useServerFn(completeFoCancel);
   const submitWaive = useServerFn(waiveCancelOrNoShowFee);
+  const submitEnsureFolio = useServerFn(ensureCancelNoShowFolio);
+  const submitFee = useServerFn(postCancelOrNoShowFee);
+  const feeIdempotencyKey = useRef(crypto.randomUUID());
 
   const [step, setStep] = useState<CancelReservationStepId>("details");
   const [reason, setReason] = useState(CANCEL_REASON_OPTIONS[0].value);
@@ -195,6 +201,36 @@ export function ReservationCancelWorkspace({
     }),
   );
 
+  const postFee = useMutation({
+    mutationFn: () => {
+      const amount = ctx?.policy.defaultAmount ?? 0;
+      return submitFee({
+        data: {
+          restaurantId,
+          reservationId,
+          kind: "cancel",
+          amount,
+          idempotencyKey: feeIdempotencyKey.current,
+        },
+      });
+    },
+    onSuccess: () => {
+      feeIdempotencyKey.current = crypto.randomUUID();
+      toast.success("Cancellation fee posted.");
+      void cancelCtxQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["cancellation-settlement-preview"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const ensureFolio = useMutation({
+    mutationFn: () => submitEnsureFolio({ data: { restaurantId, reservationId } }),
+    onSuccess: () => {
+      void cancelCtxQuery.refetch();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const waive = useMutation({
     mutationFn: () =>
       submitWaive({
@@ -217,12 +253,19 @@ export function ReservationCancelWorkspace({
       submitCancel({
         data: { restaurantId, reservationId, reason: composedReason },
       }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({
         queryKey: ["reservation", restaurantId, reservationId],
       });
       await queryClient.invalidateQueries({ queryKey: ["fo-cancel-noshow"] });
-      toast.success("Reservation cancelled.");
+      await queryClient.invalidateQueries({ queryKey: ["cancellation-settlement-exceptions"] });
+      if (result.settlementError) {
+        toast.warning("Reservation cancelled. Folio settlement did not complete.", {
+          description: `${result.settlementError} Run settlement again from Folio settlement needed on Cancellations.`,
+        });
+      } else {
+        toast.success("Reservation cancelled.");
+      }
       onBackToDesk();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -249,6 +292,14 @@ export function ReservationCancelWorkspace({
 
   const deposit = parseDepositRequirementSnapshot(reservation.depositRequirementSnapshot);
   const staffPolicy = cancelPolicyStaffCopy(policy);
+  const policyFolioCharge =
+    policy.outcome === "within_free"
+      ? null
+      : feeRequired && (ctx?.policy.defaultAmount ?? 0) > 0
+        ? `Cancellation fee: ${moneyFmt(ctx?.policy.defaultAmount ?? 0)}.`
+        : policy.outcome === "penalty_applies"
+          ? "This policy does not add a cancellation charge."
+          : null;
   const systemRows = predictedSystemUpdates({
     assignedRoom: reservation.roomNumber,
     feeRequired,
@@ -372,7 +423,7 @@ export function ReservationCancelWorkspace({
                 </div>
               </dl>
             </SectionCard>
-            <PolicyCard policyName={policy.name} staff={staffPolicy} penaltyRule={policy.outcome === "penalty_applies" ? policy.penaltyRule : CANCEL_DASH} />
+            <PolicyCard policyName={policy.name} staff={staffPolicy} penaltyRule={policy.outcome === "penalty_applies" ? policy.penaltyRule : CANCEL_DASH} folioCharge={policyFolioCharge} />
             <SectionCard title="Cancellation Reason">
               <div className="grid gap-3">
                 <div className="grid gap-1.5">
@@ -409,7 +460,7 @@ export function ReservationCancelWorkspace({
 
         {step === "confirm" ? (
           <div className="grid gap-4 xl:grid-cols-2">
-            <PolicyCard policyName={policy.name} staff={staffPolicy} penaltyRule={policy.outcome === "penalty_applies" ? policy.penaltyRule : CANCEL_DASH} />
+            <PolicyCard policyName={policy.name} staff={staffPolicy} penaltyRule={policy.outcome === "penalty_applies" ? policy.penaltyRule : CANCEL_DASH} folioCharge={policyFolioCharge} />
             <SectionCard title="Financial Impact">
               <ul className="divide-y divide-[#E8DFD0] text-sm" data-testid="cancel-finance-table">
                 {financeRows.map((row) => (
@@ -433,6 +484,17 @@ export function ReservationCancelWorkspace({
                   Stored deposit requirement: {moneyFmt(deposit.amount)}. This is not a refund.
                 </p>
               ) : null}
+              <div className="mt-3 border-t border-[#EEE7DC] pt-3">
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  Folio after cancellation
+                </p>
+                <CancellationSettlementPanel
+                  restaurantId={restaurantId}
+                  reservationId={reservationId}
+                  kind="cancel"
+                  mode="preview"
+                />
+              </div>
             </SectionCard>
             <SectionCard title="Room Inventory Impact">
               <ul className="space-y-2 text-sm">
@@ -487,18 +549,49 @@ export function ReservationCancelWorkspace({
               {feeRequired && !posted && !waived ? (
                 <div className="mt-3 rounded-lg bg-[#F4E9D0] px-3 py-2 text-sm text-[#251605]">
                   <p>{FEE_REQUIRED_BANNER}</p>
-                  {ctx?.canWaive ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 h-8"
-                      disabled={waive.isPending}
-                      onClick={() => waive.mutate()}
-                    >
-                      Waive cancel fee
-                    </Button>
+                  {(ctx?.policy.defaultAmount ?? 0) > 0 ? (
+                    <p className="mt-1 text-xs">
+                      Cancellation fee from policy: {moneyFmt(ctx?.policy.defaultAmount ?? 0)}
+                    </p>
                   ) : null}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {!ctx?.folio.folioId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        disabled={ensureFolio.isPending}
+                        onClick={() => ensureFolio.mutate()}
+                      >
+                        Open Folio
+                      </Button>
+                    ) : null}
+                    {ctx?.folio.status === "open" && (ctx.policy.defaultAmount ?? 0) > 0 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        disabled={postFee.isPending}
+                        onClick={() => postFee.mutate()}
+                      >
+                        Post Cancellation Fee
+                      </Button>
+                    ) : null}
+                    {ctx?.canWaive ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        disabled={waive.isPending}
+                        onClick={() => waive.mutate()}
+                      >
+                        Waive cancel fee
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </SectionCard>
@@ -574,10 +667,12 @@ function PolicyCard({
   policyName,
   staff,
   penaltyRule,
+  folioCharge,
 }: {
   policyName: string;
   staff: { headline: string; detail: string };
   penaltyRule: string;
+  folioCharge: string | null;
 }) {
   const penalty = staff.headline === "Cancellation penalty applies";
   return (
@@ -591,6 +686,7 @@ function PolicyCard({
       >
         <p className="font-semibold">{staff.headline}</p>
         <p className="mt-1">{staff.detail}</p>
+        {folioCharge ? <p className="mt-1 font-medium">{folioCharge}</p> : null}
       </div>
       {penalty && penaltyRule !== CANCEL_DASH ? (
         <p className="mt-2 text-xs text-[#6B5E4E]">Penalty rule: {penaltyRule}</p>

@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePmsActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import {
+  composeStayChargePreview,
   previewPostedRoomCharge,
   type RoomChargeRules,
   type ServiceChargeRules,
@@ -37,6 +38,33 @@ export const quoteReservationRoomGuestTotal = createServerFn({ method: "POST" })
       return sum + previewPostedRoomCharge(amount, rules.taxes, rules.services).total;
     }, 0);
     return { total: Math.round(total * 100) / 100 };
+  });
+
+/** Tax, service, and guest total for the Front Office stay overview. */
+export const quoteFrontOfficeStayCharges = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        roomSubtotal: z.number().finite().nonnegative().nullable(),
+        packageAmounts: z.array(z.number().finite().nonnegative()).max(40),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [roomRules, packageRules] = await Promise.all([
+      loadRoomChargeRules(supabaseAdmin as never, data.restaurantId),
+      loadPackageChargeRules(supabaseAdmin as never, data.restaurantId),
+    ]);
+    return composeStayChargePreview(
+      data.roomSubtotal,
+      data.packageAmounts,
+      roomRules,
+      packageRules,
+    );
   });
 
 /** Taxes that post on a package charge. The stored package price is not changed. */

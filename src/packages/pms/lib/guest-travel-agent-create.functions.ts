@@ -27,6 +27,7 @@ import {
   nextAgencyCode,
   parseGuestTravelAgentCreateHold,
   travelAgentCommissionReady,
+  travelAgentDuplicateMessage,
   type AccountCreateCatalogueOption,
   type AccountCreateContactDraft,
   type GuestTravelAgentCreateDraft,
@@ -403,6 +404,74 @@ async function persistContacts(
   return next;
 }
 
+async function loadTravelAgentIdentityMatches(
+  restaurantId: string,
+  column: string,
+  value: string | null,
+) {
+  if (!value?.trim()) return [];
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const result = await admin(supabaseAdmin)
+    .from("guest_account_masters")
+    .select("id, name, email, phone, tax_id, business_registration_number, iata_license_number")
+    .eq("restaurant_id", restaurantId)
+    .eq("account_type", "travel_agent")
+    .ilike(column, value.trim())
+    .limit(20);
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return [];
+    throw new Error(result.error.message);
+  }
+  return (result.data ?? []) as Array<{
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    tax_id: string | null;
+    business_registration_number: string | null;
+    iata_license_number: string | null;
+  }>;
+}
+
+async function assertTravelAgentIdentityAvailable(
+  restaurantId: string,
+  draft: GuestTravelAgentCreateDraft,
+  excludeId?: string | null,
+) {
+  const account = draftToTravelAgentAccountInput(draft);
+  const batches = await Promise.all([
+    loadTravelAgentIdentityMatches(restaurantId, "name", account.name),
+    loadTravelAgentIdentityMatches(restaurantId, "iata_license_number", account.iataLicenseNumber),
+    loadTravelAgentIdentityMatches(restaurantId, "tax_id", account.taxId),
+    loadTravelAgentIdentityMatches(restaurantId, "business_registration_number", account.businessRegistrationNumber),
+    loadTravelAgentIdentityMatches(restaurantId, "email", account.email),
+    loadTravelAgentIdentityMatches(restaurantId, "phone", account.phone),
+  ]);
+  const byId = new Map<string, (typeof batches)[number][number]>();
+  for (const row of batches.flat()) byId.set(row.id, row);
+  const message = travelAgentDuplicateMessage(
+    {
+      id: excludeId,
+      name: account.name,
+      email: account.email,
+      phone: account.phone,
+      taxId: account.taxId,
+      registrationNumber: account.businessRegistrationNumber,
+      iataLicenseNumber: account.iataLicenseNumber,
+    },
+    [...byId.values()].map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      taxId: row.tax_id,
+      registrationNumber: row.business_registration_number,
+      iataLicenseNumber: row.iata_license_number,
+    })),
+  );
+  if (message) throw new Error(message);
+}
+
 export const persistTravelAgentCreate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -445,6 +514,7 @@ export const persistTravelAgentCreate = createServerFn({ method: "POST" })
     }
     const account = draftToTravelAgentAccountInput(draft);
     let accountId = draft.accountId;
+    await assertTravelAgentIdentityAvailable(data.restaurantId, draft, accountId);
     if (accountId) {
       await updateGuestAccount({
         data: { restaurantId: data.restaurantId, accountId, account },
@@ -534,10 +604,8 @@ export const persistTravelAgentCreate = createServerFn({ method: "POST" })
         membershipId: me.id,
       });
     } catch (caught) {
-      if (data.mode === "complete") {
-        throw caught;
-      }
       error = caught instanceof Error ? caught.message : "Some agency details could not be saved.";
+      if (data.mode === "complete" && !accountId) throw caught;
     }
     return { id: accountId, contacts, code: draft.code?.trim() || null, created: true as const, error };
   });

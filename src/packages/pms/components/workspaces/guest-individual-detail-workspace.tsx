@@ -11,7 +11,6 @@ import { GuestStaysReservationsView } from "@/packages/pms/components/guests/gue
 import { GuestRelationshipsView } from "@/packages/pms/components/guests/guest-relationships-view";
 import { GuestServicesView } from "@/packages/pms/components/guests/guest-services-view";
 import { GuestCommunicationNotesView } from "@/packages/pms/components/guests/guest-communication-notes-view";
-import { GuestPrivacyAdministrationView } from "@/packages/pms/components/guests/guest-privacy-administration-view";
 import { GuestActivityHistoryView } from "@/packages/pms/components/guests/guest-activity-history-view";
 import { GuestLoyaltyValueView } from "@/packages/pms/components/guests/guest-loyalty-value-view";
 import { useOptionalGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
@@ -268,15 +267,6 @@ export function GuestIndividualDetailWorkspace({
           <GuestCommunicationNotesView
             restaurantId={restaurantId}
             guestId={guest.id}
-            partyName={guest.fullName}
-          />
-        )}
-
-        {activeView === "privacy" && (
-          <GuestPrivacyAdministrationView
-            restaurantId={restaurantId}
-            guestId={guest.id}
-            guest={guest}
             partyName={guest.fullName}
           />
         )}

@@ -28,6 +28,15 @@ export const CHECK_IN_PROFILE_COLUMNS = {
 
 export type CheckInProfileField = keyof typeof CHECK_IN_PROFILE_COLUMNS;
 
+/** Card 4 rules read camelCase keys. Profile rows store snake_case columns. */
+export function guestRowForCheckInRules(row: Record<string, unknown>): Record<string, unknown> {
+  const values: Record<string, unknown> = { ...row };
+  for (const [key, column] of Object.entries(CHECK_IN_PROFILE_COLUMNS)) {
+    if (values[key] == null && row[column] != null) values[key] = row[column];
+  }
+  return values;
+}
+
 const PROFILE_FIELD_KEYS = new Set<string>(Object.keys(CHECK_IN_PROFILE_COLUMNS));
 const PROFILE_COLUMN_KEYS = new Set<string>(Object.values(CHECK_IN_PROFILE_COLUMNS));
 

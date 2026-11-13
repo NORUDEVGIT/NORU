@@ -36,6 +36,7 @@ import {
 } from "@/packages/pms/lib/fo-cancel-noshow.functions";
 import { getNoShowReadiness } from "@/packages/pms/lib/fo-no-show-readiness.functions";
 import { RoomUnitTargetSelect } from "@/packages/pms/components/frontoffice/room-unit-target-select";
+import { CancellationSettlementPanel } from "@/packages/pms/components/frontoffice/cancellation-settlement-panel";
 import { getBookingsAccess, getReservation } from "@/packages/pms/lib/reservations.functions";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
@@ -276,18 +277,25 @@ export function ReservationNoShowWorkspace({
           ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       }),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({
         queryKey: ["reservation", restaurantId, reservationId],
       });
       await queryClient.invalidateQueries({ queryKey: ["fo-no-show-readiness"] });
+      await queryClient.invalidateQueries({ queryKey: ["cancellation-settlement-exceptions"] });
       await queryClient.invalidateQueries({ queryKey: ["reservation-folio"] });
       await queryClient.invalidateQueries({ queryKey: ["folio"] });
       await queryClient.invalidateQueries({ queryKey: ["night-audit"] });
       await queryClient.invalidateQueries({ queryKey: ["reservation-desk"] });
       await queryClient.invalidateQueries({ queryKey: ["property-business-date"] });
       await queryClient.invalidateQueries({ queryKey: ["room-inventory"] });
-      toast.success("Reservation marked no-show.");
+      if (result.settlementError) {
+        toast.warning("Reservation marked no-show. Folio settlement did not complete.", {
+          description: `${result.settlementError} Run settlement again from Folio settlement needed on Cancellations.`,
+        });
+      } else {
+        toast.success("Reservation marked no-show.");
+      }
       onBackToDesk();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -547,6 +555,18 @@ export function ReservationNoShowWorkspace({
                 ))}
               </ul>
               <p className="mt-2 text-xs text-[#6B5E4E]">{NOSHOW_COLLECT_CASHIERING}</p>
+              <div className="mt-3 border-t border-[#EEE7DC] pt-3">
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  Folio after no-show
+                </p>
+                <CancellationSettlementPanel
+                  restaurantId={restaurantId}
+                  reservationId={reservationId}
+                  reservationRoomId={reservationRoomId || null}
+                  kind="noshow"
+                  mode="preview"
+                />
+              </div>
             </SectionCard>
 
             <SectionCard title="Room Inventory Impact">

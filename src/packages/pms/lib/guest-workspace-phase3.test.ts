@@ -116,10 +116,15 @@ describe("NORU PMS — Guest Profile Phase 3 — Individual Guest Detail Workspa
     assert.match(headerCode, /Merge Profile/);
   });
 
-  it("16. Header back button returns to Guest Directory preserving active search/filter parameters", () => {
+  it("16. Header back button returns to the guest list; previous page sits on the right", () => {
     assert.match(headerCode, /data-testid="guest-header-back-button"/);
+    assert.match(headerCode, /Back to Guest Profile/);
     assert.match(headerCode, /GUEST_PROFILE_DIRECTORY_PATH/);
-    assert.match(headerCode, /guestProfileSearch\(\{ card: returnCard, type: profileType \}\)/);
+    assert.match(headerCode, /guestProfileSearch\(/);
+    assert.match(headerCode, /data-testid="guest-header-previous-button"/);
+    assert.match(headerCode, /Back to Previous Page/);
+    assert.match(headerCode, /window\.history\.back\(\)/);
+    assert.match(headerCode, /justify-between/);
   });
 
   it("17. Tab strip renders 5 primary visible tabs: Overview, Personal & Contact, Identity & Documents, Preferences, Stays & Reservations", () => {
@@ -140,13 +145,12 @@ describe("NORU PMS — Guest Profile Phase 3 — Individual Guest Detail Workspa
     assert.match(detailWorkspaceCode, /DropdownMenu/);
   });
 
-  it("19. More ▾ dropdown contains: Relationships, Services, Communication & Notes, Privacy & Administration, Activity / History, Loyalty & Value", () => {
+  it("19. More ▾ dropdown contains: Relationships, Services, Communication & Notes, Activity / History, Loyalty & Value", () => {
     const moreIds = MORE_GUEST_DETAIL_VIEWS.map((v) => v.id);
     assert.deepEqual(moreIds, [
       "relationships",
       "services",
       "communication-notes",
-      "privacy",
       "activity",
       "loyalty",
     ]);
@@ -222,11 +226,20 @@ describe("NORU PMS — Guest Profile Phase 3 — Individual Guest Detail Workspa
     assert.match(overviewCode, /OVERVIEW_PREFERENCES_EMPTY/);
   });
 
-  it("31. Identity Status card renders the live identity document, not the profile snapshot", () => {
+  it("31. Identity Status card renders the live identity document with real status, falling back to the check-in ID", () => {
     assert.match(overviewCode, /listGuestDocuments/);
     assert.match(overviewCode, /\["guest-documents", restaurantId, guest\.id\]/);
     assert.match(overviewCode, /documentNumberMasked/);
+    assert.match(overviewCode, /verificationStatus/);
+    assert.match(overviewCode, /Expiration Date/);
     assert.match(overviewCode, /Not recorded/);
+    assert.match(overviewCode, /documentExpiryStatus\(/);
+    assert.match(overviewCode, /Expired · /);
+    assert.match(overviewCode, /GUEST_DOCUMENT_STATUS_LABELS/);
+    assert.match(overviewCode, /profileType=\{guest\.idDocumentType\}/);
+    assert.match(overviewCode, /profileExpiry=\{guest\.idDocumentExpiry\}/);
+    assert.match(overviewCode, /more document/);
+    assert.match(overviewCode, /Identity documents could not be loaded\./);
     assert.doesNotMatch(overviewCode, /guest\.idVerified/);
     assert.doesNotMatch(overviewCode, /guest\.idType/);
     assert.doesNotMatch(overviewCode, /guest\.idExpiry/);

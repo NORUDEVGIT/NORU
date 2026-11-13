@@ -191,6 +191,119 @@ export function cancelPolicyStaffCopy(policy: CancelPolicyView): {
   };
 }
 
+export type CancellationPenaltyQuote = {
+  amount: number | null;
+  basis:
+    | "within_free"
+    | "none"
+    | "first_night"
+    | "percent"
+    | "fixed"
+    | "nights"
+    | "full_stay"
+    | "not_evaluated"
+    | "unknown";
+  calculable: boolean;
+  required: boolean;
+  currency: string | null;
+};
+
+function roundPenalty(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/** Fee from the frozen cancellation snapshot. A missing snapshot is not a property default. */
+export function computeCancellationPenalty(input: {
+  snapshot: unknown;
+  arrivalDate: string;
+  timeZone: string | null | undefined;
+  now: Date;
+  roomSubtotal: number | null;
+  nightlyRates: Array<{ date: string; rate: number }>;
+  currency: string | null;
+}): CancellationPenaltyQuote {
+  const empty: CancellationPenaltyQuote = {
+    amount: null,
+    basis: "not_evaluated",
+    calculable: false,
+    required: false,
+    currency: input.currency,
+  };
+  const row = asRecord(input.snapshot);
+  if (!row) return empty;
+  const view = cancelPolicyView(input.snapshot, input.arrivalDate, input.timeZone, input.now);
+  if (view.outcome === "within_free") {
+    return { amount: 0, basis: "within_free", calculable: true, required: false, currency: input.currency };
+  }
+  if (view.outcome !== "penalty_applies") return empty;
+
+  const subtotal =
+    input.roomSubtotal != null && Number.isFinite(input.roomSubtotal)
+      ? roundPenalty(input.roomSubtotal)
+      : null;
+  const firstNight = input.nightlyRates.find((night) => Number.isFinite(night.rate))?.rate ?? null;
+  let type = parseCancellationPenaltyType(snapshotField(input.snapshot, ["penalty_type", "penaltyType"]));
+  const kind = typeof row.policy_kind === "string" ? row.policy_kind : typeof row.kind === "string" ? row.kind : "";
+  if (type === "none" && kind === "non_refundable") type = "full_stay";
+  const value = numberish(row.penalty_value ?? row.penaltyValue) ?? 0;
+
+  if (type === "none") {
+    return { amount: 0, basis: "none", calculable: true, required: false, currency: input.currency };
+  }
+  if (type === "first_night") {
+    return {
+      amount: firstNight == null ? null : roundPenalty(firstNight),
+      basis: "first_night",
+      calculable: firstNight != null,
+      required: firstNight != null && firstNight > 0,
+      currency: input.currency,
+    };
+  }
+  if (type === "percentage" || type === "percent") {
+    const calculable = subtotal != null && value >= 0 && value <= 100;
+    const amount = calculable ? roundPenalty((subtotal * value) / 100) : null;
+    return {
+      amount,
+      basis: "percent",
+      calculable,
+      required: calculable && (amount ?? 0) > 0,
+      currency: input.currency,
+    };
+  }
+  if (type === "fixed_amount" || type === "fixed") {
+    const calculable = value >= 0;
+    return {
+      amount: calculable ? roundPenalty(value) : null,
+      basis: "fixed",
+      calculable,
+      required: calculable && value > 0,
+      currency: input.currency,
+    };
+  }
+  if (type === "nights") {
+    const nights = Math.round(value);
+    const calculable = firstNight != null && nights > 0;
+    const amount = calculable ? roundPenalty(firstNight * nights) : null;
+    return {
+      amount,
+      basis: "nights",
+      calculable,
+      required: calculable && (amount ?? 0) > 0,
+      currency: input.currency,
+    };
+  }
+  if (type === "full_stay") {
+    return {
+      amount: subtotal,
+      basis: "full_stay",
+      calculable: subtotal != null,
+      required: subtotal != null && subtotal > 0,
+      currency: input.currency,
+    };
+  }
+  return { amount: null, basis: "unknown", calculable: false, required: false, currency: input.currency };
+}
+
 export function cancelFinanceRows(input: {
   roomSubtotal: number | null;
   packageAmount: number | null;
@@ -291,8 +404,8 @@ export function predictedSystemUpdates(input: {
         ? "Cancel fee must already be posted or waived"
         : "No cancellation fee is required",
       detail: input.feeRequired
-        ? "Confirm stays blocked until the cancel fee is posted or waived."
-        : "No cancellation fee is required for this stay.",
+        ? "The booked cancellation policy sets the folio charge. Confirm stays blocked until the cancel fee is posted or waived."
+        : "The stay is within the free cancellation period, or the policy has no cancellation charge.",
       guaranteed: true,
     },
   ];

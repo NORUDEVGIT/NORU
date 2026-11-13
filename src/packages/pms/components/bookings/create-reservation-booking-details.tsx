@@ -29,16 +29,8 @@ import {
   listTravelAgentCommissionPlans,
   listTravelAgentContacts,
 } from "@/packages/pms/lib/guest-travel-agent-detail.functions";
-import {
-  getGuestReservationPreferenceDefaults,
-  type GuestServiceTypeOption,
-} from "@/packages/pms/lib/guests.functions";
-import {
-  applyPreferenceDefaults,
-  mergeSpecialRequests,
-  preferenceApplyText,
-  type SavedPreferenceDisplay,
-} from "@/packages/pms/lib/guest-preferences-workspace";
+import { type GuestServiceTypeOption } from "@/packages/pms/lib/guests.functions";
+import { type SavedPreferenceDisplay } from "@/packages/pms/lib/guest-preferences-workspace";
 import { getGroup, listGroups } from "@/packages/pms/lib/groups.functions";
 import { listAccountRatePlanHints } from "@/packages/pms/lib/rates.functions";
 import {
@@ -204,7 +196,6 @@ export function CreateReservationBookingDetails({
   const loadCommissionPlans = useServerFn(listTravelAgentCommissionPlans);
   const loadGroups = useServerFn(listGroups);
   const loadGroup = useServerFn(getGroup);
-  const loadPrefDefaults = useServerFn(getGuestReservationPreferenceDefaults);
   const loadCompanyHints = useServerFn(listAccountRatePlanHints);
   const [localRelationTab, setLocalRelationTab] = useState<"company" | "travel_agent" | "group">(
     "company",
@@ -212,8 +203,6 @@ export function CreateReservationBookingDetails({
   const relationTab = relationTabProp ?? localRelationTab;
   const setRelationTab = onRelationTabChange ?? setLocalRelationTab;
   const [groupQuery, setGroupQuery] = useState("");
-  const [prefilledGuestId, setPrefilledGuestId] = useState<string | null>(null);
-  const [applyConfirmOpen, setApplyConfirmOpen] = useState(false);
   const groupSearchRef = useRef<HTMLInputElement>(null);
   const focusGroupSearch = useRef(false);
 
@@ -414,29 +403,6 @@ export function CreateReservationBookingDetails({
     focusGroupSearch.current = false;
   }, [linkedGroupId]);
 
-  const prefQuery = useQuery({
-    queryKey: ["guest-reservation-pref-defaults", restaurantId, guest?.id],
-    queryFn: () => loadPrefDefaults({ data: { restaurantId, guestId: guest!.id } }),
-    enabled: Boolean(guest?.id),
-    retry: false,
-  });
-  useEffect(() => {
-    if (!guest?.id || prefilledGuestId === guest.id) return;
-    const text = applyPreferenceDefaults({
-      currentSpecialRequests: specialRequests,
-      defaults: prefQuery.data,
-    });
-    if (!text) return;
-    if (!specialRequests.trim()) onSpecialRequestsChange(text);
-    setPrefilledGuestId(guest.id);
-  }, [
-    guest?.id,
-    onSpecialRequestsChange,
-    prefQuery.data?.specialRequests,
-    prefilledGuestId,
-    specialRequests,
-  ]);
-
   const companyHints = companyHintsQuery.data?.hints ?? [];
   const contractRates = companyHintsQuery.data?.contractRates ?? [];
   const matchedContractRate =
@@ -501,7 +467,7 @@ export function CreateReservationBookingDetails({
         >
           <div className="grid gap-2 sm:grid-cols-2">
             <Field label="Source" required>
-              <Select value={bookingSource || undefined} onValueChange={onBookingSourceChange}>
+              <Select value={bookingSource} onValueChange={onBookingSourceChange}>
                 <SelectTrigger className={SELECT_CONTROL} data-testid="booking-details-source">
                   <SelectValue placeholder="Select source" />
                 </SelectTrigger>
@@ -516,7 +482,7 @@ export function CreateReservationBookingDetails({
             </Field>
             <Field label="Channel" required={channelRequired}>
               <Select
-                value={salesChannel || undefined}
+                value={salesChannel}
                 onValueChange={onSalesChannelChange}
                 disabled={!channelEnabled}
               >
@@ -542,7 +508,7 @@ export function CreateReservationBookingDetails({
               </p>
             ) : null}
             <Field label="Market Segment">
-              <Select value={marketSegment || undefined} onValueChange={onMarketSegmentChange}>
+              <Select value={marketSegment} onValueChange={onMarketSegmentChange}>
                 <SelectTrigger className={SELECT_CONTROL} data-testid="booking-details-segment">
                   <SelectValue placeholder="Select segment" />
                 </SelectTrigger>
@@ -914,29 +880,6 @@ export function CreateReservationBookingDetails({
           icon={<ClipboardList className="size-3.5" aria-hidden />}
           testId="booking-details-guest-requests"
           title="Guest Requests & Preferences"
-          action={
-            <button
-              type="button"
-              className="inline-flex h-8 items-center rounded-[6px] border border-[#E4D3A8] bg-white px-2.5 text-xs font-medium text-[#8A6A24] disabled:opacity-40"
-              data-testid="apply-saved-preferences"
-              disabled={savedPreferences.length === 0}
-              onClick={() => {
-                if (!specialRequests.trim()) {
-                  onSpecialRequestsChange(
-                    mergeSpecialRequests(
-                      "",
-                      preferenceApplyText(savedPreferences),
-                      SPECIAL_REQUEST_MAX,
-                    ),
-                  );
-                  return;
-                }
-                setApplyConfirmOpen(true);
-              }}
-            >
-              Apply to this reservation
-            </button>
-          }
         >
           <div className="space-y-2" data-testid="booking-details-saved-preferences">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
@@ -970,37 +913,6 @@ export function CreateReservationBookingDetails({
                 ))}
               </div>
             )}
-            {applyConfirmOpen ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-2 py-1.5">
-                <p className="text-[11px] text-muted-foreground">
-                  Special requests already has text. Append the saved preferences?
-                </p>
-                <button
-                  type="button"
-                  className="text-[11px] font-medium text-[#8A6A24]"
-                  data-testid="confirm-apply-preferences"
-                  onClick={() => {
-                    onSpecialRequestsChange(
-                      mergeSpecialRequests(
-                        specialRequests,
-                        preferenceApplyText(savedPreferences),
-                        SPECIAL_REQUEST_MAX,
-                      ),
-                    );
-                    setApplyConfirmOpen(false);
-                  }}
-                >
-                  Append
-                </button>
-                <button
-                  type="button"
-                  className="text-[11px] text-muted-foreground"
-                  onClick={() => setApplyConfirmOpen(false)}
-                >
-                  Keep current text
-                </button>
-              </div>
-            ) : null}
           </div>
           <div
             className="mt-3 space-y-1 border-t border-[#CCCCCC] pt-3"

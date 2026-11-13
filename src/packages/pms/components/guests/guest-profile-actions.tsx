@@ -24,7 +24,7 @@ import {
 } from "@/shared/components/ui/dialog";
 import { Textarea } from "@/shared/components/ui/textarea";
 
-type GuestProfileActionsValue = {
+export type GuestProfileActionsValue = {
   restaurantId: string;
   guest: GuestProfile;
   /** @deprecated Use canView — kept for callers that still read canManage */

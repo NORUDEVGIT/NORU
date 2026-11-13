@@ -1493,6 +1493,7 @@ function ContactsStep({
         <div className="space-y-3">
           {draft.contacts.map((contact, index) => {
             const phoneError = contact.phone ? validateCompanyPhone(contact.phone) : null;
+            const whatsappError = contact.whatsapp ? validateCompanyPhone(contact.whatsapp) : null;
             return (
               <div
                 key={contact.key}
@@ -1598,17 +1599,17 @@ function ContactsStep({
                       }
                       error={Boolean(phoneError || (!contact.phone && required("CONTACT_PHONE")))}
                       placeholder="Enter phone number"
+                      maxDigits={9}
                       containerClassName={PHONE_GROUP}
                       triggerClassName={PHONE_TRIGGER}
                       className={PHONE_INPUT}
                       popoverClassName="z-[90]"
                     />
-                    {/* Format: +251 9... or 09... / 07... */}
                   </Field>
                   <Field
                     label="WhatsApp"
                     required={required("CONTACT_WHATSAPP")}
-                    error={!contact.whatsapp && required("CONTACT_WHATSAPP") ? (fieldError("CONTACT_WHATSAPP", "contacts") || "WhatsApp is required") : undefined}
+                    error={whatsappError || (!contact.whatsapp && required("CONTACT_WHATSAPP") ? (fieldError("CONTACT_WHATSAPP", "contacts") || "WhatsApp is required") : undefined)}
                   >
                     <CanonicalPhoneInput
                       value={contact.whatsapp}
@@ -1618,8 +1619,9 @@ function ContactsStep({
                           draft.contacts.map((row, i) => (i === index ? { ...row, whatsapp } : row)),
                         )
                       }
-                      error={Boolean(!contact.whatsapp && required("CONTACT_WHATSAPP"))}
+                      error={Boolean(whatsappError || (!contact.whatsapp && required("CONTACT_WHATSAPP")))}
                       placeholder="Enter phone number"
+                      maxDigits={9}
                       containerClassName={PHONE_GROUP}
                       triggerClassName={PHONE_TRIGGER}
                       className={PHONE_INPUT}

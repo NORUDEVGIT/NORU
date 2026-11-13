@@ -3,22 +3,23 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  CalendarDays,
   CalendarPlus,
-  Check,
   ChevronLeft,
   ChevronRight,
   Download,
   ExternalLink,
-  Menu,
-  Printer,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   X,
 } from "lucide-react";
 
 import { useOptionalGuestProfileActions } from "@/packages/pms/components/guests/guest-profile-actions";
+import {
+  PmsFilterChoiceRow,
+  PmsFilterMenu,
+  PmsFilterNoteRow,
+} from "@/packages/pms/components/pms-filter-menu";
+import { PMS_FILTER_DATE } from "@/packages/pms/components/pms-filter-popover";
 import { GuestStayActions } from "@/packages/pms/components/guests/guest-stay-actions";
 import {
   ReservationStatusBadge,
@@ -52,20 +53,7 @@ import {
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -77,12 +65,26 @@ import { cn } from "@/shared/lib/utils";
 
 type QuickScope = "all" | "upcoming" | "in_house" | "past";
 
-const STAY_SCOPES = [
-  { id: "all", label: "All Stays" },
-  { id: "upcoming", label: "Upcoming" },
-  { id: "in_house", label: "Current / In-House" },
-  { id: "past", label: "Past" },
+const STAY_SCOPE_OPTIONS = [
+  ["all", "All stays"],
+  ["upcoming", "Upcoming"],
+  ["in_house", "In-house"],
+  ["past", "Past"],
 ] as const;
+
+const STATUS_LABELS: Record<ReservationStatus, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  cancelled: "Cancelled",
+  checked_in: "In-house",
+  checked_out: "Checked out",
+  no_show: "No-show",
+};
+
+const STATUS_OPTIONS: ReadonlyArray<readonly [string, string]> = [
+  ["all", "All statuses"],
+  ...RESERVATION_STATUSES.map((status) => [status, STATUS_LABELS[status]] as const),
+];
 
 export function GuestStaysReservationsView({
   restaurantId,
@@ -190,17 +192,49 @@ export function GuestStaysReservationsView({
     setQuickViewOpen(true);
   }
 
-  function clearFilters() {
+  function clearMenuFilters() {
     setScope("all");
-    setFilters({ search: "", status: "all", from: "", to: "" });
+    setFilters((current) => ({ ...current, status: "all", from: "", to: "" }));
   }
 
-  const hasActiveFilters =
-    scope !== "all" ||
-    filters.search.trim() !== "" ||
-    filters.status !== "all" ||
-    filters.from !== "" ||
-    filters.to !== "";
+  const filterCount =
+    (scope !== "all" ? 1 : 0) +
+    (filters.status !== "all" ? 1 : 0) +
+    (filters.from || filters.to ? 1 : 0);
+
+  const scopeLabel = STAY_SCOPE_OPTIONS.find(([id]) => id === scope)?.[1] ?? "All stays";
+  const filterChips = [
+    scope !== "all"
+      ? {
+          id: "scope",
+          label: `Stay: ${scopeLabel}`,
+          onRemove: () => setScope("all"),
+        }
+      : null,
+    filters.status !== "all"
+      ? {
+          id: "status",
+          label: `Status: ${STATUS_LABELS[filters.status]}`,
+          onRemove: () => setFilters((current) => ({ ...current, status: "all" })),
+        }
+      : null,
+    filters.from
+      ? {
+          id: "from",
+          label: `From: ${filters.from}`,
+          onRemove: () => setFilters((current) => ({ ...current, from: "" })),
+        }
+      : null,
+    filters.to
+      ? {
+          id: "to",
+          label: `To: ${filters.to}`,
+          onRemove: () => setFilters((current) => ({ ...current, to: "" })),
+        }
+      : null,
+  ].filter((chip): chip is { id: string; label: string; onRemove: () => void } => chip !== null);
+
+  const hasActiveFilters = filters.search.trim() !== "" || filterCount > 0;
 
   return (
     <div className="space-y-4" data-testid="guest-stay-history">
@@ -231,100 +265,144 @@ export function GuestStaysReservationsView({
         </div>
       </div>
 
-      <StayScopeNavigator scope={scope} onSelect={setScope} />
-
-      {/* Operational Toolbar */}
-      <div className="space-y-3 rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        {/* Dense Filters Bar */}
-        <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2 md:grid-cols-5">
-          <div className="relative md:col-span-2">
-            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#756A5B]" />
-            <Input
-              placeholder="Search confirmation, room, rate plan, source…"
-              className="h-8 pl-8 text-xs border-[#DDD4C5] bg-white text-[#251605]"
-              value={filters.search}
-              onChange={(e) => setFilters((curr) => ({ ...curr, search: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <Select
-              value={filters.status}
-              onValueChange={(val) =>
-                setFilters((curr) => ({ ...curr, status: val as ReservationStatus | "all" }))
-              }
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-56 flex-1">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search confirmation, room, rate plan, source…"
+            className="h-9 pl-8 pr-8 text-xs"
+            value={filters.search}
+            onChange={(e) => setFilters((curr) => ({ ...curr, search: e.target.value }))}
+            aria-label="Search stays"
+          />
+          {filters.search ? (
+            <button
+              type="button"
+              onClick={() => setFilters((current) => ({ ...current, search: "" }))}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
             >
-              <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white text-[#251605]">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white text-xs">
-                <SelectItem value="all">All Statuses</SelectItem>
-                {RESERVATION_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.replace(/_/g, " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Input
-              type="date"
-              className="h-8 text-xs border-[#DDD4C5] bg-white text-[#251605]"
-              value={filters.from}
-              onChange={(e) => setFilters((curr) => ({ ...curr, from: e.target.value }))}
-              data-testid="guest-bookings-from"
-            />
-            <span className="text-[10px] text-[#756A5B]">to</span>
-            <Input
-              type="date"
-              className="h-8 text-xs border-[#DDD4C5] bg-white text-[#251605]"
-              value={filters.to}
-              onChange={(e) => setFilters((curr) => ({ ...curr, to: e.target.value }))}
-              data-testid="guest-bookings-to"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {hasActiveFilters ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="h-8 text-xs text-[#756A5B] hover:text-[#251605]"
-              >
-                <X className="mr-1 size-3" /> Clear
-              </Button>
-            ) : null}
-            {canPrintExport ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportCsv}
-                className="h-8 border-[#DDD4C5] bg-white text-xs text-[#756A5B] hover:bg-[#F7F4EE]"
-              >
-                <Download className="mr-1.5 size-3.5" /> Export CSV
-              </Button>
-            ) : null}
-            {canCreateGuestStayReservation(access) ? (
-              <Button
-                asChild
-                size="sm"
-                className="h-8 bg-[#8A641A] text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#725215]"
-              >
-                <Link
-                  to="/restaurant/pms/reservations"
-                  search={{ create: "new", guestId }}
-                  data-testid="guest-bookings-new"
-                >
-                  <CalendarPlus className="mr-1.5 size-3.5" /> + New Reservation
-                </Link>
-              </Button>
-            ) : null}
-          </div>
+              <X className="size-3.5" />
+            </button>
+          ) : null}
         </div>
+        <PmsFilterMenu
+          activeCount={filterCount}
+          onClear={clearMenuFilters}
+          buttonTestId="guest-stays-filter-button"
+          menuTestId="guest-stays-filter-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Stay"
+            value={scope}
+            current={scope === "all" ? "" : scopeLabel}
+            options={STAY_SCOPE_OPTIONS}
+            onChange={(value) => setScope(value as QuickScope)}
+          />
+          <PmsFilterChoiceRow
+            label="Status"
+            value={filters.status}
+            current={filters.status === "all" ? "" : STATUS_LABELS[filters.status]}
+            options={STATUS_OPTIONS}
+            onChange={(value) =>
+              setFilters((current) => ({
+                ...current,
+                status: value as ReservationStatus | "all",
+              }))
+            }
+          />
+          <PmsFilterNoteRow label="Stay dates">
+            <div className="grid gap-2" onKeyDown={(event) => event.stopPropagation()}>
+              <label className="grid gap-1 text-[11px] font-medium text-[#7A6B58]">
+                From
+                <Input
+                  type="date"
+                  className={PMS_FILTER_DATE}
+                  value={filters.from}
+                  aria-label="Stay dates from"
+                  data-testid="guest-bookings-from"
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, from: event.target.value }))
+                  }
+                  onKeyDown={(event) => event.stopPropagation()}
+                />
+              </label>
+              <label className="grid gap-1 text-[11px] font-medium text-[#7A6B58]">
+                To
+                <Input
+                  type="date"
+                  className={PMS_FILTER_DATE}
+                  value={filters.to}
+                  aria-label="Stay dates to"
+                  data-testid="guest-bookings-to"
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, to: event.target.value }))
+                  }
+                  onKeyDown={(event) => event.stopPropagation()}
+                />
+              </label>
+            </div>
+          </PmsFilterNoteRow>
+        </PmsFilterMenu>
+        {canPrintExport ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={exportCsv}
+            className="size-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]"
+            aria-label="Export CSV"
+            title="Export CSV"
+          >
+            <Download className="size-4" />
+          </Button>
+        ) : null}
+        {canCreateGuestStayReservation(access) ? (
+          <Button
+            asChild
+            className="h-9 shrink-0 bg-[#8A641A] text-xs font-medium text-white shadow-sm hover:bg-[#725215]"
+          >
+            <Link
+              to="/restaurant/pms/reservations"
+              search={{ create: "new", guestId }}
+              data-testid="guest-bookings-new"
+            >
+              <CalendarPlus className="mr-1.5 size-3.5" /> New Reservation
+            </Link>
+          </Button>
+        ) : null}
       </div>
+
+      {filterChips.length > 0 ? (
+        <div
+          className="flex flex-wrap items-center gap-1.5 text-xs"
+          data-testid="guest-stays-filter-chips"
+        >
+          {filterChips.map((chip) => (
+            <span
+              key={chip.id}
+              className="inline-flex items-center gap-1 rounded-md border border-[#E8E4DC] bg-[#FAF8F5] px-2 py-0.5 font-medium text-[#251605]"
+            >
+              <span>{chip.label}</span>
+              <button
+                type="button"
+                onClick={chip.onRemove}
+                className="text-[#7A6B58] hover:text-[#251605]"
+                aria-label={`Remove filter ${chip.label}`}
+              >
+                <X className="size-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={clearMenuFilters}
+            className="ml-1 text-xs font-semibold text-[#8C6D23] hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
+      ) : null}
 
       {/* Dense Operational Table */}
       <div className="rounded-xl border border-[#DDD4C5] bg-white shadow-sm overflow-hidden">
@@ -563,58 +641,6 @@ export function GuestStaysReservationsView({
           ) : null}
         </SheetContent>
       </Sheet>
-    </div>
-  );
-}
-
-function StayScopeNavigator({
-  scope,
-  onSelect,
-}: {
-  scope: QuickScope;
-  onSelect: (scope: QuickScope) => void;
-}) {
-  const currentLabel = STAY_SCOPES.find((item) => item.id === scope)?.label ?? "All Stays";
-  return (
-    <div className="flex justify-start">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={`Stay view: ${currentLabel}`}
-            title={currentLabel}
-            data-testid="guest-stays-scope-menu"
-            className={cn(
-              "inline-flex h-8 max-w-full items-center gap-1.5 rounded-md border border-[#DDD4C5] bg-white px-2.5",
-              "text-xs font-medium text-[#251605]",
-              "hover:border-[#C89933] hover:bg-[#F7F4EE]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
-              "data-[state=open]:border-[#C89933] data-[state=open]:bg-[#F4E9D0]",
-            )}
-          >
-            <Menu className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate">{currentLabel}</span>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-48 border-[#DDD4C5]">
-          {STAY_SCOPES.map((item) => {
-            const selected = scope === item.id;
-            return (
-              <DropdownMenuItem
-                key={item.id}
-                className={cn(selected && "bg-[#F4E9D0] text-[#251605] focus:bg-[#F4E9D0]")}
-                onSelect={() => onSelect(item.id)}
-              >
-                <Check
-                  className={cn("size-3.5 text-[#C89933]", selected ? "opacity-100" : "opacity-0")}
-                  aria-hidden
-                />
-                {item.label}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 }

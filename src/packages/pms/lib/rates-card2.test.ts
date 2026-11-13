@@ -256,6 +256,9 @@ describe("NORU PMS — Rate & Pricing Move to Rooms & Operations (Card 2)", () =
 
   it("owns rate plan composition in Card 2: validity, description, meal plan, cancellation, refundability", () => {
     assert.match(card2Ui, /Valid from/);
+    assert.match(card2Ui, /ratePlanOptionLabel/);
+    assert.match(card2Ui, /<SelectValue placeholder="Select a category">\{categoryLabel\}<\/SelectValue>/);
+    assert.match(card2Ui, /<SelectValue placeholder="None">\{mealLabel\}<\/SelectValue>/);
     assert.match(card2Ui, /plan-description/);
     assert.match(card2Ui, />Meal plan</);
     assert.match(card2Ui, /title="Cancellation policies"/);

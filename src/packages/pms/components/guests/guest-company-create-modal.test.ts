@@ -77,7 +77,7 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-St
     assert.match(modalCode, /draft\.taxId/);
     assert.doesNotMatch(modalCode, /draft\.tradeName/);
     assert.doesNotMatch(modalCode, /draft\.companyType/);
-    assert.match(modalCode, /\+251 9\.\.\. or 09\.\.\. \/ 07\.\.\./);
+    assert.match(modalCode, /maxDigits=\{9\}/);
     assert.match(modalCode, /draft\.accountStatus/);
     assert.match(modalCode, /draft\.registrationNumber/);
     assert.match(modalCode, /draft\.website/);
@@ -92,13 +92,14 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-St
     assert.match(modalCode, /draft\.contract/);
   });
 
-  it("5b. Phone validator accepts Ethiopian formats and flags invalid numbers", () => {
+  it("5b. Phone validator accepts a 9-digit local number and flags anything else", () => {
     assert.equal(validateCompanyPhone(""), null);
     assert.equal(validateCompanyPhone("+251911234567"), null);
-    assert.equal(validateCompanyPhone("0911234567"), null);
-    assert.equal(validateCompanyPhone("0711234567"), null);
-    assert.match(validateCompanyPhone("12345") ?? "", /valid phone number/);
-    assert.match(validateCompanyPhone("abc") ?? "", /valid phone number/);
+    assert.equal(validateCompanyPhone("911234567"), null);
+    assert.match(validateCompanyPhone("0911234567") ?? "", /9-digit phone number/);
+    assert.match(validateCompanyPhone("0711234567") ?? "", /9-digit phone number/);
+    assert.match(validateCompanyPhone("12345") ?? "", /9-digit phone number/);
+    assert.match(validateCompanyPhone("abc") ?? "", /9-digit phone number/);
   });
 
   it("6. Canonical persistCompanyCreate function is used for persistence", () => {

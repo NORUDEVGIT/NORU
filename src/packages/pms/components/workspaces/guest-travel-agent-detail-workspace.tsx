@@ -9,7 +9,8 @@ import { ChevronDown } from "lucide-react";
 import { GuestTravelAgentHeader } from "@/packages/pms/components/guests/guest-travel-agent-header";
 import { GuestTravelAgentOverviewView } from "@/packages/pms/components/guests/guest-travel-agent-overview-view";
 import { GuestTravelAgentDetailsView } from "@/packages/pms/components/guests/guest-travel-agent-details-view";
-import { GuestTravelAgentContactsTravelersView } from "@/packages/pms/components/guests/guest-travel-agent-contacts-travelers-view";
+import { GuestTravelAgentContacts } from "@/packages/pms/components/guests/guest-travel-agent-contacts";
+import { GuestTravelAgentTravelers } from "@/packages/pms/components/guests/guest-travel-agent-travelers";
 import { GuestTravelAgentBookingsView } from "@/packages/pms/components/guests/guest-travel-agent-bookings";
 import { GuestTravelAgentCommercialCommissionView } from "@/packages/pms/components/guests/guest-travel-agent-commercial-commission-view";
 import { GuestTravelAgentAgreementsView } from "@/packages/pms/components/guests/guest-travel-agent-agreements";
@@ -42,7 +43,6 @@ import {
   isMoreTravelAgentView,
   resolveCanonicalTravelAgentNavId,
   resolveInitialTravelAgentCommercialSubTab,
-  resolveInitialTravelAgentContactsTravelersSubTab,
   type CanonicalTravelAgentViewId,
 } from "@/packages/pms/lib/guest-travel-agent-detail-view";
 import { TRAVEL_AGENT_DETAIL_NAV, travelAgentDetailNav } from "@/packages/pms/lib/guest-travel-agent-detail-workspace";
@@ -117,7 +117,6 @@ export function GuestTravelAgentDetailWorkspace({
   const isMoreActive = isMoreTravelAgentView(canonicalNavId);
   const activeMoreItem = TRAVEL_AGENT_DETAIL_MORE_ITEMS.find((item) => item.id === canonicalNavId);
 
-  const contactsTravelersSubTab = resolveInitialTravelAgentContactsTravelersSubTab(navProp);
   const commercialSubTab = resolveInitialTravelAgentCommercialSubTab(navProp);
 
   return (
@@ -130,7 +129,7 @@ export function GuestTravelAgentDetailWorkspace({
         canManageRes={canManageRes}
       />
 
-      {/* Modern 5-Primary Tabs + More Dropdown Navigation */}
+      {/* Primary tabs plus the More menu */}
       <nav
         aria-label="Travel agency sections"
         className="flex w-full items-center gap-1 overflow-x-auto border-b border-[#DDD4C5] pb-px"
@@ -216,14 +215,12 @@ export function GuestTravelAgentDetailWorkspace({
         />
       )}
 
-      {canonicalNavId === "contacts-travelers" && (
-        <GuestTravelAgentContactsTravelersView
-          restaurantId={restaurantId}
-          agencyId={agencyId}
-          agencyName={data.agency.name}
-          initialSubTab={contactsTravelersSubTab}
-          onEditAgency={() => setEditOpen(true)}
-        />
+      {canonicalNavId === "contacts" && (
+        <GuestTravelAgentContacts restaurantId={restaurantId} agencyId={agencyId} />
+      )}
+
+      {canonicalNavId === "travelers" && (
+        <GuestTravelAgentTravelers restaurantId={restaurantId} agencyId={agencyId} />
       )}
 
       {canonicalNavId === "bookings" && (
