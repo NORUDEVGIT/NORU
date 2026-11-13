@@ -23,7 +23,7 @@ import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-pr
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
-import { GuestRestrictionBadges, StatusBadge } from "@/packages/pms/components/guests/guest-bits";
+import { GuestRestrictionBadges, StatusBadge, VipBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DIRECTORY_PATH,
   GUEST_PROFILE_DETAIL_PATH,
@@ -44,7 +44,6 @@ import {
 } from "@/packages/pms/lib/guest-profile-listing";
 import { csvEscape } from "@/packages/pms/lib/guest-companies-workspace";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
@@ -83,6 +82,8 @@ function KpiCard({
   loading,
   icon,
   tone,
+  active = false,
+  onClick,
 }: {
   label: string;
   value?: number | null | undefined;
@@ -90,9 +91,19 @@ function KpiCard({
   loading?: boolean | undefined;
   icon: React.ReactNode;
   tone: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3 text-left shadow-sm transition-colors hover:bg-[#FBF7F1]",
+        active ? "border-[#C89933]" : "border-[#DDD4C5]",
+      )}
+    >
       <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
         {icon}
       </span>
@@ -107,7 +118,7 @@ function KpiCard({
         )}
         {hint ? <p className="truncate text-[9px] text-muted-foreground">{hint}</p> : null}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -165,7 +176,6 @@ export function GuestDirectoryWorkspace({
 
   const [formOpen, setFormOpen] = useState(false);
   const [editGuest, setEditGuest] = useState<GuestProfile | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
 
   function updateDirectoryUrl(updates: Partial<GuestProfileSearch>) {
     const nextSearch = guestProfileSearch({
@@ -326,7 +336,7 @@ export function GuestDirectoryWorkspace({
       toast.error("You don't have permission to export guest lists.");
       return;
     }
-    const rows = selected.length > 0 ? guests.filter((guest) => selected.includes(guest.id)) : guests;
+    const rows = guests;
     const header = [
       "Profile No.",
       "Guest",
@@ -549,16 +559,11 @@ export function GuestDirectoryWorkspace({
                 size="icon"
                 className={cn(SHELL_ICON_BUTTON, "relative")}
                 onClick={runExport}
-                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                aria-label="Export"
+                title="Export"
                 data-testid="guest-profile-export"
               >
                 <Download className="size-4" />
-                {selected.length > 0 ? (
-                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                    {selected.length}
-                  </span>
-                ) : null}
               </Button>
             </GuestProfileShellSlot>
           ) : null}
@@ -617,6 +622,8 @@ export function GuestDirectoryWorkspace({
           loading={statsQuery.isLoading}
           icon={<Users className="size-4" />}
           tone="bg-[#F4E9D0] text-[#8A641A]"
+          active={status === ALL && vip === ALL && sort !== "last_stay"}
+          onClick={() => updateDirectoryUrl({ status: undefined, vip: undefined, sort: undefined, page: undefined })}
         />
         <KpiCard
           label="Active Guests"
@@ -625,6 +632,8 @@ export function GuestDirectoryWorkspace({
           loading={statsQuery.isLoading}
           icon={<UserCheck className="size-4" />}
           tone="bg-emerald-50 text-emerald-700"
+          active={status === "active"}
+          onClick={() => updateDirectoryUrl({ status: "active", vip: undefined, sort: undefined, page: undefined })}
         />
         <KpiCard
           label="VIP Guests"
@@ -633,6 +642,8 @@ export function GuestDirectoryWorkspace({
           loading={statsQuery.isLoading}
           icon={<Crown className="size-4 fill-current" />}
           tone="bg-amber-50 text-amber-700"
+          active={vip === "vip"}
+          onClick={() => updateDirectoryUrl({ vip: "vip", status: undefined, sort: undefined, page: undefined })}
         />
         <KpiCard
           label="Returning Guests"
@@ -641,6 +652,8 @@ export function GuestDirectoryWorkspace({
           loading={statsQuery.isLoading}
           icon={<RotateCcw className="size-4" />}
           tone="bg-blue-50 text-blue-700"
+          active={sort === "last_stay"}
+          onClick={() => updateDirectoryUrl({ sort: "last_stay", status: undefined, vip: undefined, page: undefined })}
         />
       </section>
 
@@ -747,15 +760,6 @@ export function GuestDirectoryWorkspace({
           <table className="w-full min-w-[900px] text-xs" data-testid="guest-listing-table">
             <thead className="border-b border-[#DDD4C5] bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
               <tr>
-                <th className="w-10 px-2 py-2.5">
-                  <Checkbox
-                    checked={selected.length > 0 && selected.length === guests.length}
-                    onCheckedChange={(checked) =>
-                      setSelected(checked === true ? guests.map((guest) => guest.id) : [])
-                    }
-                    aria-label="Select page"
-                  />
-                </th>
                 <th className="px-2 py-2.5">Profile No.</th>
                 <th className="px-2 py-2.5">Guest</th>
                 <th className="px-2 py-2.5">Contact</th>
@@ -780,17 +784,6 @@ export function GuestDirectoryWorkspace({
                     )}
                     data-testid={`guest-row-${g.id}`}
                   >
-                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selected.includes(g.id)}
-                        onCheckedChange={(checked) =>
-                          setSelected((prev) =>
-                            checked === true ? [...prev, g.id] : prev.filter((id) => id !== g.id),
-                          )
-                        }
-                        aria-label={`Select ${g.fullName}`}
-                      />
-                    </td>
                     <td className="px-3 py-2.5 font-mono text-[11px] text-[#7A6B58]">
                       {displayProfileNumber(g.id, g.profileNumber)}
                     </td>
@@ -812,14 +805,7 @@ export function GuestDirectoryWorkspace({
                       {g.upcomingStayAt ? date(g.upcomingStayAt) : "—"}
                     </td>
                     <td className="px-3 py-2.5">
-                      {g.vipStatus ? (
-                        <Crown
-                          className="size-3.5 fill-[#8C6D23] text-[#8C6D23]"
-                          title="VIP Guest"
-                        />
-                      ) : (
-                        <span className="text-[#D6D0C4]">—</span>
-                      )}
+                      {g.vipStatus ? <VipBadge /> : <span className="text-[#D6D0C4]">—</span>}
                     </td>
                     <td className="px-3 py-2.5">
                       <StatusBadge status={g.guestStatus} />

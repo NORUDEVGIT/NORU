@@ -209,6 +209,8 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   ROOM_NOT_INSPECTABLE: "Only a cleaned room can be inspected.",
   INVALID_ROOM_STATUS: "Invalid room restriction.",
   REASON_REQUIRED: "A reason is required when restricting a room.",
+  MAINTENANCE_TICKET_REQUIRED:
+    "A maintenance request is required before this room can be placed Out of Order.",
 };
 
 export function housekeepingError(message: string): Error {

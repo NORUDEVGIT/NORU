@@ -219,8 +219,8 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
     const functions = readRel("./reservations.functions.ts");
-    assert.match(page, /CREATE_RESERVATION_CONFIRM_LABEL/);
-    assert.match(page, /CREATE_RESERVATION_PENDING_LABEL/);
+    assert.match(page, /Confirm Reservation/);
+    assert.match(page, /create\.mutate\("confirmed"\)/);
     assert.equal(CREATE_RESERVATION_CONFIRM_LABEL, "Confirm / Guarantee");
     assert.equal(CREATE_RESERVATION_PENDING_LABEL, "Save as Pending");
     assert.match(page, /requireGuarantee: nextStatus === "confirmed"/);
@@ -380,22 +380,19 @@ describe("Create Reservation Phase 1 Section 7 lock — AC-CR7-1…24", () => {
     );
   });
 
-  it("AC-CR7-9 Successful create shows on-screen confirmation with print", () => {
+  it("AC-CR7-9 Successful create closes the wizard and toasts the reservation number", () => {
     const page =
       readRel("../components/bookings/create-reservation-page.tsx") +
       readRel("../../../routes/restaurant/bookings/new.tsx");
-    const confirmation = readRel("../components/bookings/create-reservation-confirmation.tsx");
-    assert.match(page, /CreateReservationConfirmation/);
-    assert.match(page, /setCreatedView/);
+    assert.doesNotMatch(page, /CreateReservationConfirmation/);
+    assert.doesNotMatch(page, /setCreatedView/);
+    assert.doesNotMatch(page, /Reservation Created Successfully/);
+    assert.match(page, /toast\.success\(`Reservation \$\{result\.confirmationNumber\} created`\)/);
+    assert.match(page, /onCreated\?\.\(result\.id\)/);
+    assert.match(page, /onReturnToDesk\(\)/);
     assert.doesNotMatch(page, /void navigate\(\{/);
-    assert.match(confirmation, /data-testid="create-reservation-confirmation"/);
-    assert.match(confirmation, /data-testid="confirmation-number"/);
-    assert.match(confirmation, /window.print/);
-    assert.match(confirmation, /data-testid="create-reservation-print"/);
     assert.equal(CREATE_RESERVATION_PRINT_LABEL, "Print");
     assert.equal(CREATE_RESERVATION_OPEN_RESERVATION_LABEL, "Open reservation");
-    assert.match(confirmation, /data-testid="open-reservation"/);
-    assert.match(confirmation, /\/restaurant\/pms\/reservations\/\$reservationId/);
   });
 
   it("AC-CR7-10 No email and no SMS send on this writer", () => {

@@ -5,8 +5,11 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  IDENTITY_DOCUMENT_EXPIRED,
+  IDENTITY_DOCUMENT_ISSUE_BEFORE_EXPIRY,
   IDENTITY_DOCUMENTS_MIGRATION_FILE,
   documentExpiryStatus,
+  identityDocumentDateIssue,
   kindFromTypeCode,
   nextSelectedDocumentId,
   typeAllowedForNewDocument,
@@ -42,6 +45,31 @@ describe("Identity document helpers", () => {
       false,
     );
     assert.equal(typeAllowedForNewDocument({ active: true, validForProfileTypeIds: [] }, profile), false);
+  });
+
+  it("rejects an expired document and an issue date that is not before expiry", () => {
+    const today = "2026-11-11";
+    assert.deepEqual(
+      identityDocumentDateIssue({ expiryDate: "2026-11-10", issueDate: "2020-01-01", today }),
+      { expiry: IDENTITY_DOCUMENT_EXPIRED, issue: null },
+    );
+    assert.deepEqual(
+      identityDocumentDateIssue({ expiryDate: today, issueDate: "2020-01-01", today }),
+      { expiry: null, issue: null },
+    );
+    assert.deepEqual(
+      identityDocumentDateIssue({ expiryDate: "2030-01-01", issueDate: "2030-01-01", today }),
+      { expiry: null, issue: IDENTITY_DOCUMENT_ISSUE_BEFORE_EXPIRY },
+    );
+    assert.deepEqual(
+      identityDocumentDateIssue({
+        expiryDateActive: false,
+        expiryDate: "2020-01-01",
+        issueDate: "2024-01-01",
+        today,
+      }),
+      { expiry: null, issue: null },
+    );
   });
 
   it("classifies expiry against property today", () => {

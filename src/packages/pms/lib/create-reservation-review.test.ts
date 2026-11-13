@@ -43,7 +43,7 @@ describe("Create Reservation Step 4 review workspace", () => {
       "review-card-print",
     ]);
     assert.match(reviewUi, /grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3/);
-    assert.match(reviewUi, /h-full !rounded-\[6px\]/);
+    assert.match(reviewUi, /h-full !rounded-lg/);
     assert.doesNotMatch(reviewUi, /items-start gap-3 md:grid-cols-2/);
     assert.doesNotMatch(reviewUi, /!h-fit|h-fit/);
     assert.doesNotMatch(reviewUi, /h-\[\d|min-h-\[\d/);
@@ -71,9 +71,9 @@ describe("Create Reservation Step 4 review workspace", () => {
     assert.match(page, /savedPreferences=\{savedPreferenceRows\}/);
     assert.match(page, /selectedServiceRequests=\{selectedServiceRequests\}/);
     assert.match(page, /selectedPackages=/);
-    assert.match(page, /data-testid="save-as-pending"/);
+    assert.match(page, /Confirm Reservation/);
     assert.match(page, /data-testid="confirm-guarantee"/);
-    assert.match(page, /create\.mutate\("pending"\)/);
+    assert.doesNotMatch(page, /data-testid="save-as-pending"/);
     assert.match(page, /create\.mutate\("confirmed"\)/);
   });
 

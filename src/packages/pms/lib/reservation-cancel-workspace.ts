@@ -16,7 +16,7 @@ import type { ReservationHistoryEntry } from "@/packages/pms/lib/reservations.fu
 export const CANCEL_DASH = REVIEW_DASH;
 export const CANCEL_NOT_EVALUATED = "Not evaluated";
 export const CANCEL_COMM_GAP =
-  "This workspace does not send guest, company, or staff messages. completeFoCancel does not email or notify housekeeping.";
+  "Messages are not sent from this cancellation. The guest, company, travel agent, and staff are not notified.";
 export const CANCEL_REFUND_CASHIERING =
   "Any refund stays in Cashiering. This action does not post a refund.";
 
@@ -152,6 +152,42 @@ export function cancelPolicyView(
     outcomeLabel: CANCEL_NOT_EVALUATED,
     deadlineLabel: derived.label || CANCEL_DASH,
     penaltyRule,
+  };
+}
+
+/** Staff wording. Does not change the evaluated outcome. */
+export function cancelPolicyStaffCopy(policy: CancelPolicyView): {
+  headline: string;
+  detail: string;
+} {
+  if (policy.outcome === "within_free") {
+    return {
+      headline: "Free cancellation",
+      detail: `${policy.deadlineLabel}. No cancellation penalty applies.`,
+    };
+  }
+  if (policy.outcome === "penalty_applies") {
+    if (policy.deadlineLabel === "Non-refundable") {
+      return {
+        headline: "Cancellation penalty applies",
+        detail: "This reservation is non-refundable. A cancellation penalty applies.",
+      };
+    }
+    if (policy.deadlineLabel.toLowerCase().startsWith("free cancellation until")) {
+      const until = policy.deadlineLabel.replace(/^Free cancellation until\s+/i, "");
+      return {
+        headline: "Cancellation penalty applies",
+        detail: `The free cancellation period ended ${until}. A cancellation penalty applies.`,
+      };
+    }
+    return {
+      headline: "Cancellation penalty applies",
+      detail: "A cancellation penalty applies.",
+    };
+  }
+  return {
+    headline: "Cancellation policy not confirmed",
+    detail: "Free cancellation or a penalty could not be confirmed from the stored policy.",
   };
 }
 
@@ -343,7 +379,7 @@ export function predictedSystemUpdates(input: {
     {
       id: "status",
       title: "Reservation status will be set to Cancelled",
-      detail: "completeFoCancel writes hotel_reservations.status.",
+      detail: "The reservation will be marked Cancelled.",
       guaranteed: true,
     },
     {
@@ -352,14 +388,14 @@ export function predictedSystemUpdates(input: {
         ? `Room ${input.assignedRoom} will be released back to inventory`
         : "No assigned room to release",
       detail: input.assignedRoom
-        ? "completeFoCancel clears room_id."
+        ? "The room returns to available inventory."
         : "This stay is already unassigned.",
       guaranteed: true,
     },
     {
       id: "audit",
       title: "Audit trail will be recorded",
-      detail: "A cancelled history event is written with the reason.",
+      detail: "The cancellation and reason are saved on the reservation history.",
       guaranteed: true,
     },
     {
@@ -368,8 +404,8 @@ export function predictedSystemUpdates(input: {
         ? "Cancel fee must already be posted or waived"
         : "No cancellation fee is required",
       detail: input.feeRequired
-        ? "The frozen cancellation policy sets the folio charge."
-        : "The stay is inside the free window, or the policy charges nothing.",
+        ? "The booked cancellation policy sets the folio charge. Confirm stays blocked until the cancel fee is posted or waived."
+        : "The stay is within the free cancellation period, or the policy has no cancellation charge.",
       guaranteed: true,
     },
   ];
@@ -385,7 +421,7 @@ export function persistedSystemUpdates(input: {
     {
       id: "status",
       title: "Reservation status set to Cancelled",
-      detail: input.status === "cancelled" ? "Live status is cancelled." : CANCEL_NOT_EVALUATED,
+      detail: input.status === "cancelled" ? "The reservation is cancelled." : CANCEL_NOT_EVALUATED,
       guaranteed: input.status === "cancelled",
     },
     {
@@ -396,16 +432,18 @@ export function persistedSystemUpdates(input: {
           ? "Room release not confirmed"
           : "No assigned room to release",
       detail: input.roomReleased
-        ? "room_id is now empty on the reservation."
+        ? "The room is available again."
         : input.assignedBefore
           ? CANCEL_NOT_EVALUATED
-          : "Stay was unassigned before cancel.",
+          : "The stay had no assigned room.",
       guaranteed: input.roomReleased || !input.assignedBefore,
     },
     {
       id: "audit",
       title: input.historyRecorded ? "Audit trail recorded" : "Audit trail not found",
-      detail: input.historyRecorded ? "A cancelled history event exists." : CANCEL_NOT_EVALUATED,
+      detail: input.historyRecorded
+        ? "The cancellation is on the reservation history."
+        : CANCEL_NOT_EVALUATED,
       guaranteed: input.historyRecorded,
     },
   ];

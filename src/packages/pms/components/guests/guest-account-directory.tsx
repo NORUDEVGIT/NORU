@@ -26,6 +26,7 @@ import {
   WAVE4_MIGRATION_UNAVAILABLE,
   accountListItems,
   accountTypeToProfileType,
+  type GuestAccountStatus,
   type GuestAccountType,
 } from "@/packages/pms/lib/guest-profile-wave4";
 import {
@@ -62,6 +63,14 @@ export function GuestAccountDirectory({
   search,
   onSearchChange,
   embedded = false,
+  companyStatus,
+  companyCredit,
+  onCompanyStatus,
+  onCompanyCredit,
+  agencyStatus,
+  onAgencyStatus,
+  groupStatus,
+  onGroupStatus,
 }: {
   membership: RestaurantMembership;
   accountType: GuestAccountType;
@@ -69,20 +78,52 @@ export function GuestAccountDirectory({
   search?: string;
   onSearchChange?: (value: string) => void;
   embedded?: boolean;
+  companyStatus?: "all" | GuestAccountStatus;
+  companyCredit?: "all" | "yes" | "no";
+  onCompanyStatus?: (status: "all" | GuestAccountStatus) => void;
+  onCompanyCredit?: (credit: "all" | "yes" | "no") => void;
+  agencyStatus?: "all" | GuestAccountStatus;
+  onAgencyStatus?: (status: "all" | GuestAccountStatus) => void;
+  groupStatus?: "all" | GuestAccountStatus;
+  onGroupStatus?: (status: "all" | GuestAccountStatus) => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
   const { date } = useRestaurantTime();
   if (accountType === "company") {
-    return <GuestCompanyDirectory membership={membership} returnCard={returnCard} embedded={embedded} />;
+    return (
+      <GuestCompanyDirectory
+        membership={membership}
+        returnCard={returnCard}
+        embedded={embedded}
+        statusValue={companyStatus}
+        creditValue={companyCredit}
+        onStatusChange={onCompanyStatus}
+        onCreditChange={onCompanyCredit}
+      />
+    );
   }
   if (accountType === "travel_agent") {
     return (
-      <GuestTravelAgentDirectory membership={membership} returnCard={returnCard} embedded={embedded} />
+      <GuestTravelAgentDirectory
+        membership={membership}
+        returnCard={returnCard}
+        embedded={embedded}
+        statusValue={agencyStatus}
+        onStatusChange={onAgencyStatus}
+      />
     );
   }
   if (accountType === "group") {
-    return <GuestGroupDirectory membership={membership} returnCard={returnCard} embedded={embedded} />;
+    return (
+      <GuestGroupDirectory
+        membership={membership}
+        returnCard={returnCard}
+        embedded={embedded}
+        statusValue={groupStatus}
+        onStatusChange={onGroupStatus}
+      />
+    );
   }
   const title = GUEST_ACCOUNT_TYPE_LABELS[accountType];
   const profileType = accountTypeToProfileType(accountType);

@@ -61,6 +61,9 @@ const RATE_ERRORS: Record<string, string> = {
   ROOM_NOT_ASSIGNABLE:
     "That room can't be used — check it is active, available and of the reserved type.",
   ROOM_ALREADY_BOOKED: "That room is already booked or occupied for part of those dates.",
+  ROOM_CAPACITY_EXCEEDED:
+    "That room cannot hold this many guests under this property's room rules.",
+  ROOM_HOUSEKEEPING_NOT_READY: "Housekeeping has not released that room for assignment.",
   RESERVATION_CANCELLED: "This reservation is cancelled. Restore it before amending.",
   RATE_CHANGE_STALE: "This rate was changed by someone else. Refresh and try again.",
   RATE_CHANGE_FORBIDDEN: "You don't have access to change rates for this property.",
@@ -170,9 +173,11 @@ export function rateError(message: string): Error {
   const max = /MAX_STAY_(\d+)/.exec(message);
   if (max) return new Error(`This rate plan allows a maximum stay of ${max[1]} night(s).`);
   const advMin = /ADVANCE_BOOKING_MIN_(\d+)/.exec(message);
-  if (advMin) return new Error(`This rate plan requires booking at least ${advMin[1]} day(s) in advance.`);
+  if (advMin)
+    return new Error(`This rate plan requires booking at least ${advMin[1]} day(s) in advance.`);
   const advMax = /ADVANCE_BOOKING_MAX_(\d+)/.exec(message);
-  if (advMax) return new Error(`This rate plan must be booked no more than ${advMax[1]} day(s) in advance.`);
+  if (advMax)
+    return new Error(`This rate plan must be booked no more than ${advMax[1]} day(s) in advance.`);
   for (const [code, text] of Object.entries(RATE_ERRORS)) {
     if (message.includes(code)) return new Error(text);
   }

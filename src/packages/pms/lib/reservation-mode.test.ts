@@ -74,7 +74,8 @@ describe("GROUP-RES-01 reservation mode", () => {
     const groupDraft = parseCreateReservationDraft({ version: 1, reservationMode: "group" });
     expect(groupDraft?.reservationMode).toBe("group");
     expect(draftPage).toContain('useState<ReservationMode>("single")');
-    expect(draftPage).toContain("reservation-type-selector");
+    expect(draftPage).not.toContain("reservation-type-selector");
+    expect(draftPage).toContain("applyRoomQuantity");
   });
 
   it("leaves group and block linkage on the existing create path", () => {

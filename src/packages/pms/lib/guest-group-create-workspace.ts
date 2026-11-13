@@ -19,10 +19,9 @@ export const GUEST_GROUP_CREATE_MIGRATION_FILE = "0097_pms_group_create_drafts.s
 
 export const GUEST_GROUP_CREATE_STEPS = [
   { id: "details", number: 1, title: "Group Details" },
-  { id: "stay", number: 2, title: "Travel & Stay" },
-  { id: "guests", number: 3, title: "Guest Information" },
-  { id: "billing", number: 4, title: "Financial & Billing" },
-  { id: "review", number: 5, title: "Review & Confirm" },
+  { id: "guests", number: 2, title: "Guest Information" },
+  { id: "billing", number: 3, title: "Financial & Billing" },
+  { id: "review", number: 4, title: "Review & Confirm" },
 ] as const;
 
 export type GuestGroupCreateStepId = (typeof GUEST_GROUP_CREATE_STEPS)[number]["id"];
@@ -195,9 +194,8 @@ function isGuestGroupCreateDraftShape(value: unknown): value is GuestGroupCreate
 }
 
 export function inferGuestGroupCreateStep(draft: GuestGroupCreateDraft): GuestGroupCreateStepId {
-  if (filled(draft.billingArrangement) || filled(draft.ratePlanId) || filled(draft.paymentMethodId)) return "billing";
+  if (filled(draft.billingArrangement) || filled(draft.paymentMethodId) || filled(draft.paymentTerms)) return "billing";
   if (draft.members.length > 0 || draft.importStagedCount > 0) return "guests";
-  if (filled(draft.arrivalDate) || filled(draft.expectedPax)) return "stay";
   return "details";
 }
 
@@ -449,33 +447,7 @@ export function groupCreateFieldIssues(
   if (filled(draft.groupTypeId) && groupTypeIds && !groupTypeIds.includes(draft.groupTypeId)) {
     issues.push({ key: "groupTypeId", message: "Select a configured group type.", step: "details" });
   }
-  if (!filled(draft.arrivalDate) || !filled(draft.departureDate)) {
-    issues.push({ key: "arrivalDate", message: "Arrival and departure dates are required.", step: "stay" });
-    issues.push({ key: "departureDate", message: "Arrival and departure dates are required.", step: "stay" });
-  }
-  const dateError = validateGroupDates(draft.arrivalDate, draft.departureDate);
-  if (dateError) {
-    issues.push({ key: "arrivalDate", message: dateError, step: "stay" });
-    issues.push({ key: "departureDate", message: dateError, step: "stay" });
-  }
-  if (parsePositiveInt(draft.expectedPax) == null) {
-    issues.push({ key: "expectedPax", message: "Expected guests must be greater than 0.", step: "stay" });
-  }
-  const rooms = draft.expectedRooms.trim() === "" ? 0 : parsePositiveInt(draft.expectedRooms, true);
-  if (draft.expectedRooms.trim() !== "" && rooms == null) {
-    issues.push({ key: "expectedRooms", message: "Expected rooms cannot be negative.", step: "stay" });
-  }
-  for (const need of draft.roomNeeds) {
-    if (need.rooms < 0 || need.pax < 0) {
-      issues.push({ key: "roomNeeds", message: "Room quantities cannot be negative.", step: "stay" });
-    }
-    if (filled(need.roomTypeId) && roomTypeIds && !roomTypeIds.includes(need.roomTypeId)) {
-      issues.push({ key: "roomNeeds", message: "Each room requirement must use a configured room type.", step: "stay" });
-    }
-    if (!filled(need.roomTypeId) && (need.rooms > 0 || need.pax > 0)) {
-      issues.push({ key: "roomNeeds", message: "Select a room type for each room requirement.", step: "stay" });
-    }
-  }
+  void roomTypeIds;
   const guestIds = draft.members.map((row) => row.guestId).filter(Boolean) as string[];
   if (new Set(guestIds).size !== guestIds.length) {
     issues.push({ key: "members", message: "A guest can only be added to this group once.", step: "guests" });
@@ -511,17 +483,6 @@ export function groupCreateFieldIssues(
   }
   if (filled(draft.currency) && currencyCodes && currencyCodes.length > 0 && !currencyCodes.includes(draft.currency)) {
     issues.push({ key: "currency", message: "Select a configured currency.", step: "billing" });
-  }
-  if (draft.depositRequired) {
-    const amount = draft.depositAmount.trim() === "" ? null : Number(draft.depositAmount);
-    const percent = draft.depositPercent.trim() === "" ? null : Number(draft.depositPercent);
-    if ((amount == null || Number.isNaN(amount) || amount <= 0) && (percent == null || Number.isNaN(percent) || percent <= 0)) {
-      issues.push({ key: "depositAmount", message: "Enter a deposit amount or percentage.", step: "billing" });
-      issues.push({ key: "depositPercent", message: "Enter a deposit amount or percentage.", step: "billing" });
-    }
-    if (percent != null && !Number.isNaN(percent) && (percent < 0 || percent > 100)) {
-      issues.push({ key: "depositPercent", message: "Deposit percentage must be between 0 and 100.", step: "billing" });
-    }
   }
   return issues;
 }
@@ -564,14 +525,6 @@ export function guestGroupCreateCompletion(draft: GuestGroupCreateDraft): {
       complete: filled(draft.name) && filled(draft.groupTypeId),
       requiredRemaining: !filled(draft.name) || !filled(draft.groupTypeId),
       step: "details",
-    },
-    {
-      id: "stay",
-      label: "Travel dates",
-      complete: !validateGroupDates(draft.arrivalDate, draft.departureDate) && Boolean(parsePositiveInt(draft.expectedPax)),
-      requiredRemaining:
-        Boolean(validateGroupDates(draft.arrivalDate, draft.departureDate)) || parsePositiveInt(draft.expectedPax) == null,
-      step: "stay",
     },
     {
       id: "members",
@@ -653,6 +606,18 @@ export function draftToGroupOperations(draft: GuestGroupCreateDraft): Record<str
       depositPercent: draft.depositPercent.trim() === "" ? null : Number(draft.depositPercent),
       depositDueDate: blank(draft.depositDueDate),
       balanceDueDate: blank(draft.balanceDueDate),
+      paymentTerms: blank(draft.paymentTerms),
+    },
+  };
+}
+
+/** Reusable billing defaults stored on a new group profile. Stay fields stay out of this payload. */
+export function profileGroupOperations(draft: GuestGroupCreateDraft): Record<string, unknown> {
+  return {
+    billing: {
+      currency: blank(draft.currency),
+      paymentMethodId: blank(draft.paymentMethodId),
+      billingArrangement: blank(draft.billingArrangement),
       paymentTerms: blank(draft.paymentTerms),
     },
   };

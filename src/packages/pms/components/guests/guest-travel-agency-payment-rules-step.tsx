@@ -50,10 +50,10 @@ import type {
 } from "@/packages/pms/lib/guest-travel-agency-step4.server";
 
 const MODAL_CONTROL_CLASS =
-  "h-10 w-full rounded-none border-[#CCCCCC] bg-white text-xs text-[#251605] placeholder:text-[#A0988A] shadow-none focus-visible:border-[#8A641A] focus-visible:ring-[#8A641A]";
+  "h-9 rounded-[6px] border border-[#CCCCCC] bg-white text-xs text-[#251605] placeholder:text-[#999999] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] shadow-none";
 
 const MODAL_SELECT_TRIGGER_CLASS =
-  "h-10 w-full rounded-none border-[#CCCCCC] bg-white text-xs text-[#251605] shadow-none focus:border-[#8A641A] focus:ring-[#8A641A]";
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus:border-[#8A641A] focus:ring-1 focus:ring-[#8A641A]";
 
 const PRESET_DAYS = [7, 15, 30, 45, 60, 90] as const;
 const CREDIT_DAYS_PRESETS = PRESET_DAYS;
@@ -202,7 +202,7 @@ export function GuestTravelAgencyPaymentRulesStep({
       id="step4-payment-credit-reservation-rules"
     >
       {/* SECTION 1: Payment & Billing */}
-      <section className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
         <div className="border-b border-[#EDE6D8] pb-3 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -394,7 +394,7 @@ export function GuestTravelAgencyPaymentRulesStep({
               rows={3}
               value={draft.billingInstruction}
               onChange={(e) => set("billingInstruction", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
+              className={cn(MODAL_CONTROL_CLASS, "h-auto min-h-16 py-2")}
               placeholder="Specify special billing routing instructions or account arrangements..."
             />
             {fieldError("billingInstruction") && (
@@ -606,11 +606,11 @@ export function GuestTravelAgencyPaymentRulesStep({
       </section>
 
       {/* SECTION 3: Reservation Rules */}
-      <section className="space-y-4 rounded-none border border-[#DDD4C5] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
         <div className="border-b border-[#E8E4DC] pb-3">
           <div className="flex items-center gap-2">
             <Building2 className="size-4 text-[#8A641A]" />
-            <h2 className="font-display text-base font-semibold text-[#251605]">Reservation Rules</h2>
+            <h2 className="text-sm font-semibold text-[#251605]">Reservation Rules</h2>
           </div>
           <p className="mt-0.5 text-xs text-[#756A5B]">
             Deposit and no-show policies come from Payments &amp; Deposits. Cancellation policies come from Rate &amp; Pricing.
@@ -650,7 +650,7 @@ export function GuestTravelAgencyPaymentRulesStep({
               <p className="text-[11px] text-[#756A5B]">Deposit requirement applied to agency reservations.</p>
             )}
             {selectedDeposit ? (
-              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+              <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
                 {selectedDeposit.depositType === "none"
                   ? "No deposit required."
                   : selectedDeposit.depositType === "first_night"
@@ -694,7 +694,7 @@ export function GuestTravelAgencyPaymentRulesStep({
               <p className="text-[11px] text-[#756A5B]">Cutoff window and penalty rules for reservation cancellations.</p>
             )}
             {selectedCancellation ? (
-              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+              <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
                 {selectedCancellation.refundableBeforeCutoff
                   ? `Free cancellation until ${selectedCancellation.cutoffHours} hours before arrival.`
                   : `Non-refundable. Cutoff ${selectedCancellation.cutoffHours} hours before arrival.`}
@@ -734,7 +734,7 @@ export function GuestTravelAgencyPaymentRulesStep({
               <p className="text-[11px] text-[#756A5B]">Inventory release and fee schedule for no-shows.</p>
             )}
             {selectedNoShow ? (
-              <div className="rounded-none border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
+              <div className="rounded-md border border-[#DDD4C5] bg-[#FAF8F5] p-2 text-[11px] text-[#756A5B]">
                 Release at {String(selectedNoShow.releaseHour).padStart(2, "0")}:00. Penalty {selectedNoShow.penaltyType.replaceAll("_", " ")}.
               </div>
             ) : null}
@@ -756,7 +756,7 @@ export function GuestTravelAgencyPaymentRulesStep({
             maxLength={500}
             value={draft.bookingNotes}
             onChange={(e) => set("bookingNotes", e.target.value)}
-            className={MODAL_CONTROL_CLASS}
+            className={cn(MODAL_CONTROL_CLASS, "h-auto min-h-16 py-2")}
             placeholder="Operational instructions for Front Desk and Reservation agents (e.g. voucher verification required at check-in)..."
           />
           {fieldError("bookingNotes") && (
@@ -769,7 +769,7 @@ export function GuestTravelAgencyPaymentRulesStep({
       </section>
 
       {/* SECTION 4: Documents */}
-      <section className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
         <div className="border-b border-[#EDE6D8] pb-3 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">

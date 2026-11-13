@@ -340,3 +340,13 @@ export function canonicalRegistrationPhone(value: string | null | undefined): st
   }
   return composeSetupPhone(parsed.iso, local);
 }
+
+/** Staff display only. Stored values stay canonical. */
+export function formatGroupedPhone(value: string | null | undefined): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+  const parsed = decomposeSetupPhone(raw);
+  if (!parsed.dialCode) return raw;
+  const country = parsed.iso ? propertySetupCallingCountry(parsed.iso) : null;
+  return [country?.flag, `+${parsed.dialCode}`, parsed.localNumber.trim()].filter(Boolean).join(" ");
+}

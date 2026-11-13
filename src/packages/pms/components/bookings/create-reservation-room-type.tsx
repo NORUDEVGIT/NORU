@@ -303,7 +303,7 @@ export function CreateReservationRoomType({
   return (
     <section
       id="create-reservation-availability"
-      className={cn(PMS_OP_PANEL, "!rounded-[6px] !border-[#CCCCCC] !shadow-none min-w-0")}
+      className={cn(PMS_OP_PANEL, "!rounded-lg !border-[#DDD4C5] !shadow-none min-w-0")}
       data-testid="create-reservation-room-type"
     >
       <div

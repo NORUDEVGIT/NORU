@@ -1,10 +1,17 @@
 import { Fragment, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { MoreHorizontal, Printer, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
+import {
+  printGroupBlockConfirmation,
+  savedGroupBlockConfirmationInput,
+  type GroupBlockConfirmationProperty,
+} from "@/packages/pms/lib/group-block-confirmation-print";
+import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.functions";
+import { formatPrintDateTime } from "@/packages/pms/lib/reservation-print-document";
 import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import {
   GROUP_BLOCK_NOT_AVAILABLE,
@@ -75,12 +82,30 @@ import {
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
+import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 
 const inputClass = cn(PMS_OP_INPUT, PMS_OP_PLACEHOLDER);
 const dateClass = cn(PMS_OP_INPUT, PMS_OP_DATE);
+const headerButton =
+  "h-8 shrink-0 rounded-md border border-white/15 bg-white/5 px-2.5 text-xs font-medium text-[#F3E9D8] shadow-none hover:bg-white/10";
+const headerPrimary =
+  "h-8 shrink-0 rounded-md bg-[#C89933] px-2.5 text-xs font-semibold text-[#251605] shadow-none hover:bg-[#B98B2D]";
+
+function formatHistoryWhen(value: string): string {
+  const iso = value.includes("T") ? value : value.replace(" ", "T");
+  return formatPrintDateTime(iso) ?? value;
+}
 
 type GroupDetailData = {
   group: GroupRecord;
@@ -117,6 +142,7 @@ type GroupDetailData = {
 
 export function GroupDetailWorkspace({
   restaurantId,
+  property = null,
   canWrite,
   open,
   detail,
@@ -136,6 +162,7 @@ export function GroupDetailWorkspace({
   canCreateReservation = false,
 }: {
   restaurantId: string;
+  property?: GroupBlockConfirmationProperty | null;
   canWrite: boolean;
   open: boolean;
   detail: GroupDetailData | null;
@@ -157,6 +184,12 @@ export function GroupDetailWorkspace({
   const [tab, setTab] = useState<GroupDetailTabId>("overview");
   const [editOpen, setEditOpen] = useState(false);
   const [addBlockOpen, setAddBlockOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const queryClient = useQueryClient();
+  const loadGuest = useServerFn(getGuest);
+  const loadAccount = useServerFn(getGuestAccount);
+  const loadPlans = useServerFn(listRatePlans);
+  const loadProfile = useServerFn(getGroupDetailWorkspace);
   const group = detail?.group ?? null;
   const nights = group ? groupStayNights(group.arrivalDate, group.departureDate) : 0;
   const summary = groupDetailSummary(detail?.blocks ?? [], detail?.reservations.length ?? 0);
@@ -174,6 +207,103 @@ export function GroupDetailWorkspace({
     onOpenReservation(id);
   }
 
+  async function printConfirmation() {
+    if (!group || printing) return;
+    setPrinting(true);
+    try {
+      const profile = group.groupAccountMasterId
+        ? await queryClient
+            .fetchQuery({
+              queryKey: ["pms-group-profile", restaurantId, group.groupAccountMasterId],
+              queryFn: () =>
+                loadProfile({
+                  data: { restaurantId, groupId: group.groupAccountMasterId! },
+                }),
+            })
+            .catch(() => null)
+        : null;
+      const profileGroup = profile?.group;
+      const catalogues = profile?.catalogues;
+      const profileSource = catalogues?.sourceCodes.find(
+        (row) => row.id === profileGroup?.sourceCodeId,
+      );
+      const profileSegment = catalogues?.marketSegments.find(
+        (row) => row.id === profileGroup?.marketSegmentId,
+      );
+      const companyName =
+        profileGroup && profileGroup.companyMasterId === group.companyMasterId
+          ? profileGroup.companyMasterName
+          : await accountName(group.companyMasterId, "pms-group-company");
+      const travelAgencyName =
+        profileGroup && profileGroup.travelAgentMasterId === group.travelAgentMasterId
+          ? profileGroup.travelAgentMasterName
+          : await accountName(group.travelAgentMasterId, "pms-group-ta");
+      const groupLeaderName =
+        profileGroup && profileGroup.primaryContactGuestId === group.leaderGuestId
+          ? profileGroup.primaryContactName
+          : await leaderName(group.leaderGuestId);
+      const plans = await queryClient
+        .fetchQuery({
+          queryKey: ["pms-group-rate-plans", restaurantId],
+          queryFn: async () => {
+            try {
+              return await loadPlans({ data: { restaurantId, activeOnly: true } });
+            } catch {
+              return [];
+            }
+          },
+        })
+        .catch(() => []);
+      const rate = plans.find((plan) => plan.id === group.ratePlanId);
+      printGroupBlockConfirmation(
+        savedGroupBlockConfirmationInput({
+          property,
+          generatedAt: formatPrintDateTime(new Date()) ?? "",
+          group,
+          blocks: detail?.blocks ?? [],
+          roomTypes,
+          companyName,
+          travelAgencyName,
+          groupLeaderName,
+          profileSourceName: profileSource?.name ?? null,
+          profileSourceCode: profileSource?.code ?? null,
+          profileMarketSegmentName: profileSegment?.name ?? null,
+          profileMarketSegmentCode: profileSegment?.code ?? null,
+          sources: catalogues?.sourceCodes,
+          segments: catalogues?.marketSegments,
+          ratePlan: rate ? `${rate.code} · ${rate.name}` : null,
+          publicNotes: profileGroup?.specialRequests ?? null,
+        }),
+      );
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Could not print the confirmation.");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  async function accountName(accountId: string | null, queryName: string): Promise<string | null> {
+    if (!accountId) return null;
+    const account = await queryClient
+      .fetchQuery({
+        queryKey: [queryName, restaurantId, accountId],
+        queryFn: () => loadAccount({ data: { restaurantId, accountId } }),
+      })
+      .catch(() => null);
+    return account?.name ?? null;
+  }
+
+  async function leaderName(guestId: string | null): Promise<string | null> {
+    if (!guestId) return null;
+    const guest = await queryClient
+      .fetchQuery({
+        queryKey: ["pms-group-leader", restaurantId, guestId],
+        queryFn: () => loadGuest({ data: { restaurantId, guestId } }),
+      })
+      .catch(() => null);
+    return guest?.guest.fullName ?? null;
+  }
+
   return (
     <>
       <ReservationWorkspaceOverlay
@@ -185,37 +315,62 @@ export function GroupDetailWorkspace({
             : "Operational group workspace"
         }
         hideVisualHeader
+        size="workspace"
         onOpenChange={onOpenChange}
       >
         <div className="flex min-h-0 flex-1 flex-col" data-testid="group-detail-workspace">
-          <header className="shrink-0 border-b border-[#DDD4C5] bg-white px-5 py-4 pr-12">
+          <header className="relative shrink-0 bg-[#1F140A] px-4 py-2.5 pr-3 text-[#F3E9D8]">
             {loading && !group ? (
-              <Skeleton className="h-16 w-80" />
+              <div className="flex items-center justify-between gap-3">
+                <Skeleton className="h-8 w-80 bg-white/10" />
+                <button
+                  type="button"
+                  aria-label="Close"
+                  className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                  onClick={() => onOpenChange(false)}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             ) : group ? (
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {group.confirmationNumber}
-                  </p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                    <h2 className="font-display text-xl font-semibold text-[#251605]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-display text-sm font-semibold text-white">
+                    <span className="truncate">
+                      {group.confirmationNumber}
+                      <span className="text-[#8A7A61]"> · </span>
                       {group.name}
-                    </h2>
-                    <span className="rounded-full bg-[#F4E9D0] px-2 py-0.5 text-xs font-medium text-[#765719]">
+                    </span>
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">
                       {groupStatusLabel(group.status)}
                     </span>
-                  </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  </h2>
+                  <p className="mt-0.5 truncate text-[11px] text-[#C4B6A0]">
                     {formatStayDate(group.arrivalDate)} → {formatStayDate(group.departureDate)}
-                    {nights ? ` · ${nights} nights` : ""}
-                    {group.cutoffDate ? ` · Cut-off: ${formatStayDate(group.cutoffDate)}` : ""}
+                    {nights ? ` · ${nights} night${nights === 1 ? "" : "s"}` : ""}
+                    {group.cutoffDate ? ` · Cut-off ${formatStayDate(group.cutoffDate)}` : ""}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex shrink-0 items-center gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-testid="group-detail-print"
+                        aria-label="Print confirmation"
+                        className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8] disabled:opacity-50"
+                        disabled={printing}
+                        onClick={() => void printConfirmation()}
+                      >
+                        <Printer className="size-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Print confirmation</TooltipContent>
+                  </Tooltip>
                   {canWrite ? (
                     <Button
                       variant="outline"
-                      className={PMS_OP_BTN_OUTLINE}
+                      className={headerButton}
                       data-testid="group-detail-edit"
                       onClick={() => setEditOpen(true)}
                     >
@@ -224,7 +379,7 @@ export function GroupDetailWorkspace({
                   ) : null}
                   {canWrite ? (
                     <Button
-                      className="h-10 !rounded-[6px] bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                      className={headerPrimary}
                       data-testid="group-detail-add-allotment"
                       onClick={() => {
                         setTab("allotment");
@@ -237,7 +392,7 @@ export function GroupDetailWorkspace({
                   {canCreateReservation && group && onCreateStay ? (
                     <Button
                       variant="outline"
-                      className={PMS_OP_BTN_OUTLINE}
+                      className={headerButton}
                       data-testid="group-detail-create-reservation"
                       onClick={() => onCreateStay(group.id, null)}
                     >
@@ -254,38 +409,62 @@ export function GroupDetailWorkspace({
                       onChanged={onChanged}
                     />
                   ) : null}
+                  <button
+                    type="button"
+                    aria-label="Close"
+                    className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <X className="size-4" />
+                  </button>
                 </div>
               </div>
             ) : error ? (
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-destructive">{error}</p>
-                <Button variant="outline" className={PMS_OP_BTN_OUTLINE} onClick={onRetry}>
-                  Retry
-                </Button>
+              <div className="flex items-center justify-between gap-3 pr-1">
+                <p className="text-sm text-[#F3C7C7]">{error}</p>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" className={headerButton} onClick={onRetry}>
+                    Retry
+                  </Button>
+                  <button
+                    type="button"
+                    aria-label="Close"
+                    className="rounded-md p-1.5 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
               </div>
             ) : null}
           </header>
+          <div className="h-0.5 shrink-0 bg-[#C89933]" aria-hidden />
           <nav
-            className="shrink-0 overflow-x-auto border-b border-[#DDD4C5] bg-white px-4"
+            className="shrink-0 overflow-x-auto border-b border-[#E8DFD0] bg-[#FBF7F1]"
             aria-label="Group detail"
             data-testid="group-detail-tabs"
           >
-            <div className="flex min-w-max gap-1 py-2">
-              {GROUP_DETAIL_TABS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={cn(
-                    "rounded-full px-3 py-1.5 text-sm",
-                    tab === item.id
-                      ? "bg-[#F4E9D0] font-medium text-[#251605]"
-                      : "text-muted-foreground hover:bg-[#F7F4EE]",
-                  )}
-                  onClick={() => setTab(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
+            <div className="flex min-w-max items-center gap-0.5 px-3">
+              {GROUP_DETAIL_TABS.map((item) => {
+                const active = tab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={cn(
+                      "relative whitespace-nowrap px-2.5 py-2 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                      active
+                        ? "text-[#251605] after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#C89933]"
+                        : "text-[#5C5346] hover:text-[#251605]",
+                    )}
+                    onClick={() => setTab(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
           </nav>
           <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
@@ -307,7 +486,6 @@ export function GroupDetailWorkspace({
                     roomTypes={roomTypes}
                     onRelease={onRelease}
                     onChanged={onChanged}
-                    onAdd={() => setAddBlockOpen(true)}
                     canCreateReservation={canCreateReservation}
                     onCreateStay={onCreateStay}
                   />
@@ -405,9 +583,9 @@ function MoreMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className={PMS_OP_BTN_OUTLINE} data-testid="group-detail-more">
+        <Button variant="outline" className={headerButton} data-testid="group-detail-more">
           More
-          <MoreHorizontal className="ml-1 size-4" />
+          <MoreHorizontal className="ml-1 size-3.5" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -525,13 +703,19 @@ function OverviewTab({
   ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
-    <div
-      className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]"
-      data-testid="group-detail-overview"
-    >
+    <div className="space-y-3" data-testid="group-detail-overview">
+      <section
+        className="grid gap-2 sm:grid-cols-4"
+        data-testid="group-detail-summary"
+      >
+        <SummaryStat label="Total allotment" value={`${summary.totalAllotment} rooms`} />
+        <SummaryStat label="Picked up" value={`${summary.pickedUp} rooms`} />
+        <SummaryStat label="Remaining" value={`${summary.remaining} rooms`} />
+        <SummaryStat label="Linked reservations" value={`${summary.linkedReservations} stays`} />
+      </section>
       <section className={cn(PMS_OP_PANEL, "p-4")}>
         <h3 className="font-display text-base font-semibold text-[#251605]">Group information</h3>
-        <dl className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+        <dl className="mt-3 grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-3">
           {fields.map((field) => (
             <div key={field.label}>
               <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -542,19 +726,6 @@ function OverviewTab({
           ))}
         </dl>
       </section>
-      <aside className={cn(PMS_OP_PANEL, "h-fit p-4")} data-testid="group-detail-summary">
-        <h3 className="font-display text-base font-semibold text-[#251605]">Group summary</h3>
-        <dl className="mt-3 space-y-2 text-sm">
-          <SummaryRow label="Total allotment" value={`${summary.totalAllotment} rooms`} />
-          <SummaryRow label="Picked up" value={`${summary.pickedUp} rooms`} />
-          <SummaryRow label="Remaining" value={`${summary.remaining} rooms`} />
-          <SummaryRow label="Linked reservations" value={`${summary.linkedReservations} stays`} />
-          <SummaryRow
-            label="Cut-off date"
-            value={group.cutoffDate ? formatStayDate(group.cutoffDate) : "Not set"}
-          />
-        </dl>
-      </aside>
     </div>
   );
 }
@@ -567,7 +738,6 @@ function AllotmentTab({
   roomTypes,
   onRelease,
   onChanged,
-  onAdd,
   canCreateReservation = false,
   onCreateStay,
 }: {
@@ -578,21 +748,12 @@ function AllotmentTab({
   roomTypes: Array<{ id: string; name: string }>;
   onRelease: typeof releaseGroupBlock;
   onChanged: () => void;
-  onAdd: () => void;
   canCreateReservation?: boolean;
   onCreateStay?: (groupId: string, blockId: string | null) => void;
 }) {
   return (
     <section className={cn(PMS_OP_PANEL, "p-4")} data-testid="group-detail-allotment">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-display text-base font-semibold text-[#251605]">Room allotment</h3>
-        {canWrite ? (
-          <Button variant="outline" className={PMS_OP_BTN_OUTLINE} onClick={onAdd}>
-            <Plus className="size-4" />
-            Add Allotment
-          </Button>
-        ) : null}
-      </div>
+      <h3 className="font-display text-base font-semibold text-[#251605]">Room allotment</h3>
       {blocks.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">{GROUP_DETAIL_EMPTY.allotment}</p>
       ) : (
@@ -876,7 +1037,7 @@ function RoomingTab({
                               )
                           }
                         >
-                          Convert
+                          Create Reservation
                         </Button>
                       ) : (
                         "—"
@@ -931,20 +1092,24 @@ function RoomingTab({
             placeholder="Guest name"
             required
           />
-          <select
-            className={cn(PMS_OP_SELECT_TRIGGER, "h-10")}
-            value={blockId}
-            onChange={(event) => setBlockId(event.target.value)}
+          <Select
+            value={blockId || "__none__"}
+            onValueChange={(value) => setBlockId(value === "__none__" ? "" : value)}
           >
-            <option value="">No block</option>
-            {blocks.map((block) => (
-              <option key={block.id} value={block.id}>
-                {block.roomTypeName ?? "Room type"}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className={PMS_OP_SELECT_TRIGGER} aria-label="Block">
+              <SelectValue placeholder="No block" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">No block</SelectItem>
+              {blocks.map((block) => (
+                <SelectItem key={block.id} value={block.id}>
+                  {block.roomTypeName ?? "Room type"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button type="submit" className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]">
-            Add rooming row
+            Add Guest to Rooming List
           </Button>
           {guestListItems(guestsQuery.data).length > 0 ? (
             <ul className="md:col-span-3 rounded-md border border-[#DDD4C5] bg-white">
@@ -1070,9 +1235,7 @@ function HistoryTab({ history }: { history: GroupDetailData["history"] }) {
             <tbody>
               {history.map((event) => (
                 <tr key={event.id} className={PMS_OP_TABLE_ROW}>
-                  <td className="px-3 py-2 tabular-nums">
-                    {event.created_at.slice(0, 16).replace("T", " ")}
-                  </td>
+                  <td className="px-3 py-2 tabular-nums">{formatHistoryWhen(event.created_at)}</td>
                   <td className="px-3 py-2">
                     {groupHistoryEventLabel(event.event_type, event.notes)}
                   </td>
@@ -1296,50 +1459,70 @@ function AddAllotmentDialog({
           <p className="text-sm text-[#9B3A3A]">{GROUP_BLOCKS_DISABLED_HELPER}</p>
         ) : null}
         <div className="grid gap-3">
-          <select
-            className={cn(PMS_OP_SELECT_TRIGGER, "h-10")}
-            value={row.roomTypeId}
-            onChange={(event) => setRow({ ...row, roomTypeId: event.target.value })}
-            data-testid="group-detail-block-type"
-          >
-            <option value="">Select room type</option>
-            {roomTypes.map((type) => (
-              <option
-                key={type.id}
-                value={type.id}
-                disabled={!isRoomTypeSelectableForBlock(type.id, preflight)}
-              >
-                {isRoomTypeSelectableForBlock(type.id, preflight)
-                  ? type.name
-                  : `${type.name} · ${GROUP_BLOCK_NOT_AVAILABLE}`}
-              </option>
-            ))}
-          </select>
-          <Input
-            className={dateClass}
-            type="date"
-            value={row.startDate}
-            onChange={(event) => setRow({ ...row, startDate: event.target.value })}
-          />
-          <Input
-            className={dateClass}
-            type="date"
-            value={row.endDate}
-            onChange={(event) => setRow({ ...row, endDate: event.target.value })}
-          />
-          <Input
-            className={inputClass}
-            type="number"
-            min={1}
-            value={row.allotted}
-            onChange={(event) => setRow({ ...row, allotted: Number(event.target.value) || 0 })}
-          />
-          <Input
-            className={dateClass}
-            type="date"
-            value={row.cutoffDate}
-            onChange={(event) => setRow({ ...row, cutoffDate: event.target.value })}
-          />
+          <div className="space-y-1">
+            <Label htmlFor="group-detail-block-type">Room Type</Label>
+            <select
+              id="group-detail-block-type"
+              className={cn(PMS_OP_SELECT_TRIGGER, "h-10")}
+              value={row.roomTypeId}
+              onChange={(event) => setRow({ ...row, roomTypeId: event.target.value })}
+              data-testid="group-detail-block-type"
+            >
+              <option value="">Select room type</option>
+              {roomTypes.map((type) => (
+                <option
+                  key={type.id}
+                  value={type.id}
+                  disabled={!isRoomTypeSelectableForBlock(type.id, preflight)}
+                >
+                  {isRoomTypeSelectableForBlock(type.id, preflight)
+                    ? type.name
+                    : `${type.name} · ${GROUP_BLOCK_NOT_AVAILABLE}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="group-detail-block-start">Start Date</Label>
+            <Input
+              id="group-detail-block-start"
+              className={dateClass}
+              type="date"
+              value={row.startDate}
+              onChange={(event) => setRow({ ...row, startDate: event.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="group-detail-block-end">End Date</Label>
+            <Input
+              id="group-detail-block-end"
+              className={dateClass}
+              type="date"
+              value={row.endDate}
+              onChange={(event) => setRow({ ...row, endDate: event.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="group-detail-block-rooms">Rooms</Label>
+            <Input
+              id="group-detail-block-rooms"
+              className={inputClass}
+              type="number"
+              min={1}
+              value={row.allotted}
+              onChange={(event) => setRow({ ...row, allotted: Number(event.target.value) || 0 })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="group-detail-block-cutoff">Override Cut-off</Label>
+            <Input
+              id="group-detail-block-cutoff"
+              className={dateClass}
+              type="date"
+              value={row.cutoffDate}
+              onChange={(event) => setRow({ ...row, cutoffDate: event.target.value })}
+            />
+          </div>
           {issue ? <p className="text-xs text-[#9B3A3A]">{issue}</p> : null}
           <Button
             disabled={Boolean(issue) || add.isPending}
@@ -1354,11 +1537,11 @@ function AddAllotmentDialog({
   );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-[#251605]">{value}</dd>
+    <div className="rounded-md border border-[#DDD4C5] bg-white px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-[#6B5E4E]">{label}</p>
+      <p className="mt-0.5 text-sm font-medium text-[#251605]">{value}</p>
     </div>
   );
 }

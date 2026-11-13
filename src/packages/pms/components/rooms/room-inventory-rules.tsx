@@ -3,17 +3,21 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  AlertCircle,
   AlertTriangle,
   Ban,
+  BedDouble,
+  Building2,
+  Calendar,
   CheckCircle2,
   ExternalLink,
   Gauge,
   Layers3,
+  Moon,
   Search,
   ShieldAlert,
   SlidersHorizontal,
-  Sparkles,
+  UserRound,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,6 +27,7 @@ import {
   OVERBOOKING_CAPACITY_NOTE,
   OVERBOOKING_FUTURE_LIMITS_NOTE,
   defaultInventoryRules,
+  isInventoryImpact,
   normalizeInventoryRules,
   type InventoryImpact,
   type InventoryRulesDraft,
@@ -40,7 +45,31 @@ import {
   type HotelRoom,
   type RoomType,
 } from "@/packages/pms/lib/rooms.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
+import {
+  ASSIGNMENT_RULES,
+  AVAILABILITY_RULES,
+  BLOCK_TYPE_DESCRIPTIONS,
+  GUEST_MATCHING_RULES,
+  IMPACT_STAFF_HELP,
+  IMPACT_STAFF_LABELS,
+  OPERATIONAL_REQUIREMENT_RULES,
+  blockTypeLabel,
+  highImpactConsequences,
+  ruleStateLabel,
+  rulesChanged,
+  type RuleDefinition,
+} from "./room-inventory-rule-catalog";
 import {
   ROOM_TABLE_HEAD,
   ROOM_TABLE_TH,
@@ -53,13 +82,21 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Switch } from "@/shared/components/ui/switch";
 import { cn } from "@/shared/lib/utils";
-import {
-  InventoryState,
-  InventoryStatusBadge,
-  PmsSelect,
-} from "./room-inventory-shared";
+import { InventoryState, PmsSelect } from "./room-inventory-shared";
 import { getPropertyBusinessDate } from "@/packages/pms/lib/nightaudit.functions";
-import { addDays, eligibilityCodeLabel, preferenceReasonLabel } from "./room-inventory-utils";
+import {
+  PMS_OP_DATE,
+  PMS_OP_INPUT,
+  PMS_OP_PLACEHOLDER,
+  PMS_OP_SELECT_TRIGGER,
+} from "@/packages/pms/lib/pms-operational-surface";
+import {
+  compactStayRange,
+  eligibilityStaffLines,
+  staffEligibilityError,
+  stayNightCount,
+} from "./room-eligibility-display";
+import { addDays, preferenceReasonLabel } from "./room-inventory-utils";
 
 export interface AssignmentInspectionPrefill {
   roomId: string;
@@ -69,13 +106,6 @@ export interface AssignmentInspectionPrefill {
 const INK = "#251605";
 const PROPERTY_SETUP_HREF =
   "/restaurant/settings?returnTo=/restaurant/pms/room-inventory#rooms-inventory";
-
-const IMPACT_LABELS: Record<InventoryImpact, string> = {
-  remove_from_inventory: "Remove from inventory",
-  assignment_only: "Assignment only",
-  warning_only: "Warning only",
-  no_inventory_impact: "No inventory impact",
-};
 
 function titleCase(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
@@ -159,18 +189,84 @@ export function RoomAssignmentEligibilityView({
   const room = rooms.find((item) => item.id === input.roomId) ?? null;
   const roomType =
     typesQuery.data?.find((item) => item.id === (room?.roomTypeId ?? input.roomTypeId)) ?? null;
+  const locations = useMemo(
+    () => ({
+      buildings: Array.from(
+        new Map(
+          rooms
+            .filter((item) => item.buildingId)
+            .map((item) => [item.buildingId!, item.building ?? "Building"] as [string, string]),
+        ),
+      ),
+      floors: Array.from(
+        new Map(
+          rooms
+            .filter((item) => item.floorId)
+            .map((item) => [item.floorId!, item.floor ?? "Floor"] as [string, string]),
+        ),
+      ),
+    }),
+    [rooms],
+  );
+  const [attempted, setAttempted] = useState(false);
+  const bedChoices = useMemo(() => {
+    const values = new Set<string>();
+    for (const type of typesQuery.data ?? []) {
+      if (type.bedType?.trim()) values.add(type.bedType.trim());
+      for (const bed of type.beds) {
+        if (bed.bedType.trim()) values.add(bed.bedType.trim());
+      }
+    }
+    if (input.requiredBedType.trim() && !values.has(input.requiredBedType.trim())) {
+      values.add(input.requiredBedType.trim());
+    }
+    return [...values].sort((left, right) => left.localeCompare(right));
+  }, [input.requiredBedType, typesQuery.data]);
   const mutation = useMutation({
-    mutationFn: () =>
-      evaluate({
+    mutationFn: async () => {
+      const selected = rooms.find((item) => item.id === input.roomId) ?? null;
+      const selectedType =
+        typesQuery.data?.find((item) => item.id === (selected?.roomTypeId ?? input.roomTypeId)) ??
+        null;
+      const snapshot: InspectedStay = {
+        roomId: input.roomId,
+        roomNumber: selected?.roomNumber ?? "",
+        roomTypeName: selected?.roomTypeName ?? selectedType?.name ?? "",
+        arrival: input.arrival,
+        departure: input.departure,
+        adults: Number(input.adults),
+        children: Number(input.children),
+        bedPreference: input.requiredBedType.trim() || null,
+        buildingId: input.preferredBuildingId,
+        floorId: input.preferredFloorId,
+        buildingPreference:
+          locations.buildings.find((item) => item[0] === input.preferredBuildingId)?.[1] ?? null,
+        floorPreference:
+          locations.floors.find((item) => item[0] === input.preferredFloorId)?.[1] ?? null,
+        accessibleRequired: input.accessibleRequired,
+        connectingRequired: input.connectingRequired,
+        guestPreferenceMatched: input.guestPreferenceMatched,
+        forCheckIn: input.forCheckIn,
+        roomTypeId: input.roomTypeId,
+        actualRoomTypeId: selected?.roomTypeId ?? "",
+        roomBuilding: selected?.building ?? null,
+        roomFloor: selected?.floor ?? null,
+        housekeepingStatus: selected?.housekeepingStatus ?? null,
+        maintenanceStatus: selected?.maintenanceStatus ?? null,
+        operationalStatus: selected?.status ?? null,
+        maxOccupancy: selectedType?.maxOccupancy ?? null,
+        roomBeds: bedLabel(selectedType),
+      };
+      const result = await evaluate({
         data: {
           restaurantId,
           roomId: input.roomId,
           roomTypeId: input.roomTypeId,
           arrival: input.arrival,
           departure: input.departure,
-          adults: Number(input.adults),
-          children: Number(input.children),
-          requiredBedType: input.requiredBedType || null,
+          adults: snapshot.adults,
+          children: snapshot.children,
+          requiredBedType: snapshot.bedPreference,
           accessibleRequired: input.accessibleRequired,
           connectingRequired: input.connectingRequired,
           preferredBuildingId: input.preferredBuildingId || null,
@@ -179,301 +275,537 @@ export function RoomAssignmentEligibilityView({
           forCheckIn: input.forCheckIn,
           excludeReservationId: null,
         },
-      }),
+      });
+      return { result, snapshot };
+    },
   });
-  const locations = useMemo(
-    () => ({
-      buildings: Array.from(
-        new Map(
-          rooms
-            .filter((item) => item.buildingId)
-            .map((item) => [item.buildingId!, item.building ?? "Building"]),
-        ),
-      ),
-      floors: Array.from(
-        new Map(
-          rooms
-            .filter((item) => item.floorId)
-            .map((item) => [item.floorId!, item.floor ?? "Floor"]),
-        ),
-      ),
-    }),
-    [rooms],
-  );
+  const nights = stayNightCount(input.arrival, input.departure);
+  const issues: string[] = [];
+  if (!input.roomId) issues.push("Choose a candidate room.");
+  else if (!input.roomTypeId) issues.push("This room has no room type.");
+  if (!input.arrival) issues.push("Arrival is required.");
+  if (!input.departure) issues.push("Departure is required.");
+  if (input.arrival && input.departure && input.departure <= input.arrival) {
+    issues.push("Departure must be after arrival.");
+  }
+  const adultsIssue = partyCountIssue("Adults", input.adults);
+  const childrenIssue = partyCountIssue("Children", input.children);
+  if (adultsIssue) issues.push(adultsIssue);
+  if (childrenIssue) issues.push(childrenIssue);
+  const inspected = mutation.data?.snapshot ?? null;
+  const result = mutation.data?.result ?? null;
+  const inspectedRoom = inspected
+    ? (rooms.find((item) => item.id === inspected.roomId) ?? null)
+    : null;
+  const inspectedType = inspectedRoom
+    ? (typesQuery.data?.find((item) => item.id === inspectedRoom.roomTypeId) ?? null)
+    : null;
+  const stale = inspected
+    ? input.roomId !== inspected.roomId ||
+      input.arrival !== inspected.arrival ||
+      input.departure !== inspected.departure ||
+      Number(input.adults) !== inspected.adults ||
+      Number(input.children) !== inspected.children ||
+      (input.requiredBedType.trim() || null) !== inspected.bedPreference ||
+      input.preferredBuildingId !== inspected.buildingId ||
+      input.preferredFloorId !== inspected.floorId ||
+      input.accessibleRequired !== inspected.accessibleRequired ||
+      input.connectingRequired !== inspected.connectingRequired ||
+      input.guestPreferenceMatched !== inspected.guestPreferenceMatched ||
+      input.forCheckIn !== inspected.forCheckIn
+    : false;
+  const lines = result
+    ? eligibilityStaffLines({
+        source: result.source,
+        eligible: result.eligible,
+        blockers: result.blockers,
+        warnings: result.warnings,
+        preferenceReasons: result.preferenceReasons,
+        arrival: inspected?.arrival ?? input.arrival,
+        departure: inspected?.departure ?? input.departure,
+        guests: (inspected?.adults ?? 0) + (inspected?.children ?? 0),
+        maxOccupancy: inspected?.maxOccupancy ?? null,
+        housekeepingStatus: inspected?.housekeepingStatus ?? null,
+        maintenanceStatus: inspected?.maintenanceStatus ?? null,
+        operationalStatus: inspected?.operationalStatus ?? null,
+        bedPreference: inspected?.bedPreference ?? null,
+        roomBeds: inspected?.roomBeds ?? null,
+        buildingPreference: inspected?.buildingPreference ?? null,
+        roomBuilding: inspected?.roomBuilding ?? null,
+        floorPreference: inspected?.floorPreference ?? null,
+        roomFloor: inspected?.roomFloor ?? null,
+        accessibleRequired: inspected?.accessibleRequired ?? false,
+        connectingRequired: inspected?.connectingRequired ?? false,
+        forCheckIn: inspected?.forCheckIn ?? false,
+        roomTypeAligned: inspected
+          ? inspected.roomTypeId !== "" && inspected.roomTypeId === inspected.actualRoomTypeId
+          : true,
+      })
+    : [];
+  const extraPreferences = (result?.preferenceReasons ?? [])
+    .filter(
+      (reason) =>
+        reason !== "building_match" &&
+        reason !== "floor_match" &&
+        reason !== "guest_preference_match",
+    )
+    .map((reason) => preferenceReasonLabel(reason));
+
+  function inspect() {
+    setAttempted(true);
+    if (issues.length > 0 || mutation.isPending) return;
+    mutation.mutate();
+  }
 
   return (
-    <div className="space-y-3">
-      <RoomShellSlot name="cta">
-        <Button
-          type="button"
-          className={ROOM_SHELL_PRIMARY_BUTTON}
-          disabled={
-            !input.roomId ||
-            !input.roomTypeId ||
-            input.departure <= input.arrival ||
-            mutation.isPending
-          }
-          onClick={() => mutation.mutate()}
-        >
-          <Search className="mr-2 size-4" />
-          Inspect Eligibility
-        </Button>
-      </RoomShellSlot>
-      <div className={mutation.data || mutation.isError ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_380px]" : undefined}>
-        <section className="rounded-lg border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-[#E5DED4]/80 pb-3">
-            <div>
-              <h3 className="text-sm font-bold" style={{ color: INK }}>
-                Stay & Requirements
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Select a room and set stay parameters to evaluate assignment eligibility.
-              </p>
-            </div>
-            {room ? (
-              <span className="rounded-md bg-[#FAF8F5] border border-[#E8E1D7] px-2 py-0.5 text-[11px] font-semibold text-[#5F554B]">
-                Room {room.roomNumber}
-              </span>
-            ) : null}
+    <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,42rem)_minmax(18rem,24rem)] xl:max-w-[68rem]">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
+        <div className="border-b border-[#E5DED4] px-4 py-3">
+          <h3 className="text-sm font-bold" style={{ color: INK }}>
+            Stay Criteria
+          </h3>
+          <p className="mt-0.5 text-xs text-[#756A5B]">
+            Set the stay once, then change the candidate room and inspect again.
+          </p>
+        </div>
+        {roomsQuery.isLoading ? (
+          <div className="px-4 py-8">
+            <InventoryState state="loading" />
           </div>
-
-          {roomsQuery.isLoading ? (
-            <div className="py-8">
-              <InventoryState state="loading" />
+        ) : (
+          <div className="space-y-4 px-4 py-3">
+            <StaySelect
+              icon={BedDouble}
+              label="Candidate room"
+              prominent
+              value={input.roomId}
+              placeholder="Select a room"
+              onChange={(value) => {
+                const selected = rooms.find((item) => item.id === value);
+                setInput({
+                  ...input,
+                  roomId: value,
+                  roomTypeId: selected?.roomTypeId ?? "",
+                });
+              }}
+              options={[
+                ["", "Select a room"],
+                ...rooms.map(
+                  (item) =>
+                    [item.id, `Room ${item.roomNumber} · ${item.roomTypeName}`] as [string, string],
+                ),
+              ]}
+            />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <StayDate
+                label="Arrival"
+                value={input.arrival}
+                onChange={(arrival) =>
+                  setInput({
+                    ...input,
+                    arrival,
+                    departure: input.departure <= arrival ? addDays(arrival, 1) : input.departure,
+                  })
+                }
+              />
+              <StayDate
+                label="Departure"
+                min={input.arrival ? addDays(input.arrival, 1) : undefined}
+                value={input.departure}
+                onChange={(departure) => setInput({ ...input, departure })}
+              />
+              <StayText
+                icon={Moon}
+                label="Nights"
+                value={nights == null ? "" : String(nights)}
+                readOnly
+                placeholder="—"
+                onChange={() => undefined}
+              />
+              <StayText
+                icon={Users}
+                label="Adults"
+                type="number"
+                min="0"
+                value={input.adults}
+                onChange={(adults) => setInput({ ...input, adults })}
+              />
+              <StayText
+                icon={UserRound}
+                label="Children"
+                type="number"
+                min="0"
+                value={input.children}
+                onChange={(children) => setInput({ ...input, children })}
+              />
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Field label="Candidate room">
-                    <PmsSelect
-                      value={input.roomId}
-                      onChange={(val) => {
-                        const selected = rooms.find((item) => item.id === val);
-                        setInput({
-                          ...input,
-                          roomId: val,
-                          roomTypeId: selected?.roomTypeId ?? "",
-                        });
-                      }}
-                      placeholder="Select a room to evaluate"
-                      options={[
-                        ["", "Select a room to evaluate"],
-                        ...rooms.map((item) => [
-                          item.id,
-                          `Room ${item.roomNumber} · ${item.roomTypeName} (${titleCase(item.status)})`,
-                        ] as [string, string]),
-                      ]}
-                      className="h-9 w-full rounded-md border-[#DED7CD] bg-white px-3 text-xs"
-                    />
-                  </Field>
-                </div>
 
-                <TextInput
-                  label="Arrival"
-                  type="date"
-                  value={input.arrival}
-                  onChange={(arrival) =>
-                    setInput({
-                      ...input,
-                      arrival,
-                      departure: input.departure <= arrival ? addDays(arrival, 1) : input.departure,
-                    })
-                  }
-                />
-                <TextInput
-                  label="Departure"
-                  type="date"
-                  min={addDays(input.arrival, 1)}
-                  value={input.departure}
-                  onChange={(departure) => setInput({ ...input, departure })}
-                />
-                <TextInput
-                  label="Adults"
-                  type="number"
-                  value={input.adults}
-                  onChange={(adults) => setInput({ ...input, adults })}
-                />
-                <TextInput
-                  label="Children"
-                  type="number"
-                  value={input.children}
-                  onChange={(children) => setInput({ ...input, children })}
-                />
-              </div>
-
-              <div className="pt-2 border-t border-[#E5DED4]/60">
-                <p className="text-xs font-semibold text-[#5C5346] mb-2.5">Preferences & Features</p>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <TextInput
+            <div className="space-y-2 border-t border-[#E5DED4] pt-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
+                Assignment Preferences
+              </p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {bedChoices.length > 0 ? (
+                  <StaySelect
+                    icon={BedDouble}
                     label="Bed type"
                     value={input.requiredBedType}
+                    placeholder="Any bed type"
+                    onChange={(requiredBedType) => setInput({ ...input, requiredBedType })}
+                    options={[
+                      ["", "Any bed type"],
+                      ...bedChoices.map((bed) => [bed, staffPhrase(bed)] as [string, string]),
+                    ]}
+                  />
+                ) : (
+                  <StayText
+                    icon={BedDouble}
+                    label="Bed type"
+                    value={input.requiredBedType}
+                    placeholder="Any bed type"
                     onChange={(requiredBedType) => setInput({ ...input, requiredBedType })}
                   />
-                  <Field label="Building">
-                    <PmsSelect
-                      className="h-9 rounded-md border-[#DED7CD] bg-white px-2.5 text-xs"
-                      value={input.preferredBuildingId}
-                      onChange={(val) =>
-                        setInput({ ...input, preferredBuildingId: val })
-                      }
-                      placeholder="Any Building"
-                      options={[
-                        ["", "Any Building"],
-                        ...locations.buildings,
-                      ]}
-                    />
-                  </Field>
-                  <Field label="Floor">
-                    <PmsSelect
-                      className="h-9 rounded-md border-[#DED7CD] bg-white px-2.5 text-xs"
-                      value={input.preferredFloorId}
-                      onChange={(val) => setInput({ ...input, preferredFloorId: val })}
-                      placeholder="Any Floor"
-                      options={[
-                        ["", "Any Floor"],
-                        ...locations.floors,
-                      ]}
-                    />
-                  </Field>
-                </div>
+                )}
+                <StaySelect
+                  icon={Building2}
+                  label="Building"
+                  value={input.preferredBuildingId}
+                  placeholder="Any building"
+                  onChange={(preferredBuildingId) => setInput({ ...input, preferredBuildingId })}
+                  options={[["", "Any building"], ...locations.buildings]}
+                />
+                <StaySelect
+                  icon={Layers3}
+                  label="Floor"
+                  value={input.preferredFloorId}
+                  placeholder="Any floor"
+                  onChange={(preferredFloorId) => setInput({ ...input, preferredFloorId })}
+                  options={[["", "Any floor"], ...locations.floors]}
+                />
               </div>
-
-              <div className="pt-2 border-t border-[#E5DED4]/60">
-                <p className="text-xs font-semibold text-[#5C5346] mb-2">Verification Options</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <CheckRow
-                    label="Accessible room required"
-                    checked={input.accessibleRequired}
-                    onChange={(accessibleRequired) => setInput({ ...input, accessibleRequired })}
-                  />
-                  <CheckRow
-                    label="Connecting room required"
-                    checked={input.connectingRequired}
-                    onChange={(connectingRequired) => setInput({ ...input, connectingRequired })}
-                  />
-                  <CheckRow
-                    label="Guest preference matched"
-                    checked={input.guestPreferenceMatched}
-                    onChange={(guestPreferenceMatched) =>
-                      setInput({ ...input, guestPreferenceMatched })
-                    }
-                  />
-                  <CheckRow
-                    label="Evaluate check-in readiness"
-                    checked={input.forCheckIn}
-                    onChange={(forCheckIn) => setInput({ ...input, forCheckIn })}
-                  />
-                </div>
-              </div>
-
             </div>
-          )}
-        </section>
 
-        {mutation.data || mutation.isError ? (
-        <aside className="h-fit rounded-lg border border-[#DDD4C5] bg-white shadow-sm lg:sticky lg:top-3">
-          <div className="border-b border-[#E5DED4] px-5 py-3.5">
-            <h3 className="text-sm font-bold" style={{ color: INK }}>
-              Evaluation Results
-            </h3>
-          </div>
-          <div className="space-y-3.5 p-4">
-            {!mutation.data && !mutation.isError ? (
-              <div className="flex flex-col items-center justify-center p-6 text-center rounded-lg border border-dashed border-border bg-muted/10">
-                <Search className="size-7 text-muted-foreground/40 mb-2" />
-                <p className="text-xs font-semibold text-foreground">Ready to evaluate</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Select a candidate room and stay period, then click Inspect eligibility.
-                </p>
+            <div className="space-y-2 border-t border-[#E5DED4] pt-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
+                Eligibility Checks
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <CheckRow
+                  label="Accessible room required"
+                  checked={input.accessibleRequired}
+                  onChange={(accessibleRequired) => setInput({ ...input, accessibleRequired })}
+                />
+                <CheckRow
+                  label="Connecting room required"
+                  checked={input.connectingRequired}
+                  onChange={(connectingRequired) => setInput({ ...input, connectingRequired })}
+                />
+                <CheckRow
+                  label="Match guest preferences"
+                  checked={input.guestPreferenceMatched}
+                  onChange={(guestPreferenceMatched) =>
+                    setInput({ ...input, guestPreferenceMatched })
+                  }
+                />
+                <CheckRow
+                  label="Check check-in readiness"
+                  checked={input.forCheckIn}
+                  onChange={(forCheckIn) => setInput({ ...input, forCheckIn })}
+                />
               </div>
-            ) : mutation.isError ? (
-              <InventoryState
-                state="error"
-                title="Eligibility could not be evaluated"
-                description={mutation.error.message}
-                onRetry={() => mutation.mutate()}
-              />
-            ) : mutation.data ? (
-              <>
-                <div
-                  className={`flex items-center justify-between rounded-xl border p-3.5 shadow-xs ${
-                    mutation.data.eligible
-                      ? "border-emerald-200 bg-emerald-50/70"
-                      : "border-red-200 bg-red-50/70"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {mutation.data.eligible ? (
-                      <CheckCircle2 className="size-5 text-emerald-600 shrink-0" />
-                    ) : (
-                      <Ban className="size-5 text-red-600 shrink-0" />
-                    )}
-                    <div>
-                      <p
-                        className={`text-sm font-bold ${
-                          mutation.data.eligible ? "text-emerald-950" : "text-red-950"
-                        }`}
-                      >
-                        {mutation.data.eligible ? "Eligible for Assignment" : "Blocked from Assignment"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {mutation.data.eligible
-                          ? "Room satisfies all stay and operational criteria."
-                          : `${mutation.data.blockers.length} blocker${
-                              mutation.data.blockers.length === 1 ? "" : "s"
-                            } prevent assignment.`}
-                      </p>
-                    </div>
-                  </div>
-                  <InventoryStatusBadge tone={mutation.data.eligible ? "success" : "danger"}>
-                    {mutation.data.source}
-                  </InventoryStatusBadge>
-                </div>
-
-                <ResultNotes
-                  title="Blockers"
-                  items={mutation.data.blockers}
-                  empty="No blockers detected."
-                  tone="danger"
-                />
-                <ResultNotes
-                  title="Warnings"
-                  items={mutation.data.warnings}
-                  empty="No warnings detected."
-                  tone="warning"
-                />
-
-                {mutation.data.preferenceScore > 0 || mutation.data.preferenceReasons.length > 0 ? (
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-[#FAF8F5] p-2.5 text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <Sparkles className="size-3.5 text-[#C89933]" />
-                      <span className="font-semibold text-[#5C5346]">Preference Match</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {mutation.data.preferenceReasons.map((reason) => (
-                        <span
-                          key={reason}
-                          className="rounded bg-white border border-[#E8E1D7] px-1.5 py-0.5 text-[10px] font-medium text-[#756A5B]"
-                        >
-                          {preferenceReasonLabel(reason)}
-                        </span>
-                      ))}
-                      <span className="rounded-full bg-[#251605] px-2 py-0.5 text-[11px] font-bold text-white">
-                        +{mutation.data.preferenceScore}
-                      </span>
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-
-            <RoomContextCard room={room} roomType={roomType} />
+            </div>
           </div>
-        </aside>
-        ) : null}
+        )}
+        <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[#E5DED4] px-4 py-3">
+          {attempted && issues.length > 0 ? (
+            <ul className="mr-auto space-y-0.5" role="alert">
+              {issues.map((issue) => (
+                <li key={issue} className="text-xs text-destructive">
+                  {issue}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <Button
+            type="button"
+            className={ROOM_SHELL_PRIMARY_BUTTON}
+            disabled={mutation.isPending || roomsQuery.isLoading}
+            onClick={inspect}
+          >
+            <Search className="mr-2 size-4" />
+            {mutation.isPending ? "Inspecting…" : "Inspect Eligibility"}
+          </Button>
+        </footer>
+      </section>
+
+      <section className="rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
+        <div className="border-b border-[#E5DED4] px-4 py-3">
+          <h3 className="text-sm font-bold" style={{ color: INK }}>
+            Eligibility Result
+          </h3>
+          {inspected?.roomNumber ? (
+            <p className="mt-0.5 text-xs text-[#756A5B]">
+              Room {inspected.roomNumber}
+              {inspected.roomTypeName ? ` · ${inspected.roomTypeName}` : ""}
+              {" · "}
+              {compactStayRange(inspected.arrival, inspected.departure)}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-xs text-[#756A5B]">
+              The result stays with the room you inspected.
+            </p>
+          )}
+        </div>
+        <div className="space-y-3 p-4">
+          {mutation.isError ? (
+            <p className="text-xs font-medium text-destructive" role="alert">
+              {staffEligibilityError(mutation.error)}
+            </p>
+          ) : null}
+          {!result && !mutation.isError ? (
+            <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4] px-4 py-6 text-center">
+              <Search className="mx-auto mb-2 size-5 text-[#C89933]" />
+              <p className="text-xs font-semibold text-[#251605]">Ready to inspect</p>
+              <p className="mt-1 text-[11px] text-[#756A5B]">
+                Select a candidate room and stay period, then click Inspect eligibility.
+              </p>
+            </div>
+          ) : null}
+          {result ? (
+            <>
+              {stale ? (
+                <p className="rounded-md border border-[#E7D7B1] bg-[#FBF6EA] px-3 py-2 text-xs text-[#6B5424]">
+                  This result is for Room {inspected?.roomNumber || "the inspected room"},{" "}
+                  {compactStayRange(inspected?.arrival ?? "", inspected?.departure ?? "")}. Inspect
+                  eligibility again to check the current selection.
+                </p>
+              ) : null}
+              <div
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 ${
+                  result.eligible ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"
+                }`}
+              >
+                {result.eligible ? (
+                  <CheckCircle2 className="size-5 shrink-0 text-emerald-700" />
+                ) : (
+                  <Ban className="size-5 shrink-0 text-red-700" />
+                )}
+                <div>
+                  <p
+                    className={`text-sm font-bold ${
+                      result.eligible ? "text-emerald-950" : "text-red-950"
+                    }`}
+                  >
+                    {result.eligible ? "Eligible" : "Not Eligible"}
+                  </p>
+                  <p className="text-[11px] text-[#5C5346]">
+                    {result.eligible
+                      ? "This room can be assigned for the inspected stay."
+                      : "This room cannot be assigned for the inspected stay."}
+                  </p>
+                </div>
+              </div>
+              <ul className="space-y-1.5">
+                {lines.map((line) => (
+                  <li
+                    key={`${line.tone}-${line.text}`}
+                    className={`flex items-start gap-2 rounded-md border px-2.5 py-1.5 text-xs ${
+                      line.tone === "fail"
+                        ? "border-red-200 bg-red-50 text-red-950"
+                        : line.tone === "warn"
+                          ? "border-amber-200 bg-amber-50 text-amber-950"
+                          : "border-emerald-200 bg-emerald-50/70 text-emerald-950"
+                    }`}
+                  >
+                    {line.tone === "fail" ? (
+                      <Ban className="mt-0.5 size-3.5 shrink-0 text-red-700" />
+                    ) : line.tone === "warn" ? (
+                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-700" />
+                    ) : (
+                      <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-700" />
+                    )}
+                    <span className="font-medium leading-snug">{line.text}</span>
+                  </li>
+                ))}
+                {extraPreferences.map((label) => (
+                  <li
+                    key={label}
+                    className="flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50/70 px-2.5 py-1.5 text-xs font-medium text-emerald-950"
+                  >
+                    <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-700" />
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          <RoomContextCard
+            room={inspected ? inspectedRoom : room}
+            roomType={inspected ? inspectedType : roomType}
+          />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+interface InspectedStay {
+  roomId: string;
+  roomNumber: string;
+  roomTypeName: string;
+  arrival: string;
+  departure: string;
+  adults: number;
+  children: number;
+  bedPreference: string | null;
+  buildingId: string;
+  floorId: string;
+  buildingPreference: string | null;
+  floorPreference: string | null;
+  accessibleRequired: boolean;
+  connectingRequired: boolean;
+  guestPreferenceMatched: boolean;
+  forCheckIn: boolean;
+  roomTypeId: string;
+  actualRoomTypeId: string;
+  roomBuilding: string | null;
+  roomFloor: string | null;
+  housekeepingStatus: string | null;
+  maintenanceStatus: string | null;
+  operationalStatus: string | null;
+  maxOccupancy: number | null;
+  roomBeds: string | null;
+}
+
+function partyCountIssue(label: string, value: string): string | null {
+  if (!/^\d+$/.test(value.trim())) return `${label} must be a whole number from 0 to 99.`;
+  const count = Number(value);
+  if (count < 0 || count > 99) return `${label} must be a whole number from 0 to 99.`;
+  return null;
+}
+
+function staffPhrase(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function bedLabel(roomType: RoomType | null): string | null {
+  if (!roomType) return null;
+  const names = roomType.beds.map((bed) => bed.bedType.trim()).filter(Boolean);
+  const unique = [
+    ...new Set(names.length > 0 ? names : roomType.bedType ? [roomType.bedType] : []),
+  ];
+  if (unique.length === 0) return null;
+  return unique.map((bed) => staffPhrase(bed)).join(" and ");
+}
+
+function StaySelect({
+  icon: Icon,
+  label,
+  value,
+  options,
+  onChange,
+  placeholder,
+  prominent = false,
+}: {
+  icon: typeof BedDouble;
+  label: string;
+  value: string;
+  options: string[][];
+  onChange: (value: string) => void;
+  placeholder: string;
+  prominent?: boolean;
+}) {
+  return (
+    <div className="grid gap-1">
+      <span
+        className={
+          prominent
+            ? "text-sm font-semibold text-[#251605]"
+            : "text-xs font-semibold text-[#5C5346]"
+        }
+      >
+        {label}
+      </span>
+      <div className="relative">
+        <Icon className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-[#8A641A]" />
+        <PmsSelect
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          options={options.map((option) => [option[0] ?? "", option[1] ?? ""] as [string, string])}
+          triggerClassName={cn(PMS_OP_SELECT_TRIGGER, "pl-9")}
+        />
       </div>
     </div>
+  );
+}
+
+function StayDate({
+  label,
+  value,
+  onChange,
+  min,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  min?: string;
+}) {
+  return (
+    <StayText
+      icon={Calendar}
+      label={label}
+      type="date"
+      min={min}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+
+function StayText({
+  icon: Icon,
+  label,
+  value,
+  onChange,
+  type = "text",
+  min,
+  readOnly = false,
+  placeholder,
+}: {
+  icon?: typeof Calendar;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  min?: string;
+  readOnly?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <label className="grid gap-1 text-xs font-semibold text-[#5C5346]">
+      {label}
+      <span className="relative">
+        {Icon ? (
+          <Icon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#8A641A]" />
+        ) : null}
+        <Input
+          type={type}
+          min={min}
+          readOnly={readOnly}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            PMS_OP_INPUT,
+            "h-10 text-xs",
+            type === "date" && PMS_OP_DATE,
+            PMS_OP_PLACEHOLDER,
+            Icon && "pl-8",
+          )}
+        />
+      </span>
+    </label>
   );
 }
 
@@ -505,12 +837,8 @@ function RoomContextCard({
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#756A5B] mb-0.5">
             Room context
           </p>
-          <span className="text-xs font-bold text-[#251605]">
-            Room {room.roomNumber}
-          </span>
-          <span className="ml-1.5 text-xs text-muted-foreground">
-            · {room.roomTypeName}
-          </span>
+          <span className="text-xs font-bold text-[#251605]">Room {room.roomNumber}</span>
+          <span className="ml-1.5 text-xs text-muted-foreground">· {room.roomTypeName}</span>
         </div>
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
@@ -581,107 +909,39 @@ function RoomContextCard({
   );
 }
 
-function ResultNotes({
-  title,
-  items,
-  empty,
-  tone,
-}: {
-  title: string;
-  items: Array<Record<string, string | number | boolean | null>>;
-  empty: string;
-  tone: "danger" | "warning";
-}) {
-  if (items.length === 0) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
-        <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0" />
-        <span>{empty}</span>
-      </div>
-    );
+export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string }) {
+  const { draft, setDraft, saved, canConfigure, query, save, pending, justSaved } =
+    useInventoryPolicy(restaurantId);
+  const [confirmLines, setConfirmLines] = useState<string[] | null>(null);
+  const rules = draft;
+  const dirty = rulesChanged(saved, rules);
+  const enabledBlocks = rules.blockTypes.filter((row) => row.enabled).length;
+  const activeAssignmentRules = ASSIGNMENT_RULES.filter((rule) => rules[rule.key]).length;
+  const invalidImpact = rules.blockTypes.some(
+    (row) => row.enabled && !isInventoryImpact(row.inventoryImpact),
+  );
+
+  function requestSave() {
+    if (!saved || !dirty || invalidImpact) return;
+    const consequences = highImpactConsequences(saved, rules);
+    if (consequences.length > 0) {
+      setConfirmLines(consequences);
+      return;
+    }
+    save();
   }
 
-  const Icon = tone === "danger" ? AlertCircle : AlertTriangle;
-  const isDanger = tone === "danger";
-
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wider text-[#5C5346]">
-        {title} ({items.length})
-      </p>
-      <div className="space-y-1.5">
-        {items.map((item, index) => {
-          const code = typeof item.code === "string" ? item.code : `ITEM_${index + 1}`;
-          const label =
-            typeof item.message === "string" && item.message.trim()
-              ? item.message
-              : eligibilityCodeLabel(code);
-
-          const contextChips = Object.entries(item).filter(
-            ([key, value]) =>
-              key !== "code" &&
-              key !== "message" &&
-              key !== "status" &&
-              value != null &&
-              value !== "",
-          );
-
-          return (
-            <div
-              key={`${code}-${index}`}
-              className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 text-xs transition-colors ${
-                isDanger
-                  ? "border-red-200 bg-red-50/80 text-red-950"
-                  : "border-amber-200 bg-amber-50/80 text-amber-950"
-              }`}
-            >
-              <Icon
-                className={`size-4 shrink-0 mt-0.5 ${
-                  isDanger ? "text-red-600" : "text-amber-600"
-                }`}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold leading-snug">{label}</p>
-                {contextChips.length > 0 ? (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {contextChips.map(([k, v]) => (
-                      <span
-                        key={k}
-                        className="inline-flex rounded bg-black/5 px-1.5 py-0.2 text-[10px] font-medium"
-                      >
-                        {titleCase(k)}: {String(v)}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string }) {
-  const { draft, setDraft, canConfigure, query, save, pending } = useInventoryPolicy(restaurantId);
-  const rules = draft;
-  const enabledBlocks = rules.blockTypes.filter((row) => row.enabled).length;
-  const enforcedCount = [
-    rules.sellableStatusRequired,
-    rules.maintenanceAffectsAvailability,
-    rules.housekeepingAffectsAssignment,
-    rules.requireRoomTypeMatch,
-    rules.requireOccupancyMatch,
-    rules.requireBedTypeMatch,
-    rules.requireAccessibilityMatch,
-    rules.requireConnectingRoomMatch,
-    rules.useBuildingPreference,
-    rules.useFloorPreference,
-    rules.useGuestPreference,
-    rules.requireHousekeepingReadiness,
-    rules.requireMaintenanceAvailability,
-  ].filter(Boolean).length;
+  function renderRule(rule: RuleDefinition) {
+    return (
+      <PolicySwitch
+        key={rule.key}
+        rule={rule}
+        checked={rules[rule.key]}
+        disabled={!canConfigure}
+        onChange={(value) => setDraft({ [rule.key]: value } as Partial<InventoryRulesDraft>)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -690,21 +950,43 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
       </RoomShellSlot>
       {canConfigure ? (
         <RoomShellSlot name="cta">
-          <Button
-            type="button"
-            className={ROOM_SHELL_PRIMARY_BUTTON}
-            disabled={pending || query.isLoading}
-            onClick={() => save()}
-          >
-            Save Rules
-          </Button>
+          <div className="flex items-center gap-2">
+            {dirty ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                Unsaved changes
+              </span>
+            ) : justSaved ? (
+              <span className="text-[11px] font-semibold text-emerald-700">Rules saved</span>
+            ) : null}
+            <Button
+              type="button"
+              variant={dirty ? "default" : "outline"}
+              className={
+                dirty
+                  ? ROOM_SHELL_PRIMARY_BUTTON
+                  : "h-9 border-[#DDD4C5] px-4 text-xs font-semibold text-[#756A5B]"
+              }
+              disabled={!dirty || invalidImpact || pending || query.isLoading}
+              onClick={requestSave}
+            >
+              {pending ? "Saving…" : "Save Rules"}
+            </Button>
+          </div>
         </RoomShellSlot>
       ) : null}
       <RoomSummaryChips
         items={[
-          { label: "Assignment flags", value: enforcedCount, tone: "success" },
-          { label: "Block types", value: enabledBlocks, tone: "info" },
-          { label: "Overbooking", value: rules.overbookingAllowed ? "On" : "Off", tone: rules.overbookingAllowed ? "warning" : "neutral" },
+          {
+            label: "Assignment rules:",
+            value: `${activeAssignmentRules} active`,
+            tone: "neutral",
+          },
+          { label: "Block types:", value: `${enabledBlocks} enabled`, tone: "neutral" },
+          {
+            label: "Overbooking:",
+            value: rules.overbookingAllowed ? "On" : "Off",
+            tone: rules.overbookingAllowed ? "warning" : "neutral",
+          },
         ]}
       />
 
@@ -718,202 +1000,176 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
         />
       ) : (
         <>
-
           {!canConfigure ? (
-            <p className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] px-4 py-3 text-xs text-muted-foreground leading-5">
-              Owner or manager access is required to change inventory rules. Front Office can
-              inspect policy only.
+            <p className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] px-4 py-3 text-xs leading-5 text-muted-foreground">
+              Owner or manager access is required to change inventory rules. Front Office can review
+              the rules only.
             </p>
           ) : null}
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <RulePanel
-              title="Inventory and availability"
-              description="These flags are read by canonical availability. Out of order, out of service, and each block's own inventory impact are applied directly."
-              count="2 rules"
+              title="Inventory & Availability"
+              description="Decides which rooms count toward sellable availability. Out of Order, Out of Service, and each block's inventory impact always apply."
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <PolicySwitch
-                  label="Sellable room required"
-                  help="Enforced by assignment and availability when a room must be sellable."
-                  checked={rules.sellableStatusRequired}
-                  disabled={!canConfigure}
-                  onChange={(sellableStatusRequired) => setDraft({ sellableStatusRequired })}
-                />
-                <PolicySwitch
-                  label="Maintenance affects availability"
-                  help="Canonical availability excludes rooms that are not maintenance-normal."
-                  checked={rules.maintenanceAffectsAvailability}
-                  disabled={!canConfigure}
-                  onChange={(maintenanceAffectsAvailability) =>
-                    setDraft({ maintenanceAffectsAvailability })
-                  }
-                />
+              <div className="divide-y divide-[#EEE8E0] rounded-lg border border-[#EEE8E0]">
+                {AVAILABILITY_RULES.map(renderRule)}
               </div>
             </RulePanel>
 
             <RulePanel
-              title="Assignment matching"
-              description="These flags are read by the canonical assignment evaluator."
-              count="11 rules"
+              title="Assignment Matching"
+              description="Checked when a room is assigned, offered at check-in, or inspected in Assignment Eligibility. Blocking rules stop the assignment; preferences only rank rooms and show a warning."
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
-                <PolicySwitch
-                  label="Housekeeping affects assignment"
-                  checked={rules.housekeepingAffectsAssignment}
-                  disabled={!canConfigure}
-                  onChange={(housekeepingAffectsAssignment) =>
-                    setDraft({ housekeepingAffectsAssignment })
-                  }
-                />
-                <PolicySwitch
-                  label="Require housekeeping readiness"
-                  checked={rules.requireHousekeepingReadiness}
-                  disabled={!canConfigure}
-                  onChange={(requireHousekeepingReadiness) =>
-                    setDraft({ requireHousekeepingReadiness })
-                  }
-                />
-                <PolicySwitch
-                  label="Require maintenance availability"
-                  help="Uses Card 2 maintenance status rules at evaluation time."
-                  checked={rules.requireMaintenanceAvailability}
-                  disabled={!canConfigure}
-                  onChange={(requireMaintenanceAvailability) =>
-                    setDraft({ requireMaintenanceAvailability })
-                  }
-                />
-                <PolicySwitch
-                  label="Require room type match"
-                  checked={rules.requireRoomTypeMatch}
-                  disabled={!canConfigure}
-                  onChange={(requireRoomTypeMatch) => setDraft({ requireRoomTypeMatch })}
-                />
-                <PolicySwitch
-                  label="Occupancy match required"
-                  checked={rules.requireOccupancyMatch}
-                  disabled={!canConfigure}
-                  onChange={(requireOccupancyMatch) => setDraft({ requireOccupancyMatch })}
-                />
-                <PolicySwitch
-                  label="Bed match"
-                  checked={rules.requireBedTypeMatch}
-                  disabled={!canConfigure}
-                  onChange={(requireBedTypeMatch) => setDraft({ requireBedTypeMatch })}
-                />
-                <PolicySwitch
-                  label="Accessibility match"
-                  checked={rules.requireAccessibilityMatch}
-                  disabled={!canConfigure}
-                  onChange={(requireAccessibilityMatch) => setDraft({ requireAccessibilityMatch })}
-                />
-                <PolicySwitch
-                  label="Connecting-room match"
-                  checked={rules.requireConnectingRoomMatch}
-                  disabled={!canConfigure}
-                  onChange={(requireConnectingRoomMatch) => setDraft({ requireConnectingRoomMatch })}
-                />
-                <PolicySwitch
-                  label="Building preference"
-                  checked={rules.useBuildingPreference}
-                  disabled={!canConfigure}
-                  onChange={(useBuildingPreference) => setDraft({ useBuildingPreference })}
-                />
-                <PolicySwitch
-                  label="Floor preference"
-                  checked={rules.useFloorPreference}
-                  disabled={!canConfigure}
-                  onChange={(useFloorPreference) => setDraft({ useFloorPreference })}
-                />
-                <PolicySwitch
-                  label="Guest preference"
-                  checked={rules.useGuestPreference}
-                  disabled={!canConfigure}
-                  onChange={(useGuestPreference) => setDraft({ useGuestPreference })}
-                />
+              <div className="grid gap-3 lg:grid-cols-2">
+                <RuleGroup title="Operational Requirements">
+                  {OPERATIONAL_REQUIREMENT_RULES.map(renderRule)}
+                </RuleGroup>
+                <RuleGroup title="Guest & Room Matching">
+                  {GUEST_MATCHING_RULES.map(renderRule)}
+                </RuleGroup>
               </div>
             </RulePanel>
 
             <RulePanel
-              title="Block-type inventory behavior"
-              description="Enabled types, approval, and impact are copied onto new operational blocks. Changing impact here does not rewrite existing blocks."
-              count="9 types"
+              title="Block-type Inventory Behavior"
+              description="New blocks copy these settings when they are created. Existing blocks keep the settings they were created with."
             >
               <div className="overflow-x-auto rounded-lg border border-[#E5DED4]">
-                <table className="w-full min-w-[540px] text-left text-xs">
-                  <thead className="bg-[#F7F4EE] border-b border-[#E5DED4] text-xs font-bold uppercase tracking-wider text-[#5C5346]">
+                <table className="w-full min-w-[560px] text-left text-xs">
+                  <thead className="border-b border-[#E5DED4] bg-[#F7F4EE] text-[11px] font-bold uppercase tracking-wider text-[#5C5346]">
                     <tr>
-                      <th className="px-3.5 py-2.5">Type</th>
-                      <th className="px-3.5 py-2.5">Enabled</th>
-                      <th className="px-3.5 py-2.5">Approval</th>
-                      <th className="px-3.5 py-2.5">Inventory impact</th>
+                      <th className="px-3.5 py-2">Type</th>
+                      <th className="px-3.5 py-2">Enabled</th>
+                      <th className="px-3.5 py-2">Approval Required</th>
+                      <th className="px-3.5 py-2">Inventory Impact</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#EEE8E0] bg-white">
-                    {rules.blockTypes.map((row) => (
-                      <tr key={row.blockType} className="hover:bg-[#FAF8F5]/60 transition-colors">
-                        <td className="px-3.5 py-3 font-bold text-[#251605]">{titleCase(row.blockType)}</td>
-                        <td className="px-3.5 py-3">
-                          <Switch
-                            checked={row.enabled}
-                            disabled={!canConfigure}
-                            className="data-[state=checked]:bg-[#C89933]"
-                            onCheckedChange={(enabled) =>
-                              setDraft({
-                                blockTypes: rules.blockTypes.map((item) =>
-                                  item.blockType === row.blockType
-                                    ? { ...item, enabled: enabled === true }
-                                    : item,
-                                ),
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3.5 py-3">
-                          <Switch
-                            checked={row.approvalRequired}
-                            disabled={!canConfigure || !row.enabled}
-                            className="data-[state=checked]:bg-[#C89933]"
-                            onCheckedChange={(approvalRequired) =>
-                              setDraft({
-                                blockTypes: rules.blockTypes.map((item) =>
-                                  item.blockType === row.blockType
-                                    ? { ...item, approvalRequired: approvalRequired === true }
-                                    : item,
-                                ),
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3.5 py-3">
-                          <PmsSelect
-                            disabled={!canConfigure || !row.enabled}
-                            value={row.inventoryImpact}
-                            onChange={(val) =>
-                              setDraft({
-                                blockTypes: rules.blockTypes.map((item) =>
-                                  item.blockType === row.blockType
-                                    ? {
-                                        ...item,
-                                        inventoryImpact: val as InventoryImpact,
-                                      }
-                                    : item,
-                                ),
-                              })
-                            }
-                            options={INVENTORY_IMPACTS.map((impact) => [impact, IMPACT_LABELS[impact]])}
-                            className="h-9 w-full max-w-xs rounded-md border-[#DED7CD] bg-white px-2.5 text-xs font-medium"
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    {rules.blockTypes.map((row) => {
+                      const updateRow = (patch: Partial<typeof row>) =>
+                        setDraft({
+                          blockTypes: rules.blockTypes.map((item) =>
+                            item.blockType === row.blockType ? { ...item, ...patch } : item,
+                          ),
+                        });
+                      const impactInvalid = row.enabled && !isInventoryImpact(row.inventoryImpact);
+                      return (
+                        <tr key={row.blockType} className="transition-colors hover:bg-[#FAF8F5]/60">
+                          <td className="px-3.5 py-2.5">
+                            <p className="font-bold text-[#251605]">
+                              {blockTypeLabel(row.blockType)}
+                            </p>
+                            <p className="text-[11px] text-[#756A5B]">
+                              {BLOCK_TYPE_DESCRIPTIONS[row.blockType]}
+                            </p>
+                          </td>
+                          <td className="px-3.5 py-2.5">
+                            <Switch
+                              checked={row.enabled}
+                              disabled={!canConfigure}
+                              aria-label={`${blockTypeLabel(row.blockType)} enabled`}
+                              className="data-[state=checked]:bg-[#C89933]"
+                              onCheckedChange={(enabled) =>
+                                updateRow({ enabled: enabled === true })
+                              }
+                            />
+                          </td>
+                          <td className={cn("px-3.5 py-2.5", !row.enabled && "opacity-45")}>
+                            <Switch
+                              checked={row.approvalRequired}
+                              disabled={!canConfigure || !row.enabled}
+                              aria-label={`${blockTypeLabel(row.blockType)} approval required`}
+                              className="data-[state=checked]:bg-[#C89933]"
+                              onCheckedChange={(approvalRequired) =>
+                                updateRow({ approvalRequired: approvalRequired === true })
+                              }
+                            />
+                          </td>
+                          <td className={cn("px-3.5 py-2.5", !row.enabled && "opacity-45")}>
+                            <PmsSelect
+                              disabled={!canConfigure || !row.enabled}
+                              value={row.inventoryImpact}
+                              onChange={(value) =>
+                                updateRow({ inventoryImpact: value as InventoryImpact })
+                              }
+                              options={INVENTORY_IMPACTS.map(
+                                (impact) =>
+                                  [impact, IMPACT_STAFF_LABELS[impact]] as [string, string],
+                              )}
+                              className="w-full max-w-xs"
+                            />
+                            {impactInvalid ? (
+                              <p className="mt-1 text-[11px] text-destructive">
+                                Choose an inventory impact.
+                              </p>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+              <dl className="mt-2 grid gap-x-4 gap-y-1 text-[11px] text-[#756A5B] sm:grid-cols-2">
+                {INVENTORY_IMPACTS.map((impact) => (
+                  <div key={impact}>
+                    <dt className="inline font-semibold text-[#5C5346]">
+                      {IMPACT_STAFF_LABELS[impact]}:
+                    </dt>{" "}
+                    <dd className="inline">{IMPACT_STAFF_HELP[impact]}</dd>
+                  </div>
+                ))}
+              </dl>
             </RulePanel>
           </div>
         </>
       )}
+
+      <AlertDialog
+        open={confirmLines !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmLines(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save these rule changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              These changes affect availability or room assignment as soon as they are saved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="space-y-1.5 text-xs text-[#251605]">
+            {(confirmLines ?? []).map((line) => (
+              <li key={line} className="flex gap-2">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction
+              className={ROOM_SHELL_PRIMARY_BUTTON}
+              onClick={() => {
+                setConfirmLines(null);
+                save();
+              }}
+            >
+              Save Rules
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function RuleGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <h4 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">{title}</h4>
+      <div className="divide-y divide-[#EEE8E0] rounded-lg border border-[#EEE8E0]">{children}</div>
     </div>
   );
 }
@@ -953,12 +1209,24 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
         />
       </RoomShellSlot>
       <RoomShellSlot name="actions">
-        <SettingsLink label="Configure in Property Setup" step="inventory-rules" section="overbooking" />
+        <SettingsLink
+          label="Configure in Property Setup"
+          step="inventory-rules"
+          section="overbooking"
+        />
       </RoomShellSlot>
       <RoomSummaryChips
         items={[
-          { label: "Physical available", value: summary?.physicalAvailable ?? "—", tone: "success" },
-          { label: "Overbooking", value: summary?.propertyOverbookingEnabled ? "Enabled" : "Off", tone: summary?.propertyOverbookingEnabled ? "warning" : "neutral" },
+          {
+            label: "Physical available",
+            value: summary?.physicalAvailable ?? "—",
+            tone: "success",
+          },
+          {
+            label: "Overbooking",
+            value: summary?.propertyOverbookingEnabled ? "Enabled" : "Off",
+            tone: summary?.propertyOverbookingEnabled ? "warning" : "neutral",
+          },
           { label: "Overbooked rooms", value: summary?.totalOverbookedRooms ?? "—", tone: "info" },
         ]}
       />
@@ -973,7 +1241,6 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
         />
       ) : (
         <>
-
           <section className="rounded-lg border border-[#E5DED4] bg-white p-5 shadow-xs">
             <h3 className="text-base font-bold" style={{ color: INK }}>
               Overbooking controls
@@ -1006,7 +1273,9 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
               </div>
               <div className="rounded-lg border border-[#E5DED4] bg-[#FAF8F5] p-3">
                 <span className="text-muted-foreground">Physical available: </span>
-                <span className="font-bold text-[#251605]">{summary?.physicalAvailable ?? "—"}</span>
+                <span className="font-bold text-[#251605]">
+                  {summary?.physicalAvailable ?? "—"}
+                </span>
               </div>
             </div>
             <div className="mt-4 overflow-x-auto rounded-lg border border-[#E5DED4]">
@@ -1027,22 +1296,34 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
                   {(summary?.roomTypes ?? []).map((type) => (
                     <tr key={type.roomTypeId} className="hover:bg-[#FAF8F5]/60 transition-colors">
                       <td className="px-3.5 py-3 font-bold text-[#251605]">{type.roomTypeName}</td>
-                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.physicalCapacity}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">
+                        {type.physicalCapacity}
+                      </td>
                       <td className="px-3.5 py-3 font-medium text-[#251605]">{type.demand}</td>
-                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.physicalAvailable}</td>
-                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.overbookingAllowance}</td>
-                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.overbookingConsumed}</td>
-                      <td className="px-3.5 py-3 font-medium text-[#251605]">{type.overbookingRemaining}</td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">
+                        {type.physicalAvailable}
+                      </td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">
+                        {type.overbookingAllowance}
+                      </td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">
+                        {type.overbookingConsumed}
+                      </td>
+                      <td className="px-3.5 py-3 font-medium text-[#251605]">
+                        {type.overbookingRemaining}
+                      </td>
                       <td className="px-3.5 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                          !type.overbookingEnabled
-                            ? "bg-zinc-100 text-zinc-600"
-                            : type.overbookingRemaining === 0 && type.overbookingAllowance > 0
-                              ? "bg-red-100 text-red-700"
-                              : type.overbookingAllowance > 0
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-zinc-100 text-zinc-600"
-                        }`}>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                            !type.overbookingEnabled
+                              ? "bg-zinc-100 text-zinc-600"
+                              : type.overbookingRemaining === 0 && type.overbookingAllowance > 0
+                                ? "bg-red-100 text-red-700"
+                                : type.overbookingAllowance > 0
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-zinc-100 text-zinc-600"
+                          }`}
+                        >
                           {!type.overbookingEnabled
                             ? "Overbooking disabled"
                             : type.overbookingRemaining === 0 && type.overbookingAllowance > 0
@@ -1102,19 +1383,25 @@ function useInventoryPolicy(restaurantId: string) {
     retry: false,
   });
   const [draft, setDraftState] = useState<InventoryRulesDraft>(defaultInventoryRules);
+  const [saved, setSaved] = useState<InventoryRulesDraft | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(false);
+    setSaved(null);
   }, [restaurantId]);
 
   useEffect(() => {
     if (!query.data || hydrated) return;
-    setDraftState(normalizeInventoryRules(query.data.rules));
+    const loaded = normalizeInventoryRules(query.data.rules);
+    setDraftState(loaded);
+    setSaved(loaded);
     setHydrated(true);
   }, [query.data, hydrated]);
 
   function setDraft(patch: Partial<InventoryRulesDraft>) {
+    setJustSaved(false);
     setDraftState((current) => normalizeInventoryRules({ ...current, ...patch }));
   }
 
@@ -1131,9 +1418,12 @@ function useInventoryPolicy(restaurantId: string) {
       return result;
     },
     onSuccess: async (result) => {
-      setDraftState(normalizeInventoryRules(result.rules));
+      const stored = normalizeInventoryRules(result.rules);
+      setDraftState(stored);
+      setSaved(stored);
+      setJustSaved(true);
       await invalidateRuleViews(queryClient, restaurantId);
-      toast.success("Inventory rules saved");
+      toast.success("Rules saved");
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Could not save inventory rules.";
@@ -1148,6 +1438,8 @@ function useInventoryPolicy(restaurantId: string) {
   return {
     draft,
     setDraft,
+    saved,
+    justSaved,
     canConfigure: Boolean(accessQuery.data?.canConfigure),
     query,
     save: () => mutation.mutate(),
@@ -1187,81 +1479,74 @@ function Kpi({
 function RulePanel({
   title,
   description,
-  count,
   className,
   children,
 }: {
   title: string;
   description: string;
-  count?: string;
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className={cn("rounded-xl border border-[#E5DED4] bg-white p-4 sm:p-5 shadow-xs transition-all", className)}>
-      <div className="mb-3.5 flex items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold tracking-tight" style={{ color: INK }}>
-              {title}
-            </h3>
-            {count ? (
-              <span className="inline-flex items-center rounded-full bg-[#FAF5EB] border border-[#E8DFD1] px-2 py-0.5 text-[11px] font-semibold text-[#8C6214]">
-                {count}
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
-        </div>
+    <section className={cn("rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm", className)}>
+      <div className="mb-3">
+        <h3 className="text-sm font-bold tracking-tight" style={{ color: INK }}>
+          {title}
+        </h3>
+        <p className="mt-0.5 text-xs leading-5 text-[#756A5B]">{description}</p>
       </div>
       <div>{children}</div>
     </section>
   );
 }
 
+const RULE_STATE_TONE: Record<string, string> = {
+  Blocking: "border-red-200 bg-red-50 text-red-800",
+  Preference: "border-amber-200 bg-amber-50 text-amber-800",
+  Applied: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  Disabled: "border-[#DDD4C5] bg-[#FAF8F4] text-[#756A5B]",
+};
+
 function PolicySwitch({
-  label,
-  help,
+  rule,
   checked,
   disabled,
   onChange,
 }: {
-  label: string;
-  help?: string;
+  rule: RuleDefinition;
   checked: boolean;
   disabled: boolean;
   onChange: (value: boolean) => void;
 }) {
+  const state = ruleStateLabel(rule.kind, checked);
   return (
-    <div
-      className={cn(
-        "group flex justify-between gap-2.5 rounded-lg border border-[#EEE8E0] bg-[#FAF8F5]/60 px-3 py-2.5 transition-all duration-150 hover:border-[#DED7CD] hover:bg-[#FAF8F5]",
-        help ? "items-start" : "items-center",
-      )}
-    >
-      <div className="min-w-0 pr-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <p
-            className="text-xs font-semibold leading-snug group-hover:text-[#1A0E03] transition-colors"
-            style={{ color: INK }}
-          >
-            {label}
-          </p>
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#C89933]/15 text-[#7A5511]">
-            Enforced
-          </span>
-        </div>
-        {help ? <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{help}</p> : null}
+    <div className="flex items-start justify-between gap-3 px-3 py-2">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold leading-snug" style={{ color: INK }}>
+          {rule.label}
+        </p>
+        <p className="mt-0.5 text-[11px] leading-4 text-[#756A5B]">{rule.help}</p>
+        {rule.inspectorOnly ? (
+          <p className="mt-0.5 text-[11px] leading-4 text-[#8A7B68] italic">{rule.inspectorOnly}</p>
+        ) : null}
       </div>
-      <Switch
-        checked={checked}
-        disabled={disabled}
-        className={cn(
-          "data-[state=checked]:bg-[#C89933] shrink-0",
-          help ? "mt-0.5" : "",
-        )}
-        onCheckedChange={(value) => onChange(value === true)}
-      />
+      <div className="flex shrink-0 items-center gap-2">
+        <span
+          className={cn(
+            "rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+            RULE_STATE_TONE[state],
+          )}
+        >
+          {state}
+        </span>
+        <Switch
+          checked={checked}
+          disabled={disabled}
+          aria-label={rule.label}
+          className="data-[state=checked]:bg-[#C89933]"
+          onCheckedChange={(value) => onChange(value === true)}
+        />
+      </div>
     </div>
   );
 }
@@ -1272,7 +1557,14 @@ function SettingsLink({
   section,
 }: {
   label?: string;
-  step?: "room-types" | "amenities" | "housekeeping" | "inventory-rules" | "maintenance" | "rates-pricing" | "meal-plans-packages";
+  step?:
+    | "room-types"
+    | "amenities"
+    | "housekeeping"
+    | "inventory-rules"
+    | "maintenance"
+    | "rates-pricing"
+    | "meal-plans-packages";
   section?: string;
 }) {
   const sectionParam = section ? `&section=${encodeURIComponent(section)}` : "";

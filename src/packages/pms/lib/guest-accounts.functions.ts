@@ -68,7 +68,7 @@ const MASTER_COLUMNS_BASE =
   "id, account_type, name, code, email, phone, address_line1, city, country, notes, account_status, created_at, updated_at";
 const MASTER_COLUMNS = `${MASTER_COLUMNS_BASE}, anonymised_at`;
 const MASTER_COLUMNS_COMPANY = `${MASTER_COLUMNS}, trade_name, company_type, company_type_other, tax_id, business_registration_number, phone_alt, email_alt, primary_contact_name, website, address_line2, region, postal_code, corporate_account_reference, negotiated_rate_reference, default_travel_agent_master_id, source_of_business, business_profile_type_id, logo_storage_path, credit_account_enabled, primary_contact_title`;
-const MASTER_COLUMNS_TA = `${MASTER_COLUMNS_COMPANY}, agency_type, agency_type_other, billing_contact_name, iata_license_number, license_expiry_date, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction`;
+const MASTER_COLUMNS_TA = `${MASTER_COLUMNS_COMPANY}, agency_type, agency_type_other, billing_contact_name, iata_license_number, license_expiry_date, commission_label, commission_type, commission_currency_note, contract_reference, contract_start_date, contract_end_date, contract_status, contract_signed_with, payment_terms, credit_limit_note, billing_instruction, group_type_id, company_master_id, travel_agent_master_id`;
 
 type MasterRow = {
   id: string;
@@ -117,6 +117,9 @@ type MasterRow = {
   payment_terms?: string | null;
   credit_limit_note?: string | null;
   billing_instruction?: string | null;
+  group_type_id?: string | null;
+  company_master_id?: string | null;
+  travel_agent_master_id?: string | null;
   business_profile_type_id?: string | null;
   primary_contact_title?: string | null;
   credit_account_enabled?: boolean;
@@ -179,6 +182,11 @@ function toSummary(row: MasterRow): GuestAccountSummary {
     tradeName: anonymisedAt ? null : (row.trade_name ?? null),
     companyType: row.company_type ?? null,
     agencyType: row.agency_type ?? null,
+    primaryContactName: anonymisedAt ? null : (row.primary_contact_name ?? null),
+    country: anonymisedAt ? null : (row.country ?? null),
+    groupTypeId: anonymisedAt ? null : (row.group_type_id ?? null),
+    companyMasterId: anonymisedAt ? null : (row.company_master_id ?? null),
+    travelAgentMasterId: anonymisedAt ? null : (row.travel_agent_master_id ?? null),
   };
 }
 
@@ -488,6 +496,44 @@ async function assertDefaultTravelAgent(
   }
 }
 
+async function attachGroupDirectoryFields(
+  context: { supabase: { from: (table: string) => unknown } },
+  restaurantId: string,
+  items: GuestAccountSummary[],
+): Promise<GuestAccountSummary[]> {
+  if (items.length === 0) return items;
+  const ids = items.map((item) => item.id);
+  const relatedIds = [
+    ...new Set(
+      items.flatMap((item) => [item.companyMasterId, item.travelAgentMasterId].filter((id): id is string => Boolean(id))),
+    ),
+  ];
+  const [links, names] = await Promise.all([
+    db(context)
+      .from("guest_account_links")
+      .select("master_id")
+      .eq("restaurant_id", restaurantId)
+      .in("master_id", ids),
+    relatedIds.length
+      ? db(context).from("guest_account_masters").select("id, name").eq("restaurant_id", restaurantId).in("id", relatedIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (links.error || names.error) return items;
+  const counts = new Map<string, number>();
+  for (const row of (links.data ?? []) as Array<{ master_id: string }>) {
+    counts.set(row.master_id, (counts.get(row.master_id) ?? 0) + 1);
+  }
+  const nameById = new Map(
+    ((names.data ?? []) as Array<{ id: string; name: string }>).map((row) => [row.id, row.name]),
+  );
+  return items.map((item) => ({
+    ...item,
+    memberCount: counts.get(item.id) ?? 0,
+    companyMasterName: item.companyMasterId ? (nameById.get(item.companyMasterId) ?? null) : null,
+    travelAgentMasterName: item.travelAgentMasterId ? (nameById.get(item.travelAgentMasterId) ?? null) : null,
+  }));
+}
+
 export const listGuestAccounts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -584,7 +630,9 @@ export const listGuestAccounts = createServerFn({ method: "POST" })
     if (wave4Unavailable(result.error)) throw new Error(WAVE4_MIGRATION_UNAVAILABLE);
     if (result.error) throw new Error(result.error.message);
     const items = ((result.data ?? []) as MasterRow[]).map(toSummary);
-    return { items, total: result.count ?? items.length, offset, limit };
+    const enriched =
+      data.accountType === "group" ? await attachGroupDirectoryFields(context, data.restaurantId, items) : items;
+    return { items: enriched, total: result.count ?? items.length, offset, limit };
   });
 
 export const getGuestAccount = createServerFn({ method: "POST" })

@@ -18,6 +18,7 @@ import { isMissingSchemaError } from "./pms-set2-structure";
 import {
   parseGuestGroupCreateHold,
   draftToGroupOperations,
+  profileGroupOperations,
   filled,
   type GuestGroupCreateDraft,
   type GuestGroupCreateMemberDraft,
@@ -295,11 +296,14 @@ async function persistGroupOperations(
   restaurantId: string,
   groupId: string,
   draft: GuestGroupCreateDraft,
+  profileOnly: boolean,
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const result = await admin(supabaseAdmin)
     .from("guest_account_masters")
-    .update({ group_operations: draftToGroupOperations(draft) })
+    .update({
+      group_operations: profileOnly ? profileGroupOperations(draft) : draftToGroupOperations(draft),
+    })
     .eq("restaurant_id", restaurantId)
     .eq("id", groupId)
     .eq("account_type", "group");
@@ -338,6 +342,7 @@ export const persistGroupCreate = createServerFn({ method: "POST" })
         accountStatus = existing.data.account_status;
       }
     }
+    const creating = !draft.groupId;
     const saved = await saveGroupMaster({
       data: {
         restaurantId: data.restaurantId,
@@ -357,21 +362,23 @@ export const persistGroupCreate = createServerFn({ method: "POST" })
           travelAgentMasterId: draft.travelAgentMasterId || null,
           primaryContactGuestId: draft.primaryContactGuestId || null,
           primaryContactName: draft.primaryContactName || null,
-          arrivalDate: draft.arrivalDate || null,
-          departureDate: draft.departureDate || null,
-          expectedPax:
-            draft.expectedPax.trim() === "" || Number.isNaN(Number(draft.expectedPax))
+          arrivalDate: creating ? null : draft.arrivalDate || null,
+          departureDate: creating ? null : draft.departureDate || null,
+          expectedPax: creating
+            ? null
+            : draft.expectedPax.trim() === "" || Number.isNaN(Number(draft.expectedPax))
               ? null
               : Number(draft.expectedPax),
-          expectedRooms:
-            draft.expectedRooms.trim() === "" || Number.isNaN(Number(draft.expectedRooms))
+          expectedRooms: creating
+            ? null
+            : draft.expectedRooms.trim() === "" || Number.isNaN(Number(draft.expectedRooms))
               ? null
               : Number(draft.expectedRooms),
         },
       },
     });
     const members = await persistMembers(data.restaurantId, saved.id, draft.members);
-    await persistGroupOperations(data.restaurantId, saved.id, draft);
+    await persistGroupOperations(data.restaurantId, saved.id, draft, creating);
     return {
       id: saved.id,
       code: saved.code,

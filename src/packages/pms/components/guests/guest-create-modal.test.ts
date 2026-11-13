@@ -98,7 +98,7 @@ describe("NORU PMS — Guest Profile: New Guest Wide Modal Modernization (6-Step
   });
 
   it("7. Company Name is captured in Step 5 (Additional Information) Employment and bound to custom values", () => {
-    assert.match(modalCode, /Field label="Company Name"/);
+    assert.match(modalCode, /Field label="Employer \/ Company Name"/);
     assert.match(modalCode, /dynamicFields/);
     assert.match(modalCode, /customValues/);
   });
@@ -264,7 +264,7 @@ describe("NORU PMS — Guest Profile: New Guest Wide Modal Modernization (6-Step
   });
 
   it("33. Additional Information Employment section contains 4 fields including Company Name", () => {
-    assert.match(modalCode, /Field label="Company Name"/);
+    assert.match(modalCode, /Field label="Employer \/ Company Name"/);
     assert.match(modalCode, /id="guest-create-company-name"/);
     assert.match(modalCode, /handleCompanyChange/);
     assert.match(modalCode, /COMPANY_NAME/);

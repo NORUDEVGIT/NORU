@@ -25,6 +25,14 @@ export const PREFERENCES_APPLY_COPY =
 export const CONTACT_DEFAULTS_TITLE = "Contact Defaults";
 export const CONTACT_DEFAULTS_COPY =
   "Language and preferred contact live on the guest profile, not the preference catalogue.";
+
+const PLACEHOLDER_PREFERENCE_LABELS = new Set(["test case", "dummy", "placeholder"]);
+
+/** Hides setup leftovers such as `test case` from staff screens. Saved values are unchanged. */
+export function isPlaceholderPreferenceLabel(value: string | null | undefined): boolean {
+  const normalized = (value ?? "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  return PLACEHOLDER_PREFERENCE_LABELS.has(normalized);
+}
 export const PREFERENCE_TEXT_MAX = 2000;
 export const COMMUNICATION_CATEGORY_CODE = "COMM";
 

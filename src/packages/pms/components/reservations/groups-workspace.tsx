@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Plus, X } from "lucide-react";
@@ -9,6 +9,7 @@ import {
   PmsFilterSelect,
 } from "@/packages/pms/components/pms-filter-popover";
 import { CreateGroupWizard } from "@/packages/pms/components/reservations/create-group-wizard";
+import type { GroupBlockConfirmationProperty } from "@/packages/pms/lib/group-block-confirmation-print";
 import {
   ReservationShellSlot,
   SHELL_PRIMARY_BUTTON,
@@ -31,17 +32,26 @@ import { cn } from "@/shared/lib/utils";
 
 export function GroupsWorkspace({
   restaurantId,
+  property = null,
   search = "",
+  rangeStart,
+  rangeEnd,
   canWrite,
+  initialGroupProfileId = null,
   canCreateReservation = false,
   createStayActive = false,
   onCreateStay,
   onOpenReservation,
 }: {
   restaurantId: string;
+  property?: GroupBlockConfirmationProperty | null;
   /** Name, confirmation, code or reference, from the shared Reservations search. */
   search?: string;
+  /** Shared Reservations week. Groups and blocks that overlap it are listed. */
+  rangeStart: string;
+  rangeEnd: string;
   canWrite: boolean;
+  initialGroupProfileId?: string | null;
   canCreateReservation?: boolean;
   createStayActive?: boolean;
   onCreateStay: (groupId: string, blockId: string | null) => void;
@@ -61,16 +71,21 @@ export function GroupsWorkspace({
   const [statusDraft, setStatusDraft] = useState<(typeof GROUP_STATUSES)[number] | "all">("all");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [newOpen, setNewOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(Boolean(initialGroupProfileId));
+  useEffect(() => {
+    if (initialGroupProfileId) setNewOpen(true);
+  }, [initialGroupProfileId]);
 
   const listQuery = useQuery({
-    queryKey: ["pms-groups", restaurantId, search, status],
+    queryKey: ["pms-groups", restaurantId, search, status, rangeStart, rangeEnd],
     queryFn: () =>
       loadGroups({
         data: {
           restaurantId,
           search: search.trim().length >= 2 ? search.trim() : undefined,
           status: status === "all" ? undefined : status,
+          stayOverlapStart: rangeStart,
+          stayOverlapEnd: rangeEnd,
         },
       }),
     placeholderData: keepPreviousData,
@@ -165,7 +180,9 @@ export function GroupsWorkspace({
       {canWrite ? (
         <CreateGroupWizard
           restaurantId={restaurantId}
+          property={property}
           open={newOpen}
+          initialGroupProfileId={initialGroupProfileId}
           onOpenChange={setNewOpen}
           onCreated={(groupId) => {
             setNewOpen(false);
@@ -232,6 +249,7 @@ export function GroupsWorkspace({
       </section>
       <GroupDetailWorkspace
         restaurantId={restaurantId}
+        property={property}
         canWrite={canWrite}
         open={Boolean(selectedId) && !newOpen && !createStayActive}
         detail={groupQuery.data ?? null}

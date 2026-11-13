@@ -197,6 +197,12 @@ export type GuestAccountSummary = {
   primaryContactName?: string | null;
   country?: string | null;
   creditAccountEnabled?: boolean;
+  groupTypeId?: string | null;
+  companyMasterId?: string | null;
+  companyMasterName?: string | null;
+  travelAgentMasterId?: string | null;
+  travelAgentMasterName?: string | null;
+  memberCount?: number | null;
   logoUrl?: string | null;
   logoStoragePath?: string | null;
 };

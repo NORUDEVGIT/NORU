@@ -7,7 +7,9 @@ import { PMS_PERMISSIONS } from "../pms-permissions";
 import { loadFoStaySignals } from "../fo-exceptions.functions";
 import {
   loadFrontOfficeArrivals,
+  loadFrontOfficeArrivalsForDates,
   loadFrontOfficeDepartures,
+  loadFrontOfficeDeparturesForDates,
   type FrontOfficeStay,
 } from "../frontoffice.functions";
 import { loadCard2HousekeepingSnapshot } from "../housekeeping-card2.functions";
@@ -20,6 +22,7 @@ import {
   type RoomInventoryState,
 } from "./arrivals-departures";
 import { resolvePropertyBusinessDate } from "./business-date";
+import { eachDateInclusive } from "./section-week";
 import {
   FINANCIAL_SIGNAL_BATCH_CAP,
   type LateCheckoutPolicy,
@@ -104,6 +107,8 @@ export const getReservationArrivalsDepartures = createServerFn({ method: "POST" 
       .object({
         restaurantId: idSchema,
         date: dateSchema.optional(),
+        dateFrom: dateSchema.optional(),
+        dateTo: dateSchema.optional(),
         vip: z.boolean().optional(),
         assignment: z.enum(["assigned", "unassigned"]).optional(),
         roomTypeId: idSchema.optional(),
@@ -132,20 +137,39 @@ export const getReservationArrivalsDepartures = createServerFn({ method: "POST" 
     const businessDate = resolvePropertyBusinessDate(property.business_date, property.timezone);
     const selectedDate = data.date ? assertDateOnly(data.date, "Operational date") : businessDate;
     const policy: LateCheckoutPolicy = parseLateCheckoutPolicy(property);
+    const ranged = Boolean(data.dateFrom && data.dateTo && !data.date);
+    const dates = ranged ? eachDateInclusive(data.dateFrom!, data.dateTo!) : [selectedDate];
 
-    const [arrivalStays, departureStays] = await Promise.all([
-      loadFrontOfficeArrivals(supabase, {
-        restaurantId: data.restaurantId,
-        date: selectedDate,
-        status: data.arrivalStatus,
-        roomTypeId: data.roomTypeId,
-        assignment: data.assignment,
-      }),
-      loadFrontOfficeDepartures(supabase, {
-        restaurantId: data.restaurantId,
-        date: selectedDate,
-      }),
-    ]);
+    const [arrivalStays, departureStays] = ranged
+      ? await Promise.all([
+          loadFrontOfficeArrivalsForDates(supabase, {
+            restaurantId: data.restaurantId,
+            dates,
+            status: data.arrivalStatus,
+            roomTypeId: data.roomTypeId,
+            assignment: data.assignment,
+          }),
+          loadFrontOfficeDeparturesForDates(supabase, {
+            restaurantId: data.restaurantId,
+            dates,
+            businessDate,
+            windowStart: data.dateFrom!,
+            windowEnd: data.dateTo!,
+          }),
+        ])
+      : await Promise.all([
+          loadFrontOfficeArrivals(supabase, {
+            restaurantId: data.restaurantId,
+            date: selectedDate,
+            status: data.arrivalStatus,
+            roomTypeId: data.roomTypeId,
+            assignment: data.assignment,
+          }),
+          loadFrontOfficeDepartures(supabase, {
+            restaurantId: data.restaurantId,
+            date: selectedDate,
+          }),
+        ]);
 
     const arrivalsFiltered = applyArrivalFilters(arrivalStays, { vip: data.vip });
     const departuresFiltered = applyDepartureFilters(departureStays, {

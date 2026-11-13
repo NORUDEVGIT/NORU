@@ -6,7 +6,9 @@ import { Briefcase, ExternalLink, MapPin, Pencil, Phone, ShieldAlert, User } fro
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { GuestTaxIdentitiesCard } from "@/packages/pms/components/guests/guest-tax-identities-card";
 import { GUEST_GENDER_LABELS, GUEST_TITLE_LABELS } from "@/packages/pms/lib/guest-profile-individual";
-import { GUEST_ACCOUNT_TYPE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
+import { GUEST_ACCOUNT_TYPE_LABELS, GUEST_RELATIONSHIP_ROLE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
+import { nationalityValueForStored } from "@/packages/pms/lib/guest-nationalities";
+import { formatGroupedPhone } from "@/packages/pms/lib/pms-property-setup-phone";
 import {
   PREFERRED_CONTACT_METHOD_LABELS,
   PREFERRED_CONTACT_TIME_LABELS,
@@ -62,6 +64,12 @@ function SectionPanel({
       {children}
     </section>
   );
+}
+
+function relationshipRoleLabel(role: string): string {
+  return role in GUEST_RELATIONSHIP_ROLE_LABELS
+    ? GUEST_RELATIONSHIP_ROLE_LABELS[role as keyof typeof GUEST_RELATIONSHIP_ROLE_LABELS]
+    : role;
 }
 
 function hasValue(value: ReactNode): boolean {
@@ -170,7 +178,10 @@ export function GuestPersonalContactView({
               { label: "Middle Name", value: guest.middleName },
               { label: "Gender", value: guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null },
               { label: "Date of Birth", value: dobFormatted },
-              { label: "Nationality", value: guest.nationality },
+              {
+                label: "Nationality",
+                value: guest.nationality ? nationalityValueForStored(guest.nationality) : null,
+              },
               { label: "Language", value: guest.language },
             ]}
           />
@@ -179,8 +190,8 @@ export function GuestPersonalContactView({
         <SectionPanel title="Contact Channels" icon={Phone} data-testid="contact-info-panel">
           <FieldGrid
             fields={[
-              { label: "Mobile Phone", value: guest.phone },
-              { label: "Alternate Phone", value: guest.phoneAlt },
+              { label: "Mobile Phone", value: formatGroupedPhone(guest.phone) || null },
+              { label: "Alternate Phone", value: formatGroupedPhone(guest.phoneAlt) || null },
               { label: "Email Address", value: guest.email },
               { label: "Alternate Email", value: guest.emailAlt },
               { label: "Preferred Method", value: method },
@@ -234,14 +245,16 @@ export function GuestPersonalContactView({
           {otherAccounts.length > 0 ? (
             <p className="mt-2 text-[11px] text-[#756A5B]">
               <span className="font-semibold">Other accounts: </span>
-              {otherAccounts.map((link) => `${link.masterName} (${link.role})`).join(" · ")}
+              {otherAccounts
+                .map((link) => `${link.masterName} (${relationshipRoleLabel(link.role)})`)
+                .join(" · ")}
             </p>
           ) : null}
         </SectionPanel>
       </div>
 
       {filteredCustomFields.length > 0 ? (
-        <SectionPanel title="Additional Information" icon={User} data-testid="additional-info-panel">
+        <SectionPanel title="Other profile details" icon={User} data-testid="additional-info-panel">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
             {filteredCustomFields.map((field) => (
               <div key={field.fieldId} className="min-w-0">
@@ -274,8 +287,13 @@ export function GuestPersonalContactView({
               <div key={contact.id} className="min-w-0 text-xs">
                 <p className="font-medium text-[#251605]">{contact.name}</p>
                 <p className="break-words text-[11px] text-[#756A5B]">
-                  {[contact.relationship, contact.phone, contact.email].filter(Boolean).join(" · ") ||
-                    "Contact"}
+                  {[
+                    contact.relationship,
+                    contact.phone ? formatGroupedPhone(contact.phone) : null,
+                    contact.email,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "Contact"}
                 </p>
               </div>
             ))}

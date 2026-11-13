@@ -6,48 +6,52 @@ import {
   ArrowLeft,
   ArrowRight,
   BedDouble,
+  Calendar,
   Check,
+  DoorOpen,
   FileText,
+  Lock,
+  Mail,
   Printer,
-  Search,
+  Tag,
+  User,
   UserRound,
+  Users,
+  X,
 } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { ReservationAmendmentPrint } from "@/packages/pms/components/bookings/reservation-amendment-print";
-import {
-  formatStayDate,
-  ReservationStatusBadge,
-} from "@/packages/pms/components/bookings/reservation-bits";
+import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
+import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   DEFAULT_BOOKING_SOURCES,
   DEFAULT_MARKET_SEGMENTS,
   isStayRangeValid,
 } from "@/packages/pms/lib/create-reservation-phase1";
 import { addDays, nightsBetween } from "@/packages/pms/lib/reservation-dates";
-import { guestListItems, getGuest, listGuests } from "@/packages/pms/lib/guests.functions";
-import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
-import {
-  channelLabel,
-  DETAIL_DASH,
-  sourceLabel,
-} from "@/packages/pms/lib/reservation-detail-overview";
+import { getGuest, updateGuest } from "@/packages/pms/lib/guests.functions";
+import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import {
   affectedRoomLabel,
   assignmentEditLocked,
   buildConfirmNextEvents,
   buildEditChangeRows,
   buildEditImpactRows,
+  buildGuestProfileChangeRows,
   cancellationLabel,
   confirmIsEnabled,
   datesEditLocked,
   draftFromReservation,
   EDIT_DASH,
   EDIT_RESERVATION_STEPS,
+  editCommercialLabel,
   editDraftDirty,
+  guestContactIssue,
+  guestProfileAmendPayload,
   folioReconciliationNotice,
-  guestCountLabel,
   occupancyIsBlocked,
   persistableChanges,
   pickLatestAmendHistory,
@@ -55,7 +59,6 @@ import {
   ratePerNightLabel,
   roomTotalImpact,
   roomTypeEditLocked,
-  stayDatesLabel,
   stayEditLocked,
   type EditReservationStepId,
   type ReservationEditDraft,
@@ -64,6 +67,7 @@ import {
 import type { AmendmentPrintData } from "@/packages/pms/lib/reservation-amendment-print";
 import { listRatePlans, quoteStay } from "@/packages/pms/lib/rates.functions";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
+import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import type { ReservationRoomUnit } from "@/packages/pms/lib/reservation-room-units";
 import { getFolio, getReservationFolio } from "@/packages/pms/lib/cashiering.functions";
 import {
@@ -86,9 +90,15 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 
 const UNASSIGNED = "unassigned";
-const OUTLINE_BUTTON =
-  "rounded-full border-[#e9dfd0] bg-white font-semibold text-[#4a2c1a] shadow-none hover:bg-[#f5ead0]";
 const NONE = "__none__";
+/** Same rectangular control as the Front Office Edit Reservation form. */
+const CONTROL =
+  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none placeholder:text-[#8C7E72] hover:border-[#8A641A] focus:border-[#8A641A] focus:outline-none focus:ring-1 focus:ring-[#8A641A] disabled:bg-[#FAF8F5] disabled:text-[#8C7E72]";
+const SELECT =
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus-visible:border-[#8A641A] focus-visible:ring-1 focus-visible:ring-[#8A641A] disabled:bg-[#FAF8F5] disabled:text-[#8C7E72]";
+const MONEY_VALUE =
+  "flex h-9 items-center rounded-[6px] border border-[#E4D3A8] bg-[#F4E9D0] px-3 text-sm font-bold text-[#251605]";
+const EDITED_CONTROL = "border-[#C4A35A] bg-[#FBF7F1]";
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
   confirmed: "Confirmed",
@@ -98,13 +108,38 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: "No-show",
 };
 
+function catalogueChoices(
+  rows: Array<{ id: string; code: string; name: string }> | undefined,
+): Array<{ value: string; label: string; id: string; code: string }> {
+  const choices: Array<{ value: string; label: string; id: string; code: string }> = [];
+  for (const row of rows ?? []) {
+    const label = row.name.trim();
+    if (!label) continue;
+    choices.push({ value: row.id, label, id: row.id, code: row.code });
+    if (row.code && row.code !== row.id) {
+      choices.push({ value: row.code, label, id: row.id, code: row.code });
+    }
+  }
+  return choices;
+}
+
 function optionLabel(
   value: string | null | undefined,
-  options: readonly { value: string; label: string }[],
+  options: readonly { value: string; label: string; id?: string | null; code?: string | null }[],
 ): string | null {
-  const text = value?.trim();
-  if (!text) return null;
-  return options.find((option) => option.value === text)?.label ?? text;
+  const label = editCommercialLabel(value, options);
+  return label === EDIT_DASH ? null : label;
+}
+
+function IconControl({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground [&_svg]:size-4">
+        {icon}
+      </span>
+      {children}
+    </div>
+  );
 }
 
 function Field({
@@ -149,9 +184,7 @@ function SectionCard({
   className?: string;
 }) {
   return (
-    <section
-      className={cn("rounded-2xl border border-[#e9dfd0] bg-white p-5 shadow-sm", className)}
-    >
+    <section className={cn("rounded-lg border border-[#DDD4C5] bg-white p-4", className)}>
       <header className="mb-4 flex items-start gap-2">
         <span className="mt-0.5 text-[#c9a24a]">{icon}</span>
         <div>
@@ -161,6 +194,37 @@ function SectionCard({
       </header>
       {children}
     </section>
+  );
+}
+
+function EditShell({
+  onClose,
+  children,
+}: {
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[#FBF7F1]" data-testid="edit-reservation-workspace">
+      <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="font-display text-sm font-semibold text-[#F3E9D8]">Edit Reservation</h1>
+          <span className="ml-auto">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+              onClick={onClose}
+              aria-label="Close edit reservation"
+            >
+              <X className="size-4" />
+            </Button>
+          </span>
+        </div>
+      </header>
+      {children}
+    </div>
   );
 }
 
@@ -207,7 +271,7 @@ function unitSlice(
 export function ReservationEditWorkspace({
   membership,
   reservationId,
-  onBackToDesk: _onBackToDesk,
+  onBackToDesk,
   onOpenReservation: _onOpenReservation,
   onRegisterCloseGuard,
 }: {
@@ -225,7 +289,7 @@ export function ReservationEditWorkspace({
   const fetchAccess = useServerFn(getBookingsAccess);
   const fetchReservation = useServerFn(getReservation);
   const fetchGuest = useServerFn(getGuest);
-  const fetchGuests = useServerFn(listGuests);
+  const submitGuest = useServerFn(updateGuest);
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
   const fetchRooms = useServerFn(listAssignableRooms);
   const fetchQuotes = useServerFn(quoteStay);
@@ -234,11 +298,12 @@ export function ReservationEditWorkspace({
   const fetchReservationFolio = useServerFn(getReservationFolio);
   const fetchFolio = useServerFn(getFolio);
   const submitAmend = useServerFn(amendReservation);
+  const fetchSet6 = useServerFn(getPmsSet6Snapshot);
 
   const [step, setStep] = useState<EditReservationStepId>("details");
   const [draft, setDraft] = useState<ReservationEditDraft | null>(null);
-  const [guestSearch, setGuestSearch] = useState("");
   const [baseline, setBaseline] = useState<ReservationEditDraft | null>(null);
+  const hydratedGuestId = useRef<string | null>(null);
   const [openingRoomTotal, setOpeningRoomTotal] = useState<number | null>(null);
   const [folioWasReconciled, setFolioWasReconciled] = useState(false);
   const folioReconcileRef = useRef(false);
@@ -249,6 +314,14 @@ export function ReservationEditWorkspace({
     retry: false,
   });
   const canManage = accessQuery.data?.canManage ?? false;
+  const set6Query = useQuery({
+    queryKey: ["pms-set6", restaurantId, "edit-reservation"],
+    queryFn: () => fetchSet6({ data: { restaurantId } }),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const sourceOptions = catalogueChoices(set6Query.data?.snapshot.sourceCodes);
+  const segmentOptions = catalogueChoices(set6Query.data?.snapshot.marketSegments);
 
   const detailQuery = useQuery({
     queryKey: ["reservation", restaurantId, reservationId],
@@ -262,7 +335,7 @@ export function ReservationEditWorkspace({
   useEffect(() => {
     setDraft(null);
     setBaseline(null);
-    setGuestSearch("");
+    hydratedGuestId.current = null;
     setOpeningRoomTotal(null);
     setFolioWasReconciled(false);
     setStep("details");
@@ -283,6 +356,25 @@ export function ReservationEditWorkspace({
     enabled: canManage && Boolean(draft?.guestId ?? reservation?.guestId),
     retry: false,
   });
+
+  useEffect(() => {
+    const profile = guestQuery.data?.guest;
+    if (!profile || hydratedGuestId.current === profile.id) return;
+    hydratedGuestId.current = profile.id;
+    const contact = {
+      guestFirstName: profile.firstName,
+      guestLastName: profile.lastName ?? "",
+      guestPhone: profile.phone ?? "",
+      guestEmail: profile.email ?? "",
+      guestName: profile.fullName,
+    };
+    setDraft((current) =>
+      current && current.guestId === profile.id ? { ...current, ...contact } : current,
+    );
+    setBaseline((current) =>
+      current && current.guestId === profile.id ? { ...current, ...contact } : current,
+    );
+  }, [guestQuery.data]);
 
   const datesValid = Boolean(draft && isStayRangeValid(draft.arrival, draft.departure));
   const nights = draft && datesValid ? nightsBetween(draft.arrival, draft.departure) : 0;
@@ -332,21 +424,6 @@ export function ReservationEditWorkspace({
     retry: false,
   });
 
-  const guestsQuery = useQuery({
-    queryKey: ["guests", restaurantId, guestSearch, "edit-reservation"],
-    queryFn: () =>
-      fetchGuests({
-        data: {
-          restaurantId,
-          status: "active",
-          limit: 8,
-          ...(guestSearch.trim() ? { search: guestSearch.trim() } : {}),
-        },
-      }),
-    enabled: canManage && step === "details" && guestSearch.trim().length > 0,
-    retry: false,
-  });
-
   const plansQuery = useQuery({
     queryKey: ["rate-plans", restaurantId, draft?.roomTypeId, "edit-reservation"],
     queryFn: () =>
@@ -356,6 +433,17 @@ export function ReservationEditWorkspace({
     enabled: canManage && Boolean(draft?.roomTypeId),
     retry: false,
   });
+
+  useEffect(() => {
+    if (!plansQuery.isSuccess || !draft?.ratePlanId) return;
+    const plans = plansQuery.data ?? [];
+    if (plans.some((plan) => plan.id === draft.ratePlanId)) return;
+    setDraft((current) =>
+      current && current.ratePlanId === draft.ratePlanId
+        ? { ...current, ratePlanId: null, ratePlanName: null }
+        : current,
+    );
+  }, [plansQuery.isSuccess, plansQuery.data, draft?.ratePlanId, draft?.roomTypeId]);
 
   const quoteQuery = useQuery({
     queryKey: [
@@ -472,6 +560,12 @@ export function ReservationEditWorkspace({
   const changeRows =
     baseline && liveDraft ? buildEditChangeRows({ before: baseline, after: liveDraft }) : [];
   const persistable = persistableChanges(changeRows);
+  const guestChangeRows =
+    baseline && liveDraft
+      ? buildGuestProfileChangeRows({ before: baseline, after: liveDraft })
+      : [];
+  const guestPersistable = persistableChanges(guestChangeRows);
+  const guestIssue = liveDraft ? guestContactIssue(liveDraft) : "First name is required.";
   const occupancyBlocked = occupancyIsBlocked(
     liveDraft?.adults ?? 0,
     liveDraft?.children ?? 0,
@@ -554,18 +648,44 @@ export function ReservationEditWorkspace({
       })
     : [];
 
-  const folioBlocked = folioNotice?.tone === "warn";
-  const canConfirm =
+  const folioBlocked = folioNotice?.tone === "warn" && persistable.length > 0;
+  const reservationReady =
+    persistable.length === 0 ||
     confirmIsEnabled({
       datesValid,
       availabilityNone,
       occupancyBlocked,
-      hasPersistableChange: persistable.length > 0,
-    }) && !folioBlocked;
+      hasPersistableChange: true,
+    });
+  const guestReady = guestPersistable.length === 0 || (!guestIssue && hydratedGuestId.current === liveDraft?.guestId);
+  const canConfirm =
+    (persistable.length > 0 || guestPersistable.length > 0) &&
+    reservationReady &&
+    guestReady &&
+    !folioBlocked;
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!liveDraft) throw new Error("Draft is not ready.");
+      if (guestPersistable.length > 0) {
+        const profile = guestQuery.data?.guest;
+        if (!profile || profile.id !== liveDraft.guestId) {
+          throw new Error("Guest profile is still loading.");
+        }
+        await submitGuest({
+          data: {
+            restaurantId,
+            guestId: profile.id,
+            guest: guestProfileAmendPayload(profile, {
+              firstName: liveDraft.guestFirstName,
+              lastName: liveDraft.guestLastName,
+              phone: liveDraft.guestPhone,
+              email: liveDraft.guestEmail,
+            }),
+          },
+        });
+      }
+      if (persistable.length === 0) return { id: reservationId, amendment: null };
       return submitAmend({
         data: {
           restaurantId,
@@ -599,7 +719,12 @@ export function ReservationEditWorkspace({
         queryKey: ["reservation-folio", restaurantId, reservationId],
       });
       await queryClient.invalidateQueries({ queryKey: ["folio", restaurantId] });
-      toast.success("Reservation amended.");
+      await queryClient.invalidateQueries({ queryKey: ["guest", restaurantId] });
+      toast.success(
+        guestPersistable.length > 0 && persistable.length === 0
+          ? "Guest profile updated."
+          : "Reservation amended.",
+      );
       setFolioWasReconciled(folioReconcileRef.current);
       setStep("confirm");
     },
@@ -613,7 +738,12 @@ export function ReservationEditWorkspace({
     : null;
   const persistedRows =
     baseline && persistedDraft
-      ? persistableChanges(buildEditChangeRows({ before: baseline, after: persistedDraft }))
+      ? persistableChanges(
+          buildEditChangeRows({
+            before: baseline,
+            after: persistedDraft,
+          }),
+        )
       : [];
   const audit = pickLatestAmendHistory(history);
   const propertyContact = [
@@ -641,9 +771,16 @@ export function ReservationEditWorkspace({
           amendedBy: audit?.actorName ?? null,
           statusLabel: STATUS_LABELS[persisted.status] ?? persisted.status,
           reference: audit?.id ?? null,
-          changes: persistedRows
-            .filter((row) => row.item !== "Reservation Internal Notes")
-            .map((row) => ({ item: row.item, before: row.before, after: row.after })),
+          changes: [
+            ...guestPersistable.map((row) => ({
+              item: `Guest profile ${row.item}`,
+              before: row.before,
+              after: row.after,
+            })),
+            ...persistedRows
+              .filter((row) => row.item !== "Reservation Internal Notes")
+              .map((row) => ({ item: row.item, before: row.before, after: row.after })),
+          ],
           guestName: persisted.guestName,
           arrival: formatStayDate(persisted.arrivalDate),
           departure: formatStayDate(persisted.departureDate),
@@ -662,8 +799,14 @@ export function ReservationEditWorkspace({
             moneyFmt,
           ),
           roomTotal: persisted.roomSubtotal == null ? null : moneyFmt(persisted.roomSubtotal),
-          source: optionLabel(persisted.commercialBookingSource, DEFAULT_BOOKING_SOURCES),
-          marketSegment: optionLabel(persisted.marketSegment, DEFAULT_MARKET_SEGMENTS),
+          source: optionLabel(persisted.commercialBookingSource, [
+            ...DEFAULT_BOOKING_SOURCES,
+            ...sourceOptions,
+          ]),
+          marketSegment: optionLabel(persisted.marketSegment, [
+            ...DEFAULT_MARKET_SEGMENTS,
+            ...segmentOptions,
+          ]),
           externalReference: persisted.externalReference?.trim() || null,
           specialRequests: persisted.specialRequests?.trim() || null,
           previousRoomTotal:
@@ -693,14 +836,27 @@ export function ReservationEditWorkspace({
           generatedAt: dateTime(new Date().toISOString()),
         }
       : null;
-  const nextEvents = buildConfirmNextEvents({
-    inventoryChanged: stayChanged || assignmentChanged,
-    rateMayChange: priceChanging,
-    folioReconciled: folioWasReconciled,
-  });
+  const nextEvents = [
+    ...(guestPersistable.length > 0
+      ? [
+          {
+            id: "guest-profile",
+            title: "Guest profile updated",
+            detail: "The master guest profile was updated.",
+          },
+        ]
+      : []),
+    ...(persistable.length > 0
+      ? buildConfirmNextEvents({
+          inventoryChanged: stayChanged || assignmentChanged,
+          rateMayChange: priceChanging,
+          folioReconciled: folioWasReconciled,
+        })
+      : []),
+  ];
 
-  const guest = guestQuery.data;
-  const guests = guestListItems(guestsQuery.data);
+  const guest = guestQuery.data?.guest;
+  const guestFieldsReady = Boolean(guest && hydratedGuestId.current === guest.id);
   const coverUrl = selectedType?.coverUrl ?? null;
   const datesLocked = liveDraft ? datesEditLocked(liveDraft) : true;
   const occupancyLocked = liveDraft ? stayEditLocked(liveDraft) : true;
@@ -737,6 +893,10 @@ export function ReservationEditWorkspace({
     const keep = {
       guestId: draft.guestId,
       guestName: draft.guestName,
+      guestFirstName: draft.guestFirstName,
+      guestLastName: draft.guestLastName,
+      guestPhone: draft.guestPhone,
+      guestEmail: draft.guestEmail,
       specialRequests: draft.specialRequests,
       notes: draft.notes,
       commercialBookingSource: draft.commercialBookingSource,
@@ -747,6 +907,10 @@ export function ReservationEditWorkspace({
     const keepBaseline = {
       guestId: baseline.guestId,
       guestName: baseline.guestName,
+      guestFirstName: baseline.guestFirstName,
+      guestLastName: baseline.guestLastName,
+      guestPhone: baseline.guestPhone,
+      guestEmail: baseline.guestEmail,
       specialRequests: baseline.specialRequests,
       notes: baseline.notes,
       commercialBookingSource: baseline.commercialBookingSource,
@@ -758,18 +922,27 @@ export function ReservationEditWorkspace({
     setBaseline({ ...stored, ...keepBaseline });
   }
 
+  function requestClose() {
+    if (unsavedDraft && !window.confirm("Close without saving these changes?")) return;
+    onBackToDesk();
+  }
+
   if (detailQuery.isError) {
     return (
-      <div className="grid h-full place-items-center p-8 text-sm text-destructive">
-        Could not load this reservation.
-      </div>
+      <EditShell onClose={requestClose}>
+        <p className="grid h-full place-items-center p-8 text-sm text-destructive">
+          Could not load this reservation.
+        </p>
+      </EditShell>
     );
   }
   if (!reservation || !liveDraft || !baseline) {
     return (
-      <div className="grid h-full place-items-center p-8 text-sm text-muted-foreground">
-        Loading reservation…
-      </div>
+      <EditShell onClose={requestClose}>
+        <p className="grid h-full place-items-center p-8 text-sm text-[#6B5E4E]">
+          Loading reservation…
+        </p>
+      </EditShell>
     );
   }
 
@@ -777,223 +950,317 @@ export function ReservationEditWorkspace({
   const roomOptions = roomsQuery.data ?? [];
   const planOptions = plansQuery.data ?? [];
 
+  const currentStep = EDIT_RESERVATION_STEPS.findIndex((row) => row.id === step);
+  const shownImpact = impactRows.filter((row) => row.status !== "unevaluated");
+  const priceImpact =
+    financialImpact != null && (financialImpact.delta == null || financialImpact.delta !== 0);
+  const hasRealImpact = Boolean(priceImpact || folioNotice || shownImpact.length > 0);
+
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col bg-[#fbfbfb]"
+      className="flex min-h-0 flex-1 flex-col bg-[#FBF7F1]"
       data-testid="edit-reservation-workspace"
     >
-      <header className="shrink-0 border-b border-[#e9dfd0] bg-white py-4 pl-5 pr-14">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-xl font-semibold text-[#4a2c1a]">
-                {step === "confirm"
-                  ? "Modification Confirmed"
-                  : step === "review"
-                    ? `Review Changes — ${reservation.confirmationNumber}`
-                    : `Edit Reservation ${reservation.confirmationNumber}`}
-              </h1>
-              {step === "confirm" ? null : <ReservationStatusBadge status={reservation.status} />}
-            </div>
-            <p className="mt-1 text-sm text-[#7A6B58]">
-              Current reservation · {formatStayDate(reservation.arrivalDate)} →{" "}
-              {formatStayDate(reservation.departureDate)} · {reservation.roomTypeName}
-            </p>
-            {step === "confirm" ? (
-              <p className="mt-1 text-xs text-[#7A6B58]">
-                Reservation {reservation.confirmationNumber} · Updated{" "}
-                {dateTime(reservation.updatedAt)}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {step === "confirm" ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={OUTLINE_BUTTON}
-                onClick={() => window.print()}
-              >
-                <Printer className="size-3.5" />
-                Print Amendment
-              </Button>
-            ) : null}
-          </div>
+      <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate font-display text-sm font-semibold text-[#F3E9D8]">
+            {reservation.confirmationNumber}
+          </h1>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-[#F3E9D8]">
+            {STATUS_LABELS[reservation.status] ?? reservation.status}
+          </span>
+          <span className="ml-auto">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+              onClick={requestClose}
+              aria-label="Close edit reservation"
+              data-testid="edit-reservation-close"
+            >
+              <X className="size-4" />
+            </Button>
+          </span>
         </div>
-        <ol
-          className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2"
-          data-testid="edit-reservation-stepper"
-        >
+        <p className="mt-0.5 truncate text-[11px] text-[#C4B6A0]">
+          Current reservation · {formatStayDate(reservation.arrivalDate)} →{" "}
+          {formatStayDate(reservation.departureDate)} · {reservation.roomTypeName}
+        </p>
+      </header>
+      <nav
+        aria-label="Edit reservation workflow"
+        className="flex h-9 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-[#DDD4C5] bg-white px-2"
+        data-testid="edit-reservation-stepper"
+      >
+        <ol className="flex min-w-0 items-stretch">
           {EDIT_RESERVATION_STEPS.map((item, index) => {
-            const current = EDIT_RESERVATION_STEPS.findIndex((row) => row.id === step);
-            const done = step === "confirm" || index < current;
-            const active = step !== "confirm" && item.id === step;
-            const label = step === "confirm" && item.id === "confirm" ? "Confirmed" : item.label;
+            const active = item.id === step;
+            const completed = index < currentStep;
             return (
-              <li key={item.id} className="flex items-center gap-3" title={item.hint}>
-                <span className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "grid size-6 place-items-center rounded-full text-xs font-bold",
-                      active
-                        ? "bg-[#C89933] text-[#251605]"
-                        : done
-                          ? "bg-[#4a2c1a] text-white"
-                          : "bg-[#f1ede6] text-[#7A6B58]",
-                    )}
-                  >
-                    {done ? <Check className="size-3.5" /> : index + 1}
+              <li key={item.id} className="flex">
+                <button
+                  type="button"
+                  title={item.hint}
+                  aria-current={active ? "step" : undefined}
+                  disabled={step === "confirm" || item.id === "confirm"}
+                  onClick={() => {
+                    if (item.id === "details" || item.id === "review") setStep(item.id);
+                  }}
+                  className={cn(
+                    "relative flex h-full items-center gap-1 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] disabled:cursor-default",
+                    completed && "text-[#436436]",
+                    active && "text-[#251605]",
+                    !completed && !active && "text-muted-foreground",
+                  )}
+                >
+                  {completed ? <Check className="size-3" /> : (
+                    <span className="tabular-nums">{index + 1}</span>
+                  )}
+                  <span className="whitespace-nowrap">
+                    {step === "confirm" && item.id === "confirm" ? "Confirmed" : item.label}
                   </span>
-                  <span
-                    className={cn(
-                      "text-sm",
-                      active ? "font-bold text-[#4a2c1a]" : "font-medium text-[#7A6B58]",
-                    )}
-                  >
-                    {label}
-                  </span>
-                </span>
-                {index < EDIT_RESERVATION_STEPS.length - 1 ? (
-                  <span aria-hidden="true" className="h-px w-8 bg-[#e9dfd0]" />
-                ) : null}
+                  {completed ? (
+                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                  ) : null}
+                  {active ? (
+                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                  ) : null}
+                </button>
               </li>
             );
           })}
         </ol>
-      </header>
+      </nav>
 
-      {step === "confirm" ? (
-        <div className="mx-5 mt-4 flex items-start gap-3 rounded-2xl border border-[#c9a24a] bg-[#f5ead0] px-4 py-3 text-sm text-[#4a2c1a]">
-          <Check className="mt-0.5 size-4 shrink-0 text-[#8C6D23]" />
-          <div>
-            <p className="font-bold">Changes Saved Successfully</p>
-            <p className="text-[#7A6B58]">
-              Reservation {reservation.confirmationNumber} was updated successfully.
-            </p>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-5">
+        {step === "confirm" ? (
+          <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-[#DDD4C5] bg-[#F4E9D0] px-4 py-3 text-sm text-[#251605]">
+            <div className="flex items-start gap-3">
+              <Check className="mt-0.5 size-4 shrink-0 text-[#8A641A]" />
+              <div>
+                <p className="font-semibold">Changes Saved Successfully</p>
+                <p className="text-[#5C4E3E]">
+                  Reservation {reservation.confirmationNumber} was updated successfully.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]"
+              onClick={() => window.print()}
+            >
+              <Printer className="size-3.5" />
+              Print Amendment
+            </Button>
           </div>
-        </div>
-      ) : null}
-
-      <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        ) : null}
           {step === "details" ? (
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid items-start gap-4 xl:grid-cols-2">
+              <div className="grid content-start gap-4">
               <SectionCard
                 icon={<UserRound className="size-4" />}
                 title="Guest"
-                subtitle="Choose an existing guest. Phone and email are shown for reference."
+                subtitle="Guest changes update the master guest profile."
               >
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Linked guest" required changed={changed("guestId")}>
-                    <p className="text-sm font-medium text-[#251605]">{liveDraft.guestName}</p>
-                  </Field>
-                  <Field label="Guest search">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+                  <Field label="First Name" required changed={changed("guestFirstName")}>
+                    <IconControl icon={<User />}>
                       <Input
-                        className="pl-8"
-                        placeholder="Search existing guest"
-                        value={guestSearch}
-                        onChange={(event) => setGuestSearch(event.target.value)}
+                        value={liveDraft.guestFirstName}
+                        disabled={!guestFieldsReady}
+                        placeholder="Enter first name"
+                        className={cn(CONTROL, "pl-9", changed("guestFirstName") && EDITED_CONTROL)}
+                        onChange={(event) =>
+                          patch({
+                            guestFirstName: event.target.value,
+                            guestName: [event.target.value, liveDraft.guestLastName]
+                              .filter((part) => part.trim())
+                              .join(" "),
+                          })
+                        }
                       />
-                    </div>
+                    </IconControl>
                   </Field>
-                  <Field label="Phone">
-                    <PlainValue value={guest?.phone ?? reservation.guestPhone} />
+                  <Field label="Last Name" changed={changed("guestLastName")}>
+                    <IconControl icon={<User />}>
+                      <Input
+                        value={liveDraft.guestLastName}
+                        disabled={!guestFieldsReady}
+                        placeholder="Enter last name"
+                        className={cn(CONTROL, "pl-9", changed("guestLastName") && EDITED_CONTROL)}
+                        onChange={(event) =>
+                          patch({
+                            guestLastName: event.target.value,
+                            guestName: [liveDraft.guestFirstName, event.target.value]
+                              .filter((part) => part.trim())
+                              .join(" "),
+                          })
+                        }
+                      />
+                    </IconControl>
                   </Field>
-                  {guestSearch.trim() ? (
-                    <div className="sm:col-span-2 rounded-md border border-[#E6DFD4] bg-[#F7F4EE] p-2">
-                      {guests.map((row) => (
-                        <button
-                          key={row.id}
-                          type="button"
-                          className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-white"
-                          onClick={() => {
-                            patch({ guestId: row.id, guestName: row.fullName });
-                            setGuestSearch("");
-                          }}
-                        >
-                          {row.fullName}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  <Field label="Email">
-                    <PlainValue value={guest?.email ?? reservation.guestEmail} />
+                  <Field label="Phone" changed={changed("guestPhone")}>
+                    <CanonicalPhoneInput
+                      value={liveDraft.guestPhone}
+                      disabled={!guestFieldsReady}
+                      onChange={(phone) => patch({ guestPhone: phone })}
+                      placeholder="Enter phone number"
+                      size="modal"
+                      containerClassName={cn(
+                        "h-9 gap-0 overflow-hidden rounded-[6px] border bg-white focus-within:border-[#8A641A] focus-within:ring-1 focus-within:ring-[#8A641A]",
+                        changed("guestPhone") ? EDITED_CONTROL : "border-[#CCCCCC]",
+                      )}
+                      triggerClassName="h-9 w-[7.75rem] rounded-none border-0 bg-transparent px-2 shadow-none hover:bg-[#FAF8F5]"
+                      className="h-9 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+                      popoverClassName="z-[90]"
+                    />
+                  </Field>
+                  <Field label="Email" changed={changed("guestEmail")}>
+                    <IconControl icon={<Mail />}>
+                      <Input
+                        type="email"
+                        value={liveDraft.guestEmail}
+                        disabled={!guestFieldsReady}
+                        placeholder="Enter email address"
+                        className={cn(CONTROL, "pl-9", changed("guestEmail") && EDITED_CONTROL)}
+                        onChange={(event) => patch({ guestEmail: event.target.value })}
+                      />
+                    </IconControl>
                   </Field>
                 </div>
+                {guestIssue && guestPersistable.length > 0 ? (
+                  <p className="mt-2 text-sm text-destructive">{guestIssue}</p>
+                ) : null}
               </SectionCard>
 
               <SectionCard
                 icon={<FileText className="size-4" />}
-                title="Booking Source & Classification"
-                subtitle="Source, market segment, and external reference."
+                title="Stay Details"
+                subtitle={
+                  liveDraft.unitCount > 1
+                    ? "Dates and occupancy stay as booked when this reservation has more than one room."
+                    : datesLocked
+                      ? "Arrival and departure stay as booked for this reservation."
+                      : "Update stay dates and occupancy."
+                }
               >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Source" changed={changed("commercialBookingSource")}>
-                    <Select
-                      value={liveDraft.commercialBookingSource || NONE}
-                      onValueChange={(value) =>
-                        patch({ commercialBookingSource: value === NONE ? "" : value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={DETAIL_DASH} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE}>{DETAIL_DASH}</SelectItem>
-                        {DEFAULT_BOOKING_SOURCES.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="Arrival Date" changed={changed("arrival")}>
+                    <IconControl icon={<Calendar />}>
+                      {!liveDraft.arrival ? (
+                        <span className="pointer-events-none absolute left-9 top-1/2 z-10 -translate-y-1/2 text-sm text-muted-foreground">
+                          Select arrival date
+                        </span>
+                      ) : null}
+                      <Input
+                        type="date"
+                        disabled={datesLocked}
+                        value={liveDraft.arrival}
+                        placeholder="Select arrival date"
+                        className={cn(
+                          CONTROL,
+                          "pl-9",
+                          !liveDraft.arrival && "text-transparent",
+                          changed("arrival") && EDITED_CONTROL,
+                        )}
+                        onChange={(event) => {
+                          const arrival = event.target.value;
+                          patch({ arrival, departure: addDays(arrival, Math.max(nights, 1)) });
+                        }}
+                      />
+                    </IconControl>
                   </Field>
-                  <Field label="Market Segment" changed={changed("marketSegment")}>
-                    <Select
-                      value={liveDraft.marketSegment || NONE}
-                      onValueChange={(value) =>
-                        patch({ marketSegment: value === NONE ? "" : value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={DETAIL_DASH} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE}>{DETAIL_DASH}</SelectItem>
-                        {DEFAULT_MARKET_SEGMENTS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <Field label="Departure Date" changed={changed("departure")}>
+                    <IconControl icon={<Calendar />}>
+                      {!liveDraft.departure ? (
+                        <span className="pointer-events-none absolute left-9 top-1/2 z-10 -translate-y-1/2 text-sm text-muted-foreground">
+                          Select departure date
+                        </span>
+                      ) : null}
+                      <Input
+                        type="date"
+                        disabled={datesLocked}
+                        value={liveDraft.departure}
+                        placeholder="Select departure date"
+                        className={cn(
+                          CONTROL,
+                          "pl-9",
+                          !liveDraft.departure && "text-transparent",
+                          changed("departure") && EDITED_CONTROL,
+                        )}
+                        onChange={(event) => patch({ departure: event.target.value })}
+                      />
+                    </IconControl>
                   </Field>
-                  <Field label="Channel">
-                    <PlainValue
-                      value={channelLabel(reservation.source, reservation.salesChannel)}
-                    />
-                  </Field>
-                  <Field label="Company">
-                    <PlainValue value={reservation.companyName} />
-                  </Field>
-                  <Field label="Travel Agent">
-                    <PlainValue value={reservation.travelAgentName} />
-                  </Field>
-                  <Field label="Group">
-                    <PlainValue value={reservation.groupName} />
-                  </Field>
-                  <Field label="External Reference" changed={changed("externalReference")}>
+                  <Field label="Nights">
                     <Input
-                      value={liveDraft.externalReference}
-                      onChange={(event) => patch({ externalReference: event.target.value })}
+                      readOnly
+                      value={String(nights)}
+                      placeholder="Enter nights"
+                      className={cn(CONTROL, "bg-[#FAF8F5]")}
                     />
+                  </Field>
+                  <Field label="Adults" changed={changed("adults")}>
+                    <IconControl icon={<Users />}>
+                      <Input
+                        type="number"
+                        min={1}
+                        disabled={occupancyLocked}
+                        value={liveDraft.adults}
+                        placeholder="Enter adults count"
+                        className={cn(CONTROL, "pl-9", changed("adults") && EDITED_CONTROL)}
+                        onChange={(event) => patch({ adults: Number(event.target.value) || 1 })}
+                      />
+                    </IconControl>
+                  </Field>
+                  <Field label="Children" changed={changed("children")}>
+                    <IconControl icon={<Users />}>
+                      <Input
+                        type="number"
+                        min={0}
+                        disabled={occupancyLocked}
+                        value={liveDraft.children}
+                        placeholder="Enter children count"
+                        className={cn(CONTROL, "pl-9", changed("children") && EDITED_CONTROL)}
+                        onChange={(event) => patch({ children: Number(event.target.value) || 0 })}
+                      />
+                    </IconControl>
                   </Field>
                 </div>
+                {occupancyBlocked ? (
+                  <p className="mt-2 text-sm text-destructive">
+                    Adults and children exceed this room type&apos;s maximum occupancy
+                    {selectedType?.maxOccupancy != null ? ` of ${selectedType.maxOccupancy}` : ""}.
+                  </p>
+                ) : null}
               </SectionCard>
 
+              <SectionCard
+                icon={<FileText className="size-4" />}
+                title="Internal Notes"
+                subtitle="Visible to authorised hotel staff. Not shown to the guest."
+              >
+                <Field label="Reservation Internal Notes" changed={changed("notes")}>
+                  <Textarea
+                    rows={4}
+                    maxLength={500}
+                    value={liveDraft.notes}
+                    onChange={(event) => patch({ notes: event.target.value })}
+                    placeholder="Enter internal notes"
+                    className={cn(CONTROL, "h-auto min-h-16 py-2", changed("notes") && EDITED_CONTROL)}
+                  />
+                </Field>
+                <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                  {liveDraft.notes.length}/500
+                </p>
+              </SectionCard>
+
+              </div>
+
+              <div className="grid content-start gap-4">
               <SectionCard
                 icon={<BedDouble className="size-4" />}
                 title="Room & Rate"
@@ -1004,9 +1271,9 @@ export function ReservationEditWorkspace({
                 }
               >
                 {liveDraft.unitCount > 1 ? (
-                  <Field label="Selected room">
+                  <Field label="Selected room" changed={changed("reservationRoomId")}>
                     <Select value={liveDraft.reservationRoomId ?? NONE} onValueChange={selectUnit}>
-                      <SelectTrigger>
+                      <SelectTrigger className={cn(SELECT, changed("reservationRoomId") && EDITED_CONTROL)}>
                         <SelectValue placeholder="Choose a room" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1023,10 +1290,10 @@ export function ReservationEditWorkspace({
                 ) : null}
                 <div className="mt-3 flex gap-3">
                   {coverUrl ? (
-                    <img src={coverUrl} alt="" className="h-24 w-32 rounded-lg object-cover" />
+                    <img src={coverUrl} alt="" className="h-20 w-28 rounded-lg object-cover" />
                   ) : (
-                    <div className="grid h-24 w-32 place-items-center rounded-lg bg-[#F4E9D0] text-[#765719]">
-                      <BedDouble className="size-8" />
+                    <div className="grid h-20 w-28 place-items-center rounded-lg bg-[#F4E9D0] text-[#765719]">
+                      <BedDouble className="size-7" />
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
@@ -1039,7 +1306,8 @@ export function ReservationEditWorkspace({
                   </div>
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label="Room type" changed={changed("roomTypeId")}>
+                  <Field label="Room Type" changed={changed("roomTypeId")}>
+                    <IconControl icon={<BedDouble />}>
                     <Select
                       value={liveDraft.roomTypeId}
                       disabled={roomTypeLocked}
@@ -1047,16 +1315,20 @@ export function ReservationEditWorkspace({
                         const nextType = (availabilityQuery.data ?? []).find(
                           (row) => row.roomTypeId === value,
                         );
+                        const roomStillMatches =
+                          liveDraft.roomId != null &&
+                          value === liveDraft.roomTypeId;
                         patch({
                           roomTypeId: value,
                           roomTypeName: nextType?.name ?? liveDraft.roomTypeName,
-                          roomId: null,
-                          roomNumber: null,
+                          ...(roomStillMatches
+                            ? {}
+                            : { roomId: null, roomNumber: null }),
                         });
                       }}
                     >
-                      <SelectTrigger>
-                        <SelectValue />
+                      <SelectTrigger className={cn(SELECT, "pl-9", changed("roomTypeId") && EDITED_CONTROL)}>
+                        <SelectValue placeholder="Select room type" />
                       </SelectTrigger>
                       <SelectContent>
                         {(
@@ -1070,42 +1342,10 @@ export function ReservationEditWorkspace({
                         ))}
                       </SelectContent>
                     </Select>
-                  </Field>
-                  <Field label="Assigned room" changed={changed("roomId")}>
-                    <Select
-                      value={liveDraft.roomId ?? UNASSIGNED}
-                      disabled={assignmentLocked}
-                      onValueChange={(value) =>
-                        patch({
-                          roomId: value === UNASSIGNED ? null : value,
-                          roomNumber:
-                            value === UNASSIGNED
-                              ? null
-                              : (roomOptions.find((row) => row.id === value)?.roomNumber ??
-                                liveDraft.roomNumber),
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                        {liveDraft.roomId &&
-                        !roomOptions.some((row) => row.id === liveDraft.roomId) ? (
-                          <SelectItem value={liveDraft.roomId}>
-                            Room {liveDraft.roomNumber ?? "current"}
-                          </SelectItem>
-                        ) : null}
-                        {roomOptions.map((row) => (
-                          <SelectItem key={row.id} value={row.id}>
-                            Room {row.roomNumber}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    </IconControl>
                   </Field>
                   <Field label="Rate Plan" changed={changed("ratePlanId")}>
+                    <IconControl icon={<Tag />}>
                     <Select
                       value={liveDraft.ratePlanId ?? NONE}
                       disabled={rateLocked}
@@ -1118,12 +1358,12 @@ export function ReservationEditWorkspace({
                         });
                       }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder={reviewDash(liveDraft.ratePlanName)} />
+                      <SelectTrigger className={cn(SELECT, "pl-9", changed("ratePlanId") && EDITED_CONTROL)}>
+                        <SelectValue placeholder="Select rate plan" />
                       </SelectTrigger>
                       <SelectContent>
                         {liveDraft.ratePlanId ? null : (
-                          <SelectItem value={NONE}>{reviewDash(liveDraft.ratePlanName)}</SelectItem>
+                          <SelectItem value={NONE}>Choose a rate plan</SelectItem>
                         )}
                         {liveDraft.ratePlanId &&
                         !planOptions.some((plan) => plan.id === liveDraft.ratePlanId) ? (
@@ -1138,18 +1378,76 @@ export function ReservationEditWorkspace({
                         ))}
                       </SelectContent>
                     </Select>
+                    </IconControl>
+                    {liveDraft.roomTypeId !== baseline.roomTypeId && !liveDraft.ratePlanId ? (
+                      <p className="mt-1 text-xs text-[#8A641A]">
+                        Choose a rate plan for this room type.
+                      </p>
+                    ) : null}
+                  </Field>
+                  <Field label="Assigned Room" changed={changed("roomId")}>
+                    <IconControl icon={<DoorOpen />}>
+                    <Select
+                      value={liveDraft.roomId ?? UNASSIGNED}
+                      disabled={assignmentLocked}
+                      onValueChange={(value) =>
+                        patch({
+                          roomId: value === UNASSIGNED ? null : value,
+                          roomNumber:
+                            value === UNASSIGNED
+                              ? null
+                              : (roomOptions.find((row) => row.id === value)?.roomNumber ??
+                                liveDraft.roomNumber),
+                        })
+                      }
+                    >
+                      <SelectTrigger className={cn(SELECT, "pl-9", changed("roomId") && EDITED_CONTROL)}>
+                        <SelectValue placeholder="Select assigned room" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                        {roomOptions.map((row) => (
+                          <SelectItem key={row.id} value={row.id}>
+                            Room {row.roomNumber}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    </IconControl>
+                    {baseline.roomId &&
+                    !liveDraft.roomId &&
+                    liveDraft.roomTypeId !== baseline.roomTypeId ? (
+                      <p className="mt-1 text-xs text-[#8A641A]">
+                        The assigned room was cleared because it does not match the selected room type.
+                      </p>
+                    ) : null}
                   </Field>
                   <Field label="Rate per Night">
-                    <PlainValue value={proposedRate} />
-                  </Field>
-                  <Field label="Nights">
-                    <PlainValue value={String(nights)} />
+                    <div className={MONEY_VALUE}>{proposedRate}</div>
+                    {storedRate !== proposedRate &&
+                    storedRate !== EDIT_DASH &&
+                    proposedRate !== EDIT_DASH ? (
+                      <p className="mt-1 text-xs text-[#8A641A]">
+                        {storedRate} → {proposedRate}
+                      </p>
+                    ) : null}
                   </Field>
                   <Field label="Reservation Room Total">
-                    <PlainValue value={proposedTotal} />
+                    <div className={MONEY_VALUE}>{proposedTotal}</div>
+                    {financialImpact &&
+                    financialImpact.previous != null &&
+                    financialImpact.next != null &&
+                    financialImpact.delta !== 0 ? (
+                      <p className="mt-1 text-xs text-[#8A641A]">
+                        {moneyFmt(financialImpact.previous)} → {moneyFmt(financialImpact.next)}
+                      </p>
+                    ) : null}
                   </Field>
                   <Field label="Cancellation Policy">
-                    <PlainValue value={proposedCancellation} />
+                    <div className="flex h-9 items-center gap-2 rounded-[6px] border border-[#E8E1D7] bg-[#FAF8F5] px-3 text-sm text-[#6B5E4E]">
+                      <Lock className="size-3.5 shrink-0" aria-hidden />
+                      <span className="truncate">{proposedCancellation}</span>
+                    </div>
                   </Field>
                 </div>
               </SectionCard>
@@ -1163,93 +1461,35 @@ export function ReservationEditWorkspace({
                   <Textarea
                     rows={3}
                     value={liveDraft.specialRequests}
+                    placeholder="Enter special requests or notes"
+                    className={cn(
+                      CONTROL,
+                      "h-auto min-h-16 py-2",
+                      changed("specialRequests") && EDITED_CONTROL,
+                    )}
                     onChange={(event) => patch({ specialRequests: event.target.value })}
                   />
                 </Field>
               </SectionCard>
-
-              <SectionCard
-                icon={<FileText className="size-4" />}
-                title="Stay Details"
-                subtitle={
-                  liveDraft.unitCount > 1
-                    ? "Dates and occupancy stay as booked when this reservation has more than one room."
-                    : datesLocked
-                      ? "Arrival and departure stay as booked for this reservation."
-                      : "Update stay dates and occupancy."
-                }
-              >
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label="Arrival Date" changed={changed("arrival")}>
-                    <Input
-                      type="date"
-                      disabled={datesLocked}
-                      value={liveDraft.arrival}
-                      onChange={(event) => {
-                        const arrival = event.target.value;
-                        patch({ arrival, departure: addDays(arrival, Math.max(nights, 1)) });
-                      }}
-                    />
-                  </Field>
-                  <Field label="Departure Date" changed={changed("departure")}>
-                    <Input
-                      type="date"
-                      disabled={datesLocked}
-                      value={liveDraft.departure}
-                      onChange={(event) => patch({ departure: event.target.value })}
-                    />
-                  </Field>
-                  <Field label="Nights">
-                    <PlainValue value={String(nights)} />
-                  </Field>
-                  <Field label="Adults" changed={changed("adults")}>
-                    <Input
-                      type="number"
-                      min={1}
-                      disabled={occupancyLocked}
-                      value={liveDraft.adults}
-                      onChange={(event) => patch({ adults: Number(event.target.value) || 1 })}
-                    />
-                  </Field>
-                  <Field label="Children" changed={changed("children")}>
-                    <Input
-                      type="number"
-                      min={0}
-                      disabled={occupancyLocked}
-                      value={liveDraft.children}
-                      onChange={(event) => patch({ children: Number(event.target.value) || 0 })}
-                    />
-                  </Field>
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                icon={<FileText className="size-4" />}
-                title="Additional Information"
-                subtitle="Visible to authorised hotel staff. Not shown to the guest."
-              >
-                <Field label="Reservation Internal Notes" changed={changed("notes")}>
-                  <Textarea
-                    rows={4}
-                    maxLength={500}
-                    value={liveDraft.notes}
-                    onChange={(event) => patch({ notes: event.target.value })}
-                    placeholder="Add notes for hotel staff..."
-                  />
-                </Field>
-                <p className="mt-1 text-right text-[11px] text-muted-foreground">
-                  {liveDraft.notes.length}/500
-                </p>
-              </SectionCard>
+              </div>
             </div>
           ) : null}
 
           {step === "review" ? (
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+            <div
+              className={cn(
+                "grid gap-4",
+                hasRealImpact && "xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]",
+              )}
+            >
               <SectionCard
                 icon={<FileText className="size-4" />}
                 title="Changes Summary"
-                subtitle="These are the fields that will be saved."
+                subtitle={
+                  persistable.length === 0 && guestPersistable.length === 0
+                    ? "Nothing will be saved."
+                    : "Before → After"
+                }
               >
                 {affectedRoomLabel(liveDraft) &&
                 (liveDraft.unitCount > 1 ||
@@ -1267,126 +1507,140 @@ export function ReservationEditWorkspace({
                     {affectedRoomLabel(liveDraft)}
                   </p>
                 ) : null}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" data-testid="edit-change-summary">
-                    <thead className="text-left text-[11px] uppercase text-muted-foreground">
-                      <tr>
-                        <th className="py-2">Item</th>
-                        <th>Current (Before)</th>
-                        <th>New (After)</th>
-                        <th>Change</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {persistable.map((row) => (
-                        <tr key={row.item} className="border-t border-[#EEE7DC]">
-                          <td className="py-2 font-medium text-[#251605]">{row.item}</td>
-                          <td>{row.before}</td>
-                          <td>{row.after}</td>
-                          <td>
-                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                              {row.change}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {persistable.length === 0 ? (
-                    <p className="py-3 text-sm text-muted-foreground">No changes to confirm.</p>
-                  ) : null}
-                </div>
+                {persistable.length === 0 && guestPersistable.length === 0 ? (
+                  <p className="py-6 text-sm text-[#6B5E4E]" data-testid="edit-no-changes">
+                    No changes made
+                  </p>
+                ) : (
+                  <div className="space-y-4" data-testid="edit-change-summary">
+                    {guestPersistable.length > 0 ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                          Guest Profile
+                        </p>
+                        <ul className="divide-y divide-[#E8DFD0] text-sm">
+                          {guestPersistable.map((row) => (
+                            <li
+                              key={row.item}
+                              className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2"
+                            >
+                              <span className="font-medium text-[#251605]">{row.item}</span>
+                              <span className="text-[#5C4E3E]">
+                                {row.before} → {row.after}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {persistable.length > 0 ? (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                          Reservation
+                        </p>
+                        <ul className="divide-y divide-[#E8DFD0] text-sm">
+                          {persistable.map((row) => (
+                            <li
+                              key={row.item}
+                              className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2"
+                            >
+                              <span className="font-medium text-[#251605]">{row.item}</span>
+                              <span className="text-[#5C4E3E]">
+                                {row.before} → {row.after}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </SectionCard>
-              <SectionCard
-                icon={<FileText className="size-4" />}
-                title="Impact Analysis"
-                subtitle="What this amendment will affect."
-              >
-                {financialImpact ? (
-                  <div
-                    className="mb-4 rounded-lg border border-[#EEE7DC] px-3 py-2 text-sm"
-                    data-testid="edit-financial-impact"
-                  >
-                    <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      {financialImpact.label}
-                    </p>
-                    {financialImpact.previous != null ? (
-                      <p className="mt-2 flex justify-between">
-                        <span>Previous</span>
-                        <span>{moneyFmt(financialImpact.previous)}</span>
-                      </p>
-                    ) : null}
-                    {financialImpact.next != null ? (
-                      <p className="mt-1 flex justify-between">
-                        <span>New</span>
-                        <span>{moneyFmt(financialImpact.next)}</span>
-                      </p>
-                    ) : (
-                      <p className="mt-2 text-muted-foreground">
-                        The updated room total is not available yet.
-                      </p>
-                    )}
-                    {financialImpact.delta != null ? (
-                      <p className="mt-1 flex justify-between font-medium">
-                        <span>Difference</span>
-                        <span>{signedDelta(financialImpact.delta)}</span>
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {folioNotice ? (
-                  <div
-                    className={cn(
-                      "mb-4 rounded-lg px-3 py-2 text-sm",
-                      folioNotice.tone === "warn"
-                        ? "bg-amber-50 text-amber-900"
-                        : "bg-[#F7F4EE] text-[#251605]",
-                    )}
-                    data-testid="edit-folio-impact"
-                  >
-                    <p className="text-xs font-semibold uppercase text-muted-foreground">
-                      Folio impact
-                    </p>
-                    <p className="mt-1">{folioNotice.detail}</p>
-                    {folioNotice.folioState ? (
-                      <p className="mt-1 text-xs">Current folio state {folioNotice.folioState}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                <ul className="space-y-3" data-testid="edit-impact-analysis">
-                  {impactRows
-                    .filter((row) => row.id !== "occupancy")
-                    .map((row) => (
-                      <li key={row.id} className="rounded-lg border border-[#EEE7DC] px-3 py-2">
-                        <p className="text-sm font-medium text-[#251605]">{row.title}</p>
-                        <p className="text-xs text-muted-foreground">{row.detail}</p>
-                      </li>
-                    ))}
-                </ul>
-                {occupancyBlocked ? (
-                  <p className="mt-3 text-sm text-destructive">Occupancy exceeds this room type.</p>
-                ) : null}
-                <div
-                  className={cn(
-                    "mt-4 rounded-lg px-3 py-2 text-sm",
-                    canConfirm
-                      ? "bg-emerald-50 text-emerald-800"
-                      : "bg-[#F7F4EE] text-muted-foreground",
-                  )}
+              {hasRealImpact ? (
+                <SectionCard
+                  icon={<FileText className="size-4" />}
+                  title="Impact Analysis"
+                  subtitle="What this amendment will affect."
                 >
-                  {canConfirm
-                    ? "All validation checks passed. You can confirm these changes."
-                    : [
+                  {priceImpact && financialImpact ? (
+                    <div
+                      className="mb-4 rounded-lg border border-[#DDD4C5] px-3 py-2 text-sm"
+                      data-testid="edit-financial-impact"
+                    >
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        {financialImpact.label}
+                      </p>
+                      {financialImpact.previous != null ? (
+                        <p className="mt-2 flex justify-between">
+                          <span>Previous</span>
+                          <span>{moneyFmt(financialImpact.previous)}</span>
+                        </p>
+                      ) : null}
+                      {financialImpact.next != null ? (
+                        <p className="mt-1 flex justify-between">
+                          <span>New</span>
+                          <span>{moneyFmt(financialImpact.next)}</span>
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-muted-foreground">
+                          The updated room total is not available yet.
+                        </p>
+                      )}
+                      {financialImpact.delta != null ? (
+                        <p className="mt-1 flex justify-between font-medium">
+                          <span>Difference</span>
+                          <span>{signedDelta(financialImpact.delta)}</span>
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {folioNotice ? (
+                    <div
+                      className={cn(
+                        "mb-4 rounded-lg px-3 py-2 text-sm",
+                        folioNotice.tone === "warn"
+                          ? "bg-amber-50 text-amber-900"
+                          : "bg-[#F7F4EE] text-[#251605]",
+                      )}
+                      data-testid="edit-folio-impact"
+                    >
+                      <p className="text-xs font-semibold uppercase text-muted-foreground">
+                        Folio impact
+                      </p>
+                      <p className="mt-1">{folioNotice.detail}</p>
+                      {folioNotice.folioState ? (
+                        <p className="mt-1 text-xs">Current folio state {folioNotice.folioState}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <ul className="space-y-3" data-testid="edit-impact-analysis">
+                    {shownImpact
+                      .filter((row) => row.id !== "occupancy")
+                      .map((row) => (
+                        <li key={row.id} className="rounded-lg border border-[#DDD4C5] px-3 py-2">
+                          <p className="text-sm font-medium text-[#251605]">{row.title}</p>
+                          <p className="text-xs text-muted-foreground">{row.detail}</p>
+                        </li>
+                      ))}
+                  </ul>
+                  {occupancyBlocked ? (
+                    <p className="mt-3 text-sm text-destructive">Occupancy exceeds this room type.</p>
+                  ) : null}
+                  {!canConfirm ? (
+                    <div className="mt-4 rounded-lg bg-[#F7F4EE] px-3 py-2 text-sm text-muted-foreground">
+                      {[
                         !datesValid ? "Departure must be after arrival." : null,
                         availabilityNone ? "No availability for the requested dates." : null,
                         occupancyBlocked ? "Occupancy exceeds this room type." : null,
                         folioNotice?.tone === "warn" ? folioNotice.detail : null,
-                        persistable.length === 0 ? "No changes to confirm." : null,
+                        guestPersistable.length > 0 ? guestIssue : null,
                       ]
                         .filter(Boolean)
                         .join(" ")}
-                </div>
-              </SectionCard>
+                    </div>
+                  ) : null}
+                </SectionCard>
+              ) : null}
             </div>
           ) : null}
 
@@ -1407,6 +1661,14 @@ export function ReservationEditWorkspace({
                     </tr>
                   </thead>
                   <tbody>
+                    {guestPersistable.map((row) => (
+                      <tr key={`guest-${row.item}`} className="border-t border-[#EEE7DC]">
+                        <td className="py-2 font-medium">Guest profile · {row.item}</td>
+                        <td>{row.before}</td>
+                        <td>{row.after}</td>
+                        <td>{row.change}</td>
+                      </tr>
+                    ))}
                     {persistedRows.map((row) => (
                       <tr key={row.item} className="border-t border-[#EEE7DC]">
                         <td className="py-2 font-medium">{row.item}</td>
@@ -1525,74 +1787,17 @@ export function ReservationEditWorkspace({
           ) : null}
         </div>
 
-        <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-[#DDD4C5] bg-white p-4 xl:block">
-          <h2 className="text-sm font-semibold text-[#251605]">
-            {step === "confirm" ? "Reservation Summary" : "Draft Summary"}
-          </h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            {step === "confirm" ? "Changes saved" : "Not yet saved"}
-          </p>
-          <div className="space-y-4 text-sm">
-            <section>
-              <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Guest</p>
-              <div className="flex gap-2">
-                <span className="grid size-10 place-items-center rounded-full bg-[#F4E9D0] text-xs font-semibold text-[#765719]">
-                  {guestInitials(liveDraft.guestName)}
-                </span>
-                <div>
-                  <p className="font-medium">{liveDraft.guestName}</p>
-                  <p className="text-xs text-muted-foreground">{reservation.confirmationNumber}</p>
-                </div>
-              </div>
-            </section>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Stay</p>
-              <p>{stayDatesLabel(liveDraft.arrival, liveDraft.departure)}</p>
-              <p className="text-xs text-muted-foreground">
-                {guestCountLabel(liveDraft.adults, liveDraft.children)}
-              </p>
-            </section>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Room & Rate
-              </p>
-              <p className="font-medium">{liveDraft.roomTypeName || EDIT_DASH}</p>
-              <p className="text-xs">
-                {liveDraft.roomNumber ? `Room ${liveDraft.roomNumber}` : "Unassigned"}
-              </p>
-              <p className="text-xs text-muted-foreground">{reviewDash(liveDraft.ratePlanName)}</p>
-            </section>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Commercial
-              </p>
-              <p>Source {sourceLabel(reservation.source, liveDraft.commercialBookingSource)}</p>
-              <p>Market segment {reviewDash(liveDraft.marketSegment)}</p>
-              <p>External reference {reviewDash(liveDraft.externalReference)}</p>
-            </section>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Special Requests
-              </p>
-              <p>{reviewDash(liveDraft.specialRequests)}</p>
-            </section>
-            <section>
-              <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-                Reservation Internal Notes
-              </p>
-              <p>{reviewDash(liveDraft.notes)}</p>
-            </section>
-            <p className="border-t border-[#EEE7DC] pt-3 text-sm font-semibold">
-              Reservation Room Total {step === "confirm" ? storedTotal : proposedTotal}
-            </p>
-          </div>
-        </aside>
-      </div>
-
-      <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white px-5 py-3">
+      <footer
+        className="flex shrink-0 items-center justify-between gap-3 border-t border-[#E8DFD0] bg-white px-4 py-2"
+        data-testid="edit-reservation-footer"
+      >
         {step === "details" ? (
           <div className="ml-auto">
-            <Button type="button" onClick={() => setStep("review")}>
+            <Button
+              type="button"
+              className={SHELL_PRIMARY_BUTTON}
+              onClick={() => setStep("review")}
+            >
               Review Changes
               <ArrowRight className="size-3.5" />
             </Button>
@@ -1600,12 +1805,18 @@ export function ReservationEditWorkspace({
         ) : null}
         {step === "review" ? (
           <>
-            <Button type="button" variant="ghost" onClick={() => setStep("details")}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9 text-[#4a2c1a]"
+              onClick={() => setStep("details")}
+            >
               <ArrowLeft className="size-3.5" />
               Back to Edit Details
             </Button>
             <Button
               type="button"
+              className={cn(SHELL_PRIMARY_BUTTON, "disabled:text-[#251605] disabled:opacity-70")}
               disabled={!canConfirm || save.isPending}
               onClick={() => save.mutate()}
             >

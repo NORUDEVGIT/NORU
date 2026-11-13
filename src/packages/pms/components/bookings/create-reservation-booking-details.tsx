@@ -997,7 +997,7 @@ function BookingCard({
     <section
       className={cn(
         PMS_OP_PANEL,
-        "!rounded-[6px] !border-[#CCCCCC] !shadow-none h-fit min-w-0 p-4",
+        "!rounded-lg !border-[#DDD4C5] !shadow-none h-fit min-w-0 p-4",
         className,
       )}
       data-testid={testId}

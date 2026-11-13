@@ -63,7 +63,7 @@ export function CreateReservationRoomingList({
 }) {
   return (
     <section
-      className="space-y-2 rounded-[6px] border border-[#CCCCCC] bg-white p-3"
+      className="space-y-2 rounded-lg border border-[#DDD4C5] bg-white p-3"
       data-testid="rooming-list"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">

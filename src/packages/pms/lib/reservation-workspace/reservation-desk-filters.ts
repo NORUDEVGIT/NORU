@@ -326,6 +326,29 @@ export type DeskSearchQuerySlice = {
   groupAccountMasterId?: string;
 };
 
+/**
+ * Same rule as `toDeskSearchQuerySlice`: a trimmed term of at least two
+ * characters is what the desk actually sends as a server search.
+ */
+export function isDeskServerSearchActive(search: string): boolean {
+  return search.trim().length >= 2;
+}
+
+/**
+ * Visible-week scope for normal desk browsing.
+ * An active server search omits the window so confirmation, guest, phone,
+ * email, room and external-reference matches are not limited to the week
+ * on screen. Explicit arrival and departure filters stay on the query slice.
+ */
+export function deskTableStayWindow(
+  search: string,
+  stayOverlapStart: string,
+  stayOverlapEnd: string,
+): { stayOverlapStart: string; stayOverlapEnd: string } | Record<string, never> {
+  if (isDeskServerSearchActive(search)) return {};
+  return { stayOverlapStart, stayOverlapEnd };
+}
+
 export function toDeskSearchQuerySlice(
   search: string,
   bar: DeskBarFilters,
@@ -333,7 +356,7 @@ export function toDeskSearchQuerySlice(
 ): DeskSearchQuerySlice {
   const slice: DeskSearchQuerySlice = {};
   const term = search.trim();
-  if (term.length >= 2) slice.search = term;
+  if (isDeskServerSearchActive(term)) slice.search = term;
   if (bar.arrivalFrom) slice.arrivalFrom = bar.arrivalFrom;
   if (bar.arrivalTo) slice.arrivalTo = bar.arrivalTo;
   if (bar.status !== "all") slice.statuses = [bar.status];

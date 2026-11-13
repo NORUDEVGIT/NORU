@@ -205,8 +205,8 @@ export function groupOverviewFields(group: GroupRecord): Array<{ label: string; 
 
 export const GROUP_DETAIL_EMPTY = {
   allotment: "No room allotments have been added.",
-  pickup: "No reservations have picked up rooms from this group yet.",
+  pickup: "No pickup yet. Pickup appears here as reservations use rooms from this block.",
   rooming: "No rooming-list entries yet.",
-  linked: "No reservations are linked to this group.",
+  linked: "No linked reservations yet. Reservations created from this group or block appear here.",
   history: "No group activity recorded yet.",
 } as const;

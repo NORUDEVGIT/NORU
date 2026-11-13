@@ -44,12 +44,12 @@ function filledDraft() {
 }
 
 describe("Group create workflow helpers", () => {
-  it("keeps exactly five dedicated steps", () => {
+  it("keeps profile registration to identity, members, billing, and review", () => {
     assert.deepEqual(
       GUEST_GROUP_CREATE_STEPS.map((step) => step.id),
-      ["details", "stay", "guests", "billing", "review"],
+      ["details", "guests", "billing", "review"],
     );
-    assert.equal(GUEST_GROUP_CREATE_STEPS.length, 5);
+    assert.equal(GUEST_GROUP_CREATE_STEPS.length, 4);
   });
 
   it("validates each step independently and preserves later fields", () => {
@@ -58,20 +58,16 @@ describe("Group create workflow helpers", () => {
     draft.arrivalDate = "2026-09-01";
     draft.departureDate = "2026-09-03";
     assert.match(groupCreateStepErrors("details", draft)[0] ?? "", /Group name/);
-    assert.equal(groupCreateStepErrors("stay", draft).length, 0);
     draft.name = "Tour";
     draft.groupTypeId = "11111111-1111-4111-8111-111111111111";
     assert.equal(groupCreateStepErrors("details", draft).length, 0);
+    assert.equal(groupCreateStepErrors("guests", draft).length, 0);
     assert.equal(draft.expectedPax, "12");
   });
 
-  it("blocks departure before arrival and non-positive pax", () => {
+  it("still calculates nights for stored stay values without requiring them", () => {
     const draft = filledDraft();
-    draft.departureDate = "2026-08-01";
-    assert.match(groupCreateStepErrors("stay", draft).join(" "), /after arrival/);
-    draft.departureDate = "2026-09-04";
-    draft.expectedPax = "0";
-    assert.match(groupCreateStepErrors("stay", draft).join(" "), /greater than 0/);
+    assert.equal(groupCreateStepErrors("review", draft).length, 0);
     assert.equal(groupCreateNights("2026-09-01", "2026-09-04"), 3);
   });
 
@@ -117,14 +113,13 @@ describe("Group create workflow helpers", () => {
     assert.match(groupCreateStepErrors("guests", draft).join(" "), /only be added/);
   });
 
-  it("requires billing arrangement and deposit when enabled", () => {
+  it("requires a billing arrangement and does not require a stay deposit", () => {
     const draft = filledDraft();
     draft.billingArrangement = "";
     assert.match(groupCreateStepErrors("billing", draft).join(" "), /Billing arrangement/);
     draft.billingArrangement = "group_master";
     draft.depositRequired = true;
-    assert.match(groupCreateStepErrors("billing", draft).join(" "), /deposit/);
-    draft.depositAmount = "500";
+    draft.depositAmount = "";
     assert.equal(groupCreateStepErrors("billing", draft).length, 0);
   });
 
@@ -145,7 +140,7 @@ describe("Group create workflow helpers", () => {
     );
     assert.equal(issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "details").length, 0);
     assert.ok(
-      issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "stay").some(
+      issuesBeforeStep(issues, GUEST_GROUP_CREATE_STEPS, "guests").some(
         (issue) => issue.key === "name",
       ),
     );
@@ -214,7 +209,8 @@ describe("Group create honesty", () => {
     assert.match(workspace, /group-create-success/);
     assert.match(workspace, /View Group/);
     assert.match(workspace, /Add Another Group/);
-    assert.match(workspace, /groupAccountMasterId: created.id/);
+    assert.match(workspace, /createGroupProfile: created.id/);
+    assert.match(workspace, /Create Group \/ Block/);
     assert.doesNotMatch(workspace, /<Dialog/);
     assert.match(workspace, /onClick=\{\(\) => go\(item\.id\)\}/);
     assert.match(workspace, /issuesBeforeStep/);
@@ -225,8 +221,8 @@ describe("Group create honesty", () => {
     assert.match(directory, /create: "group"/);
     assert.match(shell, /create === "group"/);
     assert.match(shell, /GuestGroupCreateWorkspace/);
+    assert.match(shell, /GuestGroupCreateModal/);
     assert.match(wave1, /"individual" \| "group" \| "company" \| "travel-agent"/);
-    assert.match(shell, /create: "group"/);
     assert.equal(GUEST_GROUP_CREATE_START_OVER, "Start Over");
   });
 

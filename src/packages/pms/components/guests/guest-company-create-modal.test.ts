@@ -26,11 +26,11 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-St
   const shellCode = readRel("../workspaces/guest-profile-workspace.tsx");
   const directoryCode = readRel("./guest-company-directory.tsx");
 
-  it("1. New Company opens the wide modal with Reservation-style overlay sizing", () => {
+  it("1. New Company opens the Create New Guest wizard shell", () => {
     assert.match(modalCode, /DialogContent/);
     assert.match(modalCode, /data-testid="guest-company-create-modal"/);
-    assert.match(modalCode, /w-\[min\(98vw,1550px\)\]/);
-    assert.match(modalCode, /h-\[min\(92vh,960px\)\]/);
+    assert.match(modalCode, /h-\[92vh\] max-h-\[92vh\] w-\[min\(90vw,1440px\)\]/);
+    assert.match(modalCode, /bg-\[#1F140A\]/);
   });
 
   it("2. Guest Profile workspace remains mounted behind modal when create === 'company'", () => {
@@ -134,11 +134,12 @@ describe("NORU PMS — Guest Profile: New Company Wide Modal Modernization (4-St
     assert.match(modalCode, /MODAL_SELECT_TRIGGER_CLASS/);
   });
 
-  it("11. Right-side panel includes profile preview, completion progress, and step guidance", () => {
-    assert.match(modalCode, /data-testid="company-create-profile-preview"/);
+  it("11. Completion stays in the header and the right-side rail is not mounted", () => {
     assert.match(modalCode, /guestCompanyCreateCompletion/);
-    assert.match(modalCode, /Step Guidance/);
-    assert.match(modalCode, /Property Setup Controlled/);
+    assert.match(modalCode, /% complete/);
+    assert.doesNotMatch(modalCode, /data-testid="company-create-profile-preview"/);
+    assert.doesNotMatch(modalCode, /Step Guidance/);
+    assert.doesNotMatch(modalCode, /Property Setup Controlled/);
   });
 
   it("12. Sticky footer includes Back, Next, Save Draft, and gold Create Company CTA", () => {

@@ -64,6 +64,7 @@ export type GroupAllotmentDraftRow = {
 };
 
 export type GroupCreateDraft = {
+  groupProfileId: string | null;
   name: string;
   code: string;
   groupType: GroupType;
@@ -74,8 +75,18 @@ export type GroupCreateDraft = {
   company: GroupMasterPick | null;
   travelAgent: GroupMasterPick | null;
   leader: GroupLeaderPick | null;
+  /** Stay-level source. Blank uses the profile default. */
   source: string;
+  /** Stay-level market segment. Blank uses the profile default. */
   marketSegment: string;
+  profileGroupTypeName: string;
+  profileSource: string;
+  profileSourceName: string;
+  profileMarketSegment: string;
+  profileMarketSegmentName: string;
+  profileNotes: string;
+  /** Guest-facing special requests from the group profile. Not written onto the stay. */
+  profileSpecialRequests: string;
   ratePlanId: string;
   notes: string;
   allotments: GroupAllotmentDraftRow[];
@@ -83,6 +94,7 @@ export type GroupCreateDraft = {
 
 export function emptyGroupCreateDraft(): GroupCreateDraft {
   return {
+    groupProfileId: null,
     name: "",
     code: "",
     groupType: GROUP_TYPES[0],
@@ -95,6 +107,13 @@ export function emptyGroupCreateDraft(): GroupCreateDraft {
     leader: null,
     source: "",
     marketSegment: "",
+    profileGroupTypeName: "",
+    profileSource: "",
+    profileSourceName: "",
+    profileMarketSegment: "",
+    profileMarketSegmentName: "",
+    profileNotes: "",
+    profileSpecialRequests: "",
     ratePlanId: "",
     notes: "",
     allotments: [],
@@ -123,6 +142,7 @@ export function isGroupCreateStatus(value: string): value is GroupCreateStatus {
 export function groupCreateDraftIsDirty(draft: GroupCreateDraft): boolean {
   const empty = emptyGroupCreateDraft();
   return (
+    draft.groupProfileId !== empty.groupProfileId ||
     draft.name.trim() !== empty.name ||
     draft.code.trim() !== empty.code ||
     draft.groupType !== empty.groupType ||
@@ -135,6 +155,11 @@ export function groupCreateDraftIsDirty(draft: GroupCreateDraft): boolean {
     draft.leader !== null ||
     draft.source.trim() !== "" ||
     draft.marketSegment.trim() !== "" ||
+    draft.profileGroupTypeName.trim() !== "" ||
+    draft.profileSource.trim() !== "" ||
+    draft.profileMarketSegment.trim() !== "" ||
+    draft.profileNotes.trim() !== "" ||
+    draft.profileSpecialRequests.trim() !== "" ||
     draft.ratePlanId !== "" ||
     draft.notes.trim() !== "" ||
     draft.allotments.length > 0
@@ -171,7 +196,100 @@ export function blockFitsGroupWindow(input: {
   return input.startDate >= input.groupArrival && input.endDate <= input.groupDeparture;
 }
 
+export function groupTypeFromProfileName(name: string | null | undefined): GroupType | null {
+  const needle = name?.trim().toLowerCase();
+  if (!needle) return null;
+  return (
+    GROUP_TYPES.find(
+      (type) => type === needle || GROUP_TYPE_LABELS[type].toLowerCase() === needle,
+    ) ?? null
+  );
+}
+
+/** Profile master fields. Stay source, segment, notes, status, rate, cutoff, and allotment are left unchanged. */
+export function groupProfileMasterPatch(
+  draft: GroupCreateDraft,
+  profile: {
+    id: string;
+    name: string;
+    code: string | null;
+    notes: string | null;
+    specialRequests?: string | null;
+    groupTypeName: string | null;
+    companyMasterId: string | null;
+    companyMasterName: string | null;
+    travelAgentMasterId: string | null;
+    travelAgentMasterName: string | null;
+    primaryContactGuestId: string | null;
+    primaryContactName: string | null;
+    sourceCodeId: string | null;
+    marketSegmentId: string | null;
+  },
+  catalogues: {
+    sources: ReadonlyArray<{ id: string; code: string; name?: string }>;
+    segments: ReadonlyArray<{ id: string; code: string; name?: string }>;
+  },
+): Partial<GroupCreateDraft> {
+  const source = catalogues.sources.find((row) => row.id === profile.sourceCodeId);
+  const segment = catalogues.segments.find((row) => row.id === profile.marketSegmentId);
+  return {
+    groupProfileId: profile.id,
+    name: profile.name,
+    code: profile.code ?? "",
+    groupType: groupTypeFromProfileName(profile.groupTypeName) ?? draft.groupType,
+    profileGroupTypeName: profile.groupTypeName?.trim() || "",
+    company: profile.companyMasterId
+      ? {
+          id: profile.companyMasterId,
+          name: profile.companyMasterName?.trim() || "Company",
+          code: null,
+        }
+      : null,
+    travelAgent: profile.travelAgentMasterId
+      ? {
+          id: profile.travelAgentMasterId,
+          name: profile.travelAgentMasterName?.trim() || "Travel agency",
+          code: null,
+        }
+      : null,
+    leader: profile.primaryContactGuestId
+      ? {
+          id: profile.primaryContactGuestId,
+          name: profile.primaryContactName?.trim() || "Guest",
+        }
+      : null,
+    profileSource: source?.code ?? "",
+    profileSourceName: source?.name?.trim() || source?.code || "",
+    profileMarketSegment: segment?.code ?? "",
+    profileMarketSegmentName: segment?.name?.trim() || segment?.code || "",
+    profileNotes: profile.notes ?? "",
+    profileSpecialRequests: profile.specialRequests ?? "",
+  };
+}
+
+/** Drops the selected profile. Stay dates, status, rate, cutoff, notes, source, segment, and allotment remain. */
+export function clearGroupProfileSelection(): Partial<GroupCreateDraft> {
+  const empty = emptyGroupCreateDraft();
+  return {
+    groupProfileId: null,
+    name: "",
+    code: "",
+    groupType: empty.groupType,
+    company: null,
+    travelAgent: null,
+    leader: null,
+    profileGroupTypeName: "",
+    profileSource: "",
+    profileSourceName: "",
+    profileMarketSegment: "",
+    profileMarketSegmentName: "",
+    profileNotes: "",
+    profileSpecialRequests: "",
+  };
+}
+
 export function validateGroupCreateDetails(draft: GroupCreateDraft): string | null {
+  if (!draft.groupProfileId) return "Select a group profile.";
   if (!draft.name.trim()) return "Enter a group name.";
   if (!draft.arrivalDate || !draft.departureDate) return "Enter arrival and departure dates.";
   if (!groupStayIsValid(draft.arrivalDate, draft.departureDate)) {
@@ -398,6 +516,7 @@ export type GroupCreateCommandInput = {
   cutoffDate: string | null;
   companyMasterId: string | null;
   travelAgentMasterId: string | null;
+  groupAccountMasterId: string | null;
   leaderGuestId: string | null;
   source: string | null;
   marketSegment: string | null;
@@ -452,9 +571,10 @@ export function toGroupCreateCommand(
     cutoffDate: draft.cutoffDate || null,
     companyMasterId: draft.company?.id ?? null,
     travelAgentMasterId: draft.travelAgent?.id ?? null,
+    groupAccountMasterId: draft.groupProfileId,
     leaderGuestId: draft.leader?.id ?? null,
-    source: draft.source.trim() || null,
-    marketSegment: draft.marketSegment.trim() || null,
+    source: draft.source.trim() || draft.profileSource.trim() || null,
+    marketSegment: draft.marketSegment.trim() || draft.profileMarketSegment.trim() || null,
     ratePlanId: draft.ratePlanId || null,
     notes: draft.notes.trim() || null,
   };

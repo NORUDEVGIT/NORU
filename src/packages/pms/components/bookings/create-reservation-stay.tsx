@@ -176,7 +176,7 @@ export function CreateReservationStay({
       id="create-reservation-stay-information"
       className={cn(
         PMS_OP_PANEL,
-        "!rounded-[6px] !border-[#CCCCCC] !shadow-none @container h-full scroll-mt-3 p-4",
+        "!rounded-lg !border-[#DDD4C5] !shadow-none @container h-full scroll-mt-3 p-4",
       )}
       data-testid="create-reservation-stay"
     >
@@ -232,20 +232,16 @@ export function CreateReservationStay({
         </div>
         <div className="min-w-0 space-y-1">
           <StayFieldLabel htmlFor="rooms-requested">Rooms</StayFieldLabel>
-          {occupancyReadOnly ? (
-            <StayReadOnlyValue id="rooms-requested" value={rooms} testId="stay-rooms-total" />
-          ) : (
-            <StayCountInput
-              id="rooms-requested"
-              className={denseControl}
-              value={rooms}
-              min={1}
-              max={20}
-              disabled={roomsReadOnly || !onRoomsChange}
-              onCommit={(next) => onRoomsChange?.(next)}
-            />
-          )}
-          {/* TODO: wire to Rooms & Inventory — room count is not on the create payload */}
+          <StayCountInput
+            id="rooms-requested"
+            data-testid="stay-rooms"
+            className={denseControl}
+            value={rooms}
+            min={1}
+            max={20}
+            disabled={roomsReadOnly || !onRoomsChange}
+            onCommit={(next) => onRoomsChange?.(next)}
+          />
         </div>
         <div className="min-w-0 space-y-1">
           <StayFieldLabel htmlFor="adults">Adults</StayFieldLabel>
