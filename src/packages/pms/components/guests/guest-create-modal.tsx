@@ -5,11 +5,30 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  BadgePercent,
+  BedDouble,
+  Bell,
+  Briefcase,
+  Building,
+  Building2,
+  Calendar,
   Check,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Compass,
+  Hash,
+  Languages,
+  Lock,
+  Mail,
+  MapPin,
+  MoreHorizontal,
+  NotebookPen,
+  SlidersHorizontal,
+  Upload,
   User,
+  Users,
+  UtensilsCrossed,
   X,
 } from "lucide-react";
 
@@ -33,6 +52,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -104,11 +129,10 @@ import {
 import { linkGuestAccount } from "@/packages/pms/lib/guest-accounts.functions";
 import { kindFromTypeCode } from "@/packages/pms/lib/guest-identity-documents";
 import {
-  GUEST_GENDER_LABELS,
-  GUEST_GENDERS,
   GUEST_TITLE_LABELS,
   GUEST_TITLES,
 } from "@/packages/pms/lib/guest-profile-individual";
+import { GUEST_RELATIONSHIP_ROLE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
 import {
   PREFERRED_CONTACT_METHOD_LABELS,
   PREFERRED_CONTACT_METHODS,
@@ -117,7 +141,12 @@ import {
 } from "@/packages/pms/lib/guest-profile-overview";
 import { GuestFormStagedLinks } from "@/packages/pms/components/guests/guest-form-staged-links";
 import { invalidateGuestWorkspaceQueries } from "@/packages/pms/lib/guest-profile-listing";
+import { identityDocumentDateIssue } from "@/packages/pms/lib/guest-identity-documents";
+import { propertyToday } from "@/shared/lib/property-dates";
+import { useRestaurantTimezone } from "@/core/state/property-format";
 import { formatCreateIssuesByStep, issuesBeforeStep } from "@/packages/pms/lib/guest-create-step-issues";
+import { GUEST_NATIONALITY_OPTIONS, nationalityValueForStored } from "@/packages/pms/lib/guest-nationalities";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import {
   resolveGuestFieldRules,
@@ -144,10 +173,21 @@ import {
 } from "@/packages/pms/lib/guest-creation-field-definitions";
 
 const MODAL_CONTROL_CLASS =
-  "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
+  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none transition-colors placeholder:text-[#8C7E72] hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#8A641A] disabled:cursor-not-allowed disabled:bg-[#FAF8F5] disabled:text-[#8C7E72]";
 
 const MODAL_SELECT_TRIGGER_CLASS =
-  "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] justify-between";
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus:border-[#8A641A] focus:ring-1 focus:ring-[#8A641A]";
+
+const GUEST_CREATE_GENDER_OPTIONS = [
+  ["male", "Male"],
+  ["female", "Female"],
+  ["unspecified", "Prefer not to say"],
+] as const;
+
+const PHONE_GROUP =
+  "h-9 gap-0 overflow-hidden rounded-[6px] border border-[#CCCCCC] bg-white";
+const PHONE_TRIGGER = "h-9 w-[7.75rem] rounded-none border-0 bg-white shadow-none hover:bg-white";
+const PHONE_INPUT = "h-9 rounded-none border-0 bg-white shadow-none focus-visible:ring-0";
 
 const MODAL_TEXTAREA_CLASS =
   "w-full rounded-[6px] border border-[#CCCCCC] bg-white p-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE]";
@@ -296,6 +336,8 @@ export function GuestCreateModal({
   const loadDocs = useServerFn(listGuestDocuments);
   const loadDocDetail = useServerFn(getGuestDocument);
   const deleteDoc = useServerFn(deleteGuestDocument);
+  const propertyTimezone = useRestaurantTimezone();
+  const documentToday = propertyToday(propertyTimezone);
 
   const localHold = useMemo(
     () => (ignoreDraft ? null : (!isEdit && open ? readGuestCreateHold(restaurantId) : null)),
@@ -518,6 +560,7 @@ export function GuestCreateModal({
     documentTypes: context.data?.documentTypes ?? [],
     docFiles,
     identityActive,
+    today: documentToday,
   });
   const allowedPrefTypes = useMemo(() => {
     const all = context.data?.preferenceTypes ?? [];
@@ -542,6 +585,7 @@ export function GuestCreateModal({
     documentTypes: context.data?.documentTypes ?? [],
     docFiles,
     identityActive,
+    today: documentToday,
   });
 
   // Also check Card 4 required custom fields (only individual fields, never company or travel agency)
@@ -571,7 +615,7 @@ export function GuestCreateModal({
   }
 
   function fieldError(key: string, stepId: GuestCreateStepId = step) {
-    if (!attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
+    if (stepId !== "identity" && !attemptedSteps.has(stepId) && !attemptedSteps.has("review")) return undefined;
     return fieldIssues.find((issue) => issue.key === key)?.message;
   }
 
@@ -692,6 +736,7 @@ export function GuestCreateModal({
         documentTypes: context.data?.documentTypes ?? [],
         docFiles,
         identityActive,
+        today: documentToday,
       });
       if (issues.length) throw new Error(formatCreateIssuesByStep(issues, activeSteps));
 
@@ -714,6 +759,14 @@ export function GuestCreateModal({
           if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) {
             throw new Error(`Document #${i + 1}: Expiry date is required.`);
           }
+          const dates = identityDocumentDateIssue({
+            expiryDateActive: docType.expiryDateActive,
+            issueDate: doc.issueDate,
+            expiryDate: doc.expiryDate,
+            today: documentToday,
+          });
+          if (dates.expiry) throw new Error(`Document #${i + 1}: ${dates.expiry}`);
+          if (dates.issue) throw new Error(`Document #${i + 1}: ${dates.issue}`);
           if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) {
             throw new Error(`Document #${i + 1}: Issuing authority is required.`);
           }
@@ -940,6 +993,14 @@ export function GuestCreateModal({
           if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) {
             throw new Error(`Document #${i + 1}: Expiry date is required.`);
           }
+          const dates = identityDocumentDateIssue({
+            expiryDateActive: docType.expiryDateActive,
+            issueDate: doc.issueDate,
+            expiryDate: doc.expiryDate,
+            today: documentToday,
+          });
+          if (dates.expiry) throw new Error(`Document #${i + 1}: ${dates.expiry}`);
+          if (dates.issue) throw new Error(`Document #${i + 1}: ${dates.issue}`);
           if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) {
             throw new Error(`Document #${i + 1}: Issuing authority is required.`);
           }
@@ -1165,8 +1226,8 @@ export function GuestCreateModal({
           data-testid="guest-create-modal"
           overlayClassName={overlayClassName ?? "z-[80]"}
           className={cn(
-            "z-[80] flex h-[min(92vh,960px)] w-[min(98vw,1550px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
-            "rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] shadow-2xl",
+            "z-[80] flex h-[92vh] max-h-[92vh] w-[min(90vw,1440px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none",
+            "rounded-lg border border-[#3A2A16] bg-[#FBF7F1] shadow-2xl",
             "[&>button]:hidden",
             contentClassName,
           )}
@@ -1187,44 +1248,69 @@ export function GuestCreateModal({
             if (hasNestedModalLayer()) e.preventDefault();
           }}
         >
-          {/* Header */}
-          <div className="shrink-0 border-b border-[#DDD4C5] bg-white px-6 py-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle className="font-display text-xl font-bold text-[#251605]">
-                  {isEdit ? `Edit Guest — ${guestDisplayName(draft) || "Guest"}` : GUEST_CREATE_TITLE}
-                </DialogTitle>
-                <DialogDescription className="mt-0.5 text-xs text-[#756A5B]">
-                  {isEdit
-                    ? "Update guest details and click Save Changes when finished."
-                    : GUEST_CREATE_COPY}
-                </DialogDescription>
-              </div>
-
-              <div className="flex items-center gap-3">
+          <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+            <div className="flex min-w-0 items-center gap-2">
+              <DialogTitle className="font-display text-sm font-semibold text-[#F3E9D8]">
+                {isEdit ? `Edit Guest — ${guestDisplayName(draft) || "Guest"}` : GUEST_CREATE_TITLE}
+              </DialogTitle>
+              <span className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-[11px] font-semibold text-[#F3E9D8]">
+                {completion.percent}% complete
+              </span>
+              <DialogDescription className="sr-only">{GUEST_CREATE_COPY}</DialogDescription>
+              <span className="ml-auto flex items-center gap-1.5">
                 <Button
                   type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-[#DDD4C5] text-xs text-[#251605]"
+                  variant="ghost"
+                  className="h-8 px-2 text-xs text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
                   onClick={() => duplicateMutation.mutate()}
                   disabled={duplicateMutation.isPending}
                 >
                   Check for Duplicates
                 </Button>
-                <button
+                {isEdit ? null : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                        aria-label="More actions"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[90]">
+                      <DropdownMenuItem
+                        data-testid="guest-create-start-over"
+                        disabled={!guestCreateHasChanges(draft, context.data?.profileType?.defaults)}
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => setStartOverOpen(true)}
+                      >
+                        {GUEST_CREATE_START_OVER}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                <Button
                   type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
                   onClick={handleAttemptClose}
                   aria-label="Close dialog"
-                  className="rounded-full p-1.5 text-[#756A5B] hover:bg-[#F7F4EE] hover:text-[#251605]"
                 >
-                  <X className="size-5" />
-                </button>
-              </div>
+                  <X className="size-4" />
+                </Button>
+              </span>
             </div>
-
-            {/* Stepper Navigation */}
-            <ol className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#E8E4DC] pt-3" data-testid="guest-create-stepper">
+          </header>
+          <nav
+            aria-label="Create guest steps"
+            className="flex h-9 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-[#DDD4C5] bg-white px-2"
+            data-testid="guest-create-stepper"
+          >
+            <ol className="flex min-w-0 items-stretch">
               {activeSteps.map((item, index) => {
                 const current = item.id === step;
                 const done = index < stepIndex;
@@ -1232,38 +1318,34 @@ export function GuestCreateModal({
                   fieldIssues.some((issue) => issue.step === item.id) &&
                   (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
                 return (
-                  <li key={item.id} className="flex items-center gap-2">
-                    {index > 0 ? <span className="h-px w-4 bg-[#DDD4C5]" aria-hidden /> : null}
+                  <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => go(item.id)}
+                      aria-current={current ? "step" : undefined}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                        current && "bg-[#251605] text-[#F7F4EE] shadow-sm",
-                        done && !invalid && "border border-[#C89933]/50 bg-[#C89933]/10 text-[#765719]",
-                        !current && !done && !invalid && "border border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#F7F4EE]",
-                        invalid && "border border-destructive bg-destructive/10 text-destructive",
+                        "relative flex h-full items-center gap-1 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                        done && !invalid && "text-[#436436]",
+                        current && "text-[#251605]",
+                        !current && !done && "text-muted-foreground",
+                        invalid && "text-destructive",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "grid size-4 place-items-center rounded-full text-[10px]",
-                          current ? "bg-[#C89933] text-[#251605]" : "bg-transparent",
-                        )}
-                      >
-                        {done ? <Check className="size-3" /> : item.number}
-                      </span>
-                      <span>{item.title}</span>
+                      {done && !invalid ? <Check className="size-3" /> : <span className="tabular-nums">{item.number}</span>}
+                      <span className="whitespace-nowrap">{item.title}</span>
+                      {done && !invalid ? (
+                        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                      ) : null}
+                      {current ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" /> : null}
                     </button>
                   </li>
                 );
               })}
             </ol>
-          </div>
+          </nav>
 
           {/* Main Body Grid */}
-          <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-5 overflow-y-auto p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-            {/* Left: Step Form Content */}
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBF7F1] p-4">
             <div className="min-w-0 space-y-4">
               {duplicates && duplicates.length > 0 ? (
                 <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
@@ -1341,6 +1423,7 @@ export function GuestCreateModal({
                   setDocFiles={setDocFiles}
                   error={fieldError("IDENTITY_DOCUMENT", "identity")}
                   fieldError={fieldError}
+                  today={documentToday}
                   onRemoveExistingDoc={(id) => setDeletedDocIds((prev) => [...prev, id])}
                 />
               ) : null}
@@ -1357,19 +1440,20 @@ export function GuestCreateModal({
               ) : null}
 
               {step === "business" ? (
-                <div className="space-y-4 rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+                <div className="space-y-4 rounded-lg border border-[#DDD4C5] bg-white p-5 shadow-sm">
                   <div>
                     <h2 className="font-display text-base font-semibold text-[#251605]">
-                      Business / Company Relationship
+                      Business & Membership
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      Link this guest to a corporate or travel agency master account.
+                      Link this guest to a company, group, or travel agency.
                     </p>
                   </div>
                   <GuestFormStagedLinks
                     restaurantId={restaurantId}
                     links={draft.links}
                     onChange={(links) => set("links", links)}
+                    intro="Search for the account, choose the relationship, then add it. The link is saved when you create the guest."
                   />
                   {fieldError("COMPANY", "business") ? (
                     <p className="text-xs text-destructive">{fieldError("COMPANY", "business")}</p>
@@ -1402,82 +1486,17 @@ export function GuestCreateModal({
                   customValues={customValues}
                   dynamicFields={dynamicFieldRules}
                   identityActive={identityActive}
+                  documentTypes={context.data?.documentTypes ?? []}
+                  preferenceTypes={allowedPrefTypes}
                   activeSteps={activeSteps}
                   onEdit={go}
                 />
               ) : null}
             </div>
-
-            {/* Right: Contextual Profile Preview & Completion Panel */}
-            <aside className="hidden space-y-4 xl:block">
-              {/* Profile Preview Card */}
-              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm" data-testid="guest-create-profile-preview">
-                <h3 className="font-display text-sm font-semibold text-[#251605]">Profile Preview</h3>
-                <div className="mt-3 flex items-center gap-3">
-                  {photoPreview ? (
-                    <img src={photoPreview} alt="" className="size-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="flex size-12 items-center justify-center rounded-full bg-[#EFE8DC] text-[#756A5B]">
-                      <User className="size-6" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-[#251605]">
-                      {guestDisplayName(draft) || "Guest Name"}
-                    </p>
-                    <span className="inline-block rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#765719]">
-                      Individual Guest
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-1 border-t border-[#E8E4DC] pt-3 text-xs text-[#756A5B]">
-                  <p className="truncate">{draft.phone || "No phone recorded"}</p>
-                  <p className="truncate">{draft.email || "No email recorded"}</p>
-                  <p className="truncate text-muted-foreground">
-                    {[draft.city, draft.country].filter(Boolean).join(", ") || "No location recorded"}
-                  </p>
-                </div>
-              </section>
-
-              {/* Data Completion Card */}
-              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-sm font-semibold text-[#251605]">Data Completion</h3>
-                  <span className="font-mono text-sm font-bold text-[#8A641A]">{completion.percent}%</span>
-                </div>
-                <div className="mt-2 h-1.5 w-full rounded-full bg-[#EFE8DC]">
-                  <div
-                    className="h-1.5 rounded-full bg-[#C89933] transition-all"
-                    style={{ width: `${completion.percent}%` }}
-                  />
-                </div>
-                <ul className="mt-3 space-y-1.5 text-xs">
-                  {completion.items.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        className="text-left text-[#756A5B] hover:text-[#251605] hover:underline"
-                        onClick={() => go(item.step)}
-                      >
-                        {item.label}
-                      </button>
-                      <span className={item.complete ? "text-emerald-700" : item.requiredRemaining ? "text-destructive font-bold" : "text-muted-foreground"}>
-                        {item.requiredRemaining ? "Required" : item.complete ? "✓" : "—"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              <div className="rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-3 text-[11px] leading-relaxed text-[#756A5B]">
-                <p className="font-medium text-[#251605]">Property Setup Controlled</p>
-                <p className="mt-0.5">Required fields, document types, and dynamic categories come from Property Setup.</p>
-              </div>
-            </aside>
           </div>
 
           {/* Sticky Footer */}
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-white px-6 py-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#E8DFD0] bg-white px-4 py-2">
             {isEdit ? (
               <>
                 <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
@@ -1498,19 +1517,20 @@ export function GuestCreateModal({
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-[#DDD4C5]"
-                    data-testid="guest-create-start-over"
-                    onClick={() => setStartOverOpen(true)}
-                    disabled={!guestCreateHasChanges(draft, context.data?.profileType?.defaults)}
-                  >
-                    {GUEST_CREATE_START_OVER}
-                  </Button>
+                  {stepIndex === 0 ? (
+                    <Button type="button" variant="outline" onClick={handleAttemptClose} className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]">
+                      Cancel
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
+                      onClick={() => go(activeSteps[stepIndex - 1].id)}
+                    >
+                      Back
+                    </Button>
+                  )}
                   {holdState === "saving" ? (
                     <span className="text-xs text-muted-foreground">Saving progress…</span>
                   ) : null}
@@ -1523,27 +1543,40 @@ export function GuestCreateModal({
                   <Button
                     type="button"
                     variant="outline"
-                    className="border-[#DDD4C5]"
+                    className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
                     onClick={() => draftMutation.mutate()}
                     disabled={draftMutation.isPending}
                   >
                     Save as Draft
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-[#DDD4C5]"
-                    disabled={stepIndex === 0}
-                    onClick={() => go(activeSteps[stepIndex - 1].id)}
-                  >
-                    ← Back
-                  </Button>
-
                   {step === "review" ? (
                     <Button
                       type="button"
-                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold shadow-sm"
-                      onClick={() => createMutation.mutate()}
+                      className={SHELL_PRIMARY_BUTTON}
+                      onClick={() => {
+                        if (missingCustomFields.length > 0) {
+                          markAttempted("additional", "review");
+                          toast.error(`${missingCustomFields[0].label} is required.`);
+                          return;
+                        }
+                        const issues = guestCreateFieldIssues(draft, {
+                          rules,
+                          set3: context.data?.set3 ?? null,
+                          requiredPreferenceTypeIds: requiredPrefs,
+                          dataProcessingRequired: Boolean(context.data?.dataProcessingRequired),
+                          hasPhoto: Boolean(photoPreview || photoFile),
+                          documentTypes: context.data?.documentTypes ?? [],
+                          docFiles,
+                          identityActive,
+                          today: documentToday,
+                        });
+                        if (issues.length) {
+                          markAttempted("review", ...issues.map((issue) => issue.step));
+                          toast.error(formatCreateIssuesByStep(issues, activeSteps));
+                          return;
+                        }
+                        createMutation.mutate();
+                      }}
                       disabled={createMutation.isPending || !isIndividualActive}
                       data-testid="create-guest-final"
                     >
@@ -1552,7 +1585,8 @@ export function GuestCreateModal({
                   ) : (
                     <Button
                       type="button"
-                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-medium shadow-sm"
+                      className={SHELL_PRIMARY_BUTTON}
+                      disabled={step === "identity" && fieldIssues.some((issue) => issue.step === "identity")}
                       onClick={() => {
                         if (validateCurrent()) go(activeSteps[stepIndex + 1].id);
                       }}
@@ -1652,6 +1686,43 @@ function Field({
   );
 }
 
+function IconInput({
+  icon,
+  className,
+  ...props
+}: React.ComponentProps<typeof Input> & { icon: ReactNode }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8C7E72]">{icon}</span>
+      <Input {...props} className={cn(MODAL_CONTROL_CLASS, "pl-9", className)} />
+    </div>
+  );
+}
+
+function UploadControl({
+  accept,
+  label,
+  onFile,
+}: {
+  accept: string;
+  label: string;
+  onFile: (file: File | null) => void;
+}) {
+  return (
+    <label className="flex h-9 cursor-pointer items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#8C7E72] hover:border-[#8A641A]">
+      <Upload className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="text-xs font-medium text-[#8A641A]">Browse</span>
+      <input
+        type="file"
+        accept={accept}
+        className="sr-only"
+        onChange={(event) => onFile(event.target.files?.[0] ?? null)}
+      />
+    </label>
+  );
+}
+
 function BasicStep({
   draft,
   set,
@@ -1674,7 +1745,6 @@ function BasicStep({
     [],
   );
   const countryCode = countryCodeFromInput(draft.country) || (draft.country ? draft.country : "");
-  const nationalityCode = countryCodeFromInput(draft.nationality) || (draft.nationality ? draft.nationality : "");
   const availableRegions = regionsForCountry(draft.country);
   const regionOptions = useMemo(
     () => availableRegions.map((region) => ({ value: region, label: region })),
@@ -1685,11 +1755,14 @@ function BasicStep({
   return (
     <div className="space-y-4">
       {/* Personal Details */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm">
         <h2 className="font-display text-base font-semibold text-[#251605]">Personal Details</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Profile Type">
-            <Input value="Individual Guest" disabled className={cn(MODAL_CONTROL_CLASS, "font-medium")} />
+            <div className="flex h-9 items-center gap-2 rounded-[6px] border border-[#E8E1D7] bg-[#FAF8F5] px-3 text-sm text-[#6B5E4E]">
+              <Lock className="size-3.5 shrink-0" />
+              <span className="truncate">Individual Guest</span>
+            </div>
           </Field>
           <Field label="Title" required={required("TITLE")} error={fieldError("TITLE", "basic")}>
             <Select
@@ -1710,12 +1783,13 @@ function BasicStep({
             </Select>
           </Field>
           <Field label="First Name" required error={fieldError("FIRST_NAME", "basic")}>
-            <Input
+            <IconInput
+              icon={<User className="size-4" />}
               value={draft.firstName}
               onChange={(event) => set("firstName", event.target.value)}
               data-testid="guest-create-first-name"
               autoComplete="given-name"
-              className={MODAL_CONTROL_CLASS}
+              placeholder="Enter first name"
             />
           </Field>
           <Field label="Middle Name" required={required("MIDDLE_NAME")} error={fieldError("MIDDLE_NAME", "basic")}>
@@ -1727,10 +1801,11 @@ function BasicStep({
           </Field>
           {visible("LAST_NAME") ? (
             <Field label="Last Name" required={required("LAST_NAME")} error={fieldError("LAST_NAME", "basic")}>
-              <Input
+              <IconInput
+                icon={<User className="size-4" />}
                 value={draft.lastName}
                 onChange={(event) => set("lastName", event.target.value)}
-                className={MODAL_CONTROL_CLASS}
+                placeholder="Enter last name"
               />
             </Field>
           ) : null}
@@ -1743,27 +1818,27 @@ function BasicStep({
           </Field>
           {visible("DATE_OF_BIRTH") ? (
             <Field label="Date of Birth" required={required("DATE_OF_BIRTH")} error={fieldError("DATE_OF_BIRTH", "basic")}>
-              <Input
+              <IconInput
+                icon={<Calendar className="size-4" />}
                 type="date"
                 value={draft.dateOfBirth}
                 onChange={(event) => set("dateOfBirth", event.target.value)}
-                className={MODAL_CONTROL_CLASS}
               />
             </Field>
           ) : null}
           <Field label="Gender" required={required("GENDER")} error={fieldError("GENDER", "basic")}>
             <Select
-              value={draft.gender || "__none"}
+              value={draft.gender === "male" || draft.gender === "female" || draft.gender === "unspecified" ? draft.gender : "__none"}
               onValueChange={(value) =>
                 set("gender", value === "__none" ? "" : (value as GuestCreateDraft["gender"]))
               }
             >
-              <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}><SelectValue placeholder="Gender" /></SelectTrigger>
+              <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}><SelectValue placeholder="Select gender" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none">None</SelectItem>
-                {GUEST_GENDERS.map((gender) => (
-                  <SelectItem key={gender} value={gender}>
-                    {GUEST_GENDER_LABELS[gender]}
+                <SelectItem value="__none">Select gender</SelectItem>
+                {GUEST_CREATE_GENDER_OPTIONS.map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1773,15 +1848,12 @@ function BasicStep({
             <Field label="Nationality" required={required("NATIONALITY")} error={fieldError("NATIONALITY", "basic")}>
               <SearchableSelect
                 id="guest-create-nationality"
-                value={nationalityCode}
-                options={countryOptions}
+                value={nationalityValueForStored(draft.nationality)}
+                options={GUEST_NATIONALITY_OPTIONS}
                 placeholder="Select nationality"
-                searchPlaceholder="Search countries..."
+                searchPlaceholder="Search nationality..."
                 className={MODAL_SELECT_TRIGGER_CLASS}
-                onChange={(code) => {
-                  const name = countryNameFromInput(code);
-                  set("nationality", name);
-                }}
+                onChange={(value) => set("nationality", value)}
               />
             </Field>
           ) : null}
@@ -1792,7 +1864,7 @@ function BasicStep({
               className={MODAL_CONTROL_CLASS}
             />
           </Field>
-          <div className="flex h-10 items-center justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3">
+          <div className="flex h-9 items-center justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3">
             <Label htmlFor="guest-vip-modal" className="text-xs font-medium text-[#251605]">VIP Guest</Label>
             <Switch
               id="guest-vip-modal"
@@ -1802,11 +1874,10 @@ function BasicStep({
           </div>
           <Field label="Guest Photo" required={required("GUEST_PHOTO")} error={fieldError("GUEST_PHOTO", "basic")}>
             <div className="flex items-center gap-2">
-              <Input
-                type="file"
+              <UploadControl
                 accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => onPhoto(event.target.files?.[0] ?? null)}
-                className={cn(MODAL_CONTROL_CLASS, "file:mr-2 file:h-7 file:rounded-[4px] file:border-0 file:bg-[#FAF8F5] file:px-2 file:text-xs file:font-medium file:text-[#251605]")}
+                label={photoPreview ? "Photo selected" : "Upload guest photo"}
+                onFile={onPhoto}
               />
               {photoPreview ? (
                 <img src={photoPreview} alt="" className="size-9 shrink-0 rounded-[6px] border border-[#CCCCCC] object-cover" />
@@ -1817,7 +1888,7 @@ function BasicStep({
       </section>
 
       {/* Contact Details */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm">
         <h2 className="font-display text-base font-semibold text-[#251605]">Contact Information</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {visible("PHONE") ? (
@@ -1826,7 +1897,11 @@ function BasicStep({
                 value={draft.phone}
                 onChange={(phone) => set("phone", phone)}
                 error={Boolean(fieldError("PHONE", "basic"))}
-                placeholder="e.g. 911 234 567"
+                placeholder="Enter phone number"
+                containerClassName={PHONE_GROUP}
+                triggerClassName={PHONE_TRIGGER}
+                className={PHONE_INPUT}
+                popoverClassName="z-[90]"
               />
             </Field>
           ) : null}
@@ -1835,16 +1910,21 @@ function BasicStep({
               value={draft.phoneAlt}
               onChange={(phoneAlt) => set("phoneAlt", phoneAlt)}
               error={Boolean(fieldError("PHONE_ALT", "basic"))}
-              placeholder="e.g. 911 234 567"
+              placeholder="Enter phone number"
+              containerClassName={PHONE_GROUP}
+              triggerClassName={PHONE_TRIGGER}
+              className={PHONE_INPUT}
+              popoverClassName="z-[90]"
             />
           </Field>
           {visible("EMAIL") ? (
             <Field label="Email Address" required={required("EMAIL")} error={fieldError("EMAIL", "basic")}>
-              <Input
+              <IconInput
+                icon={<Mail className="size-4" />}
                 type="email"
                 value={draft.email}
                 onChange={(event) => set("email", event.target.value)}
-                className={MODAL_CONTROL_CLASS}
+                placeholder="Enter email address"
               />
             </Field>
           ) : null}
@@ -1903,7 +1983,7 @@ function BasicStep({
 
       {/* Address Details */}
       {visible("ADDRESS") ? (
-        <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+        <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm">
           <h2 className="font-display text-base font-semibold text-[#251605]">Address Information</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Country" required={required("COUNTRY") || required("ADDRESS")} error={fieldError("COUNTRY", "basic") || fieldError("ADDRESS", "basic")}>
@@ -1945,10 +2025,11 @@ function BasicStep({
               )}
             </Field>
             <Field label="City" required={required("CITY") || required("ADDRESS")} error={fieldError("CITY", "basic")}>
-              <Input
+              <IconInput
+                icon={<MapPin className="size-4" />}
                 value={draft.city}
                 onChange={(event) => set("city", event.target.value)}
-                className={MODAL_CONTROL_CLASS}
+                placeholder="Enter city"
               />
             </Field>
             <Field label="Street Address Line 1" required={required("ADDRESS_LINE1")} error={fieldError("ADDRESS_LINE1", "basic")}>
@@ -1988,6 +2069,7 @@ function IdentityStep({
   setDocFiles,
   error,
   fieldError,
+  today,
   onRemoveExistingDoc,
 }: {
   draft: GuestCreateDraft;
@@ -2015,6 +2097,7 @@ function IdentityStep({
   setDocFiles: React.Dispatch<React.SetStateAction<Record<string, File | undefined>>>;
   error?: string;
   fieldError?: (key: string, stepId?: GuestCreateStepId) => string | undefined;
+  today: string;
   onRemoveExistingDoc?: (id: string) => void;
 }) {
   const available = types.filter(
@@ -2060,8 +2143,14 @@ function IdentityStep({
       {draft.documents.map((document, docIdx) => {
         const type =
           available.find((row) => row.id === document.idTypeId) ?? types.find((row) => row.id === document.idTypeId);
+        const dates = identityDocumentDateIssue({
+          expiryDateActive: type?.expiryDateActive,
+          issueDate: document.issueDate,
+          expiryDate: document.expiryDate,
+          today,
+        });
         return (
-          <section key={document.key} className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+          <section key={document.key} className="rounded-lg border border-[#DDD4C5] bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-[#E8E4DC] pb-2">
               <h3 className="font-display text-sm font-semibold text-[#251605]">
                 {draft.documents.length > 1 ? `Document #${docIdx + 1}` : "Identity Document"}
@@ -2163,7 +2252,7 @@ function IdentityStep({
                 <Field
                   label="Issue Date"
                   required={type?.issueDateRequired}
-                  error={fieldError?.(`DOC_${document.key}_issueDate`, "identity")}
+                  error={dates.issue || fieldError?.(`DOC_${document.key}_issueDate`, "identity")}
                 >
                   <Input
                     type="date"
@@ -2184,7 +2273,7 @@ function IdentityStep({
                 <Field
                   label="Expiry Date"
                   required={type?.expiryDateRequired}
-                  error={fieldError?.(`DOC_${document.key}_expiryDate`, "identity")}
+                  error={dates.expiry || fieldError?.(`DOC_${document.key}_expiryDate`, "identity")}
                 >
                   <Input
                     type="date"
@@ -2228,12 +2317,11 @@ function IdentityStep({
                     required={type?.scanImageRequired && !document.hasFront}
                     error={fieldError?.(`DOC_${document.key}_scan`, "identity")}
                   >
-                    <Input
-                      type="file"
+                    <UploadControl
                       accept="image/jpeg,image/png,image/webp,application/pdf"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        setDocFiles((current) => ({ ...current, [`${document.key}-front`]: file }));
+                      label={docFiles[`${document.key}-front`]?.name || (document.hasFront ? "Front scan on file" : "Upload front scan")}
+                      onFile={(file) => {
+                        setDocFiles((current) => ({ ...current, [`${document.key}-front`]: file ?? undefined }));
                         setDraft((current) => ({
                           ...current,
                           documents: current.documents.map((row) =>
@@ -2241,7 +2329,6 @@ function IdentityStep({
                           ),
                         }));
                       }}
-                      className={cn(MODAL_CONTROL_CLASS, "file:mr-2 file:h-7 file:rounded-[4px] file:border-0 file:bg-[#FAF8F5] file:px-2 file:text-xs file:font-medium file:text-[#251605]")}
                     />
                     {document.hasFront ? (
                       <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
@@ -2260,12 +2347,11 @@ function IdentityStep({
                     ) : null}
                   </Field>
                   <Field label="Back Scan/Image">
-                    <Input
-                      type="file"
+                    <UploadControl
                       accept="image/jpeg,image/png,image/webp,application/pdf"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        setDocFiles((current) => ({ ...current, [`${document.key}-back`]: file }));
+                      label={docFiles[`${document.key}-back`]?.name || (document.hasBack ? "Back scan on file" : "Upload back scan")}
+                      onFile={(file) => {
+                        setDocFiles((current) => ({ ...current, [`${document.key}-back`]: file ?? undefined }));
                         setDraft((current) => ({
                           ...current,
                           documents: current.documents.map((row) =>
@@ -2273,7 +2359,6 @@ function IdentityStep({
                           ),
                         }));
                       }}
-                      className={cn(MODAL_CONTROL_CLASS, "file:mr-2 file:h-7 file:rounded-[4px] file:border-0 file:bg-[#FAF8F5] file:px-2 file:text-xs file:font-medium file:text-[#251605]")}
                     />
                     {document.hasBack ? (
                       <p className="mt-1 text-[11px] text-emerald-700 font-medium flex items-center gap-1">
@@ -2321,6 +2406,32 @@ function IdentityStep({
   );
 }
 
+function preferenceFieldIcon(type: { code?: string; valueType: string }) {
+  const code = (type.code ?? "").toUpperCase();
+  const className = "size-3.5";
+  if (code.includes("ROOM") || code.includes("BED")) return <BedDouble className={className} />;
+  if (code.includes("RATE")) return <BadgePercent className={className} />;
+  if (code.includes("MEAL") || code.includes("DIET")) return <UtensilsCrossed className={className} />;
+  if (code.includes("LANG") || code.includes("COMM")) return <Languages className={className} />;
+  if (code.includes("FLOOR")) return <Building2 className={className} />;
+  if (code.includes("WAKE") || code.includes("SERVICE")) return <Bell className={className} />;
+  if (type.valueType === "number") return <Hash className={className} />;
+  return <SlidersHorizontal className={className} />;
+}
+
+function preferenceTypeConfigured(type: {
+  active: boolean;
+  required: boolean;
+  valueType: string;
+  options: Array<{ active: boolean }>;
+}) {
+  if (!type.active) return false;
+  if (type.required || type.valueType === "text" || type.valueType === "number" || type.valueType === "yes_no") {
+    return true;
+  }
+  return type.options.some((option) => option.active);
+}
+
 function PreferencesStep({
   draft,
   setDraft,
@@ -2350,13 +2461,13 @@ function PreferencesStep({
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-2">
         {[1, 2].map((i) => (
-          <div key={i} className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm space-y-4 animate-pulse">
-            <div className="h-5 w-44 rounded bg-[#EBE5DA]" />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="h-24 rounded-lg bg-[#FAF8F5] border border-[#EBE5DA]" />
-              <div className="h-24 rounded-lg bg-[#FAF8F5] border border-[#EBE5DA]" />
+          <div key={i} className="animate-pulse space-y-2 rounded-lg border border-[#DDD4C5] bg-white px-3 py-2.5">
+            <div className="h-4 w-36 rounded bg-[#EBE5DA]" />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="h-14 rounded-[6px] border border-[#EBE5DA] bg-[#FAF8F5]" />
+              <div className="h-14 rounded-[6px] border border-[#EBE5DA] bg-[#FAF8F5]" />
             </div>
           </div>
         ))}
@@ -2368,7 +2479,7 @@ function PreferencesStep({
     .filter((category) => category.active)
     .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
 
-  if (activeCategories.length === 0 || types.filter((type) => type.active).length === 0) {
+  if (activeCategories.length === 0 || !types.some(preferenceTypeConfigured)) {
     return (
       <div className="rounded-xl border border-dashed border-[#DDD4C5] bg-white p-6 text-center text-xs text-muted-foreground">
         {GUEST_CREATE_NO_PREFERENCES}
@@ -2377,7 +2488,7 @@ function PreferencesStep({
   }
 
   function getCategoryTypes(categoryId: string) {
-    const raw = types.filter((type) => type.categoryId === categoryId && type.active);
+    const raw = types.filter((type) => type.categoryId === categoryId && preferenceTypeConfigured(type));
     const order = customTypeOrder[categoryId];
     if (!order || order.length === 0) {
       return [...raw].sort(
@@ -2431,138 +2542,128 @@ function PreferencesStep({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
+      <p className="text-[11px] text-[#8C7E72]">Reorder preferences to specify priority.</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {activeCategories.map((category) => {
         const categoryTypes = getCategoryTypes(category.id);
         if (categoryTypes.length === 0) return null;
+        const canReorder = categoryTypes.length > 1;
         return (
-          <section key={category.id} className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#EBE5DA] pb-2.5">
-              <h2 className="font-display text-base font-semibold text-[#251605]">{category.name}</h2>
-              <span className="text-[11px] text-muted-foreground">
-                Reorder preferences to specify priority
-              </span>
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <section
+            key={category.id}
+            className={cn(
+              "rounded-lg border border-[#DDD4C5] bg-white px-3 py-2.5",
+              canReorder && "sm:col-span-2",
+            )}
+          >
+            <h2 className="font-display text-sm font-semibold text-[#251605]">{category.name}</h2>
+            <div className={cn("mt-2 grid grid-cols-1 gap-x-3 gap-y-2", canReorder && "sm:grid-cols-2")}>
               {categoryTypes.map((type, index) => {
                 const values = valuesFor(type.id);
-                const placeholder =
-                  type.code === "ROOM_TYPE"
-                    ? "Choose preferred room type..."
-                    : type.code === "RATE_PLAN"
-                      ? "Choose preferred rate plan..."
-                      : type.code === "MEAL_PLAN"
-                        ? "Choose preferred meal plan..."
-                        : "Not recorded";
+                const preferenceError = fieldError(`PREF:${type.id}`, "preferences");
+                const emptyLabel = type.required ? "Select preference" : "No preference";
+                const icon = preferenceFieldIcon(type);
+                const activeOptions = type.options.filter((option) => option.active);
 
                 return (
-                  <div
-                    key={type.id}
-                    className="rounded-lg border border-[#EBE5DA] bg-[#FAF8F5]/60 p-3.5 space-y-2.5 transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-medium text-[#251605]">
-                          {type.name} {type.required ? <span className="text-destructive">*</span> : null}
-                        </span>
-                        <span className="rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold text-[#765719]">
-                          Priority #{index + 1}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-0.5">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 text-muted-foreground hover:text-[#251605]"
-                          disabled={index === 0}
-                          onClick={() => moveTypeInCategory(category.id, index, "up")}
-                          aria-label={`Move ${type.name} up in priority`}
-                          title="Move up in priority"
-                        >
-                          <ChevronUp className="size-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 text-muted-foreground hover:text-[#251605]"
-                          disabled={index === categoryTypes.length - 1}
-                          onClick={() => moveTypeInCategory(category.id, index, "down")}
-                          aria-label={`Move ${type.name} down in priority`}
-                          title="Move down in priority"
-                        >
-                          <ChevronDown className="size-3.5" />
-                        </Button>
-                      </div>
+                  <div key={type.id} className="min-w-0">
+                    <div className="mb-1 flex items-center justify-between gap-1">
+                      <Label className="min-w-0 truncate text-xs font-medium text-[#251605]">
+                        <span className="mr-1 text-[10px] font-normal tabular-nums text-[#C4B8A8]">{index + 1}</span>
+                        {type.name}
+                        {type.required ? <span className="text-destructive"> *</span> : null}
+                      </Label>
+                      {canReorder ? (
+                        <div className="flex shrink-0 items-center">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-5 text-[#C4B8A8] hover:bg-transparent hover:text-[#8C7E72]"
+                            disabled={index === 0}
+                            onClick={() => moveTypeInCategory(category.id, index, "up")}
+                            aria-label={`Move ${type.name} up in priority`}
+                            title="Move up in priority"
+                          >
+                            <ChevronUp className="size-3" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-5 text-[#C4B8A8] hover:bg-transparent hover:text-[#8C7E72]"
+                            disabled={index === categoryTypes.length - 1}
+                            onClick={() => moveTypeInCategory(category.id, index, "down")}
+                            aria-label={`Move ${type.name} down in priority`}
+                            title="Move down in priority"
+                          >
+                            <ChevronDown className="size-3" />
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
-
-                    <Field
-                      key={type.id}
-                      label=""
-                      error={fieldError(`PREF:${type.id}`, "preferences")}
-                    >
-                      {type.valueType === "yes_no" ? (
-                        <div className="flex items-center gap-2 pt-1">
-                          <Switch
-                            checked={values[0] === "yes"}
-                            onCheckedChange={(checked) => setValues(type.id, [checked ? "yes" : "no"])}
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            {values[0] === "yes" ? "Yes" : "No"}
-                          </span>
-                        </div>
-                      ) : type.valueType === "multi" ? (
-                        <div className="space-y-1.5 pt-1">
-                          {type.options
-                            .filter((option) => option.active)
-                            .map((option) => (
-                              <label key={option.value} className="flex items-center gap-2 text-xs">
-                                <Checkbox
-                                  checked={values.includes(option.value)}
-                                  onCheckedChange={(checked) =>
-                                    setValues(
-                                      type.id,
-                                      checked
-                                        ? [...values, option.value]
-                                        : values.filter((value) => value !== option.value),
-                                    )
-                                  }
-                                />
-                                <span>{option.label}</span>
-                              </label>
-                            ))}
-                        </div>
-                      ) : type.valueType === "text" || type.valueType === "number" ? (
-                        <Input
-                          type={type.valueType === "number" ? "number" : "text"}
-                          value={values[0] ?? ""}
-                          onChange={(event) =>
-                            setValues(type.id, event.target.value ? [event.target.value] : [])
-                          }
-                          className={MODAL_CONTROL_CLASS}
+                    {type.valueType === "yes_no" ? (
+                      <div className="flex h-9 items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-2.5">
+                        <span className="text-[#8C7E72]">{icon}</span>
+                        <Switch
+                          checked={values[0] === "yes"}
+                          onCheckedChange={(checked) => setValues(type.id, [checked ? "yes" : "no"])}
                         />
-                      ) : (
-                        <Select
-                          value={values[0] || "__none"}
-                          onValueChange={(value) => setValues(type.id, value === "__none" ? [] : [value])}
-                        >
-                          <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS}>
-                            <SelectValue placeholder={placeholder} />
+                        <span className="text-xs text-[#8C7E72]">{values[0] === "yes" ? "Yes" : "No"}</span>
+                      </div>
+                    ) : type.valueType === "multi" ? (
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-1 rounded-[6px] border border-[#CCCCCC] bg-white px-2.5 py-1.5">
+                        {activeOptions.map((option) => (
+                          <label key={option.value} className="flex min-w-0 items-center gap-1.5 text-xs text-[#251605]">
+                            <Checkbox
+                              checked={values.includes(option.value)}
+                              onCheckedChange={(checked) =>
+                                setValues(
+                                  type.id,
+                                  checked
+                                    ? [...values, option.value]
+                                    : values.filter((value) => value !== option.value),
+                                )
+                              }
+                            />
+                            <span className="truncate">{option.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : type.valueType === "text" || type.valueType === "number" ? (
+                      <IconInput
+                        icon={icon}
+                        type={type.valueType === "number" ? "number" : "text"}
+                        value={values[0] ?? ""}
+                        onChange={(event) => setValues(type.id, event.target.value ? [event.target.value] : [])}
+                        placeholder={emptyLabel}
+                        className="pl-8"
+                      />
+                    ) : (
+                      <Select
+                        value={values[0] || "__none"}
+                        onValueChange={(value) => setValues(type.id, value === "__none" ? [] : [value])}
+                      >
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-[#8C7E72]">
+                            {icon}
+                          </span>
+                          <SelectTrigger className={cn(MODAL_SELECT_TRIGGER_CLASS, "pl-8")}>
+                            <SelectValue placeholder={emptyLabel} />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none">Not recorded</SelectItem>
-                            {type.options
-                              .filter((option) => option.active)
-                              .map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </Field>
+                        </div>
+                        <SelectContent>
+                          <SelectItem value="__none">{emptyLabel}</SelectItem>
+                          {activeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {preferenceError ? <p className="mt-1 text-[11px] text-destructive">{preferenceError}</p> : null}
                   </div>
                 );
               })}
@@ -2570,6 +2671,7 @@ function PreferencesStep({
           </section>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -2614,44 +2716,51 @@ function AdditionalStep({
   return (
     <div className="space-y-4">
       {/* Employment & Source */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-5 shadow-sm">
         <h2 className="font-display text-base font-semibold text-[#251605]">Employment & Source</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Position">
-            <Input
+            <IconInput
+              icon={<Briefcase className="size-3.5" />}
               value={draft.position}
               onChange={(event) => set("position", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
+              placeholder="Position"
+              className="pl-8"
             />
           </Field>
           <Field label="Department">
-            <Input
+            <IconInput
+              icon={<Building2 className="size-3.5" />}
               value={draft.department}
               onChange={(event) => set("department", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
+              placeholder="Department"
+              className="pl-8"
             />
           </Field>
           <Field label="Source of Business">
-            <Input
+            <IconInput
+              icon={<Compass className="size-3.5" />}
               value={draft.sourceOfBusiness}
               onChange={(event) => set("sourceOfBusiness", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
+              placeholder="Source of business"
+              className="pl-8"
             />
           </Field>
-          <Field label="Company Name">
-            <Input
+          <Field label="Employer / Company Name">
+            <IconInput
               id="guest-create-company-name"
+              icon={<Building className="size-3.5" />}
               value={companyName}
               onChange={(event) => handleCompanyChange(event.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="e.g. Acme Corporation"
+              placeholder="Employer or company"
+              className="pl-8"
             />
           </Field>
         </div>
       </section>
 
       {/* Emergency Contacts */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between border-b border-[#E8E4DC] pb-2">
           <h2 className="font-display text-base font-semibold text-[#251605]">Emergency Contacts</h2>
           <Button
@@ -2673,7 +2782,8 @@ function AdditionalStep({
           {draft.emergencyContacts.map((contact, index) => (
             <div key={index} className="grid gap-3 rounded-lg border border-[#E8E4DC] p-3 sm:grid-cols-4">
               <Field label="Name">
-                <Input
+                <IconInput
+                  icon={<User className="size-3.5" />}
                   value={contact.name}
                   onChange={(event) =>
                     set(
@@ -2683,11 +2793,13 @@ function AdditionalStep({
                       ),
                     )
                   }
-                  className={MODAL_CONTROL_CLASS}
+                  placeholder="Contact name"
+                  className="pl-8"
                 />
               </Field>
               <Field label="Relationship">
-                <Input
+                <IconInput
+                  icon={<Users className="size-3.5" />}
                   value={contact.relationship}
                   onChange={(event) =>
                     set(
@@ -2697,7 +2809,8 @@ function AdditionalStep({
                       ),
                     )
                   }
-                  className={MODAL_CONTROL_CLASS}
+                  placeholder="Relationship"
+                  className="pl-8"
                 />
               </Field>
               <Field label="Phone">
@@ -2711,11 +2824,16 @@ function AdditionalStep({
                       ),
                     )
                   }
-                  placeholder="e.g. 911 234 567"
+                  placeholder="Enter phone number"
+                  containerClassName={PHONE_GROUP}
+                  triggerClassName={PHONE_TRIGGER}
+                  className={PHONE_INPUT}
+                  popoverClassName="z-[90]"
                 />
               </Field>
               <Field label="Email">
-                <Input
+                <IconInput
+                  icon={<Mail className="size-3.5" />}
                   value={contact.email}
                   onChange={(event) =>
                     set(
@@ -2725,7 +2843,8 @@ function AdditionalStep({
                       ),
                     )
                   }
-                  className={MODAL_CONTROL_CLASS}
+                  placeholder="Email"
+                  className="pl-8"
                 />
               </Field>
             </div>
@@ -2734,7 +2853,7 @@ function AdditionalStep({
       </section>
 
       {/* Notes */}
-      <section className="rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDD4C5] bg-white p-5 shadow-sm">
         <h2 className="font-display text-base font-semibold text-[#251605]">Notes</h2>
         <div className="mt-3 space-y-3">
           <Field label="Profile Notes">
@@ -2742,21 +2861,34 @@ function AdditionalStep({
               rows={2}
               value={draft.notes}
               onChange={(event) => set("notes", event.target.value)}
+              placeholder="Notes kept on the guest profile"
               className={MODAL_TEXTAREA_CLASS}
             />
           </Field>
-          <Field label="Staged Note">
-            <Textarea
-              rows={2}
-              value={draft.stagedNote}
-              onChange={(event) => set("stagedNote", event.target.value)}
-              className={MODAL_TEXTAREA_CLASS}
-            />
+          <Field label="Guest note">
+            <div className="space-y-1">
+              <p className="flex items-center gap-1.5 text-[11px] text-[#8C7E72]">
+                <NotebookPen className="size-3.5" />
+                Added to this guest when the profile is created.
+              </p>
+              <Textarea
+                rows={2}
+                value={draft.stagedNote}
+                onChange={(event) => set("stagedNote", event.target.value)}
+                placeholder="Optional note"
+                className={MODAL_TEXTAREA_CLASS}
+              />
+            </div>
           </Field>
         </div>
       </section>
     </div>
   );
+}
+
+function reviewValue(value: string) {
+  const trimmed = value.trim();
+  return trimmed || "None";
 }
 
 function ReviewStep({
@@ -2767,6 +2899,8 @@ function ReviewStep({
   customValues,
   dynamicFields,
   identityActive,
+  documentTypes,
+  preferenceTypes,
   activeSteps,
   onEdit,
 }: {
@@ -2777,6 +2911,12 @@ function ReviewStep({
   customValues: Record<string, unknown>;
   dynamicFields: ReturnType<typeof resolveGuestFieldRules>;
   identityActive: boolean;
+  documentTypes: Array<{ id: string; name: string }>;
+  preferenceTypes: Array<{
+    id: string;
+    name: string;
+    options: Array<{ label: string; value: string }>;
+  }>;
   activeSteps: ReturnType<typeof resolveGuestCreateSteps>;
   onEdit: (step: GuestCreateStepId) => void;
 }) {
@@ -2824,79 +2964,128 @@ function ReviewStep({
         {
           title: "Personal Details",
           step: "basic" as GuestCreateStepId,
-          content: `${guestDisplayName(draft) || "No name recorded"} · ${draft.gender ? GUEST_GENDER_LABELS[draft.gender as keyof typeof GUEST_GENDER_LABELS] : "Gender not specified"} · ${draft.nationality || "No nationality"}`,
+          rows: [
+            ["Name", guestDisplayName(draft) || "—"],
+            ["Gender", draft.gender === "unspecified" ? "Prefer not to say" : draft.gender === "male" ? "Male" : draft.gender === "female" ? "Female" : "—"],
+            ["Nationality", nationalityValueForStored(draft.nationality) || "—"],
+            ["Profile type", "Individual Guest"],
+            ["VIP", draft.vipStatus ? "Yes" : "No"],
+          ],
         },
         {
           title: "Contact & Address",
           step: "basic" as GuestCreateStepId,
-          content: [draft.phone, draft.email, [draft.city, draft.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "No contact or address recorded",
+          rows: [
+            ["Phone", draft.phone || "—"],
+            ["Email", draft.email || "—"],
+            ["Country", draft.country || "—"],
+            ["City", draft.city || "—"],
+          ],
         },
         ...(identityActive
           ? [
               {
                 title: "Identity Documents",
                 step: "identity" as GuestCreateStepId,
-                content: draft.documents.length
-                  ? `${draft.documents.length} document${draft.documents.length === 1 ? "" : "s"} staged`
-                  : "No identity documents staged",
+                rows: draft.documents.length
+                  ? draft.documents.map((document, index) => {
+                      const typeName =
+                        documentTypes.find((type) => type.id === document.idTypeId)?.name || "Identity document";
+                      const detail = [
+                        document.documentNumber.trim(),
+                        document.expiryDate.trim() ? `Expires ${document.expiryDate.trim()}` : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
+                      return [
+                        draft.documents.length > 1 ? `Document ${index + 1}` : "Identity document",
+                        reviewValue([typeName, detail].filter(Boolean).join(" · ")),
+                      ];
+                    })
+                  : [["Identity document", "None"]],
               },
             ]
           : []),
         {
           title: "Preferences",
           step: "preferences" as GuestCreateStepId,
-          content: draft.preferenceAnswers.length
-            ? `${draft.preferenceAnswers.length} preference answer${draft.preferenceAnswers.length === 1 ? "" : "s"} recorded`
-            : "No preferences answered",
+          rows: (() => {
+            const answered = draft.preferenceAnswers.filter((answer) => answer.values.some((value) => value.trim()));
+            if (answered.length === 0) return [["Preferences", "None"]];
+            return answered.map((answer) => {
+              const type = preferenceTypes.find((row) => row.id === answer.typeId);
+              const labels = answer.values
+                .filter((value) => value.trim())
+                .map((value) => {
+                  if (value === "yes") return "Yes";
+                  if (value === "no") return "No";
+                  return type?.options.find((option) => option.value === value)?.label || value;
+                });
+              return [type?.name || "Preference", reviewValue(labels.join(", "))];
+            });
+          })(),
         },
         {
           title: "Business & Membership",
           step: "business" as GuestCreateStepId,
-          content: draft.links.length
-            ? draft.links.map((row) => `${row.masterName} (${row.role})`).join(", ")
-            : "No business or corporate account linked",
+          rows: draft.links.length
+            ? draft.links.map((row) => [
+                GUEST_RELATIONSHIP_ROLE_LABELS[row.role] ?? "Relationship",
+                reviewValue(row.masterName),
+              ])
+            : [["Relationships", "None"]],
         },
         {
           title: "Employment & Source",
           step: "additional" as GuestCreateStepId,
-          content:
-            [
-              companyName ? `Company: ${companyName}` : null,
-              draft.position ? `Position: ${draft.position}` : null,
-              draft.department ? `Department: ${draft.department}` : null,
-              draft.sourceOfBusiness ? `Source: ${draft.sourceOfBusiness}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "No employment details recorded",
+          rows: [
+            ["Employer / Company Name", reviewValue(companyName)],
+            ["Position", reviewValue(draft.position)],
+            ["Department", reviewValue(draft.department)],
+            ["Source of Business", reviewValue(draft.sourceOfBusiness)],
+          ],
         },
         {
           title: "Emergency Contacts & Notes",
           step: "additional" as GuestCreateStepId,
-          content:
+          rows: [
             [
-              draft.emergencyContacts.filter((c) => c.name.trim()).length
-                ? `${draft.emergencyContacts.filter((c) => c.name.trim()).length} contact(s)`
-                : null,
-              draft.notes ? "Notes recorded" : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "No additional contacts or notes recorded",
+              "Emergency contacts",
+              reviewValue(
+                draft.emergencyContacts
+                  .filter((contact) => contact.name.trim() || contact.phone.trim() || contact.email.trim())
+                  .map((contact) =>
+                    [contact.name, contact.relationship, contact.phone, contact.email].filter((part) => part.trim()).join(" · "),
+                  )
+                  .join("; "),
+              ),
+            ],
+            ["Profile notes", reviewValue(draft.notes)],
+            ["Guest note", reviewValue(draft.stagedNote)],
+          ],
         },
-      ].map(({ title, step: sectionStep, content }) => (
-        <section key={title} className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-2 border-b border-[#E8E4DC] pb-2">
+      ].map(({ title, step: sectionStep, rows }) => (
+        <section key={title} className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-2 border-b border-[#E8DFD0] pb-2">
             <h3 className="font-display text-sm font-semibold text-[#251605]">{title}</h3>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="h-7 text-xs border-[#DDD4C5]"
+              variant="ghost"
+              className="h-6 px-2 text-[11px] font-medium text-[#8C7E72] hover:bg-[#F7F4EE] hover:text-[#251605]"
               onClick={() => onEdit(sectionStep)}
             >
               Edit
             </Button>
           </div>
-          <p className="mt-2 text-xs text-[#756A5B]">{content}</p>
+          <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+            {rows.map(([label, value], index) => (
+              <div key={`${label}-${index}`} className="min-w-0">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.11em] text-[#756A5B]">{label}</dt>
+                <dd className="text-sm text-[#251605]">{value}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       ))}
 

@@ -34,6 +34,7 @@ import {
   type FrontOfficeRoomTarget,
 } from "./reservation-room-units";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import { dateFallsInWindow } from "./reservation-workspace/section-week";
 import { unitOccupantNames } from "./room-unit-guest-names";
 
 export type { FrontOfficeDashboard } from "@/integrations/cross-package/front-office-dashboard.functions";
@@ -574,6 +575,64 @@ export async function loadFrontOfficeDepartures(
   }
   const hydrated = await attachFrontOfficeRoomUnits(supabase, data.restaurantId, stays);
   return projectOperationalStayRows(hydrated, "departures", date);
+}
+
+function stayRowKey(stay: FrontOfficeStay): string {
+  return stay.reservationRoomId ? `${stay.id}:${stay.reservationRoomId}` : stay.id;
+}
+
+/** Arrivals on each day, using the same single-day rules. */
+export async function loadFrontOfficeArrivalsForDates(
+  supabase: WorkspaceClient,
+  data: {
+    restaurantId: string;
+    dates: string[];
+    status?: "pending" | "confirmed";
+    roomTypeId?: string;
+    assignment?: "assigned" | "unassigned";
+  },
+): Promise<FrontOfficeStay[]> {
+  const batches = await Promise.all(
+    data.dates.map((date) =>
+      loadFrontOfficeArrivals(supabase, {
+        restaurantId: data.restaurantId,
+        date,
+        status: data.status,
+        roomTypeId: data.roomTypeId,
+        assignment: data.assignment,
+      }),
+    ),
+  );
+  const byKey = new Map<string, FrontOfficeStay>();
+  for (const stay of batches.flat()) byKey.set(stayRowKey(stay), stay);
+  return [...byKey.values()];
+}
+
+/** Departures whose departure date falls in the window. Overstay is judged on the property business date. */
+export async function loadFrontOfficeDeparturesForDates(
+  supabase: WorkspaceClient,
+  data: {
+    restaurantId: string;
+    dates: string[];
+    businessDate: string;
+    windowStart: string;
+    windowEnd: string;
+  },
+): Promise<FrontOfficeStay[]> {
+  const batches = await Promise.all(
+    data.dates.map((date) =>
+      loadFrontOfficeDepartures(supabase, { restaurantId: data.restaurantId, date }),
+    ),
+  );
+  const byKey = new Map<string, FrontOfficeStay>();
+  for (const stay of batches.flat()) {
+    if (!dateFallsInWindow(stay.departureDate, data.windowStart, data.windowEnd)) continue;
+    byKey.set(stayRowKey(stay), {
+      ...stay,
+      overstay: stay.status === "checked_in" && stay.departureDate < data.businessDate,
+    });
+  }
+  return [...byKey.values()];
 }
 
 export const listDepartures = createServerFn({ method: "POST" })

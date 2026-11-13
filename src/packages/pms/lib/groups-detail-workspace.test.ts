@@ -47,7 +47,7 @@ describe("GB06 Group Detail Workspace", () => {
     expect(listUi).toContain('data-testid="groups-row"');
     expect(listUi).toContain("onClick={() => setSelectedId(row.id)}");
     expect(listUi).toContain("<GroupDetailWorkspace");
-    expect(listUi).toContain("open={Boolean(selectedId) && !newOpen}");
+    expect(listUi).toContain("open={Boolean(selectedId) && !newOpen && !createStayActive}");
     expect(listUi).not.toContain("useNavigate");
     expect(listUi).not.toContain("@tanstack/react-router");
     expect(listUi).not.toContain('data-testid="group-quick-view"');
@@ -186,6 +186,10 @@ describe("GB06 Group Detail Workspace", () => {
     expect(detailUi).toContain("groupPickupRows");
     expect(detailUi).toContain('data-testid="group-detail-pickup-unit"');
     expect(detailUi).toContain("getGroupOperationalDetail");
+    expect(detailUi).toContain('data-testid="group-detail-print"');
+    expect(detailUi).toContain("printGroupBlockConfirmation");
+    expect(detailUi).toContain("Print confirmation");
+    expect(detailUi).not.toContain("window.print(");
   });
 
   it("keeps rooming add/convert on existing commands and linked reservations without legacy routes", () => {
@@ -246,7 +250,12 @@ describe("GB06 Group Detail Workspace", () => {
     expect(linked[1]?.id).toBe("u-2");
     expect(detailUi).toContain('data-testid="group-detail-linked-unit"');
     expect(GROUP_DETAIL_EMPTY.rooming).toBe("No rooming-list entries yet.");
-    expect(GROUP_DETAIL_EMPTY.linked).toBe("No reservations are linked to this group.");
+    expect(GROUP_DETAIL_EMPTY.pickup).toBe(
+      "No pickup yet. Pickup appears here as reservations use rooms from this block.",
+    );
+    expect(GROUP_DETAIL_EMPTY.linked).toBe(
+      "No linked reservations yet. Reservations created from this group or block appear here.",
+    );
   });
 
   it("translates history without exposing UUIDs, JSON, or function names", () => {

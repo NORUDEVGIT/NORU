@@ -145,7 +145,8 @@ describe("GROUP-RES-02 room occupants", () => {
     expect(createFn).toContain('.from("guest_profiles")');
     expect(createFn).toContain("guestId: row.guest_id");
     expect(page).toContain("roomGuestAssignments");
-    expect(page).toContain("reservation-type-selector");
+    expect(page).not.toContain("reservation-type-selector");
+    expect(page).toContain("applyRoomQuantity");
     expect(page).toContain("CreateReservationRoomingList");
     expect(plan).toContain("| GROUP-RES-02 | PASS |");
     expect(plan).toContain("| GROUP-RES-04 | PASS WITH DEBT |");

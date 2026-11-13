@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { formatPropertyContactAddress } from "@/packages/pms/lib/reservation-print-document";
 import { ReservationStatusBadge } from "@/packages/pms/components/bookings/reservation-bits";
 import {
   AssignRoomDialog,
@@ -76,7 +77,13 @@ import {
   SHELL_ICON_BUTTON,
   SHELL_PRIMARY_BUTTON,
 } from "@/packages/pms/components/reservations/reservation-shell-slots";
-import { addDays } from "@/packages/pms/lib/reservation-dates";
+import {
+  reservationRangeEnd,
+  reservationRangeStart,
+  reservationStartAfterHorizonChange,
+  reservationStartAfterPick,
+  shiftReservationRange,
+} from "@/packages/pms/lib/reservation-workspace/section-week";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import {
   CALENDAR_HORIZONS,
@@ -115,7 +122,9 @@ import {
   EMPTY_ADVANCED_FILTERS,
   countActiveAdvancedFilters,
   deskFilterChips,
-  hasActiveDeskConstraints,
+  deskTableStayWindow,
+  hasActiveBarFilters,
+  isDeskServerSearchActive,
   removeDeskFilterChip,
   toDeskSearchQuerySlice,
   validateDateRange,
@@ -275,15 +284,24 @@ function KpiCard({
   loading,
   icon,
   tone,
+  active = false,
+  onSelect,
 }: {
   label: string;
   value: number;
   loading: boolean;
   icon: React.ReactNode;
   tone: string;
+  active?: boolean;
+  onSelect?: () => void;
 }) {
-  return (
-    <div className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm">
+  const className = cn(
+    "flex h-[4.25rem] w-full min-w-0 items-center gap-2.5 rounded-lg border bg-white px-2.5 py-2 text-left shadow-sm",
+    active ? "border-[#C89933]" : "border-[#DDD4C5]",
+    onSelect && "cursor-pointer hover:border-[#C89933]",
+  );
+  const body = (
+    <>
       <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", tone)}>{icon}</span>
       <div className="min-w-0">
         <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
@@ -295,7 +313,13 @@ function KpiCard({
           </p>
         )}
       </div>
-    </div>
+    </>
+  );
+  if (!onSelect) return <div className={className}>{body}</div>;
+  return (
+    <button type="button" className={className} aria-pressed={active} onClick={onSelect}>
+      {body}
+    </button>
   );
 }
 
@@ -322,6 +346,7 @@ export function ReservationsWorkspace({
   initialCompanyId,
   initialTravelAgentId,
   initialGroupId,
+  initialCreateGroupProfile,
   initialReturnTo,
 }: {
   membership: RestaurantMembership;
@@ -331,6 +356,7 @@ export function ReservationsWorkspace({
   initialCompanyId?: string | undefined;
   initialTravelAgentId?: string | undefined;
   initialGroupId?: string | undefined;
+  initialCreateGroupProfile?: string | undefined;
   initialReturnTo?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
@@ -402,7 +428,7 @@ export function ReservationsWorkspace({
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [workspaceSection, setWorkspaceSection] = useState<CalendarWorkspaceSection>(() =>
-    workspaceSectionFromTab(initialTab),
+    initialCreateGroupProfile ? "groups" : workspaceSectionFromTab(initialTab),
   );
 
   const returnTo = useMemo(() => {
@@ -476,8 +502,12 @@ export function ReservationsWorkspace({
     arrivalError ? { ...bar, arrivalFrom: "", arrivalTo: "" } : bar,
     advanced,
   );
-  const tableWeekStart = calendarWeekStart ?? mondayOf(propertyBusinessDate);
-  const tableStayEnd = addDays(tableWeekStart, calendarHorizon - 1);
+  const tableWeekStart = reservationRangeStart({
+    storedStart: calendarWeekStart,
+    horizon: calendarHorizon,
+    businessDate: propertyBusinessDate,
+  });
+  const tableStayEnd = reservationRangeEnd(tableWeekStart, calendarHorizon);
 
   const deskQuery = useQuery({
     queryKey: [
@@ -503,8 +533,7 @@ export function ReservationsWorkspace({
           page,
           pageSize: PAGE_SIZE,
           ...deskQuerySlice,
-          stayOverlapStart: tableWeekStart,
-          stayOverlapEnd: tableStayEnd,
+          ...deskTableStayWindow(debouncedSearch, tableWeekStart, tableStayEnd),
         },
       }),
     placeholderData: keepPreviousData,
@@ -660,9 +689,10 @@ export function ReservationsWorkspace({
             : bar
           : { ...bar, arrivalFrom: range.from ?? "", arrivalTo: range.to ?? "" };
       const slice = toDeskSearchQuerySlice(debouncedSearch, exportBar, advanced);
+      // "All" export follows the table: week scope while browsing, all dates while searching.
       const weekScope =
         range.preset === "all"
-          ? { stayOverlapStart: tableWeekStart, stayOverlapEnd: tableStayEnd }
+          ? deskTableStayWindow(debouncedSearch, tableWeekStart, tableStayEnd)
           : {};
       const collected: ReservationDeskRow[] = [];
       let nextPage = 1;
@@ -815,18 +845,29 @@ export function ReservationsWorkspace({
   }, [calendarWeekStart, snapshot?.businessDate, restaurantId]);
 
   function shiftReservationWeek(direction: -1 | 1) {
-    const base = calendarWeekStart ?? (snapshot?.businessDate ? mondayOf(snapshot.businessDate) : null);
-    if (!base) return;
-    const next = addDays(base, direction * 7);
+    const next = shiftReservationRange(tableWeekStart, calendarHorizon, direction);
     setCalendarWeekStart(next);
     writeSharedWeekStart(restaurantId, next);
     setPage(1);
   }
 
   function pickReservationWeek(date: string) {
-    const monday = mondayOf(date);
-    setCalendarWeekStart(monday);
-    writeSharedWeekStart(restaurantId, monday);
+    const next = reservationStartAfterPick(date, calendarHorizon);
+    setCalendarWeekStart(next);
+    writeSharedWeekStart(restaurantId, next);
+    setPage(1);
+  }
+
+  function changeReservationHorizon(nextHorizon: CalendarHorizon) {
+    const next = reservationStartAfterHorizonChange({
+      currentStart: tableWeekStart,
+      currentHorizon: calendarHorizon,
+      nextHorizon,
+      businessDate: snapshot?.businessDate ?? propertyBusinessDate,
+    });
+    setCalendarHorizon(nextHorizon);
+    setCalendarWeekStart(next);
+    writeSharedWeekStart(restaurantId, next);
     setPage(1);
   }
 
@@ -872,6 +913,8 @@ export function ReservationsWorkspace({
                 loading={isInitialLoading}
                 icon={<ClipboardList className="size-4" />}
                 tone="bg-[#F4E9D0] text-[#8A641A]"
+                active={view === "all"}
+                onSelect={() => selectView("all")}
               />
               <KpiCard
                 label="Arrivals"
@@ -879,6 +922,8 @@ export function ReservationsWorkspace({
                 loading={isInitialLoading}
                 icon={<LogIn className="size-4" />}
                 tone="bg-blue-50 text-blue-700"
+                active={view === "arrivals"}
+                onSelect={() => selectView("arrivals")}
               />
               <KpiCard
                 label="Departures"
@@ -886,6 +931,8 @@ export function ReservationsWorkspace({
                 loading={isInitialLoading}
                 icon={<LogOut className="size-4" />}
                 tone="bg-amber-50 text-amber-800"
+                active={view === "departures"}
+                onSelect={() => selectView("departures")}
               />
               <KpiCard
                 label="In-House"
@@ -893,6 +940,8 @@ export function ReservationsWorkspace({
                 loading={isInitialLoading}
                 icon={<House className="size-4" />}
                 tone="bg-emerald-50 text-emerald-700"
+                active={view === "in_house"}
+                onSelect={() => selectView("in_house")}
               />
               <KpiCard
                 label="Unassigned"
@@ -900,6 +949,8 @@ export function ReservationsWorkspace({
                 loading={isInitialLoading}
                 icon={<TriangleAlert className="size-4" />}
                 tone="bg-orange-50 text-orange-700"
+                active={view === "unassigned"}
+                onSelect={() => selectView("unassigned")}
               />
               <KpiCard
                 label="Available Rooms"
@@ -919,16 +970,14 @@ export function ReservationsWorkspace({
                 <div className="flex min-w-0 flex-wrap items-center gap-1.5 pl-10">
                   <div className="flex shrink-0 items-center gap-1.5">
                     <WeekRangeControl
-                      weekStart={calendarWeekStart}
+                      weekStart={tableWeekStart}
+                      days={calendarHorizon}
                       onShiftWeek={shiftReservationWeek}
                       onPickDate={pickReservationWeek}
                     />
                     <DaysRangeSelect
                       value={String(calendarHorizon)}
-                      onChange={(value) => {
-                        setCalendarHorizon(Number(value) as CalendarHorizon);
-                        setPage(1);
-                      }}
+                      onChange={(value) => changeReservationHorizon(Number(value) as CalendarHorizon)}
                       options={CALENDAR_HORIZONS.map(
                         (days) => [String(days), days === 1 ? "1 day" : `${days} days`] as const,
                       )}
@@ -1058,45 +1107,49 @@ export function ReservationsWorkspace({
                 {workspaceSection === "desk" && arrivalError ? (
                   <p className="mt-2 text-xs text-destructive">{arrivalError}</p>
                 ) : null}
-                {workspaceSection === "desk" && deskFilterChips(bar, advanced).length > 0 ? (
-                  <ul
-                    className="mt-2 flex flex-wrap items-center gap-2"
-                    data-testid="reservation-desk-filter-chips"
-                  >
-                    {deskFilterChips(bar, advanced).map((chip) => (
-                      <li key={chip.id}>
-                        <button
-                          type="button"
-                          aria-label={chip.removeLabel}
-                          className="inline-flex items-center gap-1 rounded-full border border-[#DDD4C5] bg-[#F7F4EE] px-2.5 py-1 text-xs text-[#251605]"
-                          onClick={() => {
-                            const next = removeDeskFilterChip(chip.id, bar, advanced);
-                            setDateFrom(next.bar.arrivalFrom);
-                            setDateTo(next.bar.arrivalTo);
-                            setStatus(next.bar.status);
-                            setRoomTypeId(next.bar.roomTypeId);
-                            setRoomTypeName(next.bar.roomTypeName);
-                            setSource(next.bar.source);
-                            setAdvanced(next.advanced);
-                            resetPage();
-                          }}
-                        >
-                          {chip.label}
-                          <X className="size-3" />
-                        </button>
-                      </li>
-                    ))}
-                    <li>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={clearFilters}
+                {workspaceSection === "desk" ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {deskFilterChips(bar, advanced).length > 0 ? (
+                      <ul
+                        className="flex flex-wrap items-center gap-2"
+                        data-testid="reservation-desk-filter-chips"
                       >
-                        Clear all
-                      </Button>
-                    </li>
-                  </ul>
+                        {deskFilterChips(bar, advanced).map((chip) => (
+                          <li key={chip.id}>
+                            <button
+                              type="button"
+                              aria-label={chip.removeLabel}
+                              className="inline-flex items-center gap-1 rounded-full border border-[#DDD4C5] bg-[#F7F4EE] px-2.5 py-1 text-xs text-[#251605]"
+                              onClick={() => {
+                                const next = removeDeskFilterChip(chip.id, bar, advanced);
+                                setDateFrom(next.bar.arrivalFrom);
+                                setDateTo(next.bar.arrivalTo);
+                                setStatus(next.bar.status);
+                                setRoomTypeId(next.bar.roomTypeId);
+                                setRoomTypeName(next.bar.roomTypeName);
+                                setSource(next.bar.source);
+                                setAdvanced(next.advanced);
+                                resetPage();
+                              }}
+                            >
+                              {chip.label}
+                              <X className="size-3" />
+                            </button>
+                          </li>
+                        ))}
+                        <li>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={clearFilters}
+                          >
+                            Clear all
+                          </Button>
+                        </li>
+                      </ul>
+                    ) : null}
+                  </div>
                 ) : null}
               </section>
 
@@ -1120,30 +1173,13 @@ export function ReservationsWorkspace({
               ) : isInitialLoading ? (
                 <DeskTableSkeleton />
               ) : snapshot?.rows.length === 0 ? (
-                <div className="grid min-h-72 place-items-center px-6 text-center">
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {hasActiveDeskConstraints(search, bar, advanced)
-                        ? "No reservations match these filters"
-                        : "No reservations in this view"}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {hasActiveDeskConstraints(search, bar, advanced)
-                        ? "Try adjusting your dates, status, room, or advanced filters."
-                        : "Adjust the filters or clear the search to continue."}
-                    </p>
-                    {hasActiveDeskConstraints(search, bar, advanced) ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-4"
-                        onClick={clearFilters}
-                      >
-                        Clear Filters
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
+                <DeskEmptyState
+                  searchActive={isDeskServerSearchActive(debouncedSearch)}
+                  filtersActive={
+                    hasActiveBarFilters(bar) || countActiveAdvancedFilters(advanced) > 0
+                  }
+                  onClear={clearFilters}
+                />
               ) : (
                 <ReservationTable
                   rows={snapshot?.rows ?? []}
@@ -1186,6 +1222,8 @@ export function ReservationsWorkspace({
             <ArrivalsDeparturesWorkspace
               restaurantId={restaurantId}
               search={workspaceSearch}
+              rangeStart={tableWeekStart}
+              rangeEnd={tableStayEnd}
               timezone={membership.restaurant.timezone}
               currencyCode={membership.restaurant.currencyCode}
               foAccess={foDeskAccess}
@@ -1196,6 +1234,8 @@ export function ReservationsWorkspace({
               restaurantId={restaurantId}
               search={workspaceSearch}
               onSearchChange={setWorkspaceSearch}
+              rangeStart={tableWeekStart}
+              rangeEnd={tableStayEnd}
               currencyCode={membership.restaurant.currencyCode}
               canManage={canManageActions}
               onOpenReservation={openReservation}
@@ -1204,7 +1244,22 @@ export function ReservationsWorkspace({
           ) : workspaceSection === "groups" ? (
             <GroupsWorkspace
               restaurantId={restaurantId}
+              property={{
+                name: membership.restaurant.name,
+                logoUrl: membership.restaurant.logoUrl,
+                address: formatPropertyContactAddress([
+                  membership.restaurant.address,
+                  membership.restaurant.city,
+                  membership.restaurant.postcode,
+                  membership.restaurant.country,
+                ]),
+                phone: membership.restaurant.phone,
+                email: membership.restaurant.email,
+              }}
               search={workspaceSearch}
+              rangeStart={tableWeekStart}
+              rangeEnd={tableStayEnd}
+              initialGroupProfileId={initialCreateGroupProfile}
               canWrite={access.can(PMS_PERMISSIONS.RESERVATION_GROUP_EDIT)}
               canCreateReservation={access.can(PMS_PERMISSIONS.RESERVATION_CREATE)}
               createStayActive={overlay?.type === "new-reservation" && Boolean(createGroupLink)}
@@ -1219,6 +1274,8 @@ export function ReservationsWorkspace({
               restaurantId={restaurantId}
               search={workspaceSearch}
               onSearchChange={setWorkspaceSearch}
+              rangeStart={tableWeekStart}
+              rangeEnd={tableStayEnd}
               canWrite={access.can(PMS_PERMISSIONS.RESERVATION_WAITLIST_EDIT)}
               onOpenReservation={openReservation}
             />
@@ -1234,7 +1291,7 @@ export function ReservationsWorkspace({
                   status,
                   roomTypeId,
                   source,
-                  rangeStart: calendarWeekStart,
+                  rangeStart: tableWeekStart,
                   horizon: calendarHorizon,
                   view: calendarView,
                 }}
@@ -1286,13 +1343,20 @@ export function ReservationsWorkspace({
             : overlayDescription(overlay, snapshot?.rows ?? [], selectedRow)
         }
         hideVisualHeader={
+          overlay?.type === "new-reservation" ||
           overlay?.type === "reservation-detail" ||
           overlay?.type === "edit-reservation" ||
           overlay?.type === "cancel-reservation" ||
           overlay?.type === "no-show-reservation"
         }
-        size={overlay?.type === "reservation-detail" ? "workspace" : "wide"}
-        showCreateIcon={overlay?.type === "new-reservation"}
+        size={
+          overlay?.type === "reservation-detail" ||
+          overlay?.type === "edit-reservation" ||
+          overlay?.type === "cancel-reservation" ||
+          overlay?.type === "no-show-reservation"
+            ? "workspace"
+            : "wide"
+        }
         onOpenChange={(open) => {
           if (
             !open &&
@@ -1945,6 +2009,40 @@ function deskRowToFrontOfficeStay(row: ReservationDeskRow, businessDate: string)
     source: row.source,
     overstay: row.status === "checked_in" && row.departureDate < businessDate,
   };
+}
+
+function DeskEmptyState({
+  searchActive,
+  filtersActive,
+  onClear,
+}: {
+  searchActive: boolean;
+  filtersActive: boolean;
+  onClear: () => void;
+}) {
+  const title = filtersActive
+    ? "No reservations match these filters"
+    : searchActive
+      ? "No reservations found"
+      : "No reservations in this view";
+  const detail = filtersActive
+    ? "Try adjusting your dates, status, room, or advanced filters."
+    : searchActive
+      ? "Try another reservation number, guest, phone, email or room."
+      : "Adjust the filters or clear the search to continue.";
+  return (
+    <div className="grid min-h-72 place-items-center px-6 text-center">
+      <div>
+        <p className="font-medium text-foreground">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+        {filtersActive || searchActive ? (
+          <Button variant="outline" size="sm" className="mt-4" onClick={onClear}>
+            {filtersActive ? "Clear Filters" : "Clear search"}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function DeskTableSkeleton() {

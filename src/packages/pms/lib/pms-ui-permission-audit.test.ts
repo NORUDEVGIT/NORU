@@ -65,11 +65,9 @@ describe("current PMS action visibility", () => {
   });
 
   it("hides room restriction and block actions when the permission is absent", () => {
-    const panel = read("../components/rooms/room-detail-panel.tsx");
-    assert.match(panel, /canBlockEdit/);
-    assert.match(panel, /canManageRestrictions/);
-    const helper = panel.slice(panel.indexOf("function ActionWithPermission"));
-    assert.match(helper, /if \(!allowed\) return null/);
+    const panel = read("../components/rooms/rooms-dashboard.tsx");
+    assert.match(panel, /canBlockEdit \?/);
+    assert.match(panel, /canManageRestrictions \?/);
     const blocks = read("../components/rooms/room-inventory-blocks.tsx");
     assert.match(blocks, /canBlockEdit/);
     assert.match(blocks, /canMutate/);

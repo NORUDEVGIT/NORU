@@ -19,7 +19,6 @@ import {
   STAFF_VERIFY_COPY,
   type GuestDocumentKind,
 } from "@/packages/pms/lib/guest-profile-wave2";
-import { INDIVIDUAL_IDENTITY_UPLOAD_COPY } from "@/packages/pms/lib/guest-profile-individual";
 import {
   createGuestDocumentUpload,
   listGuestDocuments,
@@ -144,7 +143,9 @@ export function GuestFormIdentityUpload({
 
   return (
     <div className="space-y-3" data-testid="individual-identity-upload">
-      <p className="text-xs text-muted-foreground">{INDIVIDUAL_IDENTITY_UPLOAD_COPY}</p>
+      <p className="text-xs text-muted-foreground">
+        Attach a scan for this guest. Review it on Identity & Documents.
+      </p>
       <p className="text-xs text-muted-foreground">{STAFF_VERIFY_COPY}</p>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-48 space-y-1.5">

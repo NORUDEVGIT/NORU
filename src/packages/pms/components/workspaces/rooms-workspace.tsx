@@ -20,8 +20,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/
 import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import { cn } from "@/shared/lib/utils";
 
-import type { RoomBlockCreatePrefill } from "@/packages/pms/components/rooms/room-inventory-blocks";
-import { RoomsDashboardTab, RoomBoardKpiStrip } from "@/packages/pms/components/rooms/rooms-dashboard";
+import {
+  RoomsDashboardTab,
+  RoomBoardKpiStrip,
+} from "@/packages/pms/components/rooms/rooms-dashboard";
+import type { RoomKpiFilter } from "@/packages/pms/components/rooms/room-board-utils";
 import {
   RoomInventoryShellProvider,
   type RoomInventoryShellSlots,
@@ -42,7 +45,6 @@ import {
   RoomSnapshotView,
 } from "@/packages/pms/components/rooms/room-inventory-more";
 import {
-  type AssignmentInspectionPrefill,
   RoomAssignmentEligibilityView,
   RoomInventoryRulesView,
   RoomOverbookingView,
@@ -263,10 +265,7 @@ export function RoomsWorkspace({
 
   const [view, setView] = useState<RoomInventoryView>(() => normalizeInitialView(initialTab));
   const [commandSearch, setCommandSearch] = useState("");
-  const [assignmentPrefill, setAssignmentPrefill] = useState<AssignmentInspectionPrefill | null>(
-    null,
-  );
-  const [blockPrefill, setBlockPrefill] = useState<RoomBlockCreatePrefill | null>(null);
+  const [kpiFilter, setKpiFilter] = useState<RoomKpiFilter>("all");
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [shellSlots, setShellSlots] = useState<RoomInventoryShellSlots>({
     controls: null,
@@ -275,13 +274,17 @@ export function RoomsWorkspace({
     cta: null,
   });
   const setControlsSlot = useCallback((node: HTMLDivElement | null) => {
-    setShellSlots((current) => (current.controls === node ? current : { ...current, controls: node }));
+    setShellSlots((current) =>
+      current.controls === node ? current : { ...current, controls: node },
+    );
   }, []);
   const setFilterSlot = useCallback((node: HTMLDivElement | null) => {
     setShellSlots((current) => (current.filter === node ? current : { ...current, filter: node }));
   }, []);
   const setActionsSlot = useCallback((node: HTMLDivElement | null) => {
-    setShellSlots((current) => (current.actions === node ? current : { ...current, actions: node }));
+    setShellSlots((current) =>
+      current.actions === node ? current : { ...current, actions: node },
+    );
   }, []);
   const setCtaSlot = useCallback((node: HTMLDivElement | null) => {
     setShellSlots((current) => (current.cta === node ? current : { ...current, cta: node }));
@@ -318,28 +321,7 @@ export function RoomsWorkspace({
   }
 
   function selectView(nextView: RoomInventoryView) {
-    setBlockPrefill(null);
     setView(nextView);
-  }
-
-  function openBlockForRoom(room: {
-    id: string;
-    roomTypeId: string;
-    roomNumber: string;
-    roomTypeName: string;
-  }) {
-    setBlockPrefill({
-      roomId: room.id,
-      roomTypeId: room.roomTypeId,
-      roomNumber: room.roomNumber,
-      roomTypeName: room.roomTypeName,
-    });
-    setView("blocks");
-  }
-
-  function inspectAssignment(prefill: AssignmentInspectionPrefill) {
-    setAssignmentPrefill(prefill);
-    selectView("assignment-eligibility");
   }
 
   function renderView() {
@@ -352,10 +334,8 @@ export function RoomsWorkspace({
             canConfigure={accessQuery.data?.canConfigure === true}
             canBlockEdit={accessQuery.data?.canBlockEdit === true}
             canManageRestrictions={accessQuery.data?.canRestrictionEdit === true}
-            onInspectAssignment={(room) =>
-              inspectAssignment({ roomId: room.id, roomTypeId: room.roomTypeId })
-            }
-            onOpenBlocks={(room) => openBlockForRoom(room)}
+            kpiFilter={kpiFilter}
+            onKpiFilterChange={setKpiFilter}
           />
         );
       case "availability":
@@ -370,25 +350,18 @@ export function RoomsWorkspace({
           <RoomInventoryCalendarView
             restaurantId={restaurantId}
             propertyName={membership.restaurant.name}
-            onViewAffectedRooms={(search) => {
-              setCommandSearch(search);
-              selectView("room-board");
-            }}
-            onEditBlocks={() => selectView("blocks")}
           />
         );
       case "blocks":
         return (
           <RoomInventoryBlocksView
             restaurantId={restaurantId}
-            createPrefill={blockPrefill}
+            createPrefill={null}
             canBlockEdit={accessQuery.data?.canBlockEdit === true}
           />
         );
       case "assignment-eligibility":
-        return (
-          <RoomAssignmentEligibilityView restaurantId={restaurantId} prefill={assignmentPrefill} />
-        );
+        return <RoomAssignmentEligibilityView restaurantId={restaurantId} />;
       case "inventory-rules":
         return <RoomInventoryRulesView restaurantId={restaurantId} />;
       case "overbooking":
@@ -425,36 +398,46 @@ export function RoomsWorkspace({
       }}
     >
       <RoomInventoryShellProvider value={shellSlots}>
-      <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4">
-        <RoomBoardKpiStrip restaurantId={restaurantId} />
-        <section
-          ref={setToolbarSlot}
-          className="relative flex min-h-12 w-full min-w-0 items-center gap-1.5 rounded-lg border border-[#DDD4C5] bg-white py-1.5 pl-12 pr-2 shadow-sm"
-          data-testid="room-inventory-toolbar"
-          data-view={view}
-        >
-          <RoomsBurger active={view} toolbarSlot={toolbarSlot} onSelect={selectView} />
-          <div ref={setControlsSlot} className="flex min-w-0 flex-1 items-center gap-1.5" />
-          <div className="relative z-10 flex shrink-0 items-center gap-1.5">
-            <div ref={setFilterSlot} className="shrink-0 empty:hidden" />
-            <div ref={setActionsSlot} className="flex shrink-0 items-center gap-1.5 empty:hidden" />
-            <div ref={setCtaSlot} className="flex shrink-0 items-center gap-1.5 empty:hidden" />
-          </div>
-          {hasPrevious ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReturn}
-              data-testid="rooms-return-to-previous"
-              className="h-9 shrink-0 gap-1.5 border-[#DDD4C5] bg-white px-3 text-xs font-semibold text-[#5C5346] hover:bg-[#F7F4EE] hover:text-[#251605]"
-            >
-              <ArrowLeft className="size-3.5 text-[#8A6A24]" />
-              {computedLabel}
-            </Button>
-          ) : null}
-        </section>
-        <main className="min-w-0">{renderView()}</main>
-      </div>
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4">
+          <RoomBoardKpiStrip
+            restaurantId={restaurantId}
+            activeFilter={kpiFilter}
+            onSelectFilter={(filter) => {
+              setKpiFilter(filter);
+              if (view !== "room-board") selectView("room-board");
+            }}
+          />
+          <section
+            ref={setToolbarSlot}
+            className="relative flex min-h-12 w-full min-w-0 items-center gap-1.5 rounded-lg border border-[#DDD4C5] bg-white py-1.5 pl-12 pr-2 shadow-sm"
+            data-testid="room-inventory-toolbar"
+            data-view={view}
+          >
+            <RoomsBurger active={view} toolbarSlot={toolbarSlot} onSelect={selectView} />
+            <div ref={setControlsSlot} className="flex min-w-0 flex-1 items-center gap-1.5" />
+            <div className="relative z-10 flex shrink-0 items-center gap-1.5">
+              <div ref={setFilterSlot} className="shrink-0 empty:hidden" />
+              <div
+                ref={setActionsSlot}
+                className="flex shrink-0 items-center gap-1.5 empty:hidden"
+              />
+              <div ref={setCtaSlot} className="flex shrink-0 items-center gap-1.5 empty:hidden" />
+            </div>
+            {hasPrevious ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReturn}
+                data-testid="rooms-return-to-previous"
+                className="h-9 shrink-0 gap-1.5 border-[#DDD4C5] bg-white px-3 text-xs font-semibold text-[#5C5346] hover:bg-[#F7F4EE] hover:text-[#251605]"
+              >
+                <ArrowLeft className="size-3.5 text-[#8A6A24]" />
+                {computedLabel}
+              </Button>
+            ) : null}
+          </section>
+          <main className="min-w-0">{renderView()}</main>
+        </div>
       </RoomInventoryShellProvider>
     </RoomInventoryChrome>
   );

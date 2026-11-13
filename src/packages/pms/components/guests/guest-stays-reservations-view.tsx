@@ -42,8 +42,6 @@ import {
   type ReservationStatus,
 } from "@/packages/pms/lib/guest-bookings-workspace";
 import {
-  isInHouseStay,
-  isUpcomingStay,
   stayRoomNumberLabel,
   type GuestStay,
 } from "@/packages/pms/lib/guest-profile-wave3";
@@ -170,6 +168,7 @@ export function GuestStaysReservationsView({
   const inHouseCount = allStays.filter((s) => s.status === "checked_in").length;
   const pastCount = allStays.filter((s) => s.departureDate < today || s.status === "checked_out").length;
   const cancelledCount = allStays.filter((s) => s.status === "cancelled" || s.status === "no_show").length;
+  const totalStays = allStays.length;
   const totalNights = allStays.reduce((sum, s) => sum + (s.nights || 0), 0);
 
   const canPrintExport = profileActions?.canPrintExport ?? false;
@@ -205,8 +204,7 @@ export function GuestStaysReservationsView({
 
   return (
     <div className="space-y-4" data-testid="guest-stay-history">
-      {/* 5-Cell Summary Strip matching Reservations Workspace */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
           <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Upcoming</p>
           <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{upcomingCount}</p>
@@ -220,10 +218,14 @@ export function GuestStaysReservationsView({
           <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{pastCount}</p>
         </div>
         <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
-          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Cancelled / No-show</p>
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Cancelled / No-Show</p>
           <p className="mt-0.5 font-display text-lg font-semibold text-[#756A5B]">{cancelledCount}</p>
         </div>
-        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm col-span-2 sm:col-span-1">
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
+          <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Total Stays</p>
+          <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{totalStays}</p>
+        </div>
+        <div className="rounded-xl border border-[#DDD4C5] bg-white px-3 py-2.5 shadow-sm">
           <p className="text-[10px] font-medium text-[#756A5B] uppercase tracking-wider">Total Nights</p>
           <p className="mt-0.5 font-display text-lg font-semibold text-[#251605]">{totalNights}</p>
         </div>

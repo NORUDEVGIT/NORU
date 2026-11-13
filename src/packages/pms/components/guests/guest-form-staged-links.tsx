@@ -50,10 +50,13 @@ export function GuestFormStagedLinks({
   restaurantId,
   links,
   onChange,
+  intro,
 }: {
   restaurantId: string;
   links: StagedMasterLink[];
   onChange: (links: StagedMasterLink[]) => void;
+  /** Staff-facing explanation. When set, the technical linking copy stays unused. */
+  intro?: string;
 }) {
   const fetchAccounts = useServerFn(listGuestAccounts);
   const [search, setSearch] = useState("");
@@ -102,8 +105,14 @@ export function GuestFormStagedLinks({
 
   return (
     <div className="space-y-3" data-testid="individual-linking-staged">
-      <p className="text-xs text-muted-foreground">{INDIVIDUAL_STAGED_LINKING_COPY}</p>
-      <p className="text-xs text-muted-foreground">{INDIVIDUAL_LINKING_COPY}</p>
+      {intro ? (
+        <p className="text-xs text-muted-foreground">{intro}</p>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">{INDIVIDUAL_STAGED_LINKING_COPY}</p>
+          <p className="text-xs text-muted-foreground">{INDIVIDUAL_LINKING_COPY}</p>
+        </>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-semibold text-[#251605]">Relationship Role</label>
@@ -195,7 +204,7 @@ export function GuestFormStagedLinks({
                             <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_7rem_5rem] items-center gap-2">
                               <span className="truncate font-medium">
                                 {row.name}
-                                {already ? " · already staged" : ""}
+                                {already ? " · already added" : ""}
                               </span>
                               <span className="truncate text-xs text-muted-foreground">{row.code || "—"}</span>
                               <span className="truncate text-xs capitalize text-muted-foreground">{row.accountStatus}</span>
@@ -223,7 +232,7 @@ export function GuestFormStagedLinks({
         onClick={add}
         className="h-9 rounded-[6px] bg-[#251605] px-4 text-xs font-medium text-[#F7F4EE] shadow-sm hover:bg-[#251605]/90 disabled:opacity-50"
       >
-        Add to Create
+        Add Relationship
       </Button>
       {links.length > 0 ? (
         <ul className="space-y-2">

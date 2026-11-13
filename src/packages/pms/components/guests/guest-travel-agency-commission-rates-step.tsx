@@ -107,7 +107,7 @@ export function GuestTravelAgencyCommissionRatesStep({
   return (
     <div className="space-y-5" data-testid="travel-agency-step3-commission-rates">
       {/* 1. Commercial Model Card */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+      <div className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
         <div className="border-b border-[#EDE6D8] pb-3">
           <h2 className="text-sm font-semibold text-[#251605]">
             1. Commercial Model {isRuleRequired ? (isRuleRequired("TA_COMMERCIAL_MODEL") ? "*" : "") : "*"}
@@ -203,7 +203,7 @@ export function GuestTravelAgencyCommissionRatesStep({
       {draft.commercialModel === "commissionable" ? (
         <>
           {/* 2. Commission Setup */}
-          <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+          <div className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
             <div className="border-b border-[#EDE6D8] pb-3">
               <h2 className="text-sm font-semibold text-[#251605]">2. Commission Setup</h2>
               <p className="text-xs text-[#756A5B]">
@@ -293,7 +293,7 @@ export function GuestTravelAgencyCommissionRatesStep({
           </div>
 
           {/* 3. Commission Application Rules */}
-          <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+          <div className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
             <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-3">
               <div>
                 <h2 className="text-sm font-semibold text-[#251605]">
@@ -618,7 +618,7 @@ export function GuestTravelAgencyCommissionRatesStep({
         /* ========================================================================= */
         /* NET RATE PRICING SECTIONS                                                */
         /* ========================================================================= */
-        <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+        <div className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
           <div className="border-b border-[#EDE6D8] pb-3">
             <h2 className="text-sm font-semibold text-[#251605]">Agency Net Rate Pricing</h2>
             <p className="text-xs text-[#756A5B]">
@@ -953,7 +953,7 @@ export function GuestTravelAgencyCommissionRatesStep({
       )}
 
       {/* 5. Commercial Notes */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
+      <div className="rounded-lg border border-[#DDD4C5] bg-white p-4 space-y-3 shadow-sm">
         <div className="border-b border-[#EDE6D8] pb-3">
           <h2 className="text-sm font-semibold text-[#251605]">
             Commercial Notes {isRuleRequired?.("TA_COMMERCIAL_NOTES") ? "*" : ""}

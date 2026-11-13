@@ -19,6 +19,7 @@ import {
 } from "./guest-profile-individual.ts";
 import type { GuestStatus } from "./guests.server.ts";
 import { uniqueIssueMessages, type CreateFieldIssue } from "./guest-create-step-issues.ts";
+import { identityDocumentDateIssue } from "./guest-identity-documents.ts";
 import {
   isCompanyFieldCode,
   isTravelAgencyFieldCode,
@@ -487,6 +488,20 @@ export type GuestCreateDocumentTypeOption = {
 
 export type GuestCreateFieldIssue = CreateFieldIssue<GuestCreateStepId>;
 
+function identityDocumentDatesInvalid(
+  docType: Pick<GuestCreateDocumentTypeOption, "expiryDateActive">,
+  doc: Pick<GuestCreateDocumentDraft, "issueDate" | "expiryDate">,
+  today: string,
+): boolean {
+  const dates = identityDocumentDateIssue({
+    expiryDateActive: docType.expiryDateActive,
+    issueDate: doc.issueDate,
+    expiryDate: doc.expiryDate,
+    today,
+  });
+  return Boolean(dates.expiry || dates.issue);
+}
+
 export function guestCreateFieldIssues(
   draft: GuestCreateDraft,
   options: {
@@ -498,6 +513,7 @@ export function guestCreateFieldIssues(
     documentTypes?: GuestCreateDocumentTypeOption[];
     docFiles?: Record<string, File | undefined>;
     identityActive?: boolean;
+    today?: string;
   },
 ): GuestCreateFieldIssue[] {
   const issues: GuestCreateFieldIssue[] = [];
@@ -511,6 +527,7 @@ export function guestCreateFieldIssues(
     const message = gap.code === "IDENTITY_DOCUMENT" ? "At least one identity document is required." : `${gap.label} is required.`;
     issues.push({ key: gap.code, message, step: gap.step });
   }
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
   if (options.identityActive !== false && options.documentTypes && options.documentTypes.length > 0) {
     draft.documents.forEach((doc, i) => {
       const docType = options.documentTypes?.find((t) => t.id === doc.idTypeId && t.active !== false);
@@ -540,6 +557,26 @@ export function guestCreateFieldIssues(
         issues.push({
           key: `DOC_${doc.key}_expiryDate`,
           message: `Document #${i + 1}: Expiry date is required.`,
+          step: "identity",
+        });
+      }
+      const dates = identityDocumentDateIssue({
+        expiryDateActive: docType.expiryDateActive,
+        issueDate: doc.issueDate,
+        expiryDate: doc.expiryDate,
+        today,
+      });
+      if (dates.expiry) {
+        issues.push({
+          key: `DOC_${doc.key}_expiryDate`,
+          message: `Document #${i + 1}: ${dates.expiry}`,
+          step: "identity",
+        });
+      }
+      if (dates.issue) {
+        issues.push({
+          key: `DOC_${doc.key}_issueDate`,
+          message: `Document #${i + 1}: ${dates.issue}`,
           step: "identity",
         });
       }
@@ -598,6 +635,7 @@ export function guestCreateStepErrors(
     documentTypes?: GuestCreateDocumentTypeOption[];
     docFiles?: Record<string, File | undefined>;
     identityActive?: boolean;
+    today?: string;
   },
 ): string[] {
   return uniqueIssueMessages(guestCreateFieldIssues(draft, options), step);
@@ -610,11 +648,13 @@ export function guestCreateCompletion(
     documentTypes?: GuestCreateDocumentTypeOption[];
     docFiles?: Record<string, File | undefined>;
     identityActive?: boolean;
+    today?: string;
   },
 ): {
   percent: number;
   items: GuestCreateCompletionItem[];
 } {
+  const today = options?.today ?? new Date().toISOString().slice(0, 10);
   const byCode = new Map(rules.map((rule) => [rule.code, rule]));
   const personalReqs: GuestCreateFieldCode[] = [
     "FIRST_NAME",
@@ -717,6 +757,13 @@ export function guestCreateCompletion(
                   if (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) return false;
                   if (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) return false;
                   if (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) return false;
+                  const dates = identityDocumentDateIssue({
+                    expiryDateActive: docType.expiryDateActive,
+                    issueDate: doc.issueDate,
+                    expiryDate: doc.expiryDate,
+                    today,
+                  });
+                  if (dates.expiry || dates.issue) return false;
                   if (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) return false;
                   if (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !options.docFiles?.[`${doc.key}-front`]) return false;
                   return true;
@@ -732,6 +779,7 @@ export function guestCreateCompletion(
                     (docType.issuingCountryActive !== false && docType.issuingCountryRequired && !doc.issuingCountry.trim()) ||
                     (docType.issueDateActive !== false && docType.issueDateRequired && !doc.issueDate.trim()) ||
                     (docType.expiryDateActive !== false && docType.expiryDateRequired && !doc.expiryDate.trim()) ||
+                    identityDocumentDatesInvalid(docType, doc, today) ||
                     (docType.issuingAuthorityActive !== false && docType.issuingAuthorityRequired && !doc.issuingAuthority.trim()) ||
                     (docType.scanImageAllowed && docType.scanImageRequired && !doc.hasFront && !options.docFiles?.[`${doc.key}-front`])
                   );

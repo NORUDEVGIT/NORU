@@ -11,12 +11,10 @@ import type { ReservationHistoryEntry } from "@/packages/pms/lib/reservations.fu
 
 export const NOSHOW_DASH = REVIEW_DASH;
 export const NOSHOW_NOT_EVALUATED = "Not evaluated";
-export const NOSHOW_COMM_GAP =
-  "No guest, company, staff, housekeeping, or distribution notification is sent by this action.";
-export const NOSHOW_BLACKLIST_GAP =
-  "Guest restrictions are managed separately in Guest Profile and are unchanged by this action.";
+export const NOSHOW_COMM_GAP = "No messages are sent.";
+export const NOSHOW_BLACKLIST_GAP = "The guest profile is unchanged.";
 export const NOSHOW_COLLECT_CASHIERING =
-  "Any amount to collect stays in Cashiering. This action does not post a no-show charge unless one is already on the folio.";
+  "Any balance is collected in Cashiering. Processing the no-show does not add a charge by itself.";
 
 export const NOSHOW_RESERVATION_STEPS = [
   { id: "details", label: "Review Details", hint: "Check arrival and policy" },
@@ -100,7 +98,7 @@ export function noShowFinanceRows(input: {
     {
       description: "Room Charges",
       amount: input.roomSubtotal == null ? NOSHOW_DASH : input.money(input.roomSubtotal),
-      status: input.roomSubtotal == null ? NOSHOW_DASH : "Reservation quote — not posted money",
+      status: input.roomSubtotal == null ? NOSHOW_DASH : "Quoted room total",
     },
     {
       description: "Package Charges",
@@ -110,14 +108,14 @@ export function noShowFinanceRows(input: {
           : input.packageAmount === 0
             ? "Included"
             : input.money(input.packageAmount),
-      status: input.packageAmount == null ? NOSHOW_DASH : "Package snapshot — ledger unchanged",
+      status: input.packageAmount == null ? NOSHOW_DASH : "Quoted package total",
     },
     {
       description: "Additional Services",
       amount:
         input.additionalServices == null ? NOSHOW_DASH : input.money(input.additionalServices),
       status:
-        input.additionalServices == null ? "Not available in this workflow" : "Posted on folio",
+        input.additionalServices == null ? "None on this stay" : "On the folio",
     },
     {
       description: "No-Show Charge",
@@ -139,7 +137,7 @@ export function noShowFinanceRows(input: {
       description: "Deposit / Guarantee",
       amount: input.depositAmount == null ? NOSHOW_DASH : input.money(input.depositAmount),
       status:
-        input.depositAmount == null ? NOSHOW_DASH : "Stored requirement — not a received deposit",
+        input.depositAmount == null ? NOSHOW_DASH : "Deposit required",
     },
     {
       description: "Amount to Collect",
@@ -148,14 +146,25 @@ export function noShowFinanceRows(input: {
         folio == null
           ? NOSHOW_DASH
           : collect > 0
-            ? "To be collected in Cashiering"
-            : "No balance to collect",
+            ? "Collect in Cashiering"
+            : "Nothing to collect",
     },
     {
       description: "Outstanding Balance",
-      amount: outstanding == null ? NOSHOW_DASH : input.money(outstanding),
+      amount:
+        outstanding == null
+          ? NOSHOW_DASH
+          : outstanding < -0.009
+            ? input.money(Math.abs(outstanding))
+            : input.money(outstanding),
       status:
-        outstanding == null ? NOSHOW_DASH : outstanding === 0 ? "No balance" : "Folio balance",
+        outstanding == null
+          ? NOSHOW_DASH
+          : outstanding < -0.009
+            ? "Credit balance"
+            : Math.abs(outstanding) <= 0.009
+              ? "No balance"
+              : "Balance on the folio",
     },
   ];
 }

@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   CreditCard,
   Download,
-  ExternalLink,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -19,11 +18,10 @@ import { toast } from "sonner";
 
 import { GuestCompanyFormDialog } from "@/packages/pms/components/guests/guest-company-form-dialog";
 import { GuestCompanyCreateModal } from "@/packages/pms/components/guests/guest-company-create-modal";
-import { GuestCompanyQuickViewDrawer } from "@/packages/pms/components/guests/guest-company-quick-view-drawer";
 import { GuestProfileShellSlot } from "@/packages/pms/components/guests/guest-profile-shell-slots";
 import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
-import { StatusBadge } from "@/packages/pms/components/guests/guest-bits";
+import { DIRECTORY_HEAD_CLASS, DirectoryPager, StatusBadge } from "@/packages/pms/components/guests/guest-bits";
 import {
   GUEST_PROFILE_DETAIL_PATH,
   GUEST_PROFILE_DIRECTORY_PATH,
@@ -56,7 +54,6 @@ import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { GUEST_ACCOUNT_STATUSES } from "@/packages/pms/lib/guest-profile-wave4";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
@@ -82,6 +79,8 @@ function CompanyKpiCard({
   loading,
   icon,
   tone,
+  active = false,
+  onClick,
 }: {
   label: string;
   value?: number | null | undefined;
@@ -89,9 +88,19 @@ function CompanyKpiCard({
   loading?: boolean | undefined;
   icon: React.ReactNode;
   tone: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[#DDD4C5] bg-white px-3 py-3 shadow-sm text-left">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex min-w-0 items-center gap-3 rounded-xl border bg-white px-3 py-3 text-left shadow-sm transition-colors hover:bg-[#FBF7F1]",
+        active ? "border-[#C89933]" : "border-[#DDD4C5]",
+      )}
+    >
       <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", tone)}>
         {icon}
       </span>
@@ -108,7 +117,75 @@ function CompanyKpiCard({
         )}
         {hint ? <p className="truncate text-[9px] text-[#8C827A]">{hint}</p> : null}
       </div>
-    </div>
+    </button>
+  );
+}
+
+function CompanyKpiBand({
+  kpis,
+  loading,
+  status,
+  credit,
+  onStatus,
+  onCredit,
+}: {
+  kpis: { total: number; active: number; inactive: number; credit: number };
+  loading: boolean;
+  status: "all" | "active" | "inactive" | "pending";
+  credit: "all" | "yes" | "no";
+  onStatus: (status: "all" | "active" | "inactive" | "pending") => void;
+  onCredit: (credit: "all" | "yes" | "no") => void;
+}) {
+  return (
+    <section
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+      aria-label="Company directory KPIs"
+      data-testid="guest-directory-summary-band"
+    >
+      <CompanyKpiCard
+        label="Total Companies"
+        value={kpis.total}
+        hint="All corporate profiles"
+        loading={loading}
+        icon={<Building2 className="size-4" />}
+        tone="bg-[#F4E9D0] text-[#8A641A]"
+        active={status === "all" && credit === "all"}
+        onClick={() => {
+          onStatus("all");
+          onCredit("all");
+        }}
+      />
+      <CompanyKpiCard
+        label="Active Companies"
+        value={kpis.active}
+        hint="Operational accounts"
+        loading={loading}
+        icon={<CheckCircle2 className="size-4" />}
+        tone="bg-emerald-50 text-emerald-700"
+        active={status === "active"}
+        onClick={() => onStatus(status === "active" ? "all" : "active")}
+      />
+      <CompanyKpiCard
+        label="Inactive Companies"
+        value={kpis.inactive}
+        hint="Suspended or inactive"
+        loading={loading}
+        icon={<Building2 className="size-4" />}
+        tone="bg-stone-100 text-stone-600"
+        active={status === "inactive"}
+        onClick={() => onStatus(status === "inactive" ? "all" : "inactive")}
+      />
+      <CompanyKpiCard
+        label="Credit Accounts"
+        value={kpis.credit}
+        hint="Credit account enabled"
+        loading={loading}
+        icon={<CreditCard className="size-4" />}
+        tone="bg-amber-50 text-amber-700"
+        active={credit === "yes"}
+        onClick={() => onCredit(credit === "yes" ? "all" : "yes")}
+      />
+    </section>
   );
 }
 
@@ -116,10 +193,18 @@ export function GuestCompanyDirectory({
   membership,
   returnCard,
   embedded = false,
+  statusValue,
+  creditValue,
+  onStatusChange,
+  onCreditChange,
 }: {
   membership: RestaurantMembership;
   returnCard?: GuestProfileCardId | undefined;
   embedded?: boolean;
+  statusValue?: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number];
+  creditValue?: "all" | "yes" | "no";
+  onStatusChange?: (status: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number]) => void;
+  onCreditChange?: (credit: "all" | "yes" | "no") => void;
 }) {
   const restaurantId = membership.restaurant.id;
   const navigate = useNavigate();
@@ -131,21 +216,28 @@ export function GuestCompanyDirectory({
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [status, setStatus] = useState<"all" | (typeof GUEST_ACCOUNT_STATUSES)[number]>("all");
+  const [statusState, setStatusState] = useState<"all" | (typeof GUEST_ACCOUNT_STATUSES)[number]>("all");
   const [typeId, setTypeId] = useState("all");
   const [country, setCountry] = useState("");
-  const [credit, setCredit] = useState<"all" | "yes" | "no">("all");
+  const [creditState, setCreditState] = useState<"all" | "yes" | "no">("all");
+  const status = statusValue ?? statusState;
+  const credit = creditValue ?? creditState;
+  function setStatus(next: "all" | (typeof GUEST_ACCOUNT_STATUSES)[number]) {
+    if (onStatusChange) onStatusChange(next);
+    else setStatusState(next);
+  }
+  function setCredit(next: "all" | "yes" | "no") {
+    if (onCreditChange) onCreditChange(next);
+    else setCreditState(next);
+  }
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] =
     useState<(typeof COMPANY_PAGE_SIZES)[number]>(COMPANY_DEFAULT_PAGE_SIZE);
-  const [selected, setSelected] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | undefined>();
   const [creditFocus, setCreditFocus] = useState(false);
-  const [previewCompanyId, setPreviewCompanyId] = useState<string | null>(null);
-
   useEffect(() => {
     const handle = setTimeout(() => {
       setDebouncedSearch(search);
@@ -155,7 +247,6 @@ export function GuestCompanyDirectory({
 
   useEffect(() => {
     setPage(0);
-    setSelected([]);
   }, [debouncedSearch, status, typeId, country, credit, createdFrom, createdTo, pageSize]);
 
   const permissions = usePmsPermissions(restaurantId);
@@ -463,17 +554,12 @@ export function GuestCompanyDirectory({
                 variant="outline"
                 size="icon"
                 className={cn(SHELL_ICON_BUTTON, "relative")}
-                onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
-                aria-label={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
-                title={selected.length > 0 ? `Export ${selected.length} selected` : "Export all"}
+                onClick={() => void runExport()}
+                aria-label="Export"
+                title="Export"
                 data-testid="companies-export"
               >
                 <Download className="size-4" />
-                {selected.length > 0 ? (
-                  <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#C89933] text-[9px] font-semibold text-white">
-                    {selected.length}
-                  </span>
-                ) : null}
               </Button>
             </GuestProfileShellSlot>
           ) : null}
@@ -491,12 +577,12 @@ export function GuestCompanyDirectory({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void runExport(selected.length > 0 ? selected : undefined)}
+              onClick={() => void runExport()}
               className="h-8 gap-1.5 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE] shadow-sm text-xs font-medium"
               data-testid="companies-export"
             >
               <Download className="size-3.5 text-[#8A641A]" />
-              {selected.length > 0 ? `Export (${selected.length})` : "Export"}
+              Export
             </Button>
           ) : null}
           <Button
@@ -515,11 +601,11 @@ export function GuestCompanyDirectory({
                 search: guestProfileSearch({ type: "company", create: "company" }),
               })
             }
-            className="h-8 gap-1.5 bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm text-xs font-medium"
+            className="h-8 gap-1.5 bg-[#C89933] text-white hover:bg-[#B38728] shadow-sm text-xs font-medium"
             data-testid="companies-register"
           >
             <Plus className="size-3.5" />
-            Register New Company
+            New Company
           </Button>
         </div>
       </div>
@@ -530,45 +616,14 @@ export function GuestCompanyDirectory({
         </p>
       ) : null}
 
-      {/* KPI Summary Strip (Interactive Band matching Individual Guest Workspace) */}
-      <section
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-        aria-label="Company directory KPIs"
-        data-testid="guest-directory-summary-band"
-      >
-        <CompanyKpiCard
-          label="Total Companies"
-          value={kpis.total}
-          hint="All corporate profiles"
-          loading={listQuery.isLoading}
-          icon={<Building2 className="size-4" />}
-          tone="bg-[#F4E9D0] text-[#8A641A]"
-        />
-        <CompanyKpiCard
-          label="Active Companies"
-          value={kpis.active}
-          hint="Operational accounts"
-          loading={listQuery.isLoading}
-          icon={<CheckCircle2 className="size-4" />}
-          tone="bg-emerald-50 text-emerald-700"
-        />
-        <CompanyKpiCard
-          label="Inactive Companies"
-          value={kpis.inactive}
-          hint="Suspended or inactive"
-          loading={listQuery.isLoading}
-          icon={<Building2 className="size-4" />}
-          tone="bg-stone-100 text-stone-600"
-        />
-        <CompanyKpiCard
-          label="Credit Accounts"
-          value={kpis.credit}
-          hint="Credit account enabled"
-          loading={listQuery.isLoading}
-          icon={<CreditCard className="size-4" />}
-          tone="bg-amber-50 text-amber-700"
-        />
-      </section>
+      <CompanyKpiBand
+        kpis={kpis}
+        loading={listQuery.isLoading}
+        status={status}
+        credit={credit}
+        onStatus={setStatus}
+        onCredit={setCredit}
+      />
 
       {/* Search & Filter Toolbar */}
       <div className="flex flex-wrap items-center gap-2.5">
@@ -790,46 +845,30 @@ export function GuestCompanyDirectory({
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#DDD4C5] bg-white shadow-sm">
-          <table className="w-full min-w-[950px] text-xs text-left" data-testid="companies-table">
-            <thead className="border-b border-[#DDD4C5] bg-[#FAF8F5] text-left text-[11px] font-semibold uppercase tracking-wider text-[#756A5B]">
+        <div className="overflow-x-auto rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
+          <table className="w-full min-w-[900px] text-xs" data-testid="companies-table">
+            <thead className={DIRECTORY_HEAD_CLASS}>
               <tr>
-                <th className="w-10 px-2 py-2.5">
-                  <Checkbox
-                    checked={items.length > 0 && items.every((row) => selected.includes(row.id))}
-                    onCheckedChange={(checked) =>
-                      setSelected(checked === true ? items.map((row) => row.id) : [])
-                    }
-                    aria-label="Select all"
-                  />
-                </th>
-                <th className="px-3 py-2.5">Profile No.</th>
-                <th className="px-3 py-2.5">Company Name</th>
-                <th className="px-3 py-2.5">Type</th>
-                <th className="px-3 py-2.5">Primary Contact</th>
-                <th className="px-3 py-2.5">Contact Details</th>
-                <th className="px-3 py-2.5">Country</th>
-                <th className="px-3 py-2.5">Billing Terms</th>
-                <th className="px-3 py-2.5">Status</th>
-                <th className="w-12 px-3 py-2.5 text-right">Actions</th>
+                <th className="px-2 py-2.5">Profile No.</th>
+                <th className="px-2 py-2.5">Company Name</th>
+                <th className="px-2 py-2.5">Type</th>
+                <th className="px-2 py-2.5">Primary Contact</th>
+                <th className="px-2 py-2.5">Contact Details</th>
+                <th className="px-2 py-2.5">Country</th>
+                <th className="px-2 py-2.5">Credit</th>
+                <th className="px-2 py-2.5">Status</th>
+                <th className="w-12 px-2 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EFE9DF]/60">
+            <tbody>
               {items.map((row) => (
                 <CompanyRow
                   key={row.id}
                   row={row}
-                  checked={selected.includes(row.id)}
                   canEdit={accountAccess.canEdit}
                   canActivate={accountAccess.canActivate}
-                  onCheck={(checked) =>
-                    setSelected((current) =>
-                      checked ? [...current, row.id] : current.filter((id) => id !== row.id),
-                    )
-                  }
                   onView={() => openCompany(row.id)}
                   onLinkGuest={() => openCompanyTravelersLink(row.id)}
-                  onQuickView={() => setPreviewCompanyId(row.id)}
                   onEdit={() => {
                     setEditId(row.id);
                     setCreditFocus(false);
@@ -848,48 +887,18 @@ export function GuestCompanyDirectory({
         </div>
       )}
 
-      {/* Pagination Footer matching Individual Guest Directory */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5]/60 pt-3 text-xs text-[#756A5B]">
-        <p>
-          Showing {total === 0 ? 0 : offset + 1}–{Math.min(offset + pageSize, total)} of {total}{" "}
-          companies
-        </p>
-        <div className="flex items-center gap-2">
-          <Select
-            value={String(pageSize)}
-            onValueChange={(val) => setPageSize(Number(val) as typeof pageSize)}
-          >
-            <SelectTrigger className="w-24 h-8 text-xs border-[#DDD4C5] bg-white text-[#251605]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COMPANY_PAGE_SIZES.map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size} / page
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-            disabled={page === 0}
-            onClick={() => setPage((current) => current - 1)}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
-            disabled={page + 1 >= pageCount}
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      <DirectoryPager
+        page={page}
+        pageCount={pageCount}
+        pageSize={pageSize}
+        pageSizes={COMPANY_PAGE_SIZES}
+        total={total}
+        offset={offset}
+        noun="companies"
+        disabled={listQuery.isFetching}
+        onPage={setPage}
+        onPageSize={(size) => setPageSize(size as typeof pageSize)}
+      />
 
       <GuestCompanyCreateModal
         restaurantId={restaurantId}
@@ -916,63 +925,36 @@ export function GuestCompanyDirectory({
         }}
       />
 
-      <GuestCompanyQuickViewDrawer
-        restaurantId={restaurantId}
-        companyId={previewCompanyId}
-        onClose={() => setPreviewCompanyId(null)}
-        onEditCompany={(id) => {
-          setPreviewCompanyId(null);
-          setEditId(id);
-          setCreditFocus(false);
-          setFormOpen(true);
-        }}
-      />
     </div>
   );
 }
 
 function CompanyRow({
   row,
-  checked,
   canEdit,
   canActivate,
-  onCheck,
   onView,
   onLinkGuest,
-  onQuickView,
   onEdit,
   onCredit,
   onStatus,
 }: {
   row: CompanyWorkspaceRow;
-  checked: boolean;
   canEdit: boolean;
   canActivate: boolean;
-  onCheck: (checked: boolean) => void;
   onView: () => void;
   onLinkGuest: () => void;
-  onQuickView: () => void;
   onEdit: () => void;
   onCredit: () => void;
   onStatus: (status: "active" | "inactive") => void;
 }) {
   return (
     <tr
-      onClick={onQuickView}
-      className={cn(
-        "cursor-pointer transition-colors hover:bg-[#FAF8F5]/80",
-        checked && "bg-[#F5EFE6]/60",
-      )}
+      onClick={onView}
+      className="cursor-pointer border-t border-border transition-colors hover:bg-[#FAF7EF]"
       data-testid={`company-row-${row.id}`}
     >
-      <td className="px-2 py-2.5" onClick={(e) => e.stopPropagation()}>
-        <Checkbox
-          checked={checked}
-          onCheckedChange={(val) => onCheck(Boolean(val))}
-          aria-label={`Select ${row.name}`}
-        />
-      </td>
-      <td className="px-3 py-2.5 font-mono text-[11px] text-[#7A6B58]">
+      <td className="px-2 py-2.5 font-mono text-[11px] text-[#7A6B58]">
         {displayProfileNumber(row.id, row.code)}
       </td>
       <td className="px-3 py-2.5">
@@ -1031,20 +1013,13 @@ function CompanyRow({
             <Button
               size="sm"
               variant="ghost"
-              className="size-7 p-0 text-[#756A5B] hover:text-[#251605] hover:bg-[#F7F4EE]"
+              className="size-7 p-0 text-[#7A6B58] hover:text-[#251605]"
               aria-label="Actions"
             >
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 text-xs">
-            <DropdownMenuItem onClick={onQuickView} className="cursor-pointer">
-              Quick View
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onView} className="cursor-pointer">
-              <ExternalLink className="mr-1.5 size-3.5 text-[#8A641A]" />
-              View Full Profile
-            </DropdownMenuItem>
             {canEdit ? (
               <DropdownMenuItem onClick={onLinkGuest} className="cursor-pointer" data-testid="company-action-link-guest">
                 <UserCheck className="mr-1.5 size-3.5 text-[#8A641A]" />

@@ -358,7 +358,7 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
 
         {props.groupRooming ? (
           <section
-            className="rounded-[6px] border border-[#CCCCCC] bg-white p-3 md:col-span-2 xl:col-span-3"
+            className="rounded-lg border border-[#DDD4C5] bg-white p-3 md:col-span-2 xl:col-span-3"
             data-testid="review-rooming-list"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -468,7 +468,7 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
 
         {props.linkedGroup ? (
           <section
-            className="rounded-[6px] border border-[#CCCCCC] bg-white p-3"
+            className="rounded-lg border border-[#DDD4C5] bg-white p-3"
             data-testid="review-linked-group"
           >
             <h2 className="text-sm font-semibold text-[#251605]">Group / Block</h2>
@@ -712,7 +712,7 @@ function ReviewCard({
     <section
       className={cn(
         PMS_OP_PANEL,
-        "h-full !rounded-[6px] !border-[#CCCCCC] !shadow-none min-w-0 p-3",
+        "h-full !rounded-lg !border-[#DDD4C5] !shadow-none min-w-0 p-3",
       )}
       data-testid={testId}
     >

@@ -5,16 +5,21 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   AlertCircle,
-  Building2,
   Check,
   CheckCircle2,
   ChevronRight,
-  Plus,
-  Trash2,
+  MoreHorizontal,
   X,
 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -111,13 +116,11 @@ import { listTravelAgentContacts } from "@/packages/pms/lib/guest-travel-agent-d
 import { BasicInfoStep, ContactsStep } from "./guest-travel-agency-basic-info-step";
 import {
   GuestTravelAgencyCommissionRatesStep,
-  CommercialSummaryPanel,
 } from "./guest-travel-agency-commission-rates-step";
 import { getTravelAgencyCommissionRatesConfig } from "@/packages/pms/lib/guest-travel-agency-step3-commission-rates.functions";
 import type { TravelAgencyCommissionRatesConfig } from "@/packages/pms/lib/guest-travel-agency-step3-commission-rates.server";
 import {
   GuestTravelAgencyPaymentRulesStep,
-  PaymentRulesSummaryPanel,
 } from "./guest-travel-agency-payment-rules-step";
 import { getTravelAgencyStep4Config } from "@/packages/pms/lib/guest-travel-agency-step4.functions";
 import type { TravelAgencyStep4Config } from "@/packages/pms/lib/guest-travel-agency-step4.server";
@@ -734,120 +737,129 @@ export function GuestTravelAgencyCreateModal({
     <>
       <Dialog
         open={open}
+        modal={!discardConfirmOpen && !startOverOpen}
         onOpenChange={(next) => {
-          if (!next) handleCloseRequest();
-          else onOpenChange(true);
+          if (!next) {
+            if (discardConfirmOpen || startOverOpen) return;
+            handleCloseRequest();
+          } else {
+            onOpenChange(true);
+          }
         }}
       >
         <DialogContent
           data-testid="guest-travel-agency-create-modal"
           aria-describedby="travel-agency-create-dialog-description"
           onPointerDownOutside={(e) => {
-            if (hasNestedModalLayer()) {
-              e.preventDefault();
-              return;
-            }
             e.preventDefault();
           }}
+          onInteractOutside={(e) => {
+            if (discardConfirmOpen || startOverOpen || hasNestedModalLayer()) e.preventDefault();
+          }}
           onEscapeKeyDown={(e) => {
-            if (hasNestedModalLayer()) return;
+            if (hasNestedModalLayer() || discardConfirmOpen || startOverOpen) return;
             e.preventDefault();
             handleCloseRequest();
           }}
           className={cn(
-            "flex flex-col gap-0 p-0 border-[#DDD4C5] bg-[#F7F4EE] shadow-2xl rounded-2xl overflow-hidden",
-            "w-[min(98vw,1550px)] max-w-none h-[min(92vh,960px)]",
+            "z-[80] flex h-[92vh] max-h-[92vh] w-[min(90vw,1440px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none",
+            "rounded-lg border border-[#3A2A16] bg-[#FBF7F1] shadow-2xl",
             "[&>button]:hidden",
           )}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-[#EDE6D8] bg-white px-7 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-[#C89933]/15 text-[#8A641A]">
-                <Building2 className="size-5" />
-              </div>
-              <div>
-                <DialogTitle className="font-sans text-xl font-semibold tracking-tight text-[#251605]">
-                  {isEdit ? `Edit Travel Agency — ${draft.name || "Agency"}` : GUEST_TRAVEL_AGENT_CREATE_TITLE}
-                </DialogTitle>
-                <DialogDescription
-                  id="travel-agency-create-dialog-description"
-                  className="font-sans text-xs text-[#756A5B]"
+          <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+            <div className="flex min-w-0 items-center gap-2">
+              <DialogTitle className="font-display text-sm font-semibold text-[#F3E9D8]">
+                {isEdit ? `Edit Travel Agency — ${draft.name || "Agency"}` : GUEST_TRAVEL_AGENT_CREATE_TITLE}
+              </DialogTitle>
+              <span className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-[11px] font-semibold text-[#F3E9D8]">
+                {completion.percent}% complete
+              </span>
+              <DialogDescription id="travel-agency-create-dialog-description" className="sr-only">
+                {isEdit
+                  ? "Update travel agency profile and save changes directly."
+                  : GUEST_TRAVEL_AGENT_CREATE_COPY}
+              </DialogDescription>
+              <span className="ml-auto flex items-center gap-1.5">
+                {isEdit ? null : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                        aria-label="More actions"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[90]">
+                      <DropdownMenuItem
+                        data-testid="travel-agency-create-start-over"
+                        disabled={!guestTravelAgentCreateHasChanges(draft)}
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => setStartOverOpen(true)}
+                      >
+                        {GUEST_TRAVEL_AGENT_CREATE_START_OVER}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+                  onClick={handleCloseRequest}
+                  aria-label="Close"
                 >
-                  {isEdit
-                    ? "Update travel agency profile and save changes directly."
-                    : GUEST_TRAVEL_AGENT_CREATE_COPY}
-                </DialogDescription>
-              </div>
+                  <X className="size-4" />
+                </Button>
+              </span>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleCloseRequest}
-                className="size-8 rounded-full text-[#756A5B] hover:bg-[#F2ECE1] hover:text-[#251605]"
-                aria-label="Close"
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Stepper Navigation */}
-          <div className="border-b border-[#EDE6D8] bg-[#FDFBF7] px-7 py-3">
-            <nav
-              data-testid="guest-travel-agency-create-stepper"
-              className="flex items-center gap-1.5 overflow-x-auto text-xs"
-            >
+          </header>
+          <nav
+            aria-label="Create travel agency steps"
+            data-testid="guest-travel-agency-create-stepper"
+            className="flex h-9 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-[#DDD4C5] bg-white px-2"
+          >
+            <ol className="flex min-w-0 items-stretch">
               {GUEST_TRAVEL_AGENT_CREATE_STEPS.map((item, index) => {
                 const current = item.id === step;
                 const done = index < stepIndex;
                 const invalid =
                   fieldIssues.some((issue) => issue.step === item.id) &&
                   (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
-
                 return (
-                  <div key={item.id} className="flex items-center gap-1.5">
+                  <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => go(item.id)}
+                      aria-current={current ? "step" : undefined}
                       className={cn(
-                        "flex items-center gap-2 rounded-full px-3.5 py-1.5 font-medium transition-colors whitespace-nowrap",
-                        current && "bg-[#C89933] text-[#251605] font-semibold shadow-sm",
-                        done && !invalid && "border border-[#C89933]/40 bg-white text-[#8A641A] hover:bg-[#FAF8F5]",
-                        !current && !done && !invalid && "border border-[#E6E1D8] bg-white text-[#756A5B] hover:bg-[#FAF8F5]",
-                        invalid && "border border-destructive bg-destructive/10 text-destructive font-semibold",
+                        "relative flex h-full items-center gap-1 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                        done && !invalid && "text-[#436436]",
+                        current && "text-[#251605]",
+                        !current && !done && "text-muted-foreground",
+                        invalid && "text-destructive",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "flex size-4 items-center justify-center rounded-full text-[10px]",
-                          current && "bg-[#251605] text-[#C89933]",
-                          done && !invalid && "bg-[#C89933] text-white",
-                          !current && !done && !invalid && "bg-[#E6E1D8] text-[#756A5B]",
-                          invalid && "bg-destructive text-white",
-                        )}
-                      >
-                        {done && !invalid ? <Check className="size-2.5 stroke-[3]" /> : item.number}
-                      </span>
-                      <span>{item.title}</span>
+                      {done && !invalid ? <Check className="size-3" /> : <span className="tabular-nums">{item.number}</span>}
+                      <span className="whitespace-nowrap">{item.title}</span>
+                      {done && !invalid ? (
+                        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                      ) : null}
+                      {current ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" /> : null}
                     </button>
-                    {index < GUEST_TRAVEL_AGENT_CREATE_STEPS.length - 1 ? (
-                      <span className="text-[#C5BCAE] select-none">/</span>
-                    ) : null}
-                  </div>
+                  </li>
                 );
               })}
-            </nav>
-          </div>
+            </ol>
+          </nav>
 
-          {/* Body Content */}
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Main Form Scrollable Area */}
-            <div className="flex-1 overflow-y-auto px-7 py-5">
-              <div className="mx-auto max-w-4xl space-y-4">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBF7F1] p-4">
+            <div className="min-w-0 space-y-4">
                 {context.isLoading ? (
                   <div className="p-12 text-center text-sm text-[#756A5B]">
                     Loading travel agency creation settings…
@@ -912,193 +924,56 @@ export function GuestTravelAgencyCreateModal({
               </div>
             </div>
 
-            {/* Right-side Preview & Guidance Panel */}
-            <aside className="w-80 border-l border-[#EDE6D8] bg-[#FAF8F5] overflow-y-auto p-5 space-y-4 hidden lg:block">
-              {step === "commission_rates" || step === "billing" ? (
-                <CommercialSummaryPanel draft={draft} config={step3ConfigQuery.data} />
-              ) : step === "payment_rules" || step === "booking_operations" ? (
-                <PaymentRulesSummaryPanel draft={draft} config={step4ConfigQuery.data} />
-              ) : (
-                /* Profile Preview Card */
-                <div
-                  data-testid="travel-agency-create-profile-preview"
-                  className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none"
-                >
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#8A641A] uppercase tracking-wider">
-                    <Building2 className="size-3.5" />
-                    <span>Travel Agency Preview</span>
-                  </div>
-                  <div className="mt-3 space-y-2 border-t border-[#EDE6D8] pt-3 text-xs">
-                    <div>
-                      <span className="text-[#756A5B]">Agency Name:</span>
-                      <p className="font-semibold text-[#251605] break-words">{draft.name || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-[#756A5B]">Agency Code:</span>
-                      <p className="font-mono font-medium text-[#251605]">{draft.code || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-[#756A5B]">Profile Type:</span>
-                      <p className="font-medium text-[#251605]">Travel Agency (TRA)</p>
-                    </div>
-                    <div>
-                      <span className="text-[#756A5B]">Agency Type:</span>
-                      <p className="font-medium text-[#251605]">
-                        {agencyTypeLabel(draft.agencyType) || "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-[#756A5B]">Status:</span>
-                      <p className="font-medium text-[#251605]">
-                        {draft.accountStatus === "inactive" ? "Inactive" : "Active"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-[#756A5B]">Primary Contact:</span>
-                      <p className="font-medium text-[#251605] break-words">
-                        {primary?.name ? `${primary.name}${primary.email ? ` · ${primary.email}` : ""}` : "—"}
-                      </p>
-                    </div>
-                    {draft.iataLicenseNumber ? (
-                      <div>
-                        <span className="text-[#756A5B]">Licence #:</span>
-                        <p className="font-medium text-[#251605]">{draft.iataLicenseNumber}</p>
-                      </div>
-                    ) : null}
-                    {draft.taxId ? (
-                      <div>
-                        <span className="text-[#756A5B]">TIN #:</span>
-                        <p className="font-medium text-[#251605]">{draft.taxId}</p>
-                      </div>
-                    ) : null}
-                    {draft.city || draft.country ? (
-                      <div>
-                        <span className="text-[#756A5B]">Location:</span>
-                        <p className="font-medium text-[#251605]">
-                          {[draft.city, draft.country].filter(Boolean).join(", ")}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-
-              {/* Data Completion Card */}
-              <div className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#251605]">Data Completion</span>
-                  <span className="text-xs font-bold text-[#8A641A]">{completion.percent}%</span>
-                </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#EAE4D7]">
-                  <div
-                    className="h-full bg-[#C89933] transition-all duration-300"
-                    style={{ width: `${completion.percent}%` }}
-                  />
-                </div>
-                <ul className="mt-3 space-y-1.5 text-xs text-[#756A5B]">
-                  {completion.items.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between">
-                      <button
-                        type="button"
-                        className="hover:underline text-left"
-                        onClick={() => go(item.step)}
-                      >
-                        {item.label}
-                      </button>
-                      <span
-                        className={cn(
-                          "font-mono text-[11px]",
-                          item.requiredRemaining
-                            ? "text-destructive font-bold"
-                            : item.complete
-                              ? "text-emerald-700"
-                              : "text-[#A89F91]",
-                        )}
-                      >
-                        {item.requiredRemaining ? "Required" : item.complete ? "✓" : "—"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Step Guidance Card */}
-              <div className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none text-xs space-y-2">
-                <span className="font-semibold text-[#251605] uppercase tracking-wider text-[11px]">
-                  Step Guidance
-                </span>
-                <p className="text-[#756A5B] leading-relaxed">
-                  {step === "basic_info"
-                    ? "Enter legal identification, agency classification, physical address, and market segmentation."
-                    : step === "contacts"
-                      ? "Manage primary coordinator and team contact points for reservations and contracting."
-                      : step === "commission_rates" || step === "billing"
-                        ? "Configure commercial model (Commissionable vs Net Rate), commission percentage or rules, and commercial terms."
-                        : step === "booking_operations"
-                          ? "Specify contract reference, validity window, and default packages or meal plans."
-                          : "Review all registration sections, configure billing arrangements, and complete creation."}
-                </p>
-                <div className="pt-2 border-t border-[#EDE6D8] text-[11px] text-[#A89F91]">
-                  Property Setup Controlled
-                </div>
-              </div>
-            </aside>
-          </div>
 
           {/* Sticky Footer */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#EDE6D8] bg-white px-7 py-3.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#E8DFD0] bg-white px-4 py-2">
             {isEdit ? (
               <>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   onClick={handleActualClose}
-                  className="border-[#DDD4C5] text-xs text-[#251605]"
+                  className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
                 >
                   Cancel
                 </Button>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
-                    onClick={() => saveEditMutation.mutate()}
-                    disabled={saveEditMutation.isPending}
-                    data-testid="edit-travel-agency-save-btn"
-                  >
-                    {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  className={SHELL_PRIMARY_BUTTON}
+                  onClick={() => saveEditMutation.mutate()}
+                  disabled={saveEditMutation.isPending}
+                  data-testid="edit-travel-agency-save-btn"
+                >
+                  {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
+                </Button>
               </>
             ) : (
               <>
                 <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCloseRequest}
-                    className="text-xs text-[#756A5B] hover:text-[#251605]"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    data-testid="travel-agency-create-start-over"
-                    onClick={() => setStartOverOpen(true)}
-                    disabled={!guestTravelAgentCreateHasChanges(draft)}
-                    className="text-xs border-[#DDD4C5] text-[#756A5B] hover:bg-[#FAF8F5]"
-                  >
-                    {GUEST_TRAVEL_AGENT_CREATE_START_OVER}
-                  </Button>
+                  {stepIndex === 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCloseRequest}
+                      className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
+                    >
+                      Cancel
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => go(GUEST_TRAVEL_AGENT_CREATE_STEPS[stepIndex - 1].id)}
+                      className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
+                    >
+                      Back
+                    </Button>
+                  )}
                   {holdState === "saving" ? (
-                    <span className="text-xs text-[#8A641A] font-medium ml-2">Saving progress…</span>
+                    <span className="text-xs text-muted-foreground">Saving progress…</span>
                   ) : null}
                   {holdState === "saved" && guestTravelAgentCreateHasChanges(draft) ? (
-                    <span className="text-xs text-[#756A5B] ml-2">Progress saved</span>
+                    <span className="text-xs text-muted-foreground">Progress saved</span>
                   ) : null}
                 </div>
 
@@ -1106,46 +981,32 @@ export function GuestTravelAgencyCreateModal({
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     data-testid="travel-agency-create-save-draft"
                     onClick={() => draftMutation.mutate()}
                     disabled={draftMutation.isPending || completeMutation.isPending}
-                    className="text-xs border-[#C89933]/50 text-[#8A641A] hover:bg-[#FAF8F5]"
+                    className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
                   >
                     Save as Draft
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={stepIndex === 0}
-                    onClick={() => go(GUEST_TRAVEL_AGENT_CREATE_STEPS[stepIndex - 1].id)}
-                    className="text-xs border-[#DDD4C5] text-[#251605] hover:bg-[#FAF8F5]"
-                  >
-                    ← Back
-                  </Button>
-
                   {step === "review" ? (
                     <Button
                       type="button"
-                      size="sm"
                       data-testid="create-travel-agency-final"
                       onClick={() => completeMutation.mutate()}
                       disabled={completeMutation.isPending}
-                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
+                      className={SHELL_PRIMARY_BUTTON}
                     >
                       {completeMutation.isPending ? "Creating Travel Agency…" : "Create Travel Agency"}
                     </Button>
                   ) : (
                     <Button
                       type="button"
-                      size="sm"
                       onClick={() => {
                         if (validateCurrent()) go(GUEST_TRAVEL_AGENT_CREATE_STEPS[stepIndex + 1].id);
                       }}
-                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-medium text-xs shadow-sm"
+                      className={SHELL_PRIMARY_BUTTON}
                     >
-                      Next <ChevronRight className="ml-1 size-3.5" />
+                      Next <ChevronRight className="ml-1 size-4" />
                     </Button>
                   )}
                 </div>
@@ -1157,7 +1018,7 @@ export function GuestTravelAgencyCreateModal({
 
       {/* Discard Confirmation Dialog */}
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
-        <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+        <AlertDialogContent className="z-[100] rounded-2xl border border-[#DDD4C5] bg-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg text-[#251605]">
               Discard new travel agency?
@@ -1184,7 +1045,7 @@ export function GuestTravelAgencyCreateModal({
       {/* Start Over Confirmation Dialog */}
       {startOverOpen ? (
         <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
-          <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+          <AlertDialogContent className="z-[100] rounded-2xl border border-[#DDD4C5] bg-white">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-display text-lg text-[#251605]">
                 {GUEST_TRAVEL_AGENT_CREATE_START_OVER}?
@@ -1404,6 +1265,17 @@ function ReviewStep({
                     ? `${draft.allCommissionValue || draft.commissionValue || "10"}${draft.allCommissionType === "percent" ? "%" : " " + (draft.commissionCurrency || "ETB")} (Apply to All)`
                     : `${draft.commissionRules?.length ?? 0} Specific Rule(s)`}
                 </span>
+                {draft.commissionApplicationMode !== "all" && (draft.commissionRules ?? []).length > 0 ? (
+                  <ul className="mt-1 space-y-0.5">
+                    {draft.commissionRules.map((rule, index) => (
+                      <li key={rule.id || index}>
+                        {(rule.scopeType === "room_type" ? "Room type" : rule.scopeType === "rate_plan" ? "Rate plan" : "All stays")}:{" "}
+                        {rule.commissionValue || "—"}
+                        {rule.commissionType === "percent" ? "%" : ` ${draft.commissionCurrency || "ETB"}`}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
             </>
           ) : (

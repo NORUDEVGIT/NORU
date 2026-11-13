@@ -209,6 +209,8 @@ export const listWaitlist = createServerFn({ method: "POST" })
         status: z.enum(WAITLIST_DISPLAY_STATUSES).optional(),
         arrivalFrom: dateSchema.optional(),
         arrivalTo: dateSchema.optional(),
+        stayOverlapStart: dateSchema.optional(),
+        stayOverlapEnd: dateSchema.optional(),
       })
       .parse(input),
   )
@@ -225,6 +227,8 @@ export const listWaitlist = createServerFn({ method: "POST" })
     }
     if (data.arrivalFrom) query = query.gte("arrival_date", data.arrivalFrom);
     if (data.arrivalTo) query = query.lte("arrival_date", data.arrivalTo);
+    if (data.stayOverlapStart) query = query.gt("departure_date", data.stayOverlapStart);
+    if (data.stayOverlapEnd) query = query.lte("arrival_date", data.stayOverlapEnd);
     if (data.search && data.search.length >= 2) {
       const term = `%${data.search.replaceAll("%", "")}%`;
       query = query.ilike("confirmation_number", term);

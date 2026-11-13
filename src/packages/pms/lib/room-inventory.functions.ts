@@ -26,6 +26,7 @@ interface LooseQuery extends PromiseLike<LooseResult> {
   lt(column: string, value: unknown): LooseQuery;
   order(column: string, options?: { ascending?: boolean }): LooseQuery;
   limit(value: number): LooseQuery;
+  in(column: string, values: unknown[]): LooseQuery;
 }
 
 type LooseDbClient = {
@@ -122,6 +123,15 @@ export interface OperationalInventoryBlock {
   releasedByMembershipId: string | null;
   cancelledByMembershipId: string | null;
 
+  /** Staff-facing names. Null when the membership cannot be resolved. */
+  createdByName?: string | null;
+  approvedByName?: string | null;
+  activatedByName?: string | null;
+  releasedByName?: string | null;
+  cancelledByName?: string | null;
+  groupName?: string | null;
+  groupCode?: string | null;
+
   createdAt: string;
   updatedAt: string;
 
@@ -214,6 +224,110 @@ const createBlockSchema = z
       }
     }
   });
+
+function readablePerson(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) {
+    return null;
+  }
+  return text;
+}
+
+/** Resolves membership ids to names for display. Lookup failures leave the id unnamed. */
+async function membershipDisplayNames(
+  client: unknown,
+  restaurantId: string,
+  membershipIds: string[],
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  const ids = [...new Set(membershipIds.filter(Boolean))];
+  if (ids.length === 0) return names;
+  try {
+    const memRes = await looseDb(client)
+      .from("restaurant_memberships")
+      .select("id, display_name, email")
+      .in("id", ids);
+    if (!memRes.error && Array.isArray(memRes.data)) {
+      for (const row of memRes.data as Array<{
+        id: string;
+        display_name: string | null;
+        email: string | null;
+      }>) {
+        const label = readablePerson(row.display_name) ?? readablePerson(row.email);
+        if (label) names.set(row.id, label);
+      }
+    }
+  } catch (error) {
+    void error;
+  }
+  const unresolved = ids.filter((id) => !names.has(id));
+  if (unresolved.length === 0) return names;
+  try {
+    const userRes = await looseDb(client)
+      .from("restaurant_users")
+      .select("id, user_id")
+      .eq("restaurant_id", restaurantId)
+      .in("id", unresolved);
+    if (userRes.error || !Array.isArray(userRes.data)) return names;
+    const userMap = new Map<string, string>();
+    for (const row of userRes.data as Array<{ id: string; user_id: string }>) {
+      userMap.set(row.user_id, row.id);
+    }
+    const userIds = [...userMap.keys()];
+    if (userIds.length === 0) return names;
+    const profRes = await looseDb(client)
+      .from("profiles")
+      .select("id, first_name, last_name, email")
+      .in("id", userIds);
+    if (profRes.error || !Array.isArray(profRes.data)) return names;
+    for (const row of profRes.data as Array<{
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+    }>) {
+      const fullName = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
+      const label = readablePerson(fullName) ?? readablePerson(row.email);
+      const membershipId = userMap.get(row.id);
+      if (label && membershipId) names.set(membershipId, label);
+    }
+  } catch (error) {
+    void error;
+    return names;
+  }
+  return names;
+}
+
+async function groupDisplayLabels(
+  client: unknown,
+  restaurantId: string,
+  groupIds: string[],
+): Promise<Map<string, { name: string | null; code: string | null }>> {
+  const labels = new Map<string, { name: string | null; code: string | null }>();
+  const ids = [...new Set(groupIds.filter(Boolean))];
+  if (ids.length === 0) return labels;
+  try {
+    const result = await looseDb(client)
+      .from("pms_groups")
+      .select("id, name, code")
+      .eq("restaurant_id", restaurantId)
+      .in("id", ids);
+    if (result.error || !Array.isArray(result.data)) return labels;
+    for (const row of result.data as Array<{
+      id: string;
+      name: string | null;
+      code: string | null;
+    }>) {
+      labels.set(row.id, {
+        name: readablePerson(row.name),
+        code: readablePerson(row.code),
+      });
+    }
+  } catch (error) {
+    void error;
+  }
+  return labels;
+}
 
 function blankToNull(value: string | null | undefined): string | null {
   const cleaned = value?.trim();
@@ -368,7 +482,11 @@ export const listRoomInventoryEvents = createServerFn({ method: "POST" })
           .select("id, display_name, email")
           .in("id", actorIds);
         if (!memRes.error && Array.isArray(memRes.data)) {
-          for (const m of memRes.data as Array<{ id: string; display_name: string | null; email: string | null }>) {
+          for (const m of memRes.data as Array<{
+            id: string;
+            display_name: string | null;
+            email: string | null;
+          }>) {
             const label = m.display_name?.trim() || m.email?.trim();
             if (label) actorNames.set(m.id, label);
           }
@@ -395,7 +513,12 @@ export const listRoomInventoryEvents = createServerFn({ method: "POST" })
                 .select("id, first_name, last_name, email")
                 .in("id", uIds);
               if (!profRes.error && Array.isArray(profRes.data)) {
-                for (const p of profRes.data as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>) {
+                for (const p of profRes.data as Array<{
+                  id: string;
+                  first_name: string | null;
+                  last_name: string | null;
+                  email: string | null;
+                }>) {
                   const fullName = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
                   const label = fullName || p.email || "Staff";
                   const memId = userMap.get(p.id);
@@ -535,7 +658,7 @@ export const listOperationalBlocks = createServerFn({ method: "POST" })
       throw new Error(error.message || "Could not load operational inventory blocks.");
     }
 
-    return (
+    const blocks = (
       (rows ?? []) as unknown as Array<{
         id: string;
         restaurant_id: string;
@@ -612,6 +735,41 @@ export const listOperationalBlocks = createServerFn({ method: "POST" })
       releasedAt: row.released_at,
       cancelledAt: row.cancelled_at,
     }));
+    const names = await membershipDisplayNames(context.supabase, data.restaurantId, [
+      ...blocks.flatMap((block) => [
+        block.createdByMembershipId,
+        block.approvedByMembershipId ?? "",
+        block.activatedByMembershipId ?? "",
+        block.releasedByMembershipId ?? "",
+        block.cancelledByMembershipId ?? "",
+      ]),
+    ]);
+    const groups = await groupDisplayLabels(
+      context.supabase,
+      data.restaurantId,
+      blocks.flatMap((block) => (block.groupId ? [block.groupId] : [])),
+    );
+    return blocks.map((block) => {
+      const group = block.groupId ? groups.get(block.groupId) : undefined;
+      return {
+        ...block,
+        createdByName: names.get(block.createdByMembershipId) ?? null,
+        approvedByName: block.approvedByMembershipId
+          ? (names.get(block.approvedByMembershipId) ?? null)
+          : null,
+        activatedByName: block.activatedByMembershipId
+          ? (names.get(block.activatedByMembershipId) ?? null)
+          : null,
+        releasedByName: block.releasedByMembershipId
+          ? (names.get(block.releasedByMembershipId) ?? null)
+          : null,
+        cancelledByName: block.cancelledByMembershipId
+          ? (names.get(block.cancelledByMembershipId) ?? null)
+          : null,
+        groupName: group?.name ?? null,
+        groupCode: group?.code ?? null,
+      };
+    });
   });
 
 /* --------------------------------------------------------------- mutations */

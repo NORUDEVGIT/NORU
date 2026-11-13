@@ -991,11 +991,31 @@ export const listGroups = createServerFn({ method: "POST" })
         status: z.enum(GROUP_STATUSES).optional(),
         arrivalFrom: dateSchema.optional(),
         arrivalTo: dateSchema.optional(),
+        stayOverlapStart: dateSchema.optional(),
+        stayOverlapEnd: dateSchema.optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
+    let overlapGroupIds: string[] = [];
+    if (data.stayOverlapStart && data.stayOverlapEnd) {
+      const overlappingBlocks = await db(context.supabase)
+        .from("pms_group_blocks")
+        .select("group_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("status", "active")
+        .lte("start_date", data.stayOverlapEnd)
+        .gt("end_date", data.stayOverlapStart);
+      if (overlappingBlocks.error) {
+        throw new Error(overlappingBlocks.error.message || "Could not load group blocks.");
+      }
+      overlapGroupIds = [
+        ...new Set(
+          ((overlappingBlocks.data ?? []) as Array<{ group_id: string }>).map((row) => row.group_id),
+        ),
+      ];
+    }
     let query = db(context.supabase)
       .from("pms_groups")
       .select(GROUP_SELECT)
@@ -1005,6 +1025,13 @@ export const listGroups = createServerFn({ method: "POST" })
     if (data.status) query = query.eq("status", data.status);
     if (data.arrivalFrom) query = query.gte("arrival_date", data.arrivalFrom);
     if (data.arrivalTo) query = query.lte("arrival_date", data.arrivalTo);
+    if (data.stayOverlapStart && data.stayOverlapEnd) {
+      const stay = `and(departure_date.gt.${data.stayOverlapStart},arrival_date.lte.${data.stayOverlapEnd})`;
+      query =
+        overlapGroupIds.length > 0
+          ? query.or(`${stay},id.in.(${overlapGroupIds.join(",")})`)
+          : query.gt("departure_date", data.stayOverlapStart).lte("arrival_date", data.stayOverlapEnd);
+    }
     if (data.search && data.search.length >= 2) {
       const term = `%${data.search.replaceAll("%", "")}%`;
       query = query.or(

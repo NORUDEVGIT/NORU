@@ -223,9 +223,10 @@ test("NORU PMS — Guest Profile: Edit Mode Guarantees Across All 4 Profile Type
     assert.ok(resWorkspaceSrc.includes("if (returnTo) {"));
     assert.ok(resWorkspaceSrc.includes("navigateToReturnPath(navigate, returnTo)"));
 
-    // CreateReservationPage forwards returnToLabel to CreateReservationConfirmation
+    // Create closes the wizard instead of a success screen
     assert.ok(createPageSrc.includes("returnToLabel?: string | undefined"));
-    assert.ok(createPageSrc.includes("returnToLabel={returnToLabel}"));
+    assert.ok(createPageSrc.includes("onReturnToDesk()"));
+    assert.ok(!createPageSrc.includes("<CreateReservationConfirmation"));
 
     // CreateReservationConfirmation renders returnToLabel on return button
     assert.ok(confirmationSrc.includes("returnToLabel?: string | undefined"));

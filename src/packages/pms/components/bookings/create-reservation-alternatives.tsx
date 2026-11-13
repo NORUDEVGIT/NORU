@@ -28,7 +28,7 @@ function AlternativeCard({
 export function CreateReservationAlternatives() {
   return (
     <section
-      className={cn(PMS_OP_PANEL, "!shadow-none p-3")}
+      className={cn(PMS_OP_PANEL, "!rounded-lg !border-[#DDD4C5] !shadow-none p-3")}
       data-testid="create-reservation-alternatives"
     >
       <h2 className="font-display text-base text-[#251605]">Alternative Options</h2>

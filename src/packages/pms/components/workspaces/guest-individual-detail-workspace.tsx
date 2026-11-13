@@ -148,8 +148,8 @@ export function GuestIndividualDetailWorkspace({
               className={cn(
                 "shrink-0 border-b-2 px-3.5 py-2 text-xs transition-colors",
                 isActive
-                  ? "border-[#C89933] font-semibold text-[#251605]"
-                  : "border-transparent text-[#756A5B] hover:border-[#DDD4C5] hover:text-[#251605]",
+                  ? "border-[#C89933] bg-[#FBF7EE] font-semibold text-[#8A641A]"
+                  : "border-transparent text-[#756A5B] hover:border-[#DDD4C5] hover:bg-[#FBF7EE]/70 hover:text-[#251605]",
               )}
             >
               {def.label}
@@ -166,8 +166,8 @@ export function GuestIndividualDetailWorkspace({
               className={cn(
                 "inline-flex shrink-0 items-center gap-1 border-b-2 px-3.5 py-2 text-xs transition-colors",
                 isMoreActive
-                  ? "border-[#C89933] font-semibold text-[#8A641A]"
-                  : "border-transparent text-[#756A5B] hover:border-[#DDD4C5] hover:text-[#251605]",
+                  ? "border-[#C89933] bg-[#FBF7EE] font-semibold text-[#8A641A]"
+                  : "border-transparent text-[#756A5B] hover:border-[#DDD4C5] hover:bg-[#FBF7EE]/70 hover:text-[#251605]",
               )}
               aria-label="More guest profile views"
             >
@@ -191,10 +191,7 @@ export function GuestIndividualDetailWorkspace({
                     isSelected ? "bg-[#F4E9D0] text-[#8A641A] font-semibold" : "text-[#251605] hover:bg-[#F7F4EE]",
                   )}
                 >
-                  <div className="flex flex-col">
-                    <span>{def.label}</span>
-                    <span className="text-[10px] text-[#756A5B] line-clamp-1">{def.description}</span>
-                  </div>
+                  <span>{def.label}</span>
                 </DropdownMenuItem>
               );
             })}

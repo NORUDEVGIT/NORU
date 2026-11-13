@@ -1172,6 +1172,28 @@ export const inspectRoom = createServerFn({ method: "POST" })
 
 /* ------------------------------------------------------------- restrictions */
 
+/** Same column the restriction RPC reads. Missing row matches the database default: not required. */
+export const getRoomRestrictionPolicy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<{ oooMaintenanceTicketRequired: boolean }> => {
+    await requireHousekeepingActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.ROOM_RESTRICTION_EDIT,
+    );
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row, error } = await supabaseAdmin
+      .from("pms_maintenance_rules")
+      .select("operational_ooo_maintenance_ticket_required")
+      .eq("restaurant_id", data.restaurantId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return {
+      oooMaintenanceTicketRequired: row?.operational_ooo_maintenance_ticket_required === true,
+    };
+  });
+
 export const setRoomRestriction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -1182,6 +1204,7 @@ export const setRoomRestriction = createServerFn({ method: "POST" })
         status: z.enum(["available", "out_of_order", "out_of_service"]),
         reason: z.string().max(500).optional(),
         expectedReturn: dateSchema.nullable().optional(),
+        maintenanceRequestId: idSchema.nullable().optional(),
       })
       .parse(input),
   )
@@ -1205,6 +1228,8 @@ export const setRoomRestriction = createServerFn({ method: "POST" })
         reason: blankToNull(data.reason),
         expectedReturn: data.expectedReturn ?? null,
         membershipId: me.id,
+        maintenanceRequestId:
+          data.status === "out_of_order" ? (data.maintenanceRequestId ?? null) : null,
       });
     } catch (error) {
       throw housekeepingError(

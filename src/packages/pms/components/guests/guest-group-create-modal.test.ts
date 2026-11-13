@@ -4,16 +4,7 @@ import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import {
-  GUEST_GROUP_CREATE_STEPS,
-  GUEST_GROUP_CREATE_TITLE,
-  GUEST_GROUP_CREATE_START_OVER,
-  GROUP_CREATE_PRICING_UNAVAILABLE,
-  GROUP_CREATE_NO_PHYSICAL_ROOMS,
-  emptyGuestGroupCreateDraft,
-  groupCreateFieldIssues,
-  guestGroupCreateCompletion,
-} from "@/packages/pms/lib/guest-group-create-workspace";
+import { GUEST_GROUP_CREATE_STEPS } from "@/packages/pms/lib/guest-group-create-workspace";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -25,11 +16,11 @@ describe("NORU PMS — Guest Profile: New Group Wide Modal Modernization (5-Step
   const modalCode = readRel("./guest-group-create-modal.tsx");
   const shellCode = readRel("../workspaces/guest-profile-workspace.tsx");
 
-  it("1. New Group opens the wide modal with Reservation-style overlay sizing", () => {
+  it("1. New Group opens the Create New Guest wizard shell", () => {
     assert.match(modalCode, /DialogContent/);
     assert.match(modalCode, /data-testid="guest-group-create-modal"/);
-    assert.match(modalCode, /w-\[min\(98vw,1550px\)\]/);
-    assert.match(modalCode, /h-\[min\(92vh,960px\)\]/);
+    assert.match(modalCode, /h-\[92vh\] max-h-\[92vh\] w-\[min\(90vw,1440px\)\]/);
+    assert.match(modalCode, /bg-\[#1F140A\]/);
   });
 
   it("2. Guest Profile listing remains mounted behind modal when create === 'group'", () => {
@@ -47,17 +38,16 @@ describe("NORU PMS — Guest Profile: New Group Wide Modal Modernization (5-Step
     assert.doesNotMatch(createBranch, /<GuestGroupCreateWorkspace/);
   });
 
-  it("4. Modal has 5-step horizontal navigation matching established canonical steps", () => {
-    assert.equal(GUEST_GROUP_CREATE_STEPS.length, 5);
+  it("4. Modal has 4-step horizontal navigation for a reusable group profile", () => {
+    assert.equal(GUEST_GROUP_CREATE_STEPS.length, 4);
     assert.deepEqual(
       GUEST_GROUP_CREATE_STEPS.map((s) => s.id),
-      ["details", "stay", "guests", "billing", "review"],
+      ["details", "guests", "billing", "review"],
     );
     assert.deepEqual(
       GUEST_GROUP_CREATE_STEPS.map((s) => s.title),
       [
         "Group Details",
-        "Travel & Stay",
         "Guest Information",
         "Financial & Billing",
         "Review & Confirm",
@@ -67,7 +57,7 @@ describe("NORU PMS — Guest Profile: New Group Wide Modal Modernization (5-Step
     assert.match(modalCode, /GUEST_GROUP_CREATE_STEPS\.map/);
   });
 
-  it("5. Next and Back navigation works across the 5 steps", () => {
+  it("5. Next and Back navigation works across the profile steps", () => {
     assert.match(modalCode, /go\(GUEST_GROUP_CREATE_STEPS\[stepIndex - 1\]\.id\)/);
     assert.match(modalCode, /go\(GUEST_GROUP_CREATE_STEPS\[stepIndex \+ 1\]\.id\)/);
     assert.match(modalCode, /validateCurrent\(\)/);
@@ -99,21 +89,16 @@ describe("NORU PMS — Guest Profile: New Group Wide Modal Modernization (5-Step
     assert.doesNotMatch(modalCode, /placeholder="Search existing guests for contact"/);
   });
 
-  it("8. Travel & Stay preserves arrival/departure dates, times, expected pax, tags, and room demand requirements", () => {
-    assert.match(modalCode, /draft\.arrivalDate/);
-    assert.match(modalCode, /draft\.departureDate/);
-    assert.match(modalCode, /draft\.arrivalTime/);
-    assert.match(modalCode, /draft\.departureTime/);
-    assert.match(modalCode, /draft\.expectedPax/);
-    assert.match(modalCode, /draft\.arrivalMethod/);
-    assert.match(modalCode, /draft\.departureMethod/);
-    assert.match(modalCode, /draft\.destinations/);
-    assert.match(modalCode, /draft\.roomNeeds/);
-    assert.match(modalCode, /emptyGroupCreateRoomNeed/);
+  it("8. Registration does not capture stay dates, transport, room needs, or expected occupancy", () => {
+    assert.doesNotMatch(modalCode, /step === "stay"/);
+    assert.doesNotMatch(modalCode, /Arrival Date/);
+    assert.doesNotMatch(modalCode, /Expected Pax/);
+    assert.doesNotMatch(modalCode, /emptyGroupCreateRoomNeed/);
+    assert.match(modalCode, /draft\.specialRequests/);
+    assert.match(modalCode, /draft\.notes/);
   });
 
-  it("9. Operational Boundary: Room requirements remain demand by type; no physical room assignment", () => {
-    assert.match(modalCode, /GROUP_CREATE_NO_PHYSICAL_ROOMS/);
+  it("9. Operational Boundary: profile registration does not assign physical rooms", () => {
     assert.doesNotMatch(modalCode, /assignReservationRoom|listAssignableRooms|assignRoom/);
     assert.doesNotMatch(modalCode, /Physical Room Assignment|Auto Assignment/);
   });
@@ -127,18 +112,17 @@ describe("NORU PMS — Guest Profile: New Group Wide Modal Modernization (5-Step
     assert.match(modalCode, /data-testid="group-create-import"/);
   });
 
-  it("11. Financial & Billing uses only existing backend credit facts and pricing estimate without fake totals", () => {
+  it("11. Billing keeps reusable defaults and leaves stay pricing to Reservations", () => {
     assert.match(modalCode, /loadGroupCreateCredit/);
-    assert.match(modalCode, /estimateGroupCreationCharges/);
-    assert.match(modalCode, /GROUP_CREATE_PRICING_UNAVAILABLE/);
-    assert.match(modalCode, /draft\.ratePlanId/);
-    assert.match(modalCode, /draft\.packageId/);
-    assert.match(modalCode, /draft\.mealPlanId/);
     assert.match(modalCode, /draft\.billingArrangement/);
     assert.match(modalCode, /draft\.paymentMethodId/);
     assert.match(modalCode, /draft\.currency/);
-    assert.match(modalCode, /draft\.depositRequired/);
-    assert.match(modalCode, /draft\.depositAmount/);
+    assert.match(modalCode, /draft\.paymentTerms/);
+    assert.match(modalCode, /Create Group \/ Block/);
+    assert.match(modalCode, /createGroupProfile: created\.id/);
+    assert.doesNotMatch(modalCode, /Deposit Due Date/);
+    assert.doesNotMatch(modalCode, /Select rate plan/);
+    assert.doesNotMatch(modalCode, /Select meal plan/);
   });
 
   it("12. Final mutation and save draft semantics are preserved exactly", () => {
@@ -167,16 +151,17 @@ describe("NORU PMS — Guest Profile: New Group Wide Modal Modernization (5-Step
     assert.match(modalCode, /MODAL_SELECT_TRIGGER_CLASS/);
   });
 
-  it("16. Right-side panel includes group preview, completion progress, and step guidance", () => {
-    assert.match(modalCode, /data-testid="group-create-profile-preview"/);
+  it("16. Completion stays in the header and the right-side rail is not mounted", () => {
     assert.match(modalCode, /guestGroupCreateCompletion/);
-    assert.match(modalCode, /Step Guidance/);
-    assert.match(modalCode, /Property Setup Controlled/);
+    assert.match(modalCode, /% complete/);
+    assert.doesNotMatch(modalCode, /data-testid="group-create-profile-preview"/);
+    assert.doesNotMatch(modalCode, /Step Guidance/);
+    assert.doesNotMatch(modalCode, /Property Setup Controlled/);
   });
 
   it("17. Sticky footer includes Back, Next, Save as Draft, and gold CTA with dark espresso text", () => {
     assert.match(modalCode, /Save as Draft/);
-    assert.match(modalCode, /bg-\[#C89933\] text-\[#251605\] hover:bg-\[#B98B2D\] font-semibold/);
+    assert.match(modalCode, /SHELL_PRIMARY_BUTTON/);
   });
 
   it("18. Strict Independence: GuestGroupCreateModal does NOT import or render other profile modals", () => {

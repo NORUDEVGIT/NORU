@@ -132,6 +132,9 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   ROOM_NOT_ASSIGNABLE:
     "That room can't be used — check it is active, available and of the reserved type.",
   ROOM_ALREADY_BOOKED: "That room is already booked or occupied for part of those dates.",
+  ROOM_CAPACITY_EXCEEDED:
+    "That room cannot hold this many guests under this property's room rules.",
+  ROOM_HOUSEKEEPING_NOT_READY: "Housekeeping has not released that room for assignment.",
   RESERVATION_NOT_FOUND: "Reservation not found for this property.",
   RESERVATION_CANCELLED: "This reservation is cancelled. Restore it before amending.",
   INVALID_STATUS: "Invalid reservation status.",

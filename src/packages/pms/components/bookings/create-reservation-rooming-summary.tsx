@@ -9,7 +9,7 @@ export function CreateReservationRoomingSummary({
 }) {
   return (
     <section
-      className="rounded-[6px] border border-[#CCCCCC] bg-white px-3 py-2"
+      className="rounded-lg border border-[#DDD4C5] bg-white px-3 py-2"
       data-testid="rooming-summary"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">

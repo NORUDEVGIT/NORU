@@ -38,6 +38,23 @@ vi.mock("@/packages/pms/components/bookings/create-reservation-master-picker", (
   CreateReservationMasterPicker: () => null,
 }));
 
+vi.mock("@/packages/pms/components/bookings/create-reservation-guest", () => ({
+  CreateReservationGuest: () => null,
+  CreateReservationGuestCompact: () => null,
+}));
+
+vi.mock("@/packages/pms/components/guests/guest-group-create-modal", () => ({
+  GuestGroupCreateModal: () => null,
+}));
+
+vi.mock("@/packages/pms/lib/guest-accounts.functions", () => ({
+  listGuestAccounts: {},
+}));
+
+vi.mock("@/packages/pms/lib/guest-group-detail.functions", () => ({
+  getGroupDetailWorkspace: {},
+}));
+
 vi.mock("@/packages/pms/lib/groups-create-wizard", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/packages/pms/lib/groups-create-wizard")>();
   return {

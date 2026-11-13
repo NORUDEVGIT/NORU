@@ -837,9 +837,11 @@ export function FrontOfficeWorkspace({
             ? "Create a walk-in reservation. Arrival starts on the property business date."
             : "Review the reservation created from Front Office."
         }
-        hideVisualHeader={reservationOverlay?.type === "reservation-detail"}
+        hideVisualHeader={
+          reservationOverlay?.type === "new-reservation" ||
+          reservationOverlay?.type === "reservation-detail"
+        }
         size={reservationOverlay?.type === "reservation-detail" ? "workspace" : "wide"}
-        showCreateIcon={reservationOverlay?.type === "new-reservation"}
         onOpenChange={(open) => {
           if (!open) closeReservationOverlay();
         }}

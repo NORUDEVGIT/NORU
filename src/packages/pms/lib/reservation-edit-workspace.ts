@@ -1,8 +1,11 @@
+import { isStayRangeValid } from "@/packages/pms/lib/create-reservation-phase1";
+import type { GuestGender, GuestTitle, RestrictionSeverity } from "@/packages/pms/lib/guest-profile-individual";
 import {
-  DEFAULT_BOOKING_SOURCES,
-  DEFAULT_MARKET_SEGMENTS,
-  isStayRangeValid,
-} from "@/packages/pms/lib/create-reservation-phase1";
+  isPreferredContactMethod,
+  isPreferredContactTime,
+  type PreferredContactMethod,
+  type PreferredContactTime,
+} from "@/packages/pms/lib/guest-profile-overview";
 import { formatStayDate, nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import { occupancyExceeded } from "@/packages/pms/lib/fo-amendments";
 import { REVIEW_DASH } from "@/packages/pms/lib/create-reservation-review";
@@ -36,6 +39,10 @@ export type EditReservationStepId = (typeof EDIT_RESERVATION_STEPS)[number]["id"
 export type ReservationEditDraft = {
   guestId: string;
   guestName: string;
+  guestFirstName: string;
+  guestLastName: string;
+  guestPhone: string;
+  guestEmail: string;
   arrival: string;
   departure: string;
   adults: number;
@@ -109,14 +116,33 @@ export function stayDatesLabel(arrival: string, departure: string): string {
   return `${formatStayDate(arrival)} – ${formatStayDate(departure)} (${nightLabel})`;
 }
 
-function commercialLabel(
-  value: string,
-  options: readonly { value: string; label: string }[],
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export type EditCommercialOption = {
+  value: string;
+  label: string;
+  id?: string | null;
+  code?: string | null;
+};
+
+/** Catalogue or default label. A raw id with no label is a dash. */
+export function editCommercialLabel(
+  value: string | null | undefined,
+  options: readonly EditCommercialOption[],
 ): string {
-  const match = options.find((option) => option.value === value);
-  if (match) return match.label;
-  const text = value.replaceAll("_", " ").trim();
-  return text ? text : EDIT_DASH;
+  const raw = value?.trim() ?? "";
+  if (!raw) return EDIT_DASH;
+  const match = options.find(
+    (option) =>
+      option.value === raw ||
+      option.id === raw ||
+      option.code === raw ||
+      option.label.trim().toLowerCase() === raw.toLowerCase(),
+  );
+  const label = match?.label.trim() ?? "";
+  if (label && !UUID_RE.test(label)) return label;
+  return EDIT_DASH;
 }
 
 export function guestCountLabel(adults: number, children: number, infants?: number | null): string {
@@ -175,6 +201,10 @@ export function draftFromReservation(
   return {
     guestId: reservation.guestId,
     guestName: reservation.guestName,
+    guestFirstName: "",
+    guestLastName: "",
+    guestPhone: "",
+    guestEmail: "",
     arrival: chosen?.arrivalDate ?? reservation.arrivalDate,
     departure: chosen?.departureDate ?? reservation.departureDate,
     adults: chosen?.adults ?? reservation.adults,
@@ -199,7 +229,130 @@ export function draftFromReservation(
 }
 
 export function editDraftDirty(before: ReservationEditDraft, after: ReservationEditDraft): boolean {
-  return persistableChanges(buildEditChangeRows({ before, after })).length > 0;
+  return (
+    persistableChanges(buildEditChangeRows({ before, after })).length > 0 ||
+    persistableChanges(buildGuestProfileChangeRows({ before, after })).length > 0
+  );
+}
+
+export type GuestProfileAmendSource = {
+  nationality: string | null;
+  language: string | null;
+  dateOfBirth: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  postalCode: string | null;
+  idDocumentType: "passport" | "national_id" | "driving_licence" | "other" | null;
+  idDocumentNumber: string | null;
+  idDocumentExpiry: string | null;
+  vipStatus: boolean;
+  notes: string | null;
+  title: GuestTitle | null;
+  middleName: string | null;
+  preferredName: string | null;
+  gender: GuestGender | null;
+  phoneAlt: string | null;
+  emailAlt: string | null;
+  preferredContactMethod: PreferredContactMethod | string | null;
+  preferredContactTime: PreferredContactTime | string | null;
+  position: string | null;
+  department: string | null;
+  sourceOfBusiness: string | null;
+  guestStatus: "active" | "inactive";
+  restricted: boolean;
+  blacklisted: boolean;
+  restrictionSeverity: RestrictionSeverity | null;
+  restrictionReason: string | null;
+  restrictionUntil: string | null;
+  emergencyContacts: Array<{
+    name: string;
+    relationship: string | null;
+    phone: string | null;
+    email: string | null;
+  }>;
+};
+
+/** Round-trip the loaded profile so a name or contact edit does not clear the rest. */
+export function guestProfileAmendPayload(
+  profile: GuestProfileAmendSource,
+  contact: { firstName: string; lastName: string; phone: string; email: string },
+) {
+  return {
+    firstName: contact.firstName.trim(),
+    lastName: contact.lastName.trim() || null,
+    phone: contact.phone.trim() || null,
+    email: contact.email.trim() || null,
+    nationality: profile.nationality,
+    language: profile.language,
+    dateOfBirth: profile.dateOfBirth,
+    addressLine1: profile.addressLine1,
+    addressLine2: profile.addressLine2,
+    city: profile.city,
+    region: profile.region,
+    country: profile.country,
+    postalCode: profile.postalCode,
+    idDocumentType: profile.idDocumentType,
+    idDocumentNumber: profile.idDocumentNumber,
+    idDocumentExpiry: profile.idDocumentExpiry,
+    vipStatus: profile.vipStatus,
+    notes: profile.notes,
+    title: profile.title,
+    middleName: profile.middleName,
+    preferredName: profile.preferredName,
+    gender: profile.gender,
+    phoneAlt: profile.phoneAlt,
+    emailAlt: profile.emailAlt,
+    preferredContactMethod:
+      profile.preferredContactMethod && isPreferredContactMethod(profile.preferredContactMethod)
+        ? profile.preferredContactMethod
+        : null,
+    preferredContactTime:
+      profile.preferredContactTime && isPreferredContactTime(profile.preferredContactTime)
+        ? profile.preferredContactTime
+        : null,
+    position: profile.position,
+    department: profile.department,
+    sourceOfBusiness: profile.sourceOfBusiness,
+    guestStatus: profile.guestStatus,
+    restricted: profile.restricted,
+    blacklisted: profile.blacklisted,
+    restrictionSeverity: profile.restrictionSeverity,
+    restrictionReason: profile.restrictionReason,
+    restrictionUntil: profile.restrictionUntil,
+    emergencyContacts: profile.emergencyContacts.map((contact) => ({
+      name: contact.name,
+      relationship: contact.relationship,
+      phone: contact.phone,
+      email: contact.email,
+    })),
+  };
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+export function guestContactIssue(
+  draft: Pick<ReservationEditDraft, "guestFirstName" | "guestEmail">,
+): string | null {
+  if (!draft.guestFirstName.trim()) return "First name is required.";
+  const email = draft.guestEmail.trim();
+  if (email && !EMAIL_RE.test(email)) return "Enter a valid email address.";
+  return null;
+}
+
+export function buildGuestProfileChangeRows(input: {
+  before: ReservationEditDraft;
+  after: ReservationEditDraft;
+}): EditChangeRow[] {
+  const { before, after } = input;
+  return [
+    row("First Name", dash(before.guestFirstName), dash(after.guestFirstName), true),
+    row("Last Name", dash(before.guestLastName), dash(after.guestLastName), true),
+    row("Phone", dash(before.guestPhone), dash(after.guestPhone), true),
+    row("Email", dash(before.guestEmail), dash(after.guestEmail), true),
+  ];
 }
 
 /** Dates and occupancy stay on the master priced amend only for a one-unit stay. */
@@ -269,7 +422,6 @@ export function buildEditChangeRows(input: {
   after: ReservationEditDraft;
 }): EditChangeRow[] {
   const { before, after } = input;
-  const guestChanged = before.guestId !== after.guestId;
   return [
     row(
       "Stay Dates",
@@ -292,25 +444,6 @@ export function buildEditChangeRows(input: {
       guestCountLabel(after.adults, after.children),
       true,
     ),
-    row(
-      "Guest",
-      dash(before.guestName),
-      guestChanged ? dash(after.guestName) : dash(before.guestName),
-      true,
-    ),
-    row(
-      "Source",
-      commercialLabel(before.commercialBookingSource, DEFAULT_BOOKING_SOURCES),
-      commercialLabel(after.commercialBookingSource, DEFAULT_BOOKING_SOURCES),
-      true,
-    ),
-    row(
-      "Market Segment",
-      commercialLabel(before.marketSegment, DEFAULT_MARKET_SEGMENTS),
-      commercialLabel(after.marketSegment, DEFAULT_MARKET_SEGMENTS),
-      true,
-    ),
-    row("External Reference", dash(before.externalReference), dash(after.externalReference), true),
     row("Special Requests", dash(before.specialRequests), dash(after.specialRequests), true),
     row("Reservation Internal Notes", dash(before.notes), dash(after.notes), true),
   ];

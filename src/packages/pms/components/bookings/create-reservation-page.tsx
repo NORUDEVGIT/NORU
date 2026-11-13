@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { Check, Search } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { ArrowRight, CheckCircle2, Search, X } from "lucide-react";
 import { keepPreviousData, useMutation, useQuery, useQueries } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
@@ -45,7 +45,6 @@ import {
   earlyDeparturePenaltySummary,
   earlyDepartureReviewLabel,
 } from "@/packages/pms/lib/early-departure-policy";
-import { CreateReservationConfirmation } from "@/packages/pms/components/bookings/create-reservation-confirmation";
 import {
   CreateReservationBookingDetails,
   type CreateServiceSelection,
@@ -54,6 +53,7 @@ import { CreateReservationReview } from "@/packages/pms/components/bookings/crea
 import { reviewIncludedItems } from "@/packages/pms/lib/create-reservation-review";
 import { formatPropertyContactAddress } from "@/packages/pms/lib/reservation-print-document";
 
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Button } from "@/shared/components/ui/button";
 import {
   AlertDialog,
@@ -165,7 +165,6 @@ import {
   CREATE_RESERVATION_DENIED_COPY,
   CREATE_RESERVATION_MIN_NIGHTS,
   CREATE_RESERVATION_TYPE_CHANGE_WARN,
-  formatStayOccupancySummary,
   isStayRangeValid,
   linkedStayFromArrival,
   linkedStayFromDeparture,
@@ -210,11 +209,10 @@ import {
   assignExtraOccupant,
   removeGroupRoom,
   buildGroupRoomGuestAssignments,
-  confirmSingleDowngrade,
+  applyRoomQuantity,
   formatRoomOccupancy,
   groupStayTotals,
   groupStep1Issue,
-  selectReservationMode,
   type Step1RoomingState,
 } from "@/packages/pms/lib/create-reservation-rooming";
 import {
@@ -236,17 +234,12 @@ import {
   type AssignedRoomView,
 } from "@/packages/pms/lib/create-reservation-phase1-section6";
 import {
-  CREATE_RESERVATION_CONFIRM_LABEL,
-  CREATE_RESERVATION_PENDING_LABEL,
   canSubmitConfirmReservation,
   createConfirmBlockCopy,
-  createPendingBlockCopy,
   guaranteeCatalogueWarning,
-  paymentTermsReviewCopy,
   requiredMasterForConfirm,
   resolveGuaranteeMethodOptions,
   section7PersistApplied,
-  type CreatedReservationConfirmation,
 } from "@/packages/pms/lib/create-reservation-phase1-section7";
 import { activePackageCountFromRows } from "@/packages/pms/lib/create-reservation-phase1-section8";
 import { useRestaurantTimezone } from "@/core/state/property-format";
@@ -286,12 +279,10 @@ export function CreateReservationPage({
   pmsGroupId = null,
   pmsGroupBlockId = null,
   lockOperationalGroup = false,
-  returnToLabel,
   mode = "standard",
   businessDate = null,
   onCancel,
   onCreated,
-  onOpenCreatedReservation,
   onContinueToCheckIn,
   onReturnToDesk,
 }: {
@@ -354,7 +345,6 @@ export function CreateReservationPage({
   const [reservationType, setReservationType] = useState<ReservationTypeMode>("individual");
   const [reservationMode, setReservationMode] = useState<ReservationMode>("single");
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
-  const [pendingSingleMode, setPendingSingleMode] = useState(false);
   const [pendingType, setPendingType] = useState<ReservationTypeMode | null>(null);
   const [bookingSource, setBookingSource] = useState("");
   const [marketSegment, setMarketSegment] = useState("");
@@ -386,12 +376,12 @@ export function CreateReservationPage({
   const [ratePlanId, setRatePlanId] = useState("");
   const [guaranteeMethod, setGuaranteeMethod] = useState("");
   const [step4Policies, setStep4Policies] = useState(EMPTY_CREATE_RESERVATION_POLICIES);
-  const [createdView, setCreatedView] = useState<CreatedReservationConfirmation | null>(null);
   const [workflowStep, setWorkflowStep] = useState(0);
   const [relationTab, setRelationTab] = useState<"company" | "travel_agent" | "group">("company");
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const navigate = useNavigate();
   const [holdCommercialDefaults, setHoldCommercialDefaults] = useState(false);
   const draftClosed = useRef(false);
   const stayDatesTouched = useRef(false);
@@ -1387,7 +1377,7 @@ export function CreateReservationPage({
         },
       });
     },
-    onSuccess: async (result, nextStatus) => {
+    onSuccess: async (result) => {
       if (result.paymentError) toast.error(result.paymentError);
       if (result.guestDepositError) toast.error(result.guestDepositError);
       draftClosed.current = true;
@@ -1405,7 +1395,6 @@ export function CreateReservationPage({
       if (!walkInMode && accessQuery.data?.membershipId) {
         clearCreateReservationDraft(restaurantId, accessQuery.data.membershipId);
       }
-      const createdServiceNames: string[] = [];
       if (guest?.id) {
         for (const row of selectedServiceRequests) {
           const created = await submitServiceRequest({
@@ -1419,102 +1408,21 @@ export function CreateReservationPage({
               quantity: effectiveServiceQuantity(row.pricingUnit ?? null, row.quantity ?? 1),
             },
           });
-          if (created.ok) {
-            const line = {
-              pricingUnit: row.pricingUnit ?? null,
-              unitAmount: row.unitAmount ?? null,
-              quantity: row.quantity ?? 1,
-              departmentId: row.departmentId ?? null,
-            };
-            const figures = serviceLineFigures(line, serviceChargeRules.data);
-            const detail = serviceLineDetail(line, money);
-            createdServiceNames.push(
-              [row.name, detail, figures.total != null ? money(figures.total) : null]
-                .filter(Boolean)
-                .join(" — "),
-            );
-          } else toast.error(created.message);
+          if (!created.ok) toast.error(created.message);
         }
       }
-      const sourceLabel =
-        sourceOptions.find((row) => row.value === bookingSource)?.label ?? bookingSource;
-      const segmentLabel =
-        segmentOptions.find((row) => row.value === marketSegment)?.label ?? marketSegment;
-      const guaranteeLabel =
-        guaranteeOptions.find((row) => row.value === guaranteeMethod)?.label ?? guaranteeMethod;
-      setCreatedView({
-        id: result.id,
-        confirmationNumber: result.confirmationNumber,
-        status: nextStatus,
-        guestName: guest?.fullName ?? "Guest",
-        stayDates: datesValid
-          ? `${formatStayDate(arrival)} → ${formatStayDate(departure)}`
-          : "Dates not set",
-        occupancy: formatStayOccupancySummary(adults, children),
-        roomType: selectedRoomType?.name ?? stickyRoomTypeLabel(selectedRoomType),
-        room: stickyRoomAssignmentLabel({
-          roomTypeId,
-          roomId,
-          unassignedValue: UNASSIGNED,
-          room: selectedAssignedRoom,
-        }),
-        rate: selectedQuote?.quote
-          ? `${selectedQuote.quote.ratePlanCode}${selectedQuote.quote.ratePlanName ? ` · ${selectedQuote.quote.ratePlanName}` : ""}`
-          : null,
-        stayTotal: selectedQuote?.quote ? money(quotedGuestTotal(selectedQuote.quote)) : null,
-        unpriced: selectedQuote?.quote == null,
-        guaranteeMethod:
-          nextStatus === "confirmed" ? guaranteeLabel || null : guaranteeLabel || null,
-        paymentTerms: paymentTermsReviewCopy({
-          companyName: companyMaster?.name ?? null,
-          companyTerms: companyMaster?.paymentTerms ?? null,
-          travelAgentName: travelAgentMaster?.name ?? null,
-          travelAgentTerms: travelAgentMaster?.paymentTerms ?? null,
-        }),
-        bookingSource: sourceLabel || null,
-        marketSegment: segmentLabel || null,
-        externalReference: externalReference.trim() || null,
-        selectedPackageLines: selectedCreatePackages.map((card) => {
-          const total =
-            card.price == null
-              ? null
-              : packageChargeFigures(card.price, packageChargeRules.data).total;
-          return `${card.name} — ${total == null ? "—" : money(total)}`;
-        }),
-        selectedServiceLines: createdServiceNames,
-        savedPreferenceLines: savedPreferenceRows.map((row) => `${row.label}: ${row.value}`),
-        operationalGroupName: linkedGroupQuery.data?.group.name ?? null,
-        operationalGroupCode:
-          linkedGroupQuery.data?.group.confirmationNumber ??
-          linkedGroupQuery.data?.group.code ??
-          null,
-        operationalUnitLines: linkedGroupQuery.data
-          ? [
-              (() => {
-                const copy = unitBlockReviewCopy({
-                  roomTypeName: selectedRoomType?.name || "Room",
-                  blockLabel:
-                    linkedGroupQuery.data.blocks.find((block) => block.id === linkedBlockId)
-                      ?.roomTypeName ?? null,
-                  contributesToPickup: Boolean(linkedBlockId),
-                });
-                return `Room 1 · ${copy.block} · Pickup ${copy.pickup}`;
-              })(),
-              ...extraRoomUnits.map((unit, index) => {
-                const copy = unitBlockReviewCopy({
-                  roomTypeName: extraRoomQuotes[unit.key]?.typeName || "Room",
-                  blockLabel:
-                    linkedGroupQuery.data?.blocks.find(
-                      (block) => block.id === unit.pmsGroupBlockId,
-                    )?.roomTypeName ?? null,
-                  contributesToPickup: Boolean(unit.pmsGroupBlockId),
-                });
-                return `Room ${index + 2} · ${copy.block} · Pickup ${copy.pickup}`;
-              }),
-            ]
-          : undefined,
-      });
       onCreated?.(result.id);
+      toast.success(`Reservation ${result.confirmationNumber} created`);
+      if (walkInMode && onContinueToCheckIn) {
+        onContinueToCheckIn({
+          id: result.id,
+          confirmationNumber: result.confirmationNumber,
+          guestName: guest?.fullName ?? "Guest",
+        });
+        return;
+      }
+      if (onReturnToDesk) onReturnToDesk();
+      else leaveWizard();
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1668,7 +1576,6 @@ export function CreateReservationPage({
     if (stored) {
       setWorkflowStep(stored.workflowStep);
       setReservationType(stored.reservationType);
-      setReservationMode(stored.reservationMode);
       setGuest(stored.guest as typeof guest);
       setArrival(stored.arrival || today);
       setDeparture(stored.departure || addDays(today, 1));
@@ -1676,9 +1583,10 @@ export function CreateReservationPage({
       setChildren(stored.children);
       setInfants(stored.infants);
       setRoomsRequested(1);
-      setExtraRoomUnits(stored.reservationMode === "group" ? stored.extraRoomUnits : []);
+      setReservationMode(stored.extraRoomUnits.length > 0 ? "group" : "single");
+      setExtraRoomUnits(stored.extraRoomUnits.length > 0 ? stored.extraRoomUnits : []);
       setActiveRoomIndex(
-        stored.reservationMode === "group"
+        stored.extraRoomUnits.length > 0
           ? Math.min(stored.activeRoomIndex, stored.extraRoomUnits.length)
           : 0,
       );
@@ -1741,11 +1649,10 @@ export function CreateReservationPage({
 
   useEffect(() => {
     if (walkInMode) return;
-    if (!membershipScope || !draftReady || draftClosed.current || createdView) return;
+    if (!membershipScope || !draftReady || draftClosed.current) return;
     if (draftMeaningful) writeCreateReservationDraft(restaurantId, membershipScope, draftSnapshot);
     else clearCreateReservationDraft(restaurantId, membershipScope);
   }, [
-    createdView,
     draftMeaningful,
     draftReady,
     draftSnapshot,
@@ -1835,36 +1742,6 @@ export function CreateReservationPage({
         <h1 className="font-display text-2xl">New Reservation</h1>
         <p className="mt-2 text-sm text-muted-foreground">{CREATE_RESERVATION_DENIED_COPY}</p>
       </div>
-    );
-  }
-
-  if (createdView) {
-    return (
-      <CreateReservationConfirmation
-        view={createdView}
-        canPrint={access.can(PMS_PERMISSIONS.RESERVATION_PRINT)}
-        onOpenReservation={onOpenCreatedReservation}
-        onContinueToCheckIn={
-          walkInMode && onContinueToCheckIn
-            ? () =>
-                onContinueToCheckIn({
-                  id: createdView.id,
-                  confirmationNumber: createdView.confirmationNumber,
-                  guestName: createdView.guestName,
-                })
-            : undefined
-        }
-        onReturnToDesk={onReturnToDesk}
-        returnToLabel={returnToLabel}
-        onCreateAnother={
-          embedded
-            ? () => {
-                draftClosed.current = false;
-                setCreatedView(null);
-              }
-            : undefined
-        }
-      />
     );
   }
 
@@ -2027,12 +1904,6 @@ export function CreateReservationPage({
       ),
       persistApplied,
     });
-  const pendingBlockCopy = occupancyIssue
-    ? occupancyIssue
-    : createPendingBlockCopy({
-        ...submitInput,
-        status: "pending",
-      });
   const confirmBlockCopy = occupancyIssue
     ? occupancyIssue
     : createConfirmBlockCopy({
@@ -2146,21 +2017,6 @@ export function CreateReservationPage({
     setRatePlanId(planId);
   }
 
-  function requestReservationMode(next: ReservationMode) {
-    const result = selectReservationMode(currentRooming(), next);
-    if (result.status === "confirm") {
-      setPendingSingleMode(true);
-      return;
-    }
-    if (result.status === "applied") commitRooming(result.state);
-  }
-
-  function confirmGroupToSingle() {
-    commitRooming(confirmSingleDowngrade(currentRooming()));
-    setExtraRoomQuotes({});
-    setPendingSingleMode(false);
-  }
-
   function quotesForRoomType(id: string) {
     const rows =
       !activeExtra && id === roomTypeId
@@ -2224,38 +2080,36 @@ export function CreateReservationPage({
     setTravelAgentContactId("");
   }
 
+  function leaveWizard() {
+    if (onCancel) {
+      onCancel();
+      return;
+    }
+    navigate({ to: "/restaurant/pms/reservations" });
+  }
+
   function requestCancel() {
-    if (!onCancel) return;
     if (draftMeaningful) setDiscardOpen(true);
-    else onCancel();
+    else leaveWizard();
   }
 
   function confirmDiscard() {
     draftClosed.current = true;
     if (!walkInMode && membershipScope) clearCreateReservationDraft(restaurantId, membershipScope);
     setDiscardOpen(false);
-    onCancel?.();
+    leaveWizard();
   }
 
-  const actions = (
-    <div className="flex flex-wrap items-center gap-3" data-testid="create-reservation-actions">
-      <div className="flex flex-wrap items-center gap-3" data-testid="create-as-status">
+  const confirmAction = (
+    <div className="flex flex-col items-end gap-1" data-testid="create-reservation-actions">
+      {!canSubmitConfirm && confirmBlockCopy ? (
+        <p className="text-xs text-[#8B6914]" data-testid="confirm-block-copy">
+          {confirmBlockCopy}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-end gap-2" data-testid="create-as-status">
         <Button
-          variant="outline"
-          disabled={!canSubmit || create.isPending}
-          data-testid="save-as-pending"
-          onClick={() => {
-            setStatus("pending");
-            create.mutate("pending");
-          }}
-        >
-          {create.isPending && status === "pending"
-            ? "Creating…"
-            : overbookReady
-              ? "Save overbooked request"
-              : CREATE_RESERVATION_PENDING_LABEL}
-        </Button>
-        <Button
+          className={cn(SHELL_PRIMARY_BUTTON, "disabled:text-[#251605] disabled:opacity-70")}
           disabled={!canSubmitConfirm || create.isPending}
           data-testid="confirm-guarantee"
           onClick={() => {
@@ -2263,32 +2117,9 @@ export function CreateReservationPage({
             create.mutate("confirmed");
           }}
         >
-          {create.isPending && status === "confirmed"
-            ? "Creating…"
-            : overbookReady
-              ? "Confirm overbooking"
-              : CREATE_RESERVATION_CONFIRM_LABEL}
+          {create.isPending ? "Creating…" : "Confirm Reservation"}
         </Button>
       </div>
-      {embedded ? null : onCancel ? (
-        <Button type="button" variant="outline" onClick={requestCancel}>
-          Cancel
-        </Button>
-      ) : (
-        <Button asChild variant="outline">
-          <Link to="/restaurant/pms/reservations">Cancel</Link>
-        </Button>
-      )}
-      {!canSubmit && pendingBlockCopy ? (
-        <p className="text-xs text-muted-foreground" data-testid="pending-block-copy">
-          {pendingBlockCopy}
-        </p>
-      ) : null}
-      {!canSubmitConfirm && confirmBlockCopy ? (
-        <p className="text-xs text-muted-foreground" data-testid="confirm-block-copy">
-          {confirmBlockCopy}
-        </p>
-      ) : null}
     </div>
   );
 
@@ -2391,9 +2222,11 @@ export function CreateReservationPage({
       datesValid={datesValid}
       adults={groupMode ? stayTotals.adults : adults}
       children={groupMode ? stayTotals.children : children}
-      rooms={groupMode ? stayTotals.rooms : 1}
-      roomsReadOnly
+      rooms={1 + extraRoomUnits.length}
       occupancyReadOnly={groupMode}
+      onRoomsChange={(count) =>
+        commitRooming(applyRoomQuantity(currentRooming(), count, () => crypto.randomUUID()))
+      }
       requestExtras={preferenceExtras}
       actions={
         <Button
@@ -3170,35 +3003,6 @@ export function CreateReservationPage({
         className="min-w-0 space-y-3"
         data-testid="create-reservation-step-guest-stay-availability"
       >
-        <div className="flex flex-wrap items-center gap-2" data-testid="reservation-type-selector">
-          <span className="text-sm text-[#6B5E4E]">Reservation Type</span>
-          <div className="inline-flex rounded-[6px] border border-[#CCCCCC] bg-white p-0.5">
-            <button
-              type="button"
-              data-testid="reservation-mode-single"
-              aria-pressed={reservationMode === "single"}
-              className={cn(
-                "rounded-[6px] px-2.5 py-1 text-xs font-medium",
-                reservationMode === "single" ? "bg-[#C89933] text-[#251605]" : "text-[#6B5E4E]",
-              )}
-              onClick={() => requestReservationMode("single")}
-            >
-              Single Reservation
-            </button>
-            <button
-              type="button"
-              data-testid="reservation-mode-group"
-              aria-pressed={reservationMode === "group"}
-              className={cn(
-                "rounded-[6px] px-2.5 py-1 text-xs font-medium",
-                reservationMode === "group" ? "bg-[#C89933] text-[#251605]" : "text-[#6B5E4E]",
-              )}
-              onClick={() => requestReservationMode("group")}
-            >
-              Group Reservation
-            </button>
-          </div>
-        </div>
         {linkedGroupQuery.data?.group ? (
           <CreateReservationGroupContext
             groupName={linkedGroupQuery.data.group.name}
@@ -3279,7 +3083,12 @@ export function CreateReservationPage({
             }
             onAdd={() => commitRooming(addGroupRoom(currentRooming(), crypto.randomUUID()))}
             onRemove={(key) => {
-              commitRooming(removeGroupRoom(currentRooming(), key));
+              const next = removeGroupRoom(currentRooming(), key);
+              commitRooming(
+                next.extras.length > 0
+                  ? next
+                  : { ...next, reservationMode: "single", activeRoomIndex: 0 },
+              );
               setExtraRoomQuotes((current) => {
                 const next = { ...current };
                 delete next[key];
@@ -3558,28 +3367,7 @@ export function CreateReservationPage({
     policiesSection,
     reviewSection,
   ];
-  const currentStep = CREATE_WORKFLOW_STEPS[workflowStep] ?? CREATE_WORKFLOW_STEPS[0];
   const mainContent = stepSections[workflowStep];
-
-  const singleModeWarn = (
-    <AlertDialog
-      open={pendingSingleMode}
-      onOpenChange={(open) => !open && setPendingSingleMode(false)}
-    >
-      <AlertDialogContent className="z-[70]" data-testid="group-to-single-confirm">
-        <AlertDialogHeader>
-          <AlertDialogTitle>Switch to a single reservation?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Room 1 stays. The other rooms and their occupants will be removed.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep group reservation</AlertDialogCancel>
-          <AlertDialogAction onClick={confirmGroupToSingle}>Use Room 1 only</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
 
   const typeWarn = (
     <AlertDialog open={pendingType !== null} onOpenChange={(open) => !open && setPendingType(null)}>
@@ -3613,88 +3401,115 @@ export function CreateReservationPage({
     </AlertDialog>
   );
 
+  const nextDisabled =
+    (workflowStep === 0 && !canContinueGuestStayAvailability) ||
+    (workflowStep === 1 && !canContinueBookingDetails);
+  const nextHelper =
+    workflowStep === 0 && !canContinueGuestStayAvailability
+      ? (groupIssue ?? "Complete this step to continue.")
+      : workflowStep === 1 && !canContinueBookingDetails
+        ? (sourceChannelNotice ?? "Complete booking details to continue.")
+        : null;
+  const footerButtonClass =
+    "h-9 border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]";
+
   return (
-    <div className={cn(embedded ? "flex min-h-0 flex-1 flex-col" : "flex flex-col gap-4 p-4")}>
-      {!embedded ? (
-        <div>
-          <h1 className="font-display text-2xl">New Reservation</h1>
-          <p className="text-sm text-muted-foreground">
-            Create a stay for {membership.restaurant.name}. Check availability after the stay
-            details are set.
-          </p>
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col bg-[#FBF7F1]",
+        !embedded && "min-h-[calc(100vh-4rem)]",
+      )}
+    >
+      <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="font-display text-sm font-semibold text-[#F3E9D8]">New Reservation</h1>
+          <span className="ml-auto">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+              onClick={requestCancel}
+              aria-label="Close new reservation"
+              data-testid="create-reservation-close"
+            >
+              <X className="size-4" />
+            </Button>
+          </span>
         </div>
-      ) : null}
+      </header>
       <CreateWorkflowStepper
         steps={CREATE_WORKFLOW_STEPS}
         current={workflowStep}
         onSelect={setWorkflowStep}
       />
-      {draftRestored ? (
-        <p className="px-4 pt-3 text-xs text-[#6B5E4E]" data-testid="reservation-draft-restored">
-          Reservation draft restored
-        </p>
-      ) : null}
       <div
-        className={cn("min-w-0", embedded && "min-h-0 flex-1 overflow-y-auto p-4")}
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 lg:p-5"
         data-testid="create-reservation-workspace"
       >
+        {draftRestored ? (
+          <p className="mb-3 text-xs text-[#6B5E4E]" data-testid="reservation-draft-restored">
+            Reservation draft restored
+          </p>
+        ) : null}
         {mainContent}
       </div>
-      <div
-        className={cn(
-          "flex shrink-0 flex-wrap items-center justify-between gap-3 border-[#DDD4C5] bg-white px-4 py-3",
-          embedded ? "border-t" : "rounded-xl border",
-        )}
+      <footer
+        className="shrink-0 border-t border-[#E8DFD0] bg-white px-4 py-2"
+        data-testid="create-reservation-footer"
       >
-        <div className="flex flex-wrap gap-2">
-          {onCancel ? (
-            <Button type="button" variant="outline" onClick={requestCancel}>
-              Cancel
-            </Button>
-          ) : !embedded ? (
-            <Button asChild variant="outline">
-              <Link to="/restaurant/pms/reservations">Cancel</Link>
-            </Button>
-          ) : null}
-          {workflowStep > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setWorkflowStep((step) => step - 1)}
-            >
-              ← Back
-            </Button>
-          ) : null}
-        </div>
-        {workflowStep < CREATE_WORKFLOW_STEPS.length - 1 ? (
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {workflowStep === 0 && groupIssue ? (
-              <p className="text-xs text-[#9B3A3A]" data-testid="group-step1-issue">
-                {groupIssue}
-              </p>
-            ) : null}
-            {workflowStep === 1 && !canContinueBookingDetails && sourceChannelNotice ? (
-              <p className="text-xs text-[#9B3A3A]" data-testid="source-channel-required">
-                {sourceChannelNotice}
-              </p>
-            ) : null}
-            <Button
-              className="!rounded-[6px] bg-[#C89933] text-[#251605] !shadow-none hover:bg-[#B98B2D] focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2"
-              disabled={
-                (workflowStep === 0 && !canContinueGuestStayAvailability) ||
-                (workflowStep === 1 && !canContinueBookingDetails)
-              }
-              onClick={() => setWorkflowStep((step) => step + 1)}
-            >
-              {currentStep.continueLabel} →
-            </Button>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {workflowStep === 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={footerButtonClass}
+                onClick={requestCancel}
+              >
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 text-[#4a2c1a]"
+                onClick={() => setWorkflowStep((step) => step - 1)}
+              >
+                Back
+              </Button>
+            )}
           </div>
-        ) : (
-          actions
-        )}
-      </div>
+          {workflowStep < CREATE_WORKFLOW_STEPS.length - 1 ? (
+            <div className="flex flex-col items-end gap-1">
+              {nextHelper ? (
+                <p
+                  className="text-xs text-[#8B6914]"
+                  data-testid={
+                    workflowStep === 0 && groupIssue
+                      ? "group-step1-issue"
+                      : workflowStep === 1 && sourceChannelNotice
+                        ? "source-channel-required"
+                        : "create-reservation-next-blocker"
+                  }
+                >
+                  {nextHelper}
+                </p>
+              ) : null}
+              <Button
+                className={cn(SHELL_PRIMARY_BUTTON, "disabled:text-[#251605] disabled:opacity-70")}
+                disabled={nextDisabled}
+                onClick={() => setWorkflowStep((step) => step + 1)}
+              >
+                Continue
+                <ArrowRight className="ml-2 size-4" />
+              </Button>
+            </div>
+          ) : (
+            confirmAction
+          )}
+        </div>
+      </footer>
       {typeWarn}
-      {singleModeWarn}
       {discardWarn}
     </div>
   );
@@ -3711,38 +3526,36 @@ function CreateWorkflowStepper({
 }) {
   return (
     <nav
-      className="shrink-0 overflow-x-auto border-b border-[#DDD4C5] bg-white px-4 py-3"
       aria-label="Create reservation workflow"
+      className="flex h-9 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-[#DDD4C5] bg-white px-2"
       data-testid="create-reservation-stepper"
     >
-      <ol className="flex min-w-max items-center gap-2">
+      <ol className="flex min-w-0 items-stretch">
         {steps.map((step, index) => {
           const active = index === current;
           const completed = index < current;
           return (
-            <li key={step.id} className="flex items-center gap-2">
-              {index > 0 ? <span className="h-px w-8 bg-[#DDD4C5]" aria-hidden /> : null}
+            <li key={step.id}>
               <button
                 type="button"
                 onClick={() => onSelect(index)}
+                aria-current={active ? "step" : undefined}
                 className={cn(
-                  "flex items-center gap-2 rounded-full px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2",
-                  active ? "font-medium text-[#251605]" : "text-muted-foreground",
+                  "relative flex h-full items-center gap-1 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                  completed && "text-[#436436]",
+                  active && "text-[#251605]",
+                  !completed && !active && "text-muted-foreground",
                 )}
               >
-                <span
-                  className={cn(
-                    "grid size-6 place-items-center rounded-full text-[11px]",
-                    active || completed
-                      ? "bg-[#C89933] text-[#251605]"
-                      : "bg-[#EFE8DC] text-muted-foreground",
-                  )}
-                >
-                  {completed ? <Check className="size-3.5" /> : index + 1}
-                </span>
-                <span className={cn(active && "border-b-2 border-[#C89933] pb-0.5")}>
-                  {step.label}
-                </span>
+                {completed ? <CheckCircle2 className="size-3" /> : null}
+                {completed ? null : <span className="tabular-nums">{index + 1}</span>}
+                <span className="hidden whitespace-nowrap sm:inline">{step.label}</span>
+                {completed ? (
+                  <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                ) : null}
+                {active ? (
+                  <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
+                ) : null}
               </button>
             </li>
           );

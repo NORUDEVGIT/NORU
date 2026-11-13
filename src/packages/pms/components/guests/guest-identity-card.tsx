@@ -37,7 +37,6 @@ import {
   GUEST_DOCUMENT_STATUS_LABELS,
   PREFERENCE_SETUP_HREF,
   STAFF_VERIFY_COPY,
-  WAVE2_MIGRATION_UNAVAILABLE,
 } from "@/packages/pms/lib/guest-profile-wave2";
 import {
   clearGuestDocumentImage,
@@ -57,6 +56,23 @@ import { propertyToday } from "@/packages/pms/lib/reservation-dates";
 import { supabase } from "@/integrations/supabase/client";
 import { useRestaurantTime } from "@/core/state/property-format";
 import { cn } from "@/shared/lib/utils";
+
+function escapePrint(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function documentSideClass(active: boolean) {
+  return cn(
+    "h-7 rounded-[4px] text-xs",
+    active
+      ? "border-[#C89933] bg-[#F4E9D0] text-[#8A641A] hover:bg-[#F4E9D0]"
+      : "border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#FBF7EE]",
+  );
+}
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -513,7 +529,66 @@ export function GuestIdentityCard({
       toast.error("Select a document to print.");
       return;
     }
-    window.print();
+    const expiryStatus = documentExpiryStatus(selected.expiryDate, today);
+    const expiryLabel = DOCUMENT_EXPIRY_STATUS_LABELS[expiryStatus];
+    const rows = [
+      ["Guest", guest.fullName],
+      ["Document", selected.typeName],
+      ["Document number", selected.documentNumberMasked ?? "—"],
+      [
+        "Issuing country",
+        selected.issuingCountry ? countryNameFromInput(selected.issuingCountry) : "—",
+      ],
+      ["Issue date", selected.issueDate ? formatStayDate(selected.issueDate) : "—"],
+      [
+        "Expiry",
+        selected.expiryDate
+          ? `${formatStayDate(selected.expiryDate)} · ${expiryLabel}`
+          : expiryLabel,
+      ],
+      ["Staff verification", GUEST_DOCUMENT_STATUS_LABELS[selected.verificationStatus]],
+    ];
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapePrint(guest.fullName)} — ${escapePrint(selected.typeName)}</title>
+<style>
+  body { font-family: Georgia, "Times New Roman", serif; color: #251605; margin: 32px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { margin: 0; color: #756A5B; font-size: 12px; }
+  dl { margin-top: 20px; }
+  div.row { display: grid; grid-template-columns: 160px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid #E8DFD0; }
+  dt { color: #756A5B; font-size: 12px; }
+  dd { margin: 0; font-size: 14px; }
+  footer { margin-top: 20px; color: #756A5B; font-size: 11px; }
+</style></head><body>
+  <h1>Identity document summary</h1>
+  <p>${escapePrint(guest.fullName)}</p>
+  <dl>${rows
+    .map(
+      ([label, value]) =>
+        `<div class="row"><dt>${escapePrint(label)}</dt><dd>${escapePrint(value)}</dd></div>`,
+    )
+    .join("")}</dl>
+  <footer>Staff confirmation only. This summary is not an official government check.</footer>
+  <script>window.onload = () => { window.focus(); window.print(); };</script>
+</body></html>`;
+    const printWindow = window.open("", "_blank", "width=720,height=640");
+    if (!printWindow) {
+      toast.error("Allow pop-ups to print the document summary.");
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  }
+
+  function staffVerify(documentId: string) {
+    const doc =
+      documents.find((item) => item.id === documentId) ??
+      (selected?.id === documentId ? selected : null);
+    if (doc && documentExpiryStatus(doc.expiryDate, today) === "expired") {
+      toast.error("Expired documents cannot be marked valid.");
+      return;
+    }
+    reviewMutation.mutate({ documentId, status: "verified" });
   }
 
   const typeOptionsForForm = useMemo(() => {
@@ -560,7 +635,7 @@ export function GuestIdentityCard({
         data-testid="guest-identity"
       >
         <h3 className="font-display text-base font-semibold text-[#251605]">Identity Documents</h3>
-        <p className="mt-2 text-xs text-[#756A5B]">{WAVE2_MIGRATION_UNAVAILABLE}</p>
+        <p className="mt-2 text-xs text-[#756A5B]">Identity documents are not available for this property yet.</p>
       </section>
     );
   }
@@ -712,19 +787,25 @@ export function GuestIdentityCard({
                           </span>
                         </td>
                         <td className="py-2.5 px-3">
-                          <span
-                            className={cn(
-                              "inline-block rounded-[4px] px-2 py-0.5 text-[11px] font-semibold capitalize",
-                              doc.verificationStatus === "verified" &&
-                                "border border-emerald-200 bg-emerald-50 text-emerald-800",
-                              doc.verificationStatus === "pending" &&
-                                "border border-amber-200 bg-amber-50 text-amber-800",
-                              doc.verificationStatus === "rejected" &&
-                                "border border-rose-200 bg-rose-50 text-rose-800",
-                            )}
-                          >
-                            {GUEST_DOCUMENT_STATUS_LABELS[doc.verificationStatus]}
-                          </span>
+                          {status === "expired" ? (
+                            <span className="inline-block rounded-[4px] border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
+                              Expired
+                            </span>
+                          ) : (
+                            <span
+                              className={cn(
+                                "inline-block rounded-[4px] px-2 py-0.5 text-[11px] font-semibold capitalize",
+                                doc.verificationStatus === "verified" &&
+                                  "border border-emerald-200 bg-emerald-50 text-emerald-800",
+                                doc.verificationStatus === "pending" &&
+                                  "border border-amber-200 bg-amber-50 text-amber-800",
+                                doc.verificationStatus === "rejected" &&
+                                  "border border-rose-200 bg-rose-50 text-rose-800",
+                              )}
+                            >
+                              {GUEST_DOCUMENT_STATUS_LABELS[doc.verificationStatus]}
+                            </span>
+                          )}
                         </td>
                         <td
                           className="py-2.5 px-3 text-right"
@@ -772,13 +853,12 @@ export function GuestIdentityCard({
                                   <Pencil className="mr-2 size-3.5 text-[#8A641A]" /> Edit
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  disabled={status === "expired"}
                                   onSelect={() => {
+                                    if (status === "expired") return;
                                     setSelectedId(doc.id);
                                     setMode("view");
-                                    reviewMutation.mutate({
-                                      documentId: doc.id,
-                                      status: "verified",
-                                    });
+                                    staffVerify(doc.id);
                                   }}
                                 >
                                   <ShieldCheck className="mr-2 size-3.5 text-emerald-700" />
@@ -829,8 +909,8 @@ export function GuestIdentityCard({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-7 text-xs rounded-[4px]"
-                    variant={previewSide === "front" ? "default" : "outline"}
+                    variant="outline"
+                    className={documentSideClass(previewSide === "front")}
                     onClick={() => setPreviewSide("front")}
                   >
                     Front
@@ -838,8 +918,8 @@ export function GuestIdentityCard({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-7 text-xs rounded-[4px]"
-                    variant={previewSide === "back" ? "default" : "outline"}
+                    variant="outline"
+                    className={documentSideClass(previewSide === "back")}
                     onClick={() => setPreviewSide("back")}
                   >
                     Back
@@ -932,13 +1012,9 @@ export function GuestIdentityCard({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-8 rounded-[6px] bg-[#8A641A] hover:bg-[#725215] text-white text-xs font-medium shadow-sm"
-                    onClick={() =>
-                      reviewMutation.mutate({
-                        documentId: selected.id,
-                        status: "verified",
-                      })
-                    }
+                    disabled={expiry === "expired"}
+                    className="h-8 rounded-[6px] bg-[#8A641A] hover:bg-[#725215] text-white text-xs font-medium shadow-sm disabled:opacity-50"
+                    onClick={() => staffVerify(selected.id)}
                   >
                     {selected.verificationStatus === "verified" ? "Re-verify" : "Staff verify"}
                   </Button>
@@ -952,6 +1028,11 @@ export function GuestIdentityCard({
                     Reject
                   </Button>
                 </div>
+                {expiry === "expired" ? (
+                  <p className="text-[11px] font-medium text-rose-800">
+                    Expired documents cannot be marked valid.
+                  </p>
+                ) : null}
               </div>
             ) : (
               <p className="text-xs text-[#756A5B]">Select a document to review verification.</p>
@@ -968,7 +1049,11 @@ export function GuestIdentityCard({
               <DialogTitle className="font-display text-lg font-bold text-[#251605]">
                 {selected?.typeName ?? "Identity Document"}
               </DialogTitle>
-              {selected && (
+              {selected && expiry === "expired" ? (
+                <span className="rounded-[4px] border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs font-semibold text-rose-800">
+                  Expired
+                </span>
+              ) : selected ? (
                 <span
                   className={cn(
                     "rounded-[4px] px-2.5 py-0.5 text-xs font-semibold capitalize",
@@ -982,10 +1067,10 @@ export function GuestIdentityCard({
                 >
                   {GUEST_DOCUMENT_STATUS_LABELS[selected.verificationStatus]}
                 </span>
-              )}
+              ) : null}
             </div>
             <DialogDescription className="text-xs text-[#756A5B]">
-              Verified legal document records and stored scans for {guest.fullName}.
+              Document details and scans for {guest.fullName}.
             </DialogDescription>
           </DialogHeader>
 
@@ -1040,8 +1125,8 @@ export function GuestIdentityCard({
                     <Button
                       type="button"
                       size="sm"
-                      className="h-7 text-xs rounded-[4px]"
-                      variant={previewSide === "front" ? "default" : "outline"}
+                      variant="outline"
+                      className={documentSideClass(previewSide === "front")}
                       onClick={() => setPreviewSide("front")}
                     >
                       Front Image
@@ -1049,8 +1134,8 @@ export function GuestIdentityCard({
                     <Button
                       type="button"
                       size="sm"
-                      className="h-7 text-xs rounded-[4px]"
-                      variant={previewSide === "back" ? "default" : "outline"}
+                      variant="outline"
+                      className={documentSideClass(previewSide === "back")}
                       onClick={() => setPreviewSide("back")}
                     >
                       Back Image
@@ -1129,13 +1214,9 @@ export function GuestIdentityCard({
                   <Button
                     type="button"
                     size="sm"
-                    className="rounded-[6px] bg-[#8A641A] hover:bg-[#725215] text-white text-xs shadow-sm font-medium"
-                    onClick={() => {
-                      reviewMutation.mutate({
-                        documentId: selected.id,
-                        status: "verified",
-                      });
-                    }}
+                    disabled={expiry === "expired"}
+                    className="rounded-[6px] bg-[#8A641A] hover:bg-[#725215] text-white text-xs shadow-sm font-medium disabled:opacity-50"
+                    onClick={() => staffVerify(selected.id)}
                   >
                     {selected.verificationStatus === "verified" ? "Re-verify" : "Staff verify"}
                   </Button>
@@ -1510,7 +1591,7 @@ export function GuestIdentityCard({
               Delete Document
             </DialogTitle>
             <DialogDescription className="text-xs text-[#756A5B]">
-              Delete {selected?.typeName ?? "this document"}? The file is removed from storage.
+              Delete {selected?.typeName ?? "this document"} from this guest profile?
             </DialogDescription>
           </DialogHeader>
 
@@ -1534,46 +1615,16 @@ export function GuestIdentityCard({
         </DialogContent>
       </Dialog>
 
-      {/* Print View Container */}
       {selected ? (
-        <>
-          <article
-            className="guest-identity-print hidden print:block"
-            data-testid="guest-identity-print"
-          >
-            <h1>
-              {guest.fullName} — {selected.typeName}
-            </h1>
-            <dl>
-              <dt>Document number</dt>
-              <dd>{selected.documentNumberMasked ?? "—"}</dd>
-              <dt>Issuing country</dt>
-              <dd>
-                {selected.issuingCountry ? countryNameFromInput(selected.issuingCountry) : "—"}
-              </dd>
-              <dt>Issue date</dt>
-              <dd>{selected.issueDate ? formatStayDate(selected.issueDate) : "—"}</dd>
-              <dt>Expiry date</dt>
-              <dd>{selected.expiryDate ? formatStayDate(selected.expiryDate) : "—"}</dd>
-              <dt>Status</dt>
-              <dd>{GUEST_DOCUMENT_STATUS_LABELS[selected.verificationStatus]}</dd>
-            </dl>
-          </article>
-          <style>{`
-            @media print {
-              @page { margin: 12mm; }
-              body * { visibility: hidden; }
-              .guest-identity-print, .guest-identity-print * { visibility: visible; }
-              .guest-identity-print {
-                display: block !important;
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-              }
-            }
-          `}</style>
-        </>
+        <article className="sr-only" data-testid="guest-identity-print">
+          <h1>
+            {guest.fullName} — {selected.typeName}
+          </h1>
+          <p>
+            {DOCUMENT_EXPIRY_STATUS_LABELS[documentExpiryStatus(selected.expiryDate, today)]} ·{" "}
+            {GUEST_DOCUMENT_STATUS_LABELS[selected.verificationStatus]}
+          </p>
+        </article>
       ) : null}
     </div>
   );

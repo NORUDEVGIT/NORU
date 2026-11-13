@@ -222,9 +222,14 @@ describe("NORU PMS — Guest Profile Phase 3 — Individual Guest Detail Workspa
     assert.match(overviewCode, /OVERVIEW_PREFERENCES_EMPTY/);
   });
 
-  it("31. Identity Status card renders masked ID, expiration, verification badge, and View All action", () => {
-    assert.match(overviewCode, /idNumberMasked/);
-    assert.match(overviewCode, /guest\.idVerified/);
+  it("31. Identity Status card renders the live identity document, not the profile snapshot", () => {
+    assert.match(overviewCode, /listGuestDocuments/);
+    assert.match(overviewCode, /\["guest-documents", restaurantId, guest\.id\]/);
+    assert.match(overviewCode, /documentNumberMasked/);
+    assert.match(overviewCode, /Not recorded/);
+    assert.doesNotMatch(overviewCode, /guest\.idVerified/);
+    assert.doesNotMatch(overviewCode, /guest\.idType/);
+    assert.doesNotMatch(overviewCode, /guest\.idExpiry/);
   });
 
   it("32. Relationships card renders linked accounts and View All action", () => {

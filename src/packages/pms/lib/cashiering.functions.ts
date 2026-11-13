@@ -1924,7 +1924,7 @@ export const listChargeableGuestServices = createServerFn({ method: "GET" })
 /** Read-only tax preview for a guest-service charge. Price is re-derived on the server. */
 export const previewFolioServiceCharge = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(
+  .validator(
     (d: { restaurantId: string; folioId: string; serviceTypeId: string; quantity: number }) =>
       z
         .object({

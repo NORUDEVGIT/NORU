@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   Check,
   ChevronRight,
+  MoreHorizontal,
   Plus,
   Trash2,
   Users,
@@ -12,10 +14,16 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { Switch } from "@/shared/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -54,26 +62,19 @@ import {
   GUEST_GROUP_CREATE_TITLE,
   GROUP_BILLING_ARRANGEMENTS,
   GROUP_CREATE_IMPORT_STRUCTURE,
-  GROUP_CREATE_NO_PHYSICAL_ROOMS,
-  GROUP_CREATE_PRICING_UNAVAILABLE,
-  GROUP_TRAVEL_METHODS,
   billingArrangementLabel,
   clearGuestGroupCreateHold,
   emptyGroupCreateMember,
-  emptyGroupCreateRoomNeed,
   emptyGuestGroupCreateDraft,
-  estimateGroupCreationCharges,
   filled,
   guestGroupCreateCompletion,
   guestGroupCreateHasChanges,
   groupCreateDraftErrorsForSave,
   groupCreateFieldIssues,
   groupCreateMemberCounts,
-  groupCreateNights,
   optionLabel,
   readGuestGroupCreateHold,
   stageGroupMemberImport,
-  travelMethodLabel,
   writeGuestGroupCreateHold,
   type GuestGroupCreateDraft,
   type GuestGroupCreateStepId,
@@ -93,10 +94,27 @@ import { getGroupDetailWorkspace } from "@/packages/pms/lib/guest-group-detail.f
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 
 const MODAL_CONTROL_CLASS =
-  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE]";
+  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none transition-colors placeholder:text-[#8C7E72] hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#8A641A] disabled:cursor-not-allowed disabled:bg-[#FAF8F5] disabled:text-[#8C7E72]";
 
 const MODAL_SELECT_TRIGGER_CLASS =
-  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus:border-[#C89933] focus:outline-none focus:ring-1 focus:ring-[#C89933] justify-between";
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus:border-[#8A641A] focus:ring-1 focus:ring-[#8A641A]";
+
+const PHONE_GROUP = "h-9 gap-0 overflow-hidden rounded-[6px] border border-[#CCCCCC] bg-white";
+const PHONE_TRIGGER = "h-9 w-[7.75rem] rounded-none border-0 bg-white shadow-none hover:bg-white";
+const PHONE_INPUT = "h-9 rounded-none border-0 bg-white shadow-none focus-visible:ring-0";
+
+function IconInput({
+  icon,
+  className,
+  ...props
+}: ComponentProps<typeof Input> & { icon: ReactNode }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8C7E72]">{icon}</span>
+      <Input {...props} className={cn(MODAL_CONTROL_CLASS, "pl-9", className)} />
+    </div>
+  );
+}
 
 function groupDetailToDraft(group: any): GuestGroupCreateDraft {
   const base = emptyGuestGroupCreateDraft();
@@ -176,6 +194,7 @@ export function GuestGroupCreateModal({
   onOpenChange,
   onCreated,
   onCancel,
+  promptCreateBlock = true,
   mode = "create",
   groupId = null,
   group = null,
@@ -186,12 +205,15 @@ export function GuestGroupCreateModal({
   onOpenChange: (open: boolean) => void;
   onCreated?: (id: string) => void;
   onCancel?: () => void;
+  /** When false, the caller selects the new profile immediately. Guest Profile shows Create Group / Block. */
+  promptCreateBlock?: boolean;
   mode?: "create" | "edit";
   groupId?: string | null;
   group?: any | null;
   onSaved?: (groupId: string) => void;
 }) {
   const isEdit = mode === "edit" || Boolean(groupId) || Boolean(group);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const load = useServerFn(getGroupCreateContext);
   const fetchGroupWorkspace = useServerFn(getGroupDetailWorkspace);
@@ -227,7 +249,6 @@ export function GuestGroupCreateModal({
   const [agencyQuery, setAgencyQuery] = useState("");
   const [contactQuery, setContactQuery] = useState("");
   const [guestQuery, setGuestQuery] = useState("");
-  const [destinationInput, setDestinationInput] = useState("");
   const [importCsv, setImportCsv] = useState("");
   const [memberDraft, setMemberDraft] = useState(emptyGroupCreateMember());
   const [templateId, setTemplateId] = useState("");
@@ -316,8 +337,6 @@ export function GuestGroupCreateModal({
 
   const completion = guestGroupCreateCompletion(draft);
   const counts = groupCreateMemberCounts(draft);
-  const nights = groupCreateNights(draft.arrivalDate, draft.departureDate);
-  const estimate = estimateGroupCreationCharges();
   const stepIndex = GUEST_GROUP_CREATE_STEPS.findIndex((item) => item.id === step);
   const catalogueIds = {
     groupTypeIds: (catalogues?.groupTypes ?? []).map((row) => row.id),
@@ -439,7 +458,7 @@ export function GuestGroupCreateModal({
       invalidateGuestWorkspaceQueries(queryClient, restaurantId);
       toast.success("Group created.");
       setCreated({ id: result.id, name: draft.name, code: result.code || draft.code || null });
-      if (onCreated) {
+      if (!promptCreateBlock && onCreated) {
         onCreated(result.id);
       }
     },
@@ -548,95 +567,165 @@ export function GuestGroupCreateModal({
   const isSavingDraft = draftMutation.isPending || holdMutation.isPending;
   const isCompleting = completeMutation.isPending;
 
+  if (created && !isEdit && promptCreateBlock) {
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) handleCloseRequest();
+        }}
+      >
+        <DialogContent
+          className="max-w-lg rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605]"
+          data-testid="guest-group-create-modal"
+        >
+          <DialogTitle className="font-display text-lg text-[#251605]">Group profile registered</DialogTitle>
+          <DialogDescription className="text-sm text-[#756A5B]">
+            {created.name}
+            {created.code ? ` · ${created.code}` : ""}
+          </DialogDescription>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="group-create-done"
+              onClick={() => {
+                if (onCreated) onCreated(created.id);
+                else onOpenChange(false);
+              }}
+            >
+              Done
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+              data-testid="create-group-block-from-profile"
+              onClick={() => {
+                void navigate({
+                  to: "/restaurant/pms/reservations",
+                  search: { tab: "groups", createGroupProfile: created.id },
+                });
+              }}
+            >
+              Create Group / Block
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <>
-      <Dialog open={open} onOpenChange={handleCloseRequest}>
+      <Dialog
+        open={open}
+        modal={!discardConfirmOpen && !startOverOpen}
+        onOpenChange={(next) => {
+          if (!next && !discardConfirmOpen && !startOverOpen) handleCloseRequest();
+        }}
+      >
         <DialogContent
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(98vw,1550px)] h-[min(92vh,960px)] max-w-none rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605] shadow-2xl p-0 flex flex-col overflow-hidden outline-none [&>button]:hidden"
+          className="z-[80] flex h-[92vh] max-h-[92vh] w-[min(90vw,1440px)] max-w-none flex-col gap-0 overflow-hidden rounded-lg border border-[#3A2A16] bg-[#FBF7F1] p-0 text-[#251605] shadow-2xl outline-none sm:max-w-none [&>button]:hidden"
           data-testid="guest-group-create-modal"
           aria-describedby="guest-group-create-description"
+          onPointerDownOutside={(event) => {
+            if (discardConfirmOpen || startOverOpen) event.preventDefault();
+          }}
+          onInteractOutside={(event) => {
+            if (discardConfirmOpen || startOverOpen) event.preventDefault();
+          }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-[#EDE6D8] bg-[#FDFBF7] px-7 py-4">
-            <div>
-              <DialogTitle className="font-display text-xl font-semibold text-[#251605]">
+          <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+            <div className="flex min-w-0 items-center gap-2">
+              <DialogTitle className="font-display text-sm font-semibold text-[#F3E9D8]">
                 {isEdit ? `Edit Group — ${draft.name || "Group"}` : GUEST_GROUP_CREATE_TITLE}
               </DialogTitle>
-              <DialogDescription id="guest-group-create-description" className="text-xs text-[#756A5B]">
-                {isEdit
-                  ? "Update group profile and save changes directly."
-                  : GUEST_GROUP_CREATE_COPY}
-              </DialogDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex rounded-[4px] bg-[#FAF8F5] border border-[#EDE6D8] px-2 py-0.5 text-xs font-semibold text-[#8A641A]">
-                Profile Type: Group (GRP)
+              <span className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-[11px] font-semibold text-[#F3E9D8]">
+                {completion.percent}% complete
               </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleCloseRequest}
-                className="size-8 rounded-full text-[#756A5B] hover:bg-[#F2ECE1] hover:text-[#251605]"
-                aria-label="Close"
-              >
-                <X className="size-4" />
-              </Button>
+              <DialogDescription id="guest-group-create-description" className="sr-only">
+                {isEdit ? "Update group profile and save changes directly." : GUEST_GROUP_CREATE_COPY}
+              </DialogDescription>
+              <span className="ml-auto flex items-center gap-1.5">
+                {isEdit ? null : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                        aria-label="More actions"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[90]">
+                      <DropdownMenuItem
+                        data-testid="group-create-start-over"
+                        disabled={!guestGroupCreateHasChanges(draft)}
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => setStartOverOpen(true)}
+                      >
+                        {GUEST_GROUP_CREATE_START_OVER}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
+                  onClick={handleCloseRequest}
+                  aria-label="Close"
+                >
+                  <X className="size-4" />
+                </Button>
+              </span>
             </div>
-          </div>
-
-          {/* Stepper Navigation */}
-          <div className="border-b border-[#EDE6D8] bg-[#FDFBF7] px-7 py-3">
-            <nav
-              data-testid="guest-group-create-stepper"
-              className="flex items-center gap-1.5 overflow-x-auto text-xs"
-            >
+          </header>
+          <nav
+            data-testid="guest-group-create-stepper"
+            aria-label="Create group steps"
+            className="flex h-9 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-[#DDD4C5] bg-white px-2"
+          >
+            <ol className="flex min-w-0 items-stretch">
               {GUEST_GROUP_CREATE_STEPS.map((item, index) => {
                 const current = item.id === step;
                 const done = index < stepIndex;
                 const invalid =
                   fieldIssues.some((issue) => issue.step === item.id) &&
                   (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
-
                 return (
-                  <div key={item.id} className="flex items-center gap-1.5">
+                  <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => go(item.id)}
+                      aria-current={current ? "step" : undefined}
                       className={cn(
-                        "flex items-center gap-2 rounded-full px-3.5 py-1.5 font-medium transition-colors whitespace-nowrap",
-                        current && "bg-[#C89933] text-[#251605] font-semibold shadow-sm",
-                        done && !invalid && "border border-[#C89933]/40 bg-white text-[#8A641A] hover:bg-[#FAF8F5]",
-                        !current && !done && !invalid && "border border-[#E6E1D8] bg-white text-[#756A5B] hover:bg-[#FAF8F5]",
-                        invalid && "border border-destructive bg-destructive/10 text-destructive font-semibold",
+                        "relative flex h-full items-center gap-1 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                        done && !invalid && "text-[#436436]",
+                        current && "text-[#251605]",
+                        !current && !done && "text-muted-foreground",
+                        invalid && "text-destructive",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "flex size-4 items-center justify-center rounded-full text-[10px]",
-                          current && "bg-[#251605] text-[#C89933]",
-                          done && !invalid && "bg-[#C89933] text-white",
-                          !current && !done && !invalid && "bg-[#E6E1D8] text-[#756A5B]",
-                          invalid && "bg-destructive text-white",
-                        )}
-                      >
-                        {done && !invalid ? <Check className="size-2.5 stroke-[3]" /> : item.number}
-                      </span>
-                      <span>{item.title}</span>
+                      {done && !invalid ? <Check className="size-3" /> : <span className="tabular-nums">{item.number}</span>}
+                      <span className="whitespace-nowrap">{item.title}</span>
+                      {done && !invalid ? (
+                        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                      ) : null}
+                      {current ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" /> : null}
                     </button>
-                    {index < GUEST_GROUP_CREATE_STEPS.length - 1 ? (
-                      <span className="text-[#C5BCAE] select-none">/</span>
-                    ) : null}
-                  </div>
+                  </li>
                 );
               })}
-            </nav>
-          </div>
+            </ol>
+          </nav>
 
-          {/* Body Content */}
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            {/* Main Form Scrollable Area */}
-            <div className="flex-1 overflow-y-auto px-7 py-5">
-              <div className="mx-auto max-w-4xl space-y-4">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBF7F1] p-4">
+            <div className="min-w-0 space-y-4">
                 {context.isLoading ? (
                   <div className="p-12 text-center text-sm text-[#756A5B]">
                     Loading group creation settings…
@@ -668,17 +757,6 @@ export function GuestGroupCreateModal({
                         fieldError={fieldError}
                       />
                     ) : null}
-                    {step === "stay" ? (
-                      <StayStep
-                        draft={draft}
-                        set={set}
-                        nights={nights}
-                        catalogues={catalogues}
-                        destinationInput={destinationInput}
-                        onDestinationInput={setDestinationInput}
-                        fieldError={fieldError}
-                      />
-                    ) : null}
                     {step === "guests" ? (
                       <GuestsStep
                         draft={draft}
@@ -704,7 +782,6 @@ export function GuestGroupCreateModal({
                         set={set}
                         catalogues={catalogues}
                         credit={creditQuery.data ?? null}
-                        estimate={estimate}
                         fieldError={fieldError}
                       />
                     ) : null}
@@ -712,9 +789,6 @@ export function GuestGroupCreateModal({
                       <ReviewStep
                         draft={draft}
                         catalogues={catalogues}
-                        counts={counts}
-                        nights={nights}
-                        estimate={estimate}
                         issues={fieldIssues}
                         onEdit={go}
                       />
@@ -724,183 +798,56 @@ export function GuestGroupCreateModal({
               </div>
             </div>
 
-            {/* Right-side Preview & Guidance Panel */}
-            <aside className="w-80 border-l border-[#EDE6D8] bg-[#FAF8F5] overflow-y-auto p-5 space-y-4 hidden lg:block">
-              {/* Group Preview Card */}
-              <div
-                data-testid="group-create-profile-preview"
-                className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none"
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#8A641A] uppercase tracking-wider">
-                  <Users className="size-3.5" />
-                  <span>Group Preview</span>
-                </div>
-                <div className="mt-3 space-y-2 border-t border-[#EDE6D8] pt-3 text-xs">
-                  <div>
-                    <span className="text-[#756A5B]">Group Name:</span>
-                    <p className="font-semibold text-[#251605] break-words">{draft.name || "—"}</p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Profile Type:</span>
-                    <p className="font-medium text-[#251605]">Group (GRP)</p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Group Type:</span>
-                    <p className="font-medium text-[#251605]">
-                      {optionLabel(catalogues?.groupTypes ?? [], draft.groupTypeId) || "—"}
-                    </p>
-                  </div>
-                  {draft.companyMasterName || draft.travelAgentMasterName ? (
-                    <div>
-                      <span className="text-[#756A5B]">Linked Partner:</span>
-                      <p className="font-medium text-[#251605] break-words">
-                        {draft.companyMasterName || draft.travelAgentMasterName}
-                      </p>
-                    </div>
-                  ) : null}
-                  <div>
-                    <span className="text-[#756A5B]">Status:</span>
-                    <p className="font-medium text-[#251605]">{GROUP_STATUS_LABELS.pending}</p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Travel Dates:</span>
-                    <p className="font-medium text-[#251605]">
-                      {draft.arrivalDate && draft.departureDate
-                        ? `${draft.arrivalDate} → ${draft.departureDate} (${nights ?? 0} nts)`
-                        : "—"}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#EDE6D8]/60">
-                    <div>
-                      <span className="text-[#756A5B]">Expected Pax:</span>
-                      <p className="font-medium text-[#251605]">{draft.expectedPax || "0"}</p>
-                    </div>
-                    <div>
-                      <span className="text-[#756A5B]">Expected Rms:</span>
-                      <p className="font-medium text-[#251605]">{draft.expectedRooms || "0"}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Registered Members:</span>
-                    <p className="font-medium text-[#251605]">{counts.registered}</p>
-                  </div>
-                  <div>
-                    <span className="text-[#756A5B]">Group Code:</span>
-                    <p className="font-mono text-[11px] text-[#251605]">
-                      {draft.code || "Assigned on save"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Data Completion Card */}
-              <div className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[#251605]">Data Completion</span>
-                  <span className="text-xs font-bold text-[#8A641A]">{completion.percent}%</span>
-                </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#EAE4D7]">
-                  <div
-                    className="h-full bg-[#C89933] transition-all duration-300"
-                    style={{ width: `${completion.percent}%` }}
-                  />
-                </div>
-                <ul className="mt-3 space-y-1.5 text-xs text-[#756A5B]">
-                  {completion.items.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between">
-                      <button
-                        type="button"
-                        className="hover:underline text-left"
-                        onClick={() => go(item.step)}
-                      >
-                        {item.label}
-                      </button>
-                      <span
-                        className={cn(
-                          "font-mono text-[11px]",
-                          item.requiredRemaining
-                            ? "text-destructive font-bold"
-                            : item.complete
-                              ? "text-emerald-700"
-                              : "text-[#A89F91]",
-                        )}
-                      >
-                        {item.requiredRemaining ? "Required" : item.complete ? "✓" : "—"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Step Guidance Card */}
-              <div className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none text-xs space-y-2">
-                <span className="font-semibold text-[#251605] uppercase tracking-wider text-[11px]">
-                  Step Guidance
-                </span>
-                <p className="text-[#756A5B] leading-relaxed">
-                  {step === "details" && "Set the group identity, type, linked account, and primary contact."}
-                  {step === "stay" && "Define the group's stay, travel details, and room-type requirements."}
-                  {step === "guests" && "Add or link group members and stage the rooming-list information."}
-                  {step === "billing" && "Configure rate, payment, deposit, billing, and linked-account credit details."}
-                  {step === "review" && "Review the group setup before completing registration."}
-                </p>
-                <div className="pt-2 border-t border-[#EDE6D8] text-[11px] text-[#A89F91]">
-                  Property Setup Controlled
-                </div>
-              </div>
-            </aside>
-          </div>
 
           {/* Sticky Footer */}
-          <div className="border-t border-[#EDE6D8] bg-[#FDFBF7] px-7 py-3 flex items-center justify-between">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#E8DFD0] bg-white px-4 py-2">
             {isEdit ? (
               <>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleActualClose}
-                  className="border-[#DDD4C5] text-xs text-[#251605]"
+                  className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
                 >
                   Cancel
                 </Button>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
-                    onClick={() => saveEditMutation.mutate()}
-                    disabled={saveEditMutation.isPending}
-                    data-testid="edit-group-save-btn"
-                  >
-                    {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  className={SHELL_PRIMARY_BUTTON}
+                  onClick={() => saveEditMutation.mutate()}
+                  disabled={saveEditMutation.isPending}
+                  data-testid="edit-group-save-btn"
+                >
+                  {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
+                </Button>
               </>
             ) : (
               <>
                 <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleCloseRequest}
-                    className="text-xs text-[#756A5B] hover:text-[#251605] hover:bg-[#F2ECE1]"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    data-testid="group-create-start-over"
-                    onClick={() => setStartOverOpen(true)}
-                    disabled={!guestGroupCreateHasChanges(draft)}
-                    className="text-xs border-[#E6E1D8] text-[#756A5B] hover:bg-[#FAF8F5]"
-                  >
-                    {GUEST_GROUP_CREATE_START_OVER}
-                  </Button>
+                  {stepIndex === 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCloseRequest}
+                      className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
+                    >
+                      Cancel
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => go(GUEST_GROUP_CREATE_STEPS[stepIndex - 1].id)}
+                      className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
+                    >
+                      Back
+                    </Button>
+                  )}
                   {holdState === "saving" ? (
-                    <span className="text-xs text-[#A89F91]">Saving progress…</span>
+                    <span className="text-xs text-muted-foreground">Saving progress…</span>
                   ) : null}
                   {holdState === "saved" && guestGroupCreateHasChanges(draft) ? (
-                    <span className="text-xs text-[#8A641A] font-medium">Progress saved</span>
+                    <span className="text-xs text-muted-foreground">Progress saved</span>
                   ) : null}
                 </div>
 
@@ -911,32 +858,19 @@ export function GuestGroupCreateModal({
                     data-testid="group-create-save-draft"
                     onClick={() => draftMutation.mutate()}
                     disabled={isSavingDraft}
-                    className="text-xs border-[#E6E1D8] text-[#251605] hover:bg-[#FAF8F5]"
+                    className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
                   >
                     {isSavingDraft ? "Saving…" : "Save as Draft"}
                   </Button>
-
-                  {stepIndex > 0 ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => go(GUEST_GROUP_CREATE_STEPS[stepIndex - 1].id)}
-                      className="text-xs border-[#E6E1D8] text-[#251605] hover:bg-[#FAF8F5]"
-                    >
-                      Back
-                    </Button>
-                  ) : null}
-
                   {step !== "review" ? (
                     <Button
                       type="button"
                       onClick={() => {
                         if (validateCurrent()) go(GUEST_GROUP_CREATE_STEPS[stepIndex + 1].id);
                       }}
-                      className="bg-[#251605] text-[#FAF8F5] hover:bg-[#3D2C1D] text-xs font-medium"
+                      className={SHELL_PRIMARY_BUTTON}
                     >
-                      <span>Continue</span>
-                      <ChevronRight className="ml-1 size-3.5" />
+                      Continue <ChevronRight className="ml-1 size-4" />
                     </Button>
                   ) : (
                     <Button
@@ -944,7 +878,7 @@ export function GuestGroupCreateModal({
                       data-testid="group-create-complete"
                       onClick={() => completeMutation.mutate()}
                       disabled={isCompleting}
-                      className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D] font-semibold text-xs shadow-sm"
+                      className={SHELL_PRIMARY_BUTTON}
                     >
                       {isCompleting ? "Registering…" : "Complete Registration"}
                     </Button>
@@ -958,7 +892,7 @@ export function GuestGroupCreateModal({
 
       {/* Discard Confirmation Alert */}
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
-        <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605]">
+        <AlertDialogContent className="z-[100] rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605]">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg text-[#251605]">
               Discard new group?
@@ -983,7 +917,7 @@ export function GuestGroupCreateModal({
 
       {/* Start Over Confirmation Alert */}
       <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
-        <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605]">
+        <AlertDialogContent className="z-[100] rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] text-[#251605]">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg text-[#251605]">
               {GUEST_GROUP_CREATE_START_OVER}?
@@ -1117,50 +1051,6 @@ function DetailsStep({
 
   return (
     <div className="space-y-4">
-      {/* Template Selection Card */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-4 shadow-none">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <span className="text-xs font-semibold text-[#251605]">Group Template</span>
-            <p className="text-[11px] text-[#756A5B]">{GROUP_TEMPLATE_COPY}</p>
-          </div>
-          <div className="w-full sm:w-64">
-            <Select
-              value={templateId || "none"}
-              onValueChange={(value) => {
-                if (value === "none") {
-                  setTemplateId("");
-                  return;
-                }
-                const template = templates.find((row) => row.id === value);
-                setTemplateId(value);
-                if (template) {
-                  setDraft((current) => ({
-                    ...applyGroupTemplateToDraft(template.payload),
-                    name: current.name,
-                    currency: current.currency,
-                  }));
-                }
-              }}
-            >
-              <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS} data-testid="group-template-select">
-                <SelectValue placeholder="Start from template (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None (Blank)</SelectItem>
-                {templates
-                  .filter((row) => row.active)
-                  .map((row) => (
-                    <SelectItem key={row.id} value={row.id}>
-                      {row.name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
       {/* Main Group Identity Card */}
       <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
         <div className="border-b border-[#EDE6D8] pb-3">
@@ -1170,12 +1060,12 @@ function DetailsStep({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <ModalField label="Group Name" required error={fieldError("name", "details")}>
-            <Input
+            <IconInput
+              icon={<Users className="size-4" />}
               data-testid="group-create-name"
               value={draft.name}
               onChange={(e) => set("name", e.target.value)}
               placeholder="e.g. Europe Heritage Tour"
-              className={MODAL_CONTROL_CLASS}
             />
           </ModalField>
 
@@ -1209,7 +1099,7 @@ function DetailsStep({
             </Select>
           </ModalField>
 
-          <ModalField label="Market Segment">
+          <ModalField label="Default Market Segment">
             <ModalSelect
               value={draft.marketSegmentId}
               onChange={(val) => set("marketSegmentId", val)}
@@ -1377,7 +1267,11 @@ function DetailsStep({
               <CanonicalPhoneInput
                 value={draft.contactPhone}
                 onChange={(phone) => set("contactPhone", phone)}
-                placeholder="e.g. 911 234 567"
+                placeholder="Enter phone number"
+                containerClassName={PHONE_GROUP}
+                triggerClassName={PHONE_TRIGGER}
+                className={PHONE_INPUT}
+                popoverClassName="z-[90]"
               />
             </ModalField>
           </div>
@@ -1394,379 +1288,59 @@ function DetailsStep({
               rows={3}
             />
           </ModalField>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StayStep({
-  draft,
-  set,
-  nights,
-  catalogues,
-  destinationInput,
-  onDestinationInput,
-  fieldError,
-}: {
-  draft: GuestGroupCreateDraft;
-  set: <K extends keyof GuestGroupCreateDraft>(key: K, value: GuestGroupCreateDraft[K]) => void;
-  nights: number | null;
-  catalogues?: GroupCreateContext["catalogues"];
-  destinationInput: string;
-  onDestinationInput: (value: string) => void;
-  fieldError: (key: string, stepId?: GuestGroupCreateStepId) => string | undefined;
-}) {
-  return (
-    <div className="space-y-4">
-      {/* Travel & Stay Details Card */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-        <div className="border-b border-[#EDE6D8] pb-3">
-          <h2 className="text-sm font-semibold text-[#251605]">Travel & Stay Schedule</h2>
-          <p className="text-xs text-[#756A5B]">Arrival and departure dates, headcount expectations, and travel methods.</p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ModalField label="Arrival Date" required error={fieldError("arrivalDate", "stay")}>
-            <Input
-              type="date"
-              value={draft.arrivalDate}
-              onChange={(e) => set("arrivalDate", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </ModalField>
-
-          <ModalField label="Departure Date" required error={fieldError("departureDate", "stay")}>
-            <Input
-              type="date"
-              value={draft.departureDate}
-              onChange={(e) => set("departureDate", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </ModalField>
-
-          <ModalField label="Arrival Time">
-            <Input
-              type="time"
-              value={draft.arrivalTime}
-              onChange={(e) => set("arrivalTime", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </ModalField>
-
-          <ModalField label="Departure Time">
-            <Input
-              type="time"
-              value={draft.departureTime}
-              onChange={(e) => set("departureTime", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-            />
-          </ModalField>
-
-          <ModalField label="Total Nights">
-            <Input
-              value={nights == null ? "" : `${nights} night${nights === 1 ? "" : "s"}`}
-              readOnly
-              className={cn(MODAL_CONTROL_CLASS, "bg-[#FAF8F5]")}
-              placeholder="Calculated from dates"
-            />
-          </ModalField>
-
-          <ModalField label="Expected Pax" required error={fieldError("expectedPax", "stay")}>
-            <Input
-              type="number"
-              min={1}
-              value={draft.expectedPax}
-              onChange={(e) => set("expectedPax", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="e.g. 20"
-            />
-          </ModalField>
-
-          <ModalField label="Expected Rooms" error={fieldError("expectedRooms", "stay")}>
-            <Input
-              type="number"
-              min={0}
-              value={draft.expectedRooms}
-              onChange={(e) => set("expectedRooms", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="e.g. 10"
-            />
-          </ModalField>
-
-          <ModalField label="Arrival Method">
-            <ModalSelect
-              value={draft.arrivalMethod}
-              onChange={(val) => set("arrivalMethod", val)}
-              options={GROUP_TRAVEL_METHODS.map((row) => ({ id: row.id, name: row.label }))}
-              placeholder="Select arrival method"
-            />
-          </ModalField>
-
-          <ModalField label="Arrival From">
-            <Input
-              value={draft.arrivalFrom}
-              onChange={(e) => set("arrivalFrom", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="City or airport origin"
-            />
-          </ModalField>
-
-          <ModalField label="Arrival To">
-            <Input
-              value={draft.arrivalTo}
-              onChange={(e) => set("arrivalTo", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Hotel location or terminal"
-            />
-          </ModalField>
-
-          <ModalField label="Departure Method">
-            <ModalSelect
-              value={draft.departureMethod}
-              onChange={(val) => set("departureMethod", val)}
-              options={GROUP_TRAVEL_METHODS.map((row) => ({ id: row.id, name: row.label }))}
-              placeholder="Select departure method"
-            />
-          </ModalField>
-
-          <ModalField label="Departure To">
-            <Input
-              value={draft.departureTo}
-              onChange={(e) => set("departureTo", e.target.value)}
-              className={MODAL_CONTROL_CLASS}
-              placeholder="Next destination"
-            />
-          </ModalField>
-
-          <ModalField label="Source">
-            <ModalSelect
-              value={draft.sourceCodeId}
-              onChange={(val) => set("sourceCodeId", val)}
-              options={catalogues?.sourceCodes ?? []}
-              placeholder="Select source"
-            />
-          </ModalField>
-
-          <ModalField label="Channel">
-            <ModalSelect
-              value={draft.channelId}
-              onChange={(val) => set("channelId", val)}
-              options={catalogues?.channels ?? []}
-              placeholder="Select channel"
-            />
-          </ModalField>
-        </div>
-
-        {/* Destinations Multi-Item Tag Input */}
-        <div className="pt-2 border-t border-[#EDE6D8]">
-          <ModalField label="Destinations">
-            <div className="flex gap-2">
-              <Input
-                value={destinationInput}
-                onChange={(e) => onDestinationInput(e.target.value)}
-                placeholder="Add destination (e.g. Lalibela, Gondar)"
-                className={MODAL_CONTROL_CLASS}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (destinationInput.trim()) {
-                      set("destinations", [...draft.destinations, destinationInput.trim()]);
-                      onDestinationInput("");
-                    }
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 border-[#EDE6D8] px-3 text-xs text-[#251605] hover:bg-[#FAF8F5]"
-                onClick={() => {
-                  if (destinationInput.trim()) {
-                    set("destinations", [...draft.destinations, destinationInput.trim()]);
-                    onDestinationInput("");
-                  }
-                }}
-              >
-                Add
-              </Button>
-            </div>
-            {draft.destinations.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {draft.destinations.map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#FAF8F5] border border-[#EDE6D8] px-2.5 py-0.5 text-xs text-[#251605]"
-                  >
-                    <span>{item}</span>
-                    <button
-                      type="button"
-                      className="text-[#A89F91] hover:text-destructive text-sm leading-none"
-                      onClick={() => set("destinations", draft.destinations.filter((row) => row !== item))}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </ModalField>
-        </div>
-
-        {/* Special Requests & Stay Notes */}
-        <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t border-[#EDE6D8]">
-          <ModalField label="Special Requests">
+          <ModalField label="Special requests">
             <Textarea
               value={draft.specialRequests}
               onChange={(e) => set("specialRequests", e.target.value)}
-              className="rounded-[6px] border border-[#CCCCCC] bg-white p-2.5 text-xs text-[#251605] shadow-none"
-              placeholder="Allergies, VIP reception, luggage assistance"
-              rows={2}
-            />
-          </ModalField>
-          <ModalField label="Stay Notes">
-            <Textarea
-              value={draft.stayNotes}
-              onChange={(e) => set("stayNotes", e.target.value)}
-              className="rounded-[6px] border border-[#CCCCCC] bg-white p-2.5 text-xs text-[#251605] shadow-none"
-              placeholder="Internal schedule notes"
-              rows={2}
+              className="mt-2 rounded-[6px] border border-[#CCCCCC] bg-white p-2.5 text-xs text-[#251605] shadow-none"
+              placeholder="Reusable requests for this group profile"
+              rows={3}
             />
           </ModalField>
         </div>
       </div>
 
-      {/* Room Requirements (Demand by Room Type) Card */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
-        <div className="flex items-center justify-between border-b border-[#EDE6D8] pb-3">
+      <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-white px-4 py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-[#251605]">Room Requirements (Demand by Type)</h2>
-            <p className="text-xs text-[#756A5B]">{GROUP_CREATE_NO_PHYSICAL_ROOMS}</p>
+            <span className="text-xs font-medium text-[#756A5B]">Group Template</span>
+            <p className="text-[11px] text-[#8C7E72]">Optional. {GROUP_TEMPLATE_COPY}</p>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => set("roomNeeds", [...draft.roomNeeds, emptyGroupCreateRoomNeed()])}
-            className="h-8 border-[#C89933]/50 text-xs text-[#8A641A] hover:bg-[#FAF8F5]"
-          >
-            <Plus className="mr-1 size-3.5" /> Add room type
-          </Button>
+          <div className="w-full sm:w-64">
+            <Select
+              value={templateId || "none"}
+              onValueChange={(value) => {
+                if (value === "none") {
+                  setTemplateId("");
+                  return;
+                }
+                const template = templates.find((row) => row.id === value);
+                setTemplateId(value);
+                if (template) {
+                  setDraft((current) => ({
+                    ...applyGroupTemplateToDraft(template.payload),
+                    name: current.name,
+                    currency: current.currency,
+                  }));
+                }
+              }}
+            >
+              <SelectTrigger className={MODAL_SELECT_TRIGGER_CLASS} data-testid="group-template-select">
+                <SelectValue placeholder="Start from template (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (Blank)</SelectItem>
+                {templates
+                  .filter((row) => row.active)
+                  .map((row) => (
+                    <SelectItem key={row.id} value={row.id}>
+                      {row.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-
-        {fieldError("roomNeeds", "stay") ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive font-medium">
-            {fieldError("roomNeeds", "stay")}
-          </div>
-        ) : null}
-
-        {draft.roomNeeds.length === 0 ? (
-          <div className="p-6 text-center text-xs text-[#756A5B] bg-[#FAF8F5] rounded-xl border border-dashed border-[#EDE6D8]">
-            No room type requirements specified. Click "+ Add room type" to reserve room demand.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {draft.roomNeeds.map((need, index) => (
-              <div
-                key={need.key}
-                className="grid gap-3 rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/60 p-4 sm:grid-cols-6 items-end"
-              >
-                <div className="sm:col-span-2">
-                  <ModalField label="Room Type">
-                    <ModalSelect
-                      value={need.roomTypeId}
-                      onChange={(val) =>
-                        set(
-                          "roomNeeds",
-                          draft.roomNeeds.map((row, i) => (i === index ? { ...row, roomTypeId: val } : row)),
-                        )
-                      }
-                      options={catalogues?.roomTypes ?? []}
-                      placeholder="Select room type"
-                    />
-                  </ModalField>
-                </div>
-
-                <div>
-                  <ModalField label="Rooms">
-                    <Input
-                      type="number"
-                      min={0}
-                      value={need.rooms}
-                      onChange={(e) =>
-                        set(
-                          "roomNeeds",
-                          draft.roomNeeds.map((row, i) => (i === index ? { ...row, rooms: Number(e.target.value) || 0 } : row)),
-                        )
-                      }
-                      className={MODAL_CONTROL_CLASS}
-                    />
-                  </ModalField>
-                </div>
-
-                <div>
-                  <ModalField label="Pax">
-                    <Input
-                      type="number"
-                      min={0}
-                      value={need.pax}
-                      onChange={(e) =>
-                        set(
-                          "roomNeeds",
-                          draft.roomNeeds.map((row, i) => (i === index ? { ...row, pax: Number(e.target.value) || 0 } : row)),
-                        )
-                      }
-                      className={MODAL_CONTROL_CLASS}
-                    />
-                  </ModalField>
-                </div>
-
-                <div>
-                  <ModalField label="Meal Plan">
-                    <ModalSelect
-                      value={need.mealPlanId}
-                      onChange={(val) =>
-                        set(
-                          "roomNeeds",
-                          draft.roomNeeds.map((row, i) => (i === index ? { ...row, mealPlanId: val } : row)),
-                        )
-                      }
-                      options={catalogues?.mealPlans ?? []}
-                      placeholder="Meal plan"
-                    />
-                  </ModalField>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <div className="flex-1">
-                    <ModalField label="Rate Plan">
-                      <ModalSelect
-                        value={need.ratePlanId}
-                        onChange={(val) =>
-                          set(
-                            "roomNeeds",
-                            draft.roomNeeds.map((row, i) => (i === index ? { ...row, ratePlanId: val } : row)),
-                          )
-                        }
-                        options={catalogues?.ratePlans ?? []}
-                        placeholder="Rate plan"
-                      />
-                    </ModalField>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => set("roomNeeds", draft.roomNeeds.filter((_, i) => i !== index))}
-                    className="size-8 text-[#756A5B] hover:text-destructive shrink-0 mb-0.5"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1813,18 +1387,12 @@ function GuestsStep({
           <div>
             <h2 className="text-sm font-semibold text-[#251605]">Guest Information & Staging</h2>
             <p className="text-xs text-[#756A5B]">
-              Members are optional at creation. Group can be initialized with expected pax only.
+              Members are optional. Add the people who belong to this group profile.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-[#FAF8F5] border border-[#EDE6D8] px-3 py-1 text-xs text-[#756A5B]">
-              Expected: <strong className="text-[#251605]">{counts.expected}</strong>
-            </span>
-            <span className="rounded-full bg-[#FAF8F5] border border-[#EDE6D8] px-3 py-1 text-xs text-[#756A5B]">
-              Registered: <strong className="text-[#8A641A]">{counts.registered}</strong>
-            </span>
-            <span className="rounded-full bg-[#FAF8F5] border border-[#EDE6D8] px-3 py-1 text-xs text-[#756A5B]">
-              Remaining: <strong className="text-[#251605]">{counts.remaining}</strong>
+              Members: <strong className="text-[#8A641A]">{counts.registered}</strong>
             </span>
           </div>
         </div>
@@ -1916,7 +1484,11 @@ function GuestsStep({
             <CanonicalPhoneInput
               value={memberDraft.phone}
               onChange={(phone) => onMemberDraft({ ...memberDraft, phone })}
-              placeholder="e.g. 911 234 567"
+              placeholder="Enter phone number"
+              containerClassName={PHONE_GROUP}
+              triggerClassName={PHONE_TRIGGER}
+              className={PHONE_INPUT}
+              popoverClassName="z-[90]"
             />
           </ModalField>
           <ModalField label="Room type preference">
@@ -2042,7 +1614,6 @@ function BillingStep({
   set,
   catalogues,
   credit,
-  estimate,
   fieldError,
 }: {
   draft: GuestGroupCreateDraft;
@@ -2054,53 +1625,19 @@ function BillingStep({
     creditLimitAmount: number | null;
     creditAccountEnabled: boolean | null;
   } | null;
-  estimate: ReturnType<typeof estimateGroupCreationCharges>;
   fieldError: (key: string, stepId?: GuestGroupCreateStepId) => string | undefined;
 }) {
-  const depositAmount = Number(draft.depositAmount);
-  const exceeded =
-    credit?.creditLimitAmount != null &&
-    draft.depositRequired &&
-    !Number.isNaN(depositAmount) &&
-    depositAmount > credit.creditLimitAmount;
-
   return (
     <div className="space-y-4">
-      {/* Financial Defaults Card */}
       <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-4 shadow-none">
         <div className="border-b border-[#EDE6D8] pb-3">
-          <h2 className="text-sm font-semibold text-[#251605]">Financial & Billing Settings</h2>
-          <p className="text-xs text-[#756A5B]">Group rate plan, settlement arrangement, payment methods, and deposits.</p>
+          <h2 className="text-sm font-semibold text-[#251605]">Billing defaults</h2>
+          <p className="text-xs text-[#756A5B]">
+            Reusable settlement defaults for this group profile. Rate plans, packages, deposits, and due dates belong to the reservation block.
+          </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <ModalField label="Rate Plan">
-            <ModalSelect
-              value={draft.ratePlanId}
-              onChange={(val) => set("ratePlanId", val)}
-              options={catalogues?.ratePlans ?? []}
-              placeholder="Select rate plan"
-            />
-          </ModalField>
-
-          <ModalField label="Package">
-            <ModalSelect
-              value={draft.packageId}
-              onChange={(val) => set("packageId", val)}
-              options={catalogues?.packages ?? []}
-              placeholder="Select package"
-            />
-          </ModalField>
-
-          <ModalField label="Meal Plan">
-            <ModalSelect
-              value={draft.mealPlanId}
-              onChange={(val) => set("mealPlanId", val)}
-              options={catalogues?.mealPlans ?? []}
-              placeholder="Select meal plan"
-            />
-          </ModalField>
-
           <ModalField label="Currency" error={fieldError("currency", "billing")}>
             <ModalSelect
               value={draft.currency}
@@ -2136,78 +1673,16 @@ function BillingStep({
               </SelectContent>
             </Select>
           </ModalField>
-        </div>
-
-        {/* Deposit Policy */}
-        <div className="pt-2 border-t border-[#EDE6D8] space-y-3">
-          <div className="flex items-center justify-between rounded-xl border border-[#EDE6D8] bg-[#FAF8F5] px-4 py-2.5">
-            <div>
-              <Label className="text-xs font-semibold text-[#251605]">Deposit Required</Label>
-              <p className="text-[11px] text-[#756A5B]">Require upfront deposit guarantee for this group booking.</p>
-            </div>
-            <Switch
-              checked={draft.depositRequired}
-              onCheckedChange={(checked) => set("depositRequired", Boolean(checked))}
+          <ModalField label="Payment Terms">
+            <Input
+              value={draft.paymentTerms}
+              onChange={(e) => set("paymentTerms", e.target.value)}
+              className={MODAL_CONTROL_CLASS}
+              placeholder="e.g. 30 days net"
             />
-          </div>
-
-          {draft.depositRequired ? (
-            <div className="grid gap-3 sm:grid-cols-3 pt-1">
-              <ModalField label="Deposit Amount" error={fieldError("depositAmount", "billing")}>
-                <Input
-                  type="number"
-                  min={0}
-                  value={draft.depositAmount}
-                  onChange={(e) => set("depositAmount", e.target.value)}
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="0.00"
-                />
-              </ModalField>
-
-              <ModalField label="Deposit Percentage (%)" error={fieldError("depositPercent", "billing")}>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={draft.depositPercent}
-                  onChange={(e) => set("depositPercent", e.target.value)}
-                  className={MODAL_CONTROL_CLASS}
-                  placeholder="e.g. 50"
-                />
-              </ModalField>
-
-              <ModalField label="Deposit Due Date">
-                <Input
-                  type="date"
-                  value={draft.depositDueDate}
-                  onChange={(e) => set("depositDueDate", e.target.value)}
-                  className={MODAL_CONTROL_CLASS}
-                />
-              </ModalField>
-            </div>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2 pt-1">
-            <ModalField label="Balance Due Date">
-              <Input
-                type="date"
-                value={draft.balanceDueDate}
-                onChange={(e) => set("balanceDueDate", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-              />
-            </ModalField>
-            <ModalField label="Payment Terms">
-              <Input
-                value={draft.paymentTerms}
-                onChange={(e) => set("paymentTerms", e.target.value)}
-                className={MODAL_CONTROL_CLASS}
-                placeholder="e.g. 30 days net"
-              />
-            </ModalField>
-          </div>
+          </ModalField>
         </div>
 
-        {/* Live Credit Information Card */}
         {credit ? (
           <div className="rounded-xl border border-[#EDE6D8] bg-[#FAF8F5] p-4 text-xs space-y-1.5">
             <span className="font-semibold text-[#8A641A] uppercase tracking-wider text-[11px]">
@@ -2219,19 +1694,8 @@ function BillingStep({
               {credit.creditLimitAmount != null ? ` Stored Limit: ${credit.creditLimitAmount}.` : " No numeric credit-limit engine is applied here."}
               {credit.paymentTerms && !draft.paymentTerms ? ` Stored terms: ${credit.paymentTerms}.` : ""}
             </p>
-            {exceeded ? (
-              <p className="text-amber-700 font-medium">
-                Deposit is above the stored credit limit. This uses the company/account figure — it does not create a new credit rule.
-              </p>
-            ) : null}
           </div>
         ) : null}
-      </div>
-
-      {/* Estimated Financial Summary Card */}
-      <div className="rounded-xl border border-[#EDE6D8] bg-white p-5 space-y-2 shadow-none">
-        <h3 className="text-sm font-semibold text-[#251605]">Estimated Financial Summary</h3>
-        <p className="text-xs text-[#756A5B]">{estimate.copy}</p>
       </div>
     </div>
   );
@@ -2240,17 +1704,11 @@ function BillingStep({
 function ReviewStep({
   draft,
   catalogues,
-  counts,
-  nights,
-  estimate,
   issues,
   onEdit,
 }: {
   draft: GuestGroupCreateDraft;
   catalogues?: GroupCreateContext["catalogues"];
-  counts: { expected: number; registered: number; remaining: number };
-  nights: number | null;
-  estimate: ReturnType<typeof estimateGroupCreationCharges>;
   issues: Array<{ key: string; message: string; step: GuestGroupCreateStepId }>;
   onEdit: (step: GuestGroupCreateStepId) => void;
 }) {
@@ -2293,49 +1751,32 @@ function ReviewStep({
           <div><span className="text-[#756A5B]">Name:</span> <strong className="text-[#251605]">{draft.name || "—"}</strong></div>
           <div><span className="text-[#756A5B]">Code:</span> <strong className="text-[#251605]">{draft.code || "Assigned on save"}</strong></div>
           <div><span className="text-[#756A5B]">Type:</span> {optionLabel(catalogues?.groupTypes ?? [], draft.groupTypeId) || "—"}</div>
-          <div><span className="text-[#756A5B]">Market:</span> {optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</div>
-          <div className="col-span-2"><span className="text-[#756A5B]">Linked Partner:</span> {draft.companyMasterName || draft.travelAgentMasterName || "—"}</div>
+          <div><span className="text-[#756A5B]">Default Market Segment:</span> {optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"}</div>
+          <div><span className="text-[#756A5B]">Company Partner:</span> {draft.companyMasterName || "—"}</div>
+          <div><span className="text-[#756A5B]">Travel Agency:</span> {draft.travelAgentMasterName || "—"}</div>
           <div className="col-span-2"><span className="text-[#756A5B]">Contact:</span> {draft.primaryContactName || "—"} {draft.contactEmail ? `· ${draft.contactEmail}` : ""} {draft.contactPhone ? `· ${draft.contactPhone}` : ""}</div>
           {draft.notes ? <div className="col-span-2"><span className="text-[#756A5B]">Notes:</span> {draft.notes}</div> : null}
-        </div>
-      </ReviewCard>
-
-      <ReviewCard title="Travel & Stay" onEdit={() => onEdit("stay")}>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div><span className="text-[#756A5B]">Arrival:</span> {draft.arrivalDate || "—"} {draft.arrivalTime}</div>
-          <div><span className="text-[#756A5B]">Departure:</span> {draft.departureDate || "—"} {draft.departureTime}</div>
-          <div><span className="text-[#756A5B]">Total Nights:</span> {nights ?? "—"}</div>
-          <div><span className="text-[#756A5B]">Expected Pax:</span> {draft.expectedPax || "—"}</div>
-          <div><span className="text-[#756A5B]">Expected Rooms:</span> {draft.expectedRooms || "—"}</div>
-          <div><span className="text-[#756A5B]">Arrival Method:</span> {travelMethodLabel(draft.arrivalMethod) || "—"}</div>
-          <div><span className="text-[#756A5B]">Destinations:</span> {draft.destinations.join(", ") || "—"}</div>
-          <div><span className="text-[#756A5B]">Room Requirements:</span> {draft.roomNeeds.length} type(s) configured</div>
+          {draft.specialRequests ? <div className="col-span-2"><span className="text-[#756A5B]">Special requests:</span> {draft.specialRequests}</div> : null}
         </div>
       </ReviewCard>
 
       <ReviewCard title="Guest Information" onEdit={() => onEdit("guests")}>
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <div><span className="text-[#756A5B]">Expected:</span> {counts.expected}</div>
-          <div><span className="text-[#756A5B]">Registered:</span> {counts.registered}</div>
-          <div><span className="text-[#756A5B]">Remaining:</span> {counts.remaining}</div>
-          <div className="col-span-3 pt-1 border-t border-[#EDE6D8]">
+        <div className="grid grid-cols-1 gap-2 text-xs">
+          <div>
             <span className="text-[#756A5B]">Members:</span>{" "}
             {draft.members.length
               ? draft.members.map((m) => m.guestName || m.firstName).join(", ")
-              : "None (Registration can proceed with expected pax)"}
+              : "None"}
           </div>
         </div>
       </ReviewCard>
 
       <ReviewCard title="Financial & Billing" onEdit={() => onEdit("billing")}>
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div><span className="text-[#756A5B]">Rate Plan:</span> {optionLabel(catalogues?.ratePlans ?? [], draft.ratePlanId) || "—"}</div>
-          <div><span className="text-[#756A5B]">Package:</span> {optionLabel(catalogues?.packages ?? [], draft.packageId) || "—"}</div>
-          <div><span className="text-[#756A5B]">Meal Plan:</span> {optionLabel(catalogues?.mealPlans ?? [], draft.mealPlanId) || "—"}</div>
           <div><span className="text-[#756A5B]">Billing:</span> {billingArrangementLabel(draft.billingArrangement) || "—"}</div>
           <div><span className="text-[#756A5B]">Currency:</span> {draft.currency || "—"}</div>
-          <div><span className="text-[#756A5B]">Deposit:</span> {draft.depositRequired ? [draft.depositAmount, draft.depositPercent && `${draft.depositPercent}%`, draft.depositDueDate].filter(Boolean).join(" · ") : "Not required"}</div>
-          <div className="col-span-2"><span className="text-[#756A5B]">Pricing Estimate:</span> {estimate.available ? String(estimate.total) : "Unavailable (Reservation rate service)"}</div>
+          <div><span className="text-[#756A5B]">Payment method:</span> {optionLabel(catalogues?.paymentMethods ?? [], draft.paymentMethodId) || "—"}</div>
+          <div><span className="text-[#756A5B]">Payment terms:</span> {draft.paymentTerms || "—"}</div>
         </div>
       </ReviewCard>
     </div>

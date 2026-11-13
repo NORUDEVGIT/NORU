@@ -152,7 +152,7 @@ export function CreateReservationSelectedRoom({
     <section
       className={cn(
         PMS_OP_PANEL,
-        "!rounded-[6px] !border-[#CCCCCC] !shadow-none min-w-0 p-4 xl:sticky xl:top-3",
+        "!rounded-lg !border-[#DDD4C5] !shadow-none min-w-0 p-4 xl:sticky xl:top-3",
       )}
       data-testid="selected-room-rate"
       data-available={available ?? ""}

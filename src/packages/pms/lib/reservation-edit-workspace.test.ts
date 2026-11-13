@@ -9,10 +9,15 @@ import {
   assignmentEditLocked,
   buildConfirmNextEvents,
   buildEditChangeRows,
+  buildGuestProfileChangeRows,
+  editCommercialLabel,
+  guestContactIssue,
+  guestProfileAmendPayload,
   buildEditImpactRows,
   confirmIsEnabled,
   datesEditLocked,
   draftFromReservation,
+  EDIT_DASH,
   EDIT_NO_CHANGE,
   EDIT_NOT_EVALUATED,
   folioReconciliationNotice,
@@ -192,18 +197,71 @@ describe("reservation edit workspace helpers", () => {
     const stay = rows.find((row) => row.item === "Stay Dates");
     expect(stay?.change).toContain("+ 2 night");
     expect(stay?.persistable).toBe(true);
-    expect(rows.find((row) => row.item === "Guest")?.change).toBe(EDIT_NO_CHANGE);
+    expect(rows.find((row) => row.item === "Guest")).toBeUndefined();
+    expect(rows.find((row) => row.item === "Source")).toBeUndefined();
+    expect(rows.find((row) => row.item === "Market Segment")).toBeUndefined();
     expect(rows.find((row) => row.item === "Reservation Internal Notes")?.persistable).toBe(true);
     expect(persistableChanges(rows).map((row) => row.item)).toEqual([
       "Stay Dates",
       "Reservation Internal Notes",
     ]);
 
-    const linked = buildEditChangeRows({
+    const profile = buildGuestProfileChangeRows({
       before,
-      after: { ...before, guestId: "88888888-8888-8888-8888-888888888888", guestName: "New Guest" },
+      after: { ...before, guestFirstName: "Ada", guestPhone: "+251911000000" },
     });
-    expect(linked.find((row) => row.item === "Guest")?.after).toBe("New Guest");
+    expect(profile.find((row) => row.item === "First Name")?.after).toBe("Ada");
+    expect(persistableChanges(profile).map((row) => row.item)).toEqual(["First Name", "Phone"]);
+    const sourceId = "11111111-1111-4111-8111-111111111111";
+    expect(editCommercialLabel(sourceId, [{ value: sourceId, label: "Phone", id: sourceId }])).toBe(
+      "Phone",
+    );
+    expect(editCommercialLabel(sourceId, [])).toBe(EDIT_DASH);
+    expect(guestContactIssue({ ...before, guestFirstName: "Ada", guestEmail: "ada@hotel.test" })).toBeNull();
+    expect(guestContactIssue({ ...before, guestFirstName: "", guestEmail: "" })).toBe(
+      "First name is required.",
+    );
+    const payload = guestProfileAmendPayload(
+      {
+        nationality: "Ethiopian",
+        language: "en",
+        dateOfBirth: null,
+        addressLine1: "Bole",
+        addressLine2: null,
+        city: "Addis Ababa",
+        region: null,
+        country: "ET",
+        postalCode: null,
+        idDocumentType: null,
+        idDocumentNumber: null,
+        idDocumentExpiry: null,
+        vipStatus: false,
+        notes: "Keep this note",
+        title: null,
+        middleName: null,
+        preferredName: null,
+        gender: null,
+        phoneAlt: null,
+        emailAlt: null,
+        preferredContactMethod: null,
+        preferredContactTime: null,
+        position: null,
+        department: null,
+        sourceOfBusiness: null,
+        guestStatus: "active",
+        restricted: false,
+        blacklisted: false,
+        restrictionSeverity: null,
+        restrictionReason: null,
+        restrictionUntil: null,
+        emergencyContacts: [{ name: "Sara", relationship: "Sister", phone: null, email: null }],
+      },
+      { firstName: "Ada", lastName: "Bekele", phone: "+251911000000", email: "ada@hotel.test" },
+    );
+    expect(payload.firstName).toBe("Ada");
+    expect(payload.notes).toBe("Keep this note");
+    expect(payload.nationality).toBe("Ethiopian");
+    expect(payload.emergencyContacts[0]?.name).toBe("Sara");
   });
 
   it("does not fake impact when availability or quote are missing", () => {
@@ -364,25 +422,33 @@ describe("reservation edit workspace UI", () => {
 
   it("renders the three edit steps and only the committed controls", () => {
     expect(ui).toContain('data-testid="edit-reservation-workspace"');
-    expect(ui).toContain("Draft Summary");
-    expect(ui).toContain("Not yet saved");
+    expect(ui).not.toContain("Draft Summary");
+    expect(ui).toContain("No changes made");
+    expect(ui).not.toContain("Change Guest");
+    expect(ui).toContain("Before → After");
+    expect(ui).toContain("Guest Profile");
+    expect(ui).toContain("First Name");
+    expect(ui).toContain("Guest changes update the master guest profile.");
+    expect(ui).toContain("updateGuest");
+    expect(ui).toContain("Internal Notes");
     expect(ui).toContain("Reservation Internal Notes");
     expect(ui).toContain("Reservation Room Total");
     expect(ui).toContain("reservationRoomId: liveDraft.reservationRoomId");
-    expect(ui).toContain("Booking Source & Classification");
+    expect(ui).not.toContain("Booking Source & Classification");
+    expect(ui).toContain("The assigned room was cleared because it does not match the selected room type.");
     expect(ui).toContain("Room & Rate");
     expect(ui).toContain("Special Requests");
     expect(ui).toContain("Stay Details");
     expect(ui).toContain("Changes Summary");
     expect(ui).toContain("Impact Analysis");
     expect(ui).toContain("Review Changes");
-    expect(ui).toContain("Search existing guest");
+    expect(ui).not.toContain("Search existing guest");
     expect(ui).toContain("Current reservation");
-    expect(ui).not.toContain('aria-label="Close"');
+    expect(ui).toContain('aria-label="Close edit reservation"');
     expect(ui).toContain("onRegisterCloseGuard");
     expect(ui).toContain("Edited");
-    expect(ui).toContain("Reservation Summary");
-    expect(ui).toContain("Changes saved");
+    expect(ui).not.toContain("Reservation Summary");
+    expect(ui).not.toContain("Changes saved");
     expect(ui).toContain("Changes Saved Successfully");
     expect(ui).toContain("System Updates Completed");
     expect(ui).toContain("Print Amendment");

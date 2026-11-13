@@ -1,19 +1,33 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  Briefcase,
   Building2,
   Check,
   ChevronRight,
+  FileText,
+  Globe,
+  Hash,
+  Lock,
+  MapPin,
+  MoreHorizontal,
   Plus,
   Trash2,
   X,
 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -92,7 +106,6 @@ import {
   guestCompanyCreateCompletion,
   guestCompanyCreateHasChanges,
   optionLabel,
-  primaryCompanyContact,
   readGuestCompanyCreateHold,
   validateCompanyPhone,
   writeGuestCompanyCreateHold,
@@ -128,13 +141,17 @@ import {
 import type { CompanyContractDraft } from "@/packages/pms/lib/guest-company-create-workspace";
 
 const MODAL_CONTROL_CLASS =
-  "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE] disabled:opacity-70 read-only:bg-[#FAF8F5]";
+  "h-9 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm text-[#251605] shadow-none transition-colors placeholder:text-[#8C7E72] hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#8A641A] disabled:cursor-not-allowed disabled:bg-[#FAF8F5] disabled:text-[#8C7E72]";
 
 const MODAL_SELECT_TRIGGER_CLASS =
-  "h-10 w-full rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] justify-between";
+  "h-9 w-full justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 text-sm font-normal text-[#251605] shadow-none hover:border-[#8A641A] hover:bg-white focus:border-[#8A641A] focus:ring-1 focus:ring-[#8A641A]";
 
 const MODAL_TEXTAREA_CLASS =
-  "w-full rounded-[6px] border border-[#CCCCCC] bg-white p-3 text-xs text-[#251605] shadow-none transition-colors hover:border-[#C89933]/70 focus-visible:border-[#C89933] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933] disabled:cursor-not-allowed disabled:bg-[#F7F4EE]";
+  "min-h-[4.5rem] w-full rounded-[6px] border border-[#CCCCCC] bg-white p-3 text-sm text-[#251605] shadow-none transition-colors hover:border-[#8A641A] focus-visible:border-[#8A641A] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#8A641A] disabled:cursor-not-allowed disabled:bg-[#FAF8F5]";
+
+const PHONE_GROUP = "h-9 gap-0 overflow-hidden rounded-[6px] border border-[#CCCCCC] bg-white";
+const PHONE_TRIGGER = "h-9 w-[7.75rem] rounded-none border-0 bg-white shadow-none hover:bg-white";
+const PHONE_INPUT = "h-9 rounded-none border-0 bg-white shadow-none focus-visible:ring-0";
 
 const MODAL_TEST_ID = "guest-company-create-modal";
 
@@ -481,7 +498,6 @@ export function GuestCompanyCreateModal({
   };
   const completion = guestCompanyCreateCompletion(draft, { rules });
   const stepIndex = GUEST_COMPANY_CREATE_STEPS.findIndex((item) => item.id === step);
-  const primary = primaryCompanyContact(draft);
 
   const duplicates = useQuery({
     queryKey: ["company-create-duplicates", restaurantId, draft.name, draft.taxId, draft.accountId],
@@ -726,9 +742,10 @@ export function GuestCompanyCreateModal({
     <>
       <Dialog
         open={open}
+        modal={!discardConfirmOpen && !startOverOpen}
         onOpenChange={(next) => {
           if (!next) {
-            if (hasNestedModalLayer()) return;
+            if (hasNestedModalLayer() || discardConfirmOpen || startOverOpen) return;
             handleAttemptClose();
           } else {
             onOpenChange(true);
@@ -738,8 +755,8 @@ export function GuestCompanyCreateModal({
         <DialogContent
           data-testid="guest-company-create-modal"
           className={cn(
-            "z-50 flex h-[min(92vh,960px)] w-[min(98vw,1550px)] max-w-none sm:max-w-none flex-col gap-0 overflow-hidden p-0",
-            "rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] shadow-2xl",
+            "z-[80] flex h-[92vh] max-h-[92vh] w-[min(90vw,1440px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none",
+            "rounded-lg border border-[#3A2A16] bg-[#FBF7F1] shadow-2xl",
             "[&>button]:hidden",
           )}
           onEscapeKeyDown={(e) => {
@@ -759,47 +776,73 @@ export function GuestCompanyCreateModal({
             if (hasNestedModalLayer()) e.preventDefault();
           }}
         >
-          {/* Header */}
-          <div className="shrink-0 border-b border-[#DDD4C5] bg-white px-6 py-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle className="font-display text-xl font-bold text-[#251605]">
-                  {isEdit ? `Edit Company — ${draft.name || "Company"}` : "Create Company"}
-                </DialogTitle>
-                <DialogDescription className="mt-0.5 text-xs text-[#756A5B]">
-                  {isEdit
-                    ? "Update company profile and save changes directly."
-                    : "Create a new company profile and commercial account."}
-                </DialogDescription>
-              </div>
-
-              <div className="flex items-center gap-3">
+          <header className="shrink-0 border-b border-[#3A2A16] bg-[#1F140A] px-4 py-2 text-left">
+            <div className="flex min-w-0 items-center gap-2">
+              <DialogTitle className="font-display text-sm font-semibold text-[#F3E9D8]">
+                {isEdit ? `Edit Company — ${draft.name || "Company"}` : "Create Company"}
+              </DialogTitle>
+              <span className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-[11px] font-semibold text-[#F3E9D8]">
+                {completion.percent}% complete
+              </span>
+              <DialogDescription className="sr-only">
+                {isEdit
+                  ? "Update company profile and save changes directly."
+                  : "Create a new company profile and commercial account."}
+              </DialogDescription>
+              <span className="ml-auto flex items-center gap-1.5">
                 <Button
                   type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-[#DDD4C5] text-xs text-[#251605]"
+                  variant="ghost"
+                  className="h-8 px-2 text-xs text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
                   onClick={() => duplicateMutation.mutate()}
                   disabled={duplicateMutation.isPending || !filled(draft.name)}
                 >
                   Check for Duplicates
                 </Button>
-                <button
+                {isEdit ? null : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-[#F3E9D8]/80 hover:bg-white/10 hover:text-[#F3E9D8]"
+                        aria-label="More actions"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="z-[90]">
+                      <DropdownMenuItem
+                        data-testid="company-create-start-over"
+                        disabled={!guestCompanyCreateHasChanges(draft)}
+                        className="text-destructive focus:text-destructive"
+                        onSelect={() => setStartOverOpen(true)}
+                      >
+                        {GUEST_COMPANY_CREATE_START_OVER}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+                <Button
                   type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 shrink-0 text-[#F3E9D8] hover:bg-white/10 hover:text-white"
                   onClick={handleAttemptClose}
                   aria-label="Close dialog"
-                  className="rounded-full p-1.5 text-[#756A5B] hover:bg-[#F7F4EE] hover:text-[#251605]"
                 >
-                  <X className="size-5" />
-                </button>
-              </div>
+                  <X className="size-4" />
+                </Button>
+              </span>
             </div>
-
-            {/* Stepper Navigation */}
-            <ol
-              className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#E8E4DC] pt-3"
-              data-testid="guest-company-create-stepper"
-            >
+          </header>
+          <nav
+            aria-label="Create company steps"
+            className="flex h-9 shrink-0 items-stretch overflow-x-auto overflow-y-hidden border-b border-[#DDD4C5] bg-white px-2"
+            data-testid="guest-company-create-stepper"
+          >
+            <ol className="flex min-w-0 items-stretch">
               {GUEST_COMPANY_CREATE_STEPS.map((item, index) => {
                 const current = item.id === step;
                 const done = index < stepIndex;
@@ -807,38 +850,33 @@ export function GuestCompanyCreateModal({
                   fieldIssues.some((issue) => issue.step === item.id) &&
                   (attemptedSteps.has(item.id) || attemptedSteps.has("review"));
                 return (
-                  <li key={item.id} className="flex items-center gap-2">
-                    {index > 0 ? <span className="h-px w-4 bg-[#DDD4C5]" aria-hidden /> : null}
+                  <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => go(item.id)}
+                      aria-current={current ? "step" : undefined}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                        current && "bg-[#251605] text-[#F7F4EE] shadow-sm",
-                        done && !invalid && "border border-[#C89933]/50 bg-[#C89933]/10 text-[#765719]",
-                        !current && !done && !invalid && "border border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#F7F4EE]",
-                        invalid && "border border-destructive bg-destructive/10 text-destructive",
+                        "relative flex h-full items-center gap-1 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                        done && !invalid && "text-[#436436]",
+                        current && "text-[#251605]",
+                        !current && !done && "text-muted-foreground",
+                        invalid && "text-destructive",
                       )}
                     >
-                      <span
-                        className={cn(
-                          "grid size-4 place-items-center rounded-full text-[10px]",
-                          current ? "bg-[#C89933] text-[#251605]" : "bg-transparent",
-                        )}
-                      >
-                        {done ? <Check className="size-3" /> : item.number}
-                      </span>
-                      <span>{item.title}</span>
+                      {done && !invalid ? <Check className="size-3" /> : <span className="tabular-nums">{item.number}</span>}
+                      <span className="whitespace-nowrap">{item.title}</span>
+                      {done && !invalid ? (
+                        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#436436]" />
+                      ) : null}
+                      {current ? <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" /> : null}
                     </button>
                   </li>
                 );
               })}
             </ol>
-          </div>
+          </nav>
 
-          {/* Main Body Grid */}
-          <div className="grid min-h-0 flex-1 grid-cols-1 items-start gap-5 overflow-y-auto p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-            {/* Left: Step Form Content */}
+          <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBF7F1] p-4">
             <div className="min-w-0 space-y-4">
               {isEdit && editDraftQuery.isLoading ? (
                 <p className="rounded-xl border border-[#EDE6D8] bg-white px-4 py-3 text-sm text-[#756A5B]">
@@ -956,133 +994,42 @@ export function GuestCompanyCreateModal({
               ) : null}
             </div>
 
-            {/* Right: Contextual Profile Preview & Completion Panel */}
-            <aside className="hidden space-y-4 xl:block">
-              {/* Profile Preview Card */}
-              <section
-                className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-                data-testid="company-create-profile-preview"
-              >
-                <h3 className="font-display text-sm font-semibold text-[#251605]">Profile Preview</h3>
-                <div className="mt-3 flex items-center gap-3">
-                  <div className="flex size-12 items-center justify-center rounded-full bg-[#EFE8DC] text-[#756A5B]">
-                    <Building2 className="size-6" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-[#251605]">
-                      {draft.name || "Company Name"}
-                    </p>
-                    <span className="inline-block rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#765719]">
-                      Company (COM)
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-1 border-t border-[#E8E4DC] pt-3 text-xs text-[#756A5B]">
-                  <p className="truncate">
-                    {primary?.name ? `Contact: ${primary.name}` : "No primary contact"}
-                  </p>
-                  <p className="truncate">{primary?.phone || "No phone recorded"}</p>
-                  <p className="truncate">{primary?.email || "No email recorded"}</p>
-                  <p className="truncate text-muted-foreground">
-                    {[draft.city, draft.country].filter(Boolean).join(", ") || "No location recorded"}
-                  </p>
-                </div>
-              </section>
-
-              {/* Data Completion Card */}
-              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-sm font-semibold text-[#251605]">Data Completion</h3>
-                  <span className="font-mono text-sm font-bold text-[#8A641A]">{completion.percent}%</span>
-                </div>
-                <div className="mt-2 h-1.5 w-full rounded-full bg-[#EFE8DC]">
-                  <div
-                    className="h-1.5 rounded-full bg-[#C89933] transition-all"
-                    style={{ width: `${completion.percent}%` }}
-                  />
-                </div>
-                <ul className="mt-3 space-y-1.5 text-xs">
-                  {completion.items.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        className="text-left text-[#756A5B] hover:text-[#251605] hover:underline"
-                        onClick={() => go(item.step)}
-                      >
-                        {item.label}
-                      </button>
-                      <span
-                        className={
-                          item.complete
-                            ? "text-emerald-700"
-                            : item.requiredRemaining
-                              ? "font-bold text-destructive"
-                              : "text-muted-foreground"
-                        }
-                      >
-                        {item.requiredRemaining ? "Required" : item.complete ? "✓" : "—"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              {/* Step Guidance Card */}
-              <section className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm">
-                <h3 className="font-display text-sm font-semibold text-[#251605]">Step Guidance</h3>
-                <p className="mt-2 text-xs leading-relaxed text-[#756A5B]">
-                  {step === "details" && "Enter the company's identification information, auto-generated code, and address."}
-                  {step === "contacts" && "Add primary and secondary contact persons for this corporate account."}
-                  {step === "billing" && "Configure billing arrangements, payment methods, and credit limits."}
-                  {step === "contracts" && "Set up corporate agreements, commercial pricing terms, policies, and contract documents."}
-                  {step === "review" && "Review and confirm the company profile and corporate agreement before creating."}
-                </p>
-              </section>
-
-              <div className="rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-3 text-[11px] leading-relaxed text-[#756A5B]">
-                <p className="font-medium text-[#251605]">Property Setup Controlled</p>
-                <p className="mt-0.5">
-                  Company types, contact roles, commercial defaults, and payment methods come from Property Setup.
-                </p>
-              </div>
-            </aside>
           </div>
 
           {/* Sticky Footer */}
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#DDD4C5] bg-white px-6 py-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#E8DFD0] bg-white px-4 py-2">
             {isEdit ? (
               <>
-                <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
+                <Button type="button" variant="outline" onClick={handleAttemptClose} className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]">
                   Cancel
                 </Button>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    className="bg-[#C89933] text-[#251605] hover:bg-[#B3882E] font-semibold shadow-sm"
-                    onClick={() => saveEditMutation.mutate()}
-                    disabled={saveEditMutation.isPending}
-                    data-testid="edit-company-save-btn"
-                  >
-                    {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  className={SHELL_PRIMARY_BUTTON}
+                  onClick={() => saveEditMutation.mutate()}
+                  disabled={saveEditMutation.isPending}
+                  data-testid="edit-company-save-btn"
+                >
+                  {saveEditMutation.isPending ? "Saving Changes…" : "Save Changes"}
+                </Button>
               </>
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="outline" onClick={handleAttemptClose} className="border-[#DDD4C5]">
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-[#DDD4C5]"
-                    data-testid="company-create-start-over"
-                    onClick={() => setStartOverOpen(true)}
-                    disabled={!guestCompanyCreateHasChanges(draft)}
-                  >
-                    {GUEST_COMPANY_CREATE_START_OVER}
-                  </Button>
+                  {stepIndex === 0 ? (
+                    <Button type="button" variant="outline" onClick={handleAttemptClose} className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]">
+                      Cancel
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
+                      onClick={() => go(GUEST_COMPANY_CREATE_STEPS[stepIndex - 1].id)}
+                    >
+                      Back
+                    </Button>
+                  )}
                   {holdState === "saving" ? (
                     <span className="text-xs text-muted-foreground">Saving progress…</span>
                   ) : null}
@@ -1095,27 +1042,17 @@ export function GuestCompanyCreateModal({
                   <Button
                     type="button"
                     variant="outline"
-                    className="border-[#DDD4C5]"
+                    className="h-9 border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F4EE]"
                     data-testid="company-create-save-draft"
                     onClick={() => draftMutation.mutate()}
                     disabled={draftMutation.isPending || completeMutation.isPending}
                   >
                     Save as Draft
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-[#DDD4C5]"
-                    disabled={stepIndex === 0}
-                    onClick={() => go(GUEST_COMPANY_CREATE_STEPS[stepIndex - 1].id)}
-                  >
-                    ← Back
-                  </Button>
-
                   {step === "review" ? (
                     <Button
                       type="button"
-                      className="bg-[#C89933] font-semibold text-[#251605] shadow-sm hover:bg-[#B98B2D]"
+                      className={SHELL_PRIMARY_BUTTON}
                       onClick={() => completeMutation.mutate()}
                       disabled={completeMutation.isPending}
                       data-testid="create-company-final"
@@ -1125,7 +1062,7 @@ export function GuestCompanyCreateModal({
                   ) : (
                     <Button
                       type="button"
-                      className="bg-[#C89933] font-medium text-[#251605] shadow-sm hover:bg-[#B98B2D]"
+                      className={SHELL_PRIMARY_BUTTON}
                       onClick={() => {
                         if (validateCurrent()) go(GUEST_COMPANY_CREATE_STEPS[stepIndex + 1].id);
                       }}
@@ -1142,7 +1079,7 @@ export function GuestCompanyCreateModal({
 
       {/* Discard Confirmation Dialog */}
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
-        <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+        <AlertDialogContent className="z-[100] rounded-2xl border border-[#DDD4C5] bg-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-lg text-[#251605]">
               Discard new company?
@@ -1169,7 +1106,7 @@ export function GuestCompanyCreateModal({
       {/* Start Over Confirmation Dialog */}
       {startOverOpen ? (
         <AlertDialog open={startOverOpen} onOpenChange={setStartOverOpen}>
-          <AlertDialogContent className="rounded-2xl border border-[#DDD4C5] bg-white">
+          <AlertDialogContent className="z-[100] rounded-2xl border border-[#DDD4C5] bg-white">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-display text-lg text-[#251605]">
                 {GUEST_COMPANY_CREATE_START_OVER}?
@@ -1223,6 +1160,19 @@ function Field({
         {children}
       </div>
       {error ? <p className="text-xs font-medium text-destructive mt-1">{error}</p> : null}
+    </div>
+  );
+}
+
+function IconInput({
+  icon,
+  className,
+  ...props
+}: ComponentProps<typeof Input> & { icon: ReactNode }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8C7E72]">{icon}</span>
+      <Input {...props} className={cn(MODAL_CONTROL_CLASS, "pl-9", className)} />
     </div>
   );
 }
@@ -1311,19 +1261,17 @@ function DetailsStep({
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Profile Type">
-            <Input
-              value="Company (COM)"
-              disabled
-              readOnly
-              className={cn(MODAL_CONTROL_CLASS, "font-medium text-[#765719]")}
-            />
+            <div className="flex h-9 items-center gap-2 rounded-[6px] border border-[#E8E1D7] bg-[#FAF8F5] px-3 text-sm text-[#6B5E4E]">
+              <Lock className="size-3.5 shrink-0" />
+              <span className="truncate">Company (COM)</span>
+            </div>
           </Field>
           <Field label="Company Name" required error={fieldError("name", "details")}>
-            <Input
+            <IconInput
+              icon={<Building2 className="size-4" />}
               data-testid="company-create-name"
               value={draft.name}
               onChange={(event) => set("name", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
               placeholder="Official company name"
             />
           </Field>
@@ -1345,15 +1293,10 @@ function DetailsStep({
             </Select>
           </Field>
           <Field label="Company Code" required={required("COMPANY_CODE")} error={fieldError("code", "details")}>
-            <div className="relative">
-              <Input
-                value={draft.code || nextCompanyCode || "COM-0001"}
-                readOnly
-                disabled
-                className={cn(MODAL_CONTROL_CLASS, "bg-[#FAF8F5] font-mono text-[#765719] pr-24")}
-                placeholder={nextCompanyCode || "COM-0001"}
-              />
-              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-medium text-[#765719]">
+            <div className="flex h-9 items-center gap-2 rounded-[6px] border border-[#E8E1D7] bg-[#FAF8F5] px-3 text-sm text-[#6B5E4E]">
+              <Lock className="size-3.5 shrink-0" />
+              <span className="min-w-0 flex-1 truncate font-mono">{draft.code || nextCompanyCode || "COM-0001"}</span>
+              <span className="rounded bg-[#F4E9D0] px-1.5 py-0.5 text-[10px] font-medium text-[#765719]">
                 Auto-generated
               </span>
             </div>
@@ -1376,34 +1319,34 @@ function DetailsStep({
             </Select>
           </Field>
           <Field label="TIN Number" required={required("TAX_ID")} error={fieldError("taxId", "details")}>
-            <Input
+            <IconInput
+              icon={<Hash className="size-4" />}
               value={draft.taxId}
               onChange={(event) => set("taxId", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
               placeholder="e.g. 0012345678"
             />
           </Field>
           <Field label="Registration Number" required={required("REGISTRATION_NUMBER")} error={fieldError("registrationNumber", "details")}>
-            <Input
+            <IconInput
+              icon={<FileText className="size-4" />}
               value={draft.registrationNumber}
               onChange={(event) => set("registrationNumber", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
               placeholder="Business registry code"
             />
           </Field>
           <Field label="Industry" required={required("INDUSTRY")} error={fieldError("industry", "details")}>
-            <Input
+            <IconInput
+              icon={<Briefcase className="size-4" />}
               value={draft.industry}
               onChange={(event) => set("industry", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
               placeholder="e.g. Technology, Finance"
             />
           </Field>
           <Field label="Website" required={required("WEBSITE")} error={fieldError("website", "details")}>
-            <Input
+            <IconInput
+              icon={<Globe className="size-4" />}
               value={draft.website}
               onChange={(event) => set("website", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
               placeholder="https://example.com"
             />
           </Field>
@@ -1414,7 +1357,7 @@ function DetailsStep({
             value={draft.notes}
             onChange={(event) => set("notes", event.target.value)}
             className={MODAL_TEXTAREA_CLASS}
-            rows={3}
+            rows={2}
             placeholder="General internal notes for this company account"
           />
         </Field>
@@ -1468,18 +1411,18 @@ function DetailsStep({
             )}
           </Field>
           <Field label="City" required={required("CITY")} error={fieldError("city", "details")}>
-            <Input
+            <IconInput
+              icon={<MapPin className="size-4" />}
               value={draft.city}
               onChange={(event) => set("city", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
               placeholder="City or locality"
             />
           </Field>
           <Field label="Address Line 1" required={required("ADDRESS_LINE1")} error={fieldError("addressLine1", "details")}>
-            <Input
+            <IconInput
+              icon={<MapPin className="size-4" />}
               value={draft.addressLine1}
               onChange={(event) => set("addressLine1", event.target.value)}
-              className={MODAL_CONTROL_CLASS}
               placeholder="Street and building number"
             />
           </Field>
@@ -1654,7 +1597,11 @@ function ContactsStep({
                         )
                       }
                       error={Boolean(phoneError || (!contact.phone && required("CONTACT_PHONE")))}
-                      placeholder="e.g. 911 234 567"
+                      placeholder="Enter phone number"
+                      containerClassName={PHONE_GROUP}
+                      triggerClassName={PHONE_TRIGGER}
+                      className={PHONE_INPUT}
+                      popoverClassName="z-[90]"
                     />
                     {/* Format: +251 9... or 09... / 07... */}
                   </Field>
@@ -1672,7 +1619,11 @@ function ContactsStep({
                         )
                       }
                       error={Boolean(!contact.whatsapp && required("CONTACT_WHATSAPP"))}
-                      placeholder="e.g. 911 234 567"
+                      placeholder="Enter phone number"
+                      containerClassName={PHONE_GROUP}
+                      triggerClassName={PHONE_TRIGGER}
+                      className={PHONE_INPUT}
+                      popoverClassName="z-[90]"
                     />
                   </Field>
                   <Field
@@ -1742,7 +1693,6 @@ function ReviewStep({
         message: item.label,
         step: item.step,
       }));
-  const primary = primaryCompanyContact(draft);
   const contract = draft.contract;
 
   const contractType = contractConfig?.contractTypes.find((t) => t.id === contract.contractTypeId);
@@ -1804,14 +1754,24 @@ function ReviewStep({
 
       <ReviewCard title="Contacts" onEdit={() => onEdit("contacts")}>
         <div className="space-y-2 text-xs">
-          <p>
-            <span className="text-muted-foreground">Primary Contact:</span>{" "}
-            {primary?.name ? `${primary.name} · ${primary.email || "No email"} · ${primary.phone || "No phone"}` : "None"}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Total Contacts:</span>{" "}
-            {draft.contacts.filter((row) => filled(row.name)).length}
-          </p>
+          {draft.contacts.filter((row) => filled(row.name) || filled(row.email) || filled(row.phone)).length === 0 ? (
+            <p>None</p>
+          ) : (
+            draft.contacts
+              .filter((row) => filled(row.name) || filled(row.email) || filled(row.phone))
+              .map((contact) => {
+                const role = optionLabel(catalogues?.contactRoles ?? [], contact.roleIds[0] ?? "");
+                return (
+                  <p key={contact.key}>
+                    <span className="font-medium text-[#251605]">{contact.name || "Unnamed contact"}</span>
+                    {contact.isPrimary ? " · Primary" : ""}
+                    {role ? ` · ${role}` : ""}
+                    {contact.position ? ` · ${contact.position}` : ""}
+                    {` · ${contact.email || "No email"} · ${contact.phone || "No phone"}`}
+                  </p>
+                );
+              })
+          )}
         </div>
       </ReviewCard>
 

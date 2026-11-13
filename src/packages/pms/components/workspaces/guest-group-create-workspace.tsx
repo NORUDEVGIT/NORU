@@ -9,7 +9,6 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { Switch } from "@/shared/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -43,20 +42,16 @@ import {
   billingArrangementLabel,
   clearGuestGroupCreateHold,
   emptyGroupCreateMember,
-  emptyGroupCreateRoomNeed,
   emptyGuestGroupCreateDraft,
-  estimateGroupCreationCharges,
   filled,
   guestGroupCreateCompletion,
   guestGroupCreateHasChanges,
   groupCreateDraftErrorsForSave,
   groupCreateFieldIssues,
   groupCreateMemberCounts,
-  groupCreateNights,
   optionLabel,
   readGuestGroupCreateHold,
   stageGroupMemberImport,
-  travelMethodLabel,
   writeGuestGroupCreateHold,
   type GuestGroupCreateDraft,
   type GuestGroupCreateStepId,
@@ -96,7 +91,6 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
   const [agencyQuery, setAgencyQuery] = useState("");
   const [contactQuery, setContactQuery] = useState("");
   const [guestQuery, setGuestQuery] = useState("");
-  const [destinationInput, setDestinationInput] = useState("");
   const [importCsv, setImportCsv] = useState("");
   const [memberDraft, setMemberDraft] = useState(emptyGroupCreateMember());
   const [templateId, setTemplateId] = useState("");
@@ -173,8 +167,6 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
 
   const completion = guestGroupCreateCompletion(draft);
   const counts = groupCreateMemberCounts(draft);
-  const nights = groupCreateNights(draft.arrivalDate, draft.departureDate);
-  const estimate = estimateGroupCreationCharges();
   const stepIndex = GUEST_GROUP_CREATE_STEPS.findIndex((item) => item.id === step);
   const catalogueIds = {
     groupTypeIds: (catalogues?.groupTypes ?? []).map((row) => row.id),
@@ -388,10 +380,13 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
           <Button
             variant="outline"
             onClick={() =>
-              void navigate({ to: "/restaurant/bookings/new", search: { groupAccountMasterId: created.id } })
+              void navigate({
+                to: "/restaurant/pms/reservations",
+                search: { tab: "groups", createGroupProfile: created.id },
+              })
             }
           >
-            Create Reservation
+            Create Group / Block
           </Button>
           <Button variant="outline" onClick={resetForm}>
             Add Another Group
@@ -490,17 +485,6 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
               fieldError={fieldError}
             />
           ) : null}
-          {step === "stay" ? (
-            <StayStep
-              draft={draft}
-              set={set}
-              nights={nights}
-              catalogues={catalogues}
-              destinationInput={destinationInput}
-              onDestinationInput={setDestinationInput}
-              fieldError={fieldError}
-            />
-          ) : null}
           {step === "guests" ? (
             <GuestsStep
               draft={draft}
@@ -521,15 +505,13 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
             />
           ) : null}
           {step === "billing" ? (
-            <BillingStep draft={draft} set={set} catalogues={catalogues} credit={creditQuery.data ?? null} estimate={estimate} fieldError={fieldError} />
+            <BillingStep draft={draft} set={set} catalogues={catalogues} credit={creditQuery.data ?? null} fieldError={fieldError} />
           ) : null}
           {step === "review" ? (
             <ReviewStep
               draft={draft}
               catalogues={catalogues}
               counts={counts}
-              nights={nights}
-              estimate={estimate}
               issues={fieldIssues}
               onEdit={go}
             />
@@ -542,12 +524,6 @@ export function GuestGroupCreateWorkspace({ restaurantId }: { restaurantId: stri
             <dl className="mt-3 space-y-2 text-sm">
               <SummaryRow label="Group Name" value={draft.name || "—"} />
               <SummaryRow label="Status" value={GROUP_STATUS_LABELS.pending} />
-              <SummaryRow
-                label="Travel Dates"
-                value={draft.arrivalDate && draft.departureDate ? `${draft.arrivalDate} → ${draft.departureDate}` : "—"}
-              />
-              <SummaryRow label="Expected Guests" value={draft.expectedPax || "—"} />
-              <SummaryRow label="Expected Rooms" value={draft.expectedRooms || "—"} />
               <SummaryRow label="Company / Agency" value={draft.companyMasterName || draft.travelAgentMasterName || "—"} />
               <SummaryRow label="Group Type" value={optionLabel(catalogues?.groupTypes ?? [], draft.groupTypeId) || "—"} />
               <SummaryRow label="Market Segment" value={optionLabel(catalogues?.marketSegments ?? [], draft.marketSegmentId) || "—"} />
@@ -884,224 +860,10 @@ function DetailsStep({
       <Field label="Notes">
         <Textarea value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
       </Field>
+      <Field label="Special requests">
+        <Textarea value={draft.specialRequests} onChange={(event) => set("specialRequests", event.target.value)} />
+      </Field>
     </section>
-  );
-}
-
-function StayStep({
-  draft,
-  set,
-  nights,
-  catalogues,
-  destinationInput,
-  onDestinationInput,
-  fieldError,
-}: {
-  draft: GuestGroupCreateDraft;
-  set: <K extends keyof GuestGroupCreateDraft>(key: K, value: GuestGroupCreateDraft[K]) => void;
-  nights: number | null;
-  catalogues?: GroupCreateContext["catalogues"];
-  destinationInput: string;
-  onDestinationInput: (value: string) => void;
-  fieldError: (key: string, stepId?: GuestGroupCreateStepId) => string | undefined;
-}) {
-  return (
-    <div className="space-y-4">
-      <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Travel & Stay</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Arrival Date" required error={fieldError("arrivalDate", "stay")}>
-            <Input type="date" value={draft.arrivalDate} onChange={(event) => set("arrivalDate", event.target.value)} />
-          </Field>
-          <Field label="Departure Date" required error={fieldError("departureDate", "stay")}>
-            <Input type="date" value={draft.departureDate} onChange={(event) => set("departureDate", event.target.value)} />
-          </Field>
-          <Field label="Arrival Time">
-            <Input type="time" value={draft.arrivalTime} onChange={(event) => set("arrivalTime", event.target.value)} />
-          </Field>
-          <Field label="Departure Time">
-            <Input type="time" value={draft.departureTime} onChange={(event) => set("departureTime", event.target.value)} />
-          </Field>
-          <Field label="Total Nights">
-            <Input value={nights == null ? "" : String(nights)} readOnly placeholder="Calculated from dates" />
-          </Field>
-          <Field label="Expected Pax" required error={fieldError("expectedPax", "stay")}>
-            <Input type="number" min={1} value={draft.expectedPax} onChange={(event) => set("expectedPax", event.target.value)} />
-          </Field>
-          <Field label="Expected Rooms" error={fieldError("expectedRooms", "stay")}>
-            <Input type="number" min={0} value={draft.expectedRooms} onChange={(event) => set("expectedRooms", event.target.value)} />
-          </Field>
-          <Field label="Arrival Method">
-            <NoneSelect
-              value={draft.arrivalMethod}
-              onChange={(value) => set("arrivalMethod", value)}
-              options={GROUP_TRAVEL_METHODS.map((row) => ({ id: row.id, name: row.label }))}
-              placeholder="Select method"
-            />
-          </Field>
-          <Field label="Arrival From">
-            <Input value={draft.arrivalFrom} onChange={(event) => set("arrivalFrom", event.target.value)} />
-          </Field>
-          <Field label="Arrival To">
-            <Input value={draft.arrivalTo} onChange={(event) => set("arrivalTo", event.target.value)} />
-          </Field>
-          <Field label="Departure Method">
-            <NoneSelect
-              value={draft.departureMethod}
-              onChange={(value) => set("departureMethod", value)}
-              options={GROUP_TRAVEL_METHODS.map((row) => ({ id: row.id, name: row.label }))}
-              placeholder="Select method"
-            />
-          </Field>
-          <Field label="Departure To">
-            <Input value={draft.departureTo} onChange={(event) => set("departureTo", event.target.value)} />
-          </Field>
-          <Field label="Source">
-            <NoneSelect value={draft.sourceCodeId} onChange={(value) => set("sourceCodeId", value)} options={catalogues?.sourceCodes ?? []} placeholder="Select source" />
-          </Field>
-          <Field label="Channel">
-            <NoneSelect value={draft.channelId} onChange={(value) => set("channelId", value)} options={catalogues?.channels ?? []} placeholder="Select channel" />
-          </Field>
-        </div>
-        <Field label="Destinations">
-          <div className="flex gap-2">
-            <Input
-              value={destinationInput}
-              onChange={(event) => onDestinationInput(event.target.value)}
-              placeholder="Addis Ababa"
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  if (destinationInput.trim()) {
-                    set("destinations", [...draft.destinations, destinationInput.trim()]);
-                    onDestinationInput("");
-                  }
-                }
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                if (destinationInput.trim()) {
-                  set("destinations", [...draft.destinations, destinationInput.trim()]);
-                  onDestinationInput("");
-                }
-              }}
-            >
-              Add
-            </Button>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {draft.destinations.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className="rounded-full border border-border px-2 py-0.5 text-xs"
-                onClick={() => set("destinations", draft.destinations.filter((row) => row !== item))}
-              >
-                {item} ×
-              </button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Special Requests">
-          <Textarea value={draft.specialRequests} onChange={(event) => set("specialRequests", event.target.value)} />
-        </Field>
-        <Field label="Notes">
-          <Textarea value={draft.stayNotes} onChange={(event) => set("stayNotes", event.target.value)} />
-        </Field>
-      </section>
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-display text-lg">Room Requirements</h2>
-          <Button type="button" size="sm" variant="outline" onClick={() => set("roomNeeds", [...draft.roomNeeds, emptyGroupCreateRoomNeed()])}>
-            <Plus className="mr-1 size-3" /> Add room type
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">{GROUP_CREATE_NO_PHYSICAL_ROOMS}</p>
-        {fieldError("roomNeeds", "stay") ? <p className="text-xs text-destructive">{fieldError("roomNeeds", "stay")}</p> : null}
-        {draft.roomNeeds.map((need, index) => (
-          <div key={need.key} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-6">
-            <Field label="Room Type">
-              <NoneSelect
-                value={need.roomTypeId}
-                onChange={(value) =>
-                  set(
-                    "roomNeeds",
-                    draft.roomNeeds.map((row, i) => (i === index ? { ...row, roomTypeId: value } : row)),
-                  )
-                }
-                options={catalogues?.roomTypes ?? []}
-                placeholder="Room type"
-              />
-            </Field>
-            <Field label="Rooms">
-              <Input
-                type="number"
-                min={0}
-                value={need.rooms}
-                onChange={(event) =>
-                  set(
-                    "roomNeeds",
-                    draft.roomNeeds.map((row, i) => (i === index ? { ...row, rooms: Number(event.target.value) || 0 } : row)),
-                  )
-                }
-              />
-            </Field>
-            <Field label="Pax">
-              <Input
-                type="number"
-                min={0}
-                value={need.pax}
-                onChange={(event) =>
-                  set(
-                    "roomNeeds",
-                    draft.roomNeeds.map((row, i) => (i === index ? { ...row, pax: Number(event.target.value) || 0 } : row)),
-                  )
-                }
-              />
-            </Field>
-            <Field label="Meal Plan">
-              <NoneSelect
-                value={need.mealPlanId}
-                onChange={(value) =>
-                  set(
-                    "roomNeeds",
-                    draft.roomNeeds.map((row, i) => (i === index ? { ...row, mealPlanId: value } : row)),
-                  )
-                }
-                options={catalogues?.mealPlans ?? []}
-                placeholder="Meal plan"
-              />
-            </Field>
-            <Field label="Rate Plan">
-              <NoneSelect
-                value={need.ratePlanId}
-                onChange={(value) =>
-                  set(
-                    "roomNeeds",
-                    draft.roomNeeds.map((row, i) => (i === index ? { ...row, ratePlanId: value } : row)),
-                  )
-                }
-                options={catalogues?.ratePlans ?? []}
-                placeholder="Rate plan"
-              />
-            </Field>
-            <div className="flex items-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => set("roomNeeds", draft.roomNeeds.filter((_, i) => i !== index))}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </section>
-    </div>
   );
 }
 
@@ -1143,10 +905,10 @@ function GuestsStep({
       <section className="rounded-2xl border border-border bg-card p-4">
         <h2 className="font-display text-lg">Guest Information</h2>
         <p className="mt-2 text-sm">
-          Expected Guests: {counts.expected} · Registered Members: {counts.registered} · Remaining: {counts.remaining}
+          Members: {counts.registered}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Members are optional. The group can be created with expected pax only.
+          Members are optional. Add the people who belong to this group profile. {GROUP_CREATE_NO_PHYSICAL_ROOMS}
         </p>
         {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
       </section>
@@ -1245,7 +1007,6 @@ function BillingStep({
   set,
   catalogues,
   credit,
-  estimate,
   fieldError,
 }: {
   draft: GuestGroupCreateDraft;
@@ -1257,29 +1018,16 @@ function BillingStep({
     creditLimitAmount: number | null;
     creditAccountEnabled: boolean | null;
   } | null;
-  estimate: ReturnType<typeof estimateGroupCreationCharges>;
   fieldError: (key: string, stepId?: GuestGroupCreateStepId) => string | undefined;
 }) {
-  const depositAmount = Number(draft.depositAmount);
-  const exceeded =
-    credit?.creditLimitAmount != null &&
-    draft.depositRequired &&
-    !Number.isNaN(depositAmount) &&
-    depositAmount > credit.creditLimitAmount;
   return (
     <div className="space-y-4">
       <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
         <h2 className="font-display text-lg">Financial & Billing</h2>
+        <p className="text-sm text-muted-foreground">
+          These defaults stay with the group profile. Rate plans, packages, deposits, and due dates belong to the reservation block.
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Rate Plan">
-            <NoneSelect value={draft.ratePlanId} onChange={(value) => set("ratePlanId", value)} options={catalogues?.ratePlans ?? []} placeholder="Select rate plan" />
-          </Field>
-          <Field label="Package">
-            <NoneSelect value={draft.packageId} onChange={(value) => set("packageId", value)} options={catalogues?.packages ?? []} placeholder="Select package" />
-          </Field>
-          <Field label="Meal Plan">
-            <NoneSelect value={draft.mealPlanId} onChange={(value) => set("mealPlanId", value)} options={catalogues?.mealPlans ?? []} placeholder="Select meal plan" />
-          </Field>
           <Field label="Currency" error={fieldError("currency", "billing")}>
             <Select value={draft.currency || "none"} onValueChange={(value) => set("currency", value === "none" ? "" : value)}>
               <SelectTrigger>
@@ -1313,31 +1061,9 @@ function BillingStep({
             </Select>
           </Field>
         </div>
-        <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
-          <Label>Deposit Required</Label>
-          <Switch checked={draft.depositRequired} onCheckedChange={(checked) => set("depositRequired", Boolean(checked))} />
-        </div>
-        {draft.depositRequired ? (
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Deposit Amount" error={fieldError("depositAmount", "billing")}>
-              <Input type="number" min={0} value={draft.depositAmount} onChange={(event) => set("depositAmount", event.target.value)} />
-            </Field>
-            <Field label="Deposit Percentage" error={fieldError("depositPercent", "billing")}>
-              <Input type="number" min={0} max={100} value={draft.depositPercent} onChange={(event) => set("depositPercent", event.target.value)} />
-            </Field>
-            <Field label="Deposit Due Date">
-              <Input type="date" value={draft.depositDueDate} onChange={(event) => set("depositDueDate", event.target.value)} />
-            </Field>
-          </div>
-        ) : null}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Balance Due">
-            <Input type="date" value={draft.balanceDueDate} onChange={(event) => set("balanceDueDate", event.target.value)} />
-          </Field>
-          <Field label="Payment Terms">
-            <Input value={draft.paymentTerms} onChange={(event) => set("paymentTerms", event.target.value)} />
-          </Field>
-        </div>
+        <Field label="Payment Terms">
+          <Input value={draft.paymentTerms} onChange={(event) => set("paymentTerms", event.target.value)} />
+        </Field>
         {credit ? (
           <div className="rounded-xl border border-dashed border-border p-3 text-sm">
             <p className="font-medium">Company / Agency account</p>
@@ -1347,13 +1073,8 @@ function BillingStep({
               {credit.creditLimitAmount != null ? ` Limit: ${credit.creditLimitAmount}.` : " No numeric credit-limit engine is applied here."}
               {credit.paymentTerms && !draft.paymentTerms ? ` Stored terms: ${credit.paymentTerms}.` : ""}
             </p>
-            {exceeded ? <p className="mt-2 text-amber-700">Deposit is above the stored credit limit. This uses the company/account figure — it does not create a new credit rule.</p> : null}
           </div>
         ) : null}
-      </section>
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h3 className="font-medium">Estimated Summary</h3>
-        <p className="mt-2 text-sm text-muted-foreground">{estimate.copy}</p>
       </section>
     </div>
   );
@@ -1363,16 +1084,12 @@ function ReviewStep({
   draft,
   catalogues,
   counts,
-  nights,
-  estimate,
   issues,
   onEdit,
 }: {
   draft: GuestGroupCreateDraft;
   catalogues?: GroupCreateContext["catalogues"];
   counts: { expected: number; registered: number; remaining: number };
-  nights: number | null;
-  estimate: ReturnType<typeof estimateGroupCreationCharges>;
   issues: Array<{ key: string; message: string; step: GuestGroupCreateStepId }>;
   onEdit: (step: GuestGroupCreateStepId) => void;
 }) {
@@ -1413,24 +1130,10 @@ function ReviewStep({
         <p>Contact: {draft.primaryContactName || "—"} · {draft.contactEmail || "—"} · {draft.contactPhone || "—"}</p>
         <p>Status: {GROUP_STATUS_LABELS.pending}</p>
         <p>Notes: {draft.notes || "—"}</p>
-      </ReviewCard>
-      <ReviewCard title="Travel & Stay" onEdit={() => onEdit("stay")}>
-        <p>Arrival: {draft.arrivalDate || "—"} {draft.arrivalTime}</p>
-        <p>Departure: {draft.departureDate || "—"} {draft.departureTime}</p>
-        <p>Nights: {nights ?? "—"}</p>
-        <p>Expected Guests: {draft.expectedPax || "—"}</p>
-        <p>Expected Rooms: {draft.expectedRooms || "—"}</p>
-        <p>Arrival: {travelMethodLabel(draft.arrivalMethod) || "—"} {draft.arrivalFrom} {draft.arrivalTo}</p>
-        <p>Departure: {travelMethodLabel(draft.departureMethod) || "—"} {draft.departureTo}</p>
-        <p>Source: {optionLabel(catalogues?.sourceCodes ?? [], draft.sourceCodeId) || "—"}</p>
-        <p>Channel: {optionLabel(catalogues?.channels ?? [], draft.channelId) || "—"}</p>
-        <p>Destinations: {draft.destinations.join(", ") || "—"}</p>
         <p>Special Requests: {draft.specialRequests || "—"}</p>
       </ReviewCard>
       <ReviewCard title="Guest Information" onEdit={() => onEdit("guests")}>
-        <p>Expected Guests: {counts.expected}</p>
         <p>Registered Members: {counts.registered}</p>
-        <p>Remaining Members: {counts.remaining}</p>
         <p>Import staged: {draft.importStagedCount || 0}</p>
         <p>
           Members:{" "}
@@ -1440,15 +1143,10 @@ function ReviewStep({
         </p>
       </ReviewCard>
       <ReviewCard title="Financial & Billing" onEdit={() => onEdit("billing")}>
-        <p>Rate Plan: {optionLabel(catalogues?.ratePlans ?? [], draft.ratePlanId) || "—"}</p>
-        <p>Package: {optionLabel(catalogues?.packages ?? [], draft.packageId) || "—"}</p>
-        <p>Meal Plan: {optionLabel(catalogues?.mealPlans ?? [], draft.mealPlanId) || "—"}</p>
         <p>Billing Arrangement: {billingArrangementLabel(draft.billingArrangement) || "—"}</p>
         <p>Payment Method: {optionLabel(catalogues?.paymentMethods ?? [], draft.paymentMethodId) || "—"}</p>
-        <p>Deposit: {draft.depositRequired ? [draft.depositAmount, draft.depositPercent && `${draft.depositPercent}%`, draft.depositDueDate].filter(Boolean).join(" · ") : "Not required"}</p>
         <p>Currency: {draft.currency || "—"}</p>
-        <p>Estimated Charges: {estimate.available ? String(estimate.total) : "Unavailable"}</p>
-        <p>Estimated Total: {estimate.available ? String(estimate.total) : "—"}</p>
+        <p>Payment Terms: {draft.paymentTerms || "—"}</p>
       </ReviewCard>
     </div>
   );

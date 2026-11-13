@@ -610,11 +610,13 @@ describe("Phase 5: Shared Architecture & Invariant Enforcement", () => {
     assert.match(acc, /const title = GUEST_ACCOUNT_TYPE_LABELS\[accountType\];/);
   });
 
-  it("integrates Quick View drawer in GuestCompanyDirectory", () => {
+  it("opens the full company workspace from the directory row", () => {
     const dir = readRel("../components/guests/guest-company-directory.tsx");
-    assert.match(dir, /GuestCompanyQuickViewDrawer/);
-    assert.match(dir, /previewCompanyId/);
-    assert.match(dir, /onQuickView/);
+    assert.match(dir, /function openCompany/);
+    assert.match(dir, /GUEST_PROFILE_DETAIL_PATH/);
+    assert.match(dir, /onClick=\{onView\}/);
+    assert.doesNotMatch(dir, /GuestCompanyQuickViewDrawer/);
+    assert.doesNotMatch(dir, /Full Workspace|View Full Profile|Quick View/);
   });
 
   it("preserves canonical 5-step company creation wizard in guest-company-create-workspace.tsx", () => {

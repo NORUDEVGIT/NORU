@@ -164,7 +164,7 @@ export function CreateReservationPoliciesGuarantee({
         </div>
 
         <section
-          className="h-fit rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none"
+          className="h-fit rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-none"
           data-testid="deposit-policy"
         >
           <div className="flex items-start gap-2">
@@ -257,7 +257,7 @@ export function CreateReservationPoliciesGuarantee({
       </div>
 
       <section
-        className="rounded-[6px] border border-[#CCCCCC] bg-white p-4 shadow-none"
+        className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-none"
         data-testid="stay-policies"
       >
         <div className="flex items-start gap-2">

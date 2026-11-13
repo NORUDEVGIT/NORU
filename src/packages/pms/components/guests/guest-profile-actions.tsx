@@ -235,13 +235,14 @@ export function GuestProfileActionsProvider({
         </Dialog>
       ) : null}
       {canEdit ? (
-        <GuestFormIdentityUpload
-          restaurantId={restaurantId}
-          guestId={guest.id}
-          open={uploadOpen}
-          onOpenChange={setUploadOpen}
-          onSaved={refresh}
-        />
+        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+          <DialogContent className="max-w-lg border-[#DDD4C5] bg-white">
+            <DialogHeader>
+              <DialogTitle>Upload document</DialogTitle>
+            </DialogHeader>
+            <GuestFormIdentityUpload restaurantId={restaurantId} guestId={guest.id} />
+          </DialogContent>
+        </Dialog>
       ) : null}
     </GuestProfileActionsContext.Provider>
   );

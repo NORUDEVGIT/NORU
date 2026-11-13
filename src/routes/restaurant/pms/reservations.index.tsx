@@ -15,6 +15,7 @@ export type ReservationsRouteSearch = {
   companyId?: string;
   travelAgentId?: string;
   groupId?: string;
+  createGroupProfile?: string;
   returnTo?: string;
 };
 
@@ -53,6 +54,14 @@ export const Route = createFileRoute("/restaurant/pms/reservations/")({
       UUID_REGEX.test(rawGroupId.trim())
     ) {
       result.groupId = rawGroupId.trim();
+    }
+    const rawCreateGroupProfile = search["createGroupProfile"];
+    if (
+      typeof rawCreateGroupProfile === "string" &&
+      UUID_REGEX.test(rawCreateGroupProfile.trim())
+    ) {
+      result.createGroupProfile = rawCreateGroupProfile.trim();
+      result.tab = result.tab ?? "groups";
     }
     if (
       typeof search["returnTo"] === "string" &&
@@ -114,6 +123,7 @@ function ReservationsPmsRoute() {
           initialCompanyId={search.companyId}
           initialTravelAgentId={search.travelAgentId}
           initialGroupId={search.groupId}
+          initialCreateGroupProfile={search.createGroupProfile}
           initialReturnTo={search.returnTo}
         />
         </PmsRouteGate>

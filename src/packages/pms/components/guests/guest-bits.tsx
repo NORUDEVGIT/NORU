@@ -1,4 +1,8 @@
-import { AlertTriangle, Star } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Star } from "lucide-react";
+
+import { Button } from "@/shared/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
+import { cn } from "@/shared/lib/utils";
 
 import {
   guestRestrictionWarning,
@@ -76,6 +80,109 @@ export function GuestRestrictionWarn({
             Reason: {reason}
           </p>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+export const DIRECTORY_HEAD_CLASS =
+  "border-b border-[#DDD4C5] bg-[#FAF8F4] text-left text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground";
+
+export const DIRECTORY_ACTION_BUTTON =
+  "size-7 text-[#7A6B58] hover:text-[#251605]";
+
+export function DirectoryPager({
+  page,
+  pageCount,
+  pageSize,
+  pageSizes,
+  total,
+  offset,
+  noun,
+  disabled = false,
+  onPage,
+  onPageSize,
+}: {
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  pageSizes: readonly number[];
+  total: number;
+  offset: number;
+  noun: string;
+  disabled?: boolean;
+  onPage: (page: number) => void;
+  onPageSize: (size: number) => void;
+}) {
+  const shown = Math.min(5, pageCount);
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#7A6B58]">
+      <div>
+        Showing {total === 0 ? 0 : offset + 1}–{Math.min(offset + pageSize, total)} of{" "}
+        <span className="font-medium text-[#251605]">{total.toLocaleString()}</span> {noun}
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={page <= 0 || disabled}
+            onClick={() => onPage(Math.max(0, page - 1))}
+            className="size-7 border-[#E8E4DC] text-[#251605]"
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="size-3.5" />
+          </Button>
+          {Array.from({ length: shown }, (_, i) => {
+            let pageIdx = i;
+            if (pageCount > 5 && page > 2) {
+              pageIdx = Math.min(page - 2 + i, pageCount - 5 + i);
+            }
+            const isCurrent = page === pageIdx;
+            return (
+              <Button
+                key={pageIdx}
+                type="button"
+                variant={isCurrent ? "default" : "outline"}
+                size="icon"
+                disabled={disabled}
+                onClick={() => onPage(pageIdx)}
+                className={cn(
+                  "size-7 text-xs",
+                  isCurrent
+                    ? "bg-[#C89933] font-semibold text-white hover:bg-[#B38728]"
+                    : "border-[#E8E4DC] text-[#251605]",
+                )}
+              >
+                {pageIdx + 1}
+              </Button>
+            );
+          })}
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            disabled={page >= pageCount - 1 || disabled}
+            onClick={() => onPage(page + 1)}
+            className="size-7 border-[#E8E4DC] text-[#251605]"
+            aria-label="Next page"
+          >
+            <ChevronRight className="size-3.5" />
+          </Button>
+        </div>
+        <Select value={String(pageSize)} onValueChange={(value) => onPageSize(Number(value))}>
+          <SelectTrigger className="h-7 w-28 border-[#E8E4DC] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {pageSizes.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size} / page
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

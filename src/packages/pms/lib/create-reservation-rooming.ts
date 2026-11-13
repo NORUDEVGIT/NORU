@@ -111,6 +111,35 @@ export function confirmSingleDowngrade(state: Step1RoomingState): Step1RoomingSt
   return { ...state, reservationMode: "single", activeRoomIndex: 0, extras: [] };
 }
 
+/** Rooms = 1 is a single reservation. Rooms > 1 is a group. Guest counts are left untouched. */
+export function applyRoomQuantity(
+  state: Step1RoomingState,
+  rooms: number,
+  nextKey: () => string,
+): Step1RoomingState {
+  const count = Math.min(MAX_EXTRA_ROOM_UNITS + 1, Math.max(1, Math.floor(rooms) || 1));
+  const extras = state.extras.slice(0, count - 1);
+  while (extras.length < count - 1) {
+    extras.push({
+      key: nextKey(),
+      roomTypeId: "",
+      adults: 1,
+      children: 0,
+      infants: 0,
+      ratePlanId: null,
+      occupant: null,
+      pmsGroupBlockId: null,
+    });
+  }
+  const group = count > 1;
+  return {
+    ...state,
+    reservationMode: group ? "group" : "single",
+    activeRoomIndex: group ? Math.min(state.activeRoomIndex, extras.length) : 0,
+    extras: group ? extras : [],
+  };
+}
+
 export function addGroupRoom(state: Step1RoomingState, key: string): Step1RoomingState {
   if (state.reservationMode !== "group") return state;
   if (state.extras.length >= MAX_EXTRA_ROOM_UNITS) return state;

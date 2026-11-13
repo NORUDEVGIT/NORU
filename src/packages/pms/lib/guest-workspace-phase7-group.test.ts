@@ -203,13 +203,15 @@ describe("Phase 7: Amendment 8 & 10 — Communication Channels & Templates", () 
     assert.doesNotMatch(commsView, /whatsapp/i);
   });
 
-  it("keeps group templates in Directory/Create tooling, not as a detail tab", () => {
+  it("keeps group templates in Create tooling, not as a directory button or detail tab", () => {
     assert.equal(isPrimaryGroupView("templates"), false);
     assert.equal(isMoreGroupView("templates"), false);
 
     const dir = readRel("../components/guests/guest-group-directory.tsx");
-    assert.match(dir, /group-templates-button/);
-    assert.match(dir, /templatesDialogOpen/);
+    const create = readRel("../components/guests/guest-group-create-modal.tsx");
+    assert.doesNotMatch(dir, /group-templates-button/);
+    assert.doesNotMatch(dir, /templatesDialogOpen/);
+    assert.match(create, /listGroupTemplates/);
   });
 });
 
@@ -237,11 +239,13 @@ describe("Phase 7: Amendment 11 — Unavailable Actions Disabled / Omitted", () 
 });
 
 describe("Phase 7: Amendment 12 — Directory & Server Query Truthfulness", () => {
-  it("debounces directory search by 300ms and provides Quick View drawer", () => {
+  it("debounces directory search by 300ms and opens the full group workspace from a row", () => {
     const dir = readRel("../components/guests/guest-group-directory.tsx");
     assert.match(dir, /debouncedSearch/);
     assert.match(dir, /300/);
-    assert.match(dir, /GuestGroupQuickViewDrawer/);
+    assert.match(dir, /function openGroup/);
+    assert.match(dir, /GUEST_PROFILE_DETAIL_PATH/);
+    assert.doesNotMatch(dir, /GuestGroupQuickViewDrawer/);
     assert.match(dir, /Total Groups/);
     assert.match(dir, /Draft/);
     assert.match(dir, /Confirmed/);
@@ -278,14 +282,15 @@ describe("Phase 7: Architectural Invariants & Non-Regression", () => {
     }
   });
 
-  it("preserves canonical 5-step group create wizard in guest-group-create-workspace.tsx", () => {
+  it("keeps group profile registration on identity, members, billing, and review", () => {
     const createWs = readRel("../components/workspaces/guest-group-create-workspace.tsx");
     assert.match(createWs, /GuestGroupCreateWorkspace/);
     assert.match(createWs, /step === "details"/);
-    assert.match(createWs, /step === "stay"/);
+    assert.doesNotMatch(createWs, /step === "stay"/);
     assert.match(createWs, /step === "guests"/);
     assert.match(createWs, /step === "billing"/);
     assert.match(createWs, /step === "review"/);
+    assert.match(createWs, /Create Group \/ Block/);
   });
 
   it("preserves existing individual guest, company, and travel agent workspaces without regression", () => {

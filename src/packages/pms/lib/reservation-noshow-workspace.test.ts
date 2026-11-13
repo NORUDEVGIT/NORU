@@ -37,12 +37,27 @@ describe("reservation no-show workspace helpers", () => {
       money: (value) => `ETB ${value}`,
     });
     expect(rows.find((row) => row.description === "Room Charges")?.status).toBe(
-      "Reservation quote — not posted money",
+      "Quoted room total",
     );
     expect(rows.find((row) => row.description === "No-Show Charge")?.status).toBe("Not applicable");
     expect(rows.find((row) => row.description === "Amount to Collect")?.status).toBe(
-      "No balance to collect",
+      "Nothing to collect",
     );
+    const credit = noShowFinanceRows({
+      roomSubtotal: null,
+      packageAmount: null,
+      additionalServices: null,
+      postedNoShowFee: null,
+      feeRequired: false,
+      feeSatisfied: true,
+      depositAmount: null,
+      folioBalance: -4500,
+      money: (value) => `ETB ${value}`,
+    });
+    expect(credit.find((row) => row.description === "Outstanding Balance")).toMatchObject({
+      amount: "ETB 4500",
+      status: "Credit balance",
+    });
     expect(
       postedNoShowFeeAmount([{ type: "charge", description: "No-show charge", amount: 9000 }]),
     ).toBe(9000);
@@ -132,9 +147,12 @@ describe("reservation no-show workspace UI", () => {
     expect(ui).toContain("RoomUnitTargetSelect");
     expect(ui).toContain("postCancelOrNoShowFee");
     expect(ui).toContain("Arrival Status");
-    expect(ui).toContain("Cancellation Policy Check");
+    expect(ui).toContain("No-Show Policy");
     expect(ui).toContain("NOSHOW_COMM_GAP");
     expect(ui).toContain("NOSHOW_BLACKLIST_GAP");
+    expect(ui).toContain("printNoShowConfirmation");
+    expect(ui).not.toContain("window.print");
+    expect(ui).not.toContain("Open folio in Cashiering");
     expect(ui).not.toContain("Notification Sent");
     expect(actions).toContain('id: "no_show"');
     expect(actions).toContain("arrivalDate < input.businessDate");

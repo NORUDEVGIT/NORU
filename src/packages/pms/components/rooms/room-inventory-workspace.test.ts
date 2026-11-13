@@ -17,7 +17,9 @@ const rules = source("src/packages/pms/components/rooms/room-inventory-rules.tsx
 const more = source("src/packages/pms/components/rooms/room-inventory-more.tsx");
 const utilities = source("src/packages/pms/components/rooms/room-inventory-utils.ts");
 const chrome = source("src/packages/pms/components/rooms/room-inventory-chrome.tsx");
-const detail = source("src/packages/pms/components/rooms/room-detail-panel.tsx");
+const actions = source("src/packages/pms/components/rooms/room-board-dialogs.tsx");
+const historyFormat = source("src/packages/pms/components/rooms/room-detail-format.ts");
+const restrictionDialog = source("src/packages/pms/components/rooms/room-restriction-dialog.tsx");
 const boardFunctions = source("src/packages/pms/lib/room-board.functions.ts");
 
 describe("Room & Inventory workspace", () => {
@@ -44,11 +46,12 @@ describe("Room & Inventory workspace", () => {
     expect(workspace).not.toContain("WorkspacePlaceholder");
   });
 
-  it("uses explicit assignment inspection instead of per-row RPC fan-out", () => {
-    expect(board).toContain("onInspectAssignment");
+  it("checks assignment eligibility from the room card without leaving the board", () => {
+    expect(board).toContain("<RoomEligibilityDialog");
     expect(board).not.toContain("useQueries");
     expect(board).not.toContain("evaluateRoomAssignment");
-    expect(workspace).toContain('selectView("assignment-eligibility")');
+    expect(actions).toContain("evaluateRoomAssignment");
+    expect(workspace).not.toContain('selectView("assignment-eligibility")');
     expect(rules).toContain("Inspect eligibility");
   });
 
@@ -60,18 +63,39 @@ describe("Room & Inventory workspace", () => {
 
   it("uses grid as the default while retaining the operational list", () => {
     expect(board).toContain('useState<ViewMode>("grid")');
-    expect(board).toContain('setViewMode("list")');
+    expect(board).toContain('["table", "Table", Table2]');
     expect(board).toContain("<RoomList");
     expect(board).toContain("<RoomCard");
   });
 
-  it("renders the approved filters, location navigator and selected-room details", () => {
-    expect(board).toContain("<FilterBand");
-    expect(board).toContain("<LocationNavigator");
-    expect(board).toContain("<RoomDetailPanel");
-    expect(detail).toContain('"overview"');
-    expect(detail).toContain('"notes"');
-    expect(detail).toContain('"history"');
+  it("opens room actions as overlays on the board", () => {
+    expect(board).toContain("<RoomBlockDialog");
+    expect(board).toContain("<RoomEligibilityDialog");
+    expect(board).toContain("<RoomConfigurationDialog");
+    expect(board).toContain("<RoomHistoryDialog");
+    expect(board).toContain("Set OOS / OOO");
+    expect(board).toContain("Block Room");
+    expect(board).toContain("Check Assignment Eligibility");
+    expect(board).toContain("Room Configuration");
+    expect(board).toContain("View History");
+    expect(board).not.toContain("RoomDetailWorkspace");
+    expect(board).not.toContain("RoomDetailPanel");
+    expect(board).not.toContain("<Sheet");
+    expect(workspace).not.toContain("openBlockForRoom");
+  });
+
+  it("keeps staff-facing history free of raw JSON and actor ids", () => {
+    expect(actions).toContain("describeRoomEvent");
+    expect(actions).not.toContain("actorMembershipId");
+    expect(actions).not.toContain("JSON.stringify");
+    expect(actions).not.toContain("previousValues}");
+    expect(historyFormat).not.toContain("actorMembershipId");
+  });
+
+  it("makes the KPI cards filters over the same state logic as their counts", () => {
+    expect(board).toContain("room-board-kpi-");
+    expect(board).toContain("roomMatchesKpiFilter(kpiFilter, primary)");
+    expect(workspace).toContain("onSelectFilter");
   });
 
   it("reads active room blocks with Front Office access", () => {
@@ -82,9 +106,18 @@ describe("Room & Inventory workspace", () => {
   });
 
   it("keeps restriction mutations on the canonical compatibility path", () => {
-    expect(board).toContain("setRoomRestriction");
+    expect(board).toContain("<RoomRestrictionDialog");
+    expect(restrictionDialog).toContain("setRoomRestriction");
     expect(board).not.toContain(".update({ status");
-    expect(detail).toContain("Restriction changes require manager access.");
+    expect(restrictionDialog).not.toContain(".update({ status");
+    expect(restrictionDialog).toContain("Maintenance request");
+    expect(restrictionDialog).toContain("End date / expected return");
+    expect(restrictionDialog).toContain("room-restriction-confirm");
+    expect(restrictionDialog).toContain("getRoomRestrictionPolicy");
+    expect(restrictionDialog).toContain("maintenanceRequestId");
+    expect(restrictionDialog).toContain("OOO_MAINTENANCE_TICKET_MESSAGE");
+    expect(restrictionDialog).toContain("outOfOrderNeedsMaintenanceTicket");
+    expect(restrictionDialog).not.toContain("P0001");
   });
 
   it("uses stable canonical availability query keys", () => {
@@ -114,8 +147,8 @@ describe("Room & Inventory workspace", () => {
     expect(availability).toContain("lg:grid-cols-[minmax(0,1fr)_360px]");
     expect(availability).toContain("View All Blocks");
     expect(workspace).toContain('onOpenBlocks={() => selectView("blocks")}');
-    expect(workspace).toContain("openBlockForRoom");
-    expect(workspace).toContain("createPrefill={blockPrefill}");
+    expect(board).toContain("<RoomBlockDialog");
+    expect(actions).toContain("createOperationalBlock");
   });
 
   it("renders the approved monthly inventory calendar and summary panel", () => {
@@ -126,13 +159,20 @@ describe("Room & Inventory workspace", () => {
     expect(calendar).toContain("CalendarMatrix");
     expect(calendar).toContain("Inventory Summary");
     expect(calendar).toContain("Operational Notes");
-    expect(calendar).toContain("View Affected Rooms");
-    expect(calendar).toContain("Edit Blocks");
-    expect(calendar).toContain("lg:grid-cols-[minmax(0,1fr)_360px]");
+    expect(calendar).toContain("Availability for the selected date.");
+    expect(calendar).toContain("Remaining Available");
+    expect(calendar).toContain("sticky left-0");
+    expect(calendar).toContain("sticky left-48");
+    expect(calendar).toContain("w-[360px]");
+    expect(calendar).toContain("min-w-0 flex-1");
+    expect(calendar).not.toContain("View Affected Rooms");
+    expect(calendar).not.toContain("Edit Blocks");
+    expect(calendar).not.toContain("canonical nightly");
     expect(calendar).toContain("listRoomTypeInventoryAvailability");
     expect(calendar).not.toContain("count_sellable_rooms");
     expect(workspace).toContain("propertyName={membership.restaurant.name}");
-    expect(workspace).toContain('onEditBlocks={() => selectView("blocks")}');
+    expect(workspace).toContain("<RoomBoardKpiStrip");
+    expect(workspace).not.toContain("onEditBlocks");
   });
 
   it("wires block lifecycle functions without recreating block policy", () => {
@@ -196,8 +236,15 @@ describe("Room & Inventory workspace", () => {
   it("unwraps Card 2 inventory rules and reuses saveInventoryRules", () => {
     expect(rules).toContain("query.data.rules");
     expect(rules).toContain("saveInventoryRules");
-    expect(rules).toContain("Sellable room required");
-    expect(rules).toContain("Block-type inventory behavior");
+    expect(source("src/packages/pms/components/rooms/room-inventory-rule-catalog.ts")).toContain(
+      "Sellable room required",
+    );
+    expect(rules).toContain("Block-type Inventory Behavior");
+    expect(rules).toContain("Unsaved changes");
+    expect(rules).toContain("highImpactConsequences");
+    expect(rules).not.toContain("canonical assignment evaluator");
+    expect(rules).not.toContain("Card 2 maintenance");
+    expect(rules).not.toContain("Enforced");
     expect(rules).not.toContain("Operational availability required");
     expect(rules).not.toContain("Room move allowed");
     expect(rules).not.toContain("Config only");

@@ -990,7 +990,7 @@ describe("Create Reservation Phase 1 Section 3 lock — AC-CR3-1…16", () => {
     const dialogs = readRel("../components/frontoffice/front-office-dialogs.tsx");
     assert.match(page, /useState<"pending" \| "confirmed">\("pending"\)/);
     assert.match(page, /data-testid="create-as-status"/);
-    assert.match(page, /save-as-pending/);
+    assert.match(page, /Confirm Reservation/);
     assert.match(page, /confirm-guarantee/);
     assert.doesNotMatch(page, /SelectItem value="cancelled"|SelectItem value="no_show"/);
     assert.doesNotMatch(page, /walk_in_unpriced|often-unpriced|invented_status|statusModel/);

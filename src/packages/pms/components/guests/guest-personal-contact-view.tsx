@@ -16,7 +16,9 @@ import {
 import { formatStayDate } from "@/packages/pms/components/bookings/reservation-bits";
 import { GuestTaxIdentitiesCard } from "@/packages/pms/components/guests/guest-tax-identities-card";
 import { GUEST_GENDER_LABELS, GUEST_TITLE_LABELS } from "@/packages/pms/lib/guest-profile-individual";
-import { GUEST_ACCOUNT_TYPE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
+import { GUEST_ACCOUNT_TYPE_LABELS, GUEST_RELATIONSHIP_ROLE_LABELS } from "@/packages/pms/lib/guest-profile-wave4";
+import { nationalityValueForStored } from "@/packages/pms/lib/guest-nationalities";
+import { formatGroupedPhone } from "@/packages/pms/lib/pms-property-setup-phone";
 import {
   PREFERRED_CONTACT_METHOD_LABELS,
   PREFERRED_CONTACT_TIME_LABELS,
@@ -195,7 +197,10 @@ export function GuestPersonalContactView({
             value={guest.gender ? GUEST_GENDER_LABELS[guest.gender] : null}
           />
           <DataRow label="Date of Birth" value={dobFormatted} />
-          <DataRow label="Nationality" value={guest.nationality} />
+          <DataRow
+            label="Nationality"
+            value={guest.nationality ? nationalityValueForStored(guest.nationality) : null}
+          />
           <DataRow label="Language" value={guest.language} />
         </SectionPanel>
 
@@ -205,8 +210,8 @@ export function GuestPersonalContactView({
           icon={Phone}
           data-testid="contact-info-panel"
         >
-          <DataRow label="Mobile Phone" value={guest.phone} />
-          <DataRow label="Alternate Phone" value={guest.phoneAlt} />
+          <DataRow label="Mobile Phone" value={formatGroupedPhone(guest.phone) || null} />
+          <DataRow label="Alternate Phone" value={formatGroupedPhone(guest.phoneAlt) || null} />
           <DataRow label="Email Address" value={guest.email} />
           <DataRow label="Alternate Email" value={guest.emailAlt} />
           <DataRow label="Preferred Method" value={method} />
@@ -264,7 +269,11 @@ export function GuestPersonalContactView({
               <ul className="text-[#251605] text-xs list-disc list-inside space-y-0.5">
                 {linksQuery.data.slice(1).map((l) => (
                   <li key={l.id}>
-                    {l.masterName} ({l.role})
+                    {l.masterName} (
+                    {l.role in GUEST_RELATIONSHIP_ROLE_LABELS
+                      ? GUEST_RELATIONSHIP_ROLE_LABELS[l.role as keyof typeof GUEST_RELATIONSHIP_ROLE_LABELS]
+                      : l.role}
+                    )
                   </li>
                 ))}
               </ul>
@@ -272,18 +281,13 @@ export function GuestPersonalContactView({
           )}
         </SectionPanel>
 
-        {/* Panel 5: Additional Information */}
+        {filteredCustomFields.length > 0 ? (
         <SectionPanel
-          title="Additional Information"
+          title="Other profile details"
           icon={User}
           data-testid="additional-info-panel"
         >
-          {filteredCustomFields.length === 0 ? (
-            <p className="text-[#8C827A] text-xs py-2">
-              No additional property-specific information recorded.
-            </p>
-          ) : (
-            filteredCustomFields.map((field) => (
+            {filteredCustomFields.map((field) => (
               <div
                 key={field.fieldId}
                 className="flex items-baseline justify-between gap-4 py-1.5 border-b border-[#EFE9DF]/70 last:border-b-0"
@@ -303,9 +307,9 @@ export function GuestPersonalContactView({
                   {field.formattedValue || "—"}
                 </span>
               </div>
-            ))
-          )}
+            ))}
         </SectionPanel>
+        ) : null}
       </div>
 
       {/* Emergency Contacts Panel (Full Width) */}
@@ -328,7 +332,7 @@ export function GuestPersonalContactView({
                   {contact.relationship || "Contact"}
                 </p>
                 {contact.phone && (
-                  <p className="text-[11px] text-[#251605]">Tel: {contact.phone}</p>
+                  <p className="text-[11px] text-[#251605]">Tel: {formatGroupedPhone(contact.phone)}</p>
                 )}
                 {contact.email && (
                   <p className="text-[11px] text-[#756A5B] truncate">Email: {contact.email}</p>

@@ -5,14 +5,13 @@ import { toast } from "sonner";
 import { Check, RotateCcw, Sliders, ExternalLink } from "lucide-react";
 
 import {
-  CONTACT_DEFAULTS_COPY,
   CONTACT_DEFAULTS_TITLE,
-  PREFERENCES_APPLY_COPY,
   PREFERENCES_COPY,
   PREFERENCES_EMPTY_TYPES,
   PREFERENCES_IMPORTANT_NOTE,
   PREFERENCE_TEXT_MAX,
   contactDefaultChips,
+  isPlaceholderPreferenceLabel,
   labelForPreferenceValues,
   type ContactDefaultsDraft,
   type PreferenceSummaryChip,
@@ -67,8 +66,9 @@ function catalogueChips(categories: GuestPreferenceWorkspaceCategory[]): Prefere
   const chips: PreferenceSummaryChip[] = [];
   for (const category of categories) {
     for (const type of category.types) {
+      if (isPlaceholderPreferenceLabel(type.name) || isPlaceholderPreferenceLabel(type.code)) continue;
       const value = labelForPreferenceValues(type.options, type.values, type.valueType);
-      if (!value) continue;
+      if (!value || isPlaceholderPreferenceLabel(value)) continue;
       chips.push({
         source: "catalogue",
         code: type.code,
@@ -78,6 +78,21 @@ function catalogueChips(categories: GuestPreferenceWorkspaceCategory[]): Prefere
     }
   }
   return chips;
+}
+
+function preferenceTypeVisible(
+  type: GuestPreferenceWorkspaceType,
+  answers: Record<string, string[]>,
+) {
+  if (isPlaceholderPreferenceLabel(type.name) || isPlaceholderPreferenceLabel(type.code)) return false;
+  const values = answers[type.id] ?? [];
+  if (!type.active && values.length === 0) return false;
+  const choice = type.valueType === "single" || type.valueType === "multi";
+  const activeOptions = type.options.filter(
+    (option) => option.active && !isPlaceholderPreferenceLabel(option.label),
+  );
+  if (choice && activeOptions.length === 0 && values.length === 0) return false;
+  return true;
 }
 
 function TypeControl({
@@ -91,9 +106,11 @@ function TypeControl({
 }) {
   if (!type.active) {
     const displayValue = labelForPreferenceValues(type.options, values, type.valueType);
+    const shown =
+      displayValue && !isPlaceholderPreferenceLabel(displayValue) ? displayValue : "No preference";
     return (
       <div className="flex items-center gap-2 py-1">
-        <span className="text-xs text-[#756A5B]">{displayValue ?? "No value saved"}</span>
+        <span className="text-xs text-[#756A5B]">{shown}</span>
         <span className="text-[10px] text-[#8A641A] font-medium bg-[#FBF7EE] border border-[#DDD4C5] px-1.5 py-0.5 rounded">
           inactive type
         </span>
@@ -119,7 +136,8 @@ function TypeControl({
     }
 
     const selectable = type.options.filter(
-      (option) => option.active || values.includes(option.value),
+      (option) =>
+        (option.active || values.includes(option.value)) && !isPlaceholderPreferenceLabel(option.label),
     );
 
     return (
@@ -236,18 +254,21 @@ function TypeControl({
   }
 
   const selectable = type.options.filter(
-    (option) => option.active || values.includes(option.value),
+    (option) =>
+      (option.active || values.includes(option.value)) && !isPlaceholderPreferenceLabel(option.label),
   );
-  const selected = values[0] || NONE;
+  const current = type.options.find((option) => option.value === values[0]);
+  const selected =
+    !values[0] || (current && isPlaceholderPreferenceLabel(current.label)) ? NONE : values[0];
 
   return (
     <Select value={selected} onValueChange={(val) => onChange(val === NONE ? [] : [val])}>
       <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white text-[#251605]">
-        <SelectValue placeholder="Not set" />
+        <SelectValue placeholder="No preference" />
       </SelectTrigger>
       <SelectContent className="border-[#DDD4C5] bg-white text-[#251605] shadow-xl text-xs">
         <SelectItem value={NONE} className="text-[#756A5B]">
-          Not set
+          No preference
         </SelectItem>
         {selectable.map((option) => (
           <SelectItem
@@ -419,10 +440,12 @@ export function GuestPreferencesView({
     });
   }
 
-  const hasTypes = categories.some((category) => category.types.length > 0);
+  const hasTypes = categories.some((category) =>
+    category.types.some((type) => preferenceTypeVisible(type, draft.answers)),
+  );
 
   return (
-    <div ref={containerRef} className="space-y-4" data-testid="guest-preferences">
+    <div ref={containerRef} className="space-y-3" data-testid="guest-preferences">
       {/* Top Workspace Bar: Single authoritative Apply toggle + Save/Discard controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#DDD4C5] bg-white px-4 py-3 shadow-sm">
         <div className="flex items-center gap-4">
@@ -508,22 +531,25 @@ export function GuestPreferencesView({
       ) : null}
 
       {/* Preference Categories: 2-column operational form layout */}
-      <div className="space-y-4">
-        {categories.map((category) => (
+      <div className="space-y-2">
+        {categories.map((category) => {
+          const types = category.types.filter((type) => preferenceTypeVisible(type, draft.answers));
+          if (types.length === 0) return null;
+          return (
           <section
             key={category.id}
-            className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+            className="rounded-lg border border-[#DDD4C5] bg-white p-3 shadow-sm"
             data-testid={`guest-pref-category-${category.code}`}
           >
-            <div className="border-b border-[#DDD4C5] pb-2">
+            <div className="border-b border-[#DDD4C5] pb-1.5">
               <h3 className="font-display text-sm font-semibold text-[#251605]">{category.name}</h3>
               {category.description ? (
-                <p className="text-[11px] text-[#756A5B] mt-0.5">{category.description}</p>
+                <p className="line-clamp-1 text-[11px] text-[#756A5B] mt-0.5">{category.description}</p>
               ) : null}
             </div>
 
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {category.types.map((type) => (
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+              {types.map((type) => (
                 <div key={type.id} className="space-y-1">
                   <Label className="text-xs font-medium text-[#756A5B]">
                     {type.name}
@@ -538,21 +564,24 @@ export function GuestPreferencesView({
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
 
         {/* Communication Defaults Section */}
         <section
-          className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+          className="rounded-lg border border-[#DDD4C5] bg-white p-3 shadow-sm"
           data-testid="guest-pref-contact-defaults"
         >
-          <div className="border-b border-[#DDD4C5] pb-2">
+          <div className="border-b border-[#DDD4C5] pb-1.5">
             <h3 className="font-display text-sm font-semibold text-[#251605]">
               {CONTACT_DEFAULTS_TITLE}
             </h3>
-            <p className="text-[11px] text-[#756A5B] mt-0.5">{CONTACT_DEFAULTS_COPY}</p>
+            <p className="text-[11px] text-[#756A5B] mt-0.5">
+              Language and how this guest prefers to be reached.
+            </p>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
             <div className="space-y-1">
               <Label htmlFor="pref-language" className="text-xs font-medium text-[#756A5B]">
                 Preferred Language
@@ -601,10 +630,10 @@ export function GuestPreferencesView({
                 }
               >
                 <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white text-[#251605]">
-                  <SelectValue placeholder="Not set" />
+                  <SelectValue placeholder="No preference" />
                 </SelectTrigger>
                 <SelectContent className="border-[#DDD4C5] bg-white text-xs">
-                  <SelectItem value={NONE}>Not set</SelectItem>
+                  <SelectItem value={NONE}>No preference</SelectItem>
                   {PREFERRED_CONTACT_METHODS.map((method) => (
                     <SelectItem key={method} value={method}>
                       {PREFERRED_CONTACT_METHOD_LABELS[method]}
@@ -637,10 +666,10 @@ export function GuestPreferencesView({
                 }
               >
                 <SelectTrigger className="h-8 text-xs border-[#DDD4C5] bg-white text-[#251605]">
-                  <SelectValue placeholder="Not set" />
+                  <SelectValue placeholder="No preference" />
                 </SelectTrigger>
                 <SelectContent className="border-[#DDD4C5] bg-white text-xs">
-                  <SelectItem value={NONE}>Not set</SelectItem>
+                  <SelectItem value={NONE}>No preference</SelectItem>
                   {PREFERRED_CONTACT_TIMES.map((time) => (
                     <SelectItem key={time} value={time}>
                       {PREFERRED_CONTACT_TIME_LABELS[time]}
