@@ -41,7 +41,8 @@ describe("Cashiering Phase 12 exceptions and reports", () => {
     assert.match(poster, /listCashieringExceptions/);
     assert.match(poster, /settlement_exception/);
     assert.match(poster, /getCashieringReportTotals/);
-    assert.match(poster, /propertyDayBounds/);
+    assert.match(poster, /\.gte\("business_date", fromDate\)/);
+    assert.match(poster, /\.lte\("business_date", toDate\)/);
     assert.doesNotMatch(poster, /list_cashiering_exceptions|cashiering_report_totals/);
     assert.match(panels, /Cleared only by a real settling post/);
     assert.match(panels, /data-testid="cashiering-attention-required"/);

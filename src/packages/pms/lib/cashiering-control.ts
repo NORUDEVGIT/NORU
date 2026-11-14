@@ -34,6 +34,8 @@ export type BusinessActivityRow = {
   amount: number;
   postedAt: string;
   createdAt: string;
+  /** Stamped hotel day. When present it decides membership instead of postedAt. */
+  businessDate?: string | null;
   paymentMethod: string | null;
   originalTransactionId: string | null;
   referenceType: string | null;
@@ -42,6 +44,16 @@ export type BusinessActivityRow = {
   postedBy: string | null;
   ownerLabel: string;
 };
+
+/** Hotel-day membership: the stamped business_date, else the property-local posting date. */
+export function rowOnBusinessDate(
+  row: { businessDate?: string | null; postedAt: string },
+  businessDate: string,
+  timezone: string,
+): boolean {
+  if (row.businessDate) return row.businessDate.slice(0, 10) === businessDate;
+  return belongsToBusinessDate(row.postedAt, businessDate, timezone);
+}
 
 export type MethodActivity = {
   method: TenderMethod;
@@ -258,7 +270,7 @@ export function summarizeBusinessDateActivity(input: {
   recent: BusinessDateEventView[];
 } {
   const dayRows = input.rows.filter((row) =>
-    belongsToBusinessDate(row.postedAt, input.businessDate, input.timezone),
+    rowOnBusinessDate(row, input.businessDate, input.timezone),
   );
   let paymentAmount = 0;
   let paymentCount = 0;

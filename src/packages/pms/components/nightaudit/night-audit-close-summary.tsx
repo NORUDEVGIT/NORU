@@ -143,8 +143,10 @@ export function NightAuditCloseSummary({
           ) : null}
 
           <p className="mt-4 text-xs text-muted-foreground">
-            Policy: open cashier shifts{" "}
-            {eod.policy.openCashierShifts === "block" ? "must be closed" : "do not block"}
+            Open cashier shifts must be closed before End of Day.
+            {eod.policy.openCashierShifts === "do_not_block"
+              ? " This closed run was recorded when an open shift did not block."
+              : ""}
             {" · "}Fiscal overrides used: {eod.fiscal.overrides}
           </p>
         </>

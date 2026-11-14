@@ -78,6 +78,10 @@ export type NightAuditFinancialIssue = {
   createdAt?: string;
   /** fiscal_registrations.id when a row already exists. */
   fiscalRegistrationId?: string;
+  /** Active persistent fiscal override covering this exact source. */
+  fiscalOverrideId?: string;
+  /** hotel_cashier_shifts.membership_id when this finding is an open shift. */
+  shiftMembershipId?: string;
 };
 
 export type NightAuditFinancialException = {
@@ -220,6 +224,8 @@ export type DrawerFact = {
   shift: string;
   openedAt: string;
   closedAt?: string | null;
+  /** Hotel day the drawer was opened on (hotel_cashier_shifts.business_date). */
+  businessDate?: string | null;
   opening?: number | null;
   cashIn?: number | null;
   cashOut?: number | null;
@@ -230,6 +236,8 @@ export type DrawerFact = {
   state: "open" | "closed";
   scope: "hotel" | "restaurant";
   currency: string;
+  /** Shift owner. Used only to choose the existing close action. */
+  membershipId?: string | null;
 };
 
 export type FiscalDocumentFact = {
@@ -246,6 +254,14 @@ export type FiscalDocumentFact = {
   invoiceId?: string | null;
   /** fiscal_registrations.id. Absent when the document was never sent. */
   registrationId?: string | null;
+  /** Active persistent fiscal override for this exact source. Fiscal status is unchanged. */
+  waiver?: {
+    overrideId: string;
+    reason: string;
+    reasonCategory: string | null;
+    overriddenByMembershipId: string;
+    overriddenAt: string;
+  } | null;
 };
 
 export type TaxLineFact = {
@@ -559,14 +575,17 @@ function signed(values: readonly number[]): number {
   return Math.round(values.reduce((sum, value) => sum + value, 0) * 100) / 100;
 }
 
-function fiscalSeverity(status: string): "blocking" | "warning" | "info" | null {
+/** End of Day has no warning tier: PENDING is information, like REGISTERED. */
+export function fiscalSeverity(status: string): "blocking" | "info" {
   if (status === "FAILED" || status === "CANCEL_PENDING" || status === "NOT_REGISTERED" || status === "BLOCKED") {
     return "blocking";
   }
-  if (status === "PENDING") return "warning";
-  if (status === "REGISTERED" || status === "CANCELLED") return "info";
+  if (status === "PENDING" || status === "REGISTERED" || status === "CANCELLED") return "info";
   return "blocking";
 }
+
+/** Statuses a persistent fiscal override may cover. Unknown status never. */
+const WAIVABLE_FISCAL_STATUSES = new Set(["FAILED", "CANCEL_PENDING", "NOT_REGISTERED", "BLOCKED"]);
 
 function fiscalCode(status: string): string {
   if (status === "FAILED") return "fiscal_failed";
@@ -1197,6 +1216,52 @@ function folioCounts(
   };
 }
 
+const HOTEL_DAY_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+function formatHotelDay(iso: string): string {
+  const [year, month, day] = iso.slice(0, 10).split("-");
+  const monthIndex = Number(month) - 1;
+  const dayNumber = Number(day);
+  const label = HOTEL_DAY_MONTHS[monthIndex];
+  if (!year || !label || !dayNumber) return iso.slice(0, 10);
+  return `${dayNumber} ${label} ${year}`;
+}
+
+function openShiftCopy(
+  drawer: DrawerFact,
+  auditDate: string,
+): { title: string; description: string } {
+  const day = drawer.businessDate?.slice(0, 10) ?? null;
+  const detail = [
+    drawer.cashier,
+    day ? `business date ${formatHotelDay(day)}` : null,
+    `opened ${drawer.openedAt}`,
+    drawer.opening != null ? `opening cash ${drawer.opening}` : null,
+    `expected cash ${drawer.expectedCash}`,
+    "status open",
+  ]
+    .filter((part) => part != null)
+    .join(". ");
+  if (day && day < auditDate) {
+    return {
+      title: "Previous Business Date cashier shift is still open",
+      description: `This cashier shift belongs to ${formatHotelDay(day)} and must be closed before the current End of Day can continue. ${detail}.`,
+    };
+  }
+  if (day && day > auditDate) {
+    return {
+      title: "Cashier shift is open on a future Business Date",
+      description: `This cashier shift belongs to ${formatHotelDay(day)}, after the current Business Date, and must be closed before End of Day can continue. ${detail}.`,
+    };
+  }
+  return {
+    title: "Cashier shift is still open",
+    description: `This shift must be closed before End of Day can continue. ${detail}.`,
+  };
+}
+
 function reconcileDrawers(facts: NightAuditFinancialFacts): {
   issues: NightAuditFinancialIssue[];
   rows: DrawerRow[];
@@ -1209,29 +1274,31 @@ function reconcileDrawers(facts: NightAuditFinancialFacts): {
     let text = "";
     if (drawer.state === "open") {
       status = "blocker";
-      text = `${drawer.cashier} still has an open hotel drawer.`;
+      const copy = openShiftCopy(drawer, facts.businessDate);
+      text = copy.description;
       issues.push(
         issue({
           code: "open_cashier_shift",
           category: "drawers",
           severity: "blocking",
-          title: "Open hotel drawer",
+          title: copy.title,
           description: text,
           referenceType: "cashier_shift",
           referenceId: drawer.id,
           route: CASHIERING,
           search: { tab: "cashier-shift", shift: drawer.id, action: "close" },
           createdAt: facts.checkedAt,
+          ...(drawer.membershipId ? { shiftMembershipId: drawer.membershipId } : {}),
         }),
       );
     } else if (drawer.variance != null && Math.abs(drawer.variance) >= 0.01) {
-      status = "warning";
+      status = "info";
       text = `${drawer.cashier} closed a drawer with a cash variance.`;
       issues.push(
         issue({
           code: "closed_shift_variance",
           category: "drawers",
-          severity: "warning",
+          severity: "info",
           title: "Closed drawer variance",
           description: text,
           referenceType: "cashier_shift",
@@ -1263,7 +1330,7 @@ function reconcileDrawers(facts: NightAuditFinancialFacts): {
       issue: text,
       action:
         drawer.state === "open"
-          ? "Close Cashier Shift"
+          ? "Open Cashier Shift"
           : drawer.variance != null && Math.abs(drawer.variance) >= 0.01
             ? "Inspect Shift"
             : "",
@@ -1287,9 +1354,12 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
   const rows: FiscalRow[] = [];
   for (const document of facts.fiscalDocuments) {
     if (!fiscalHandlerEnabled(true, document.documentType, document.sourceType)) continue;
-    const severity = fiscalSeverity(document.status);
-    const code = fiscalCode(document.status);
-    const problem = severity === "blocking" || severity === "warning";
+    const waived = Boolean(document.waiver) && WAIVABLE_FISCAL_STATUSES.has(document.status);
+    const severity = waived ? "info" : fiscalSeverity(document.status);
+    const code = waived ? "fiscal_waived" : fiscalCode(document.status);
+    const problem = severity === "blocking";
+    // Pending and persistently waived documents are listed as information.
+    const informational = waived || document.status === "PENDING";
     if (problem || severity === "info") {
       let targetRoute: string;
       let targetSearch: Record<string, string>;
@@ -1375,10 +1445,10 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
       const created = issue({
         code,
         category: "fiscal",
-        severity: severity ?? "blocking",
+        severity,
         title: problem ? "Fiscal document needs attention" : "Fiscal document",
-        description: problem
-          ? `${document.documentType} ${document.number} is ${document.status}.`
+        description: waived
+          ? `${document.documentType} ${document.number} is ${document.status}. A persistent fiscal override waives it: ${document.waiver!.reason}`
           : `${document.documentType} ${document.number} is ${document.status}.`,
         referenceType: document.sourceType,
         referenceId: document.id,
@@ -1386,8 +1456,9 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
         search: targetSearch,
         createdAt: facts.checkedAt,
         ...(document.registrationId ? { fiscalRegistrationId: document.registrationId } : {}),
+        ...(waived ? { fiscalOverrideId: document.waiver!.overrideId } : {}),
       });
-      if (problem) issues.push(created);
+      if (problem || informational) issues.push(created);
       rows.push({
         id: document.id,
         document: document.number,
@@ -1396,8 +1467,8 @@ function reconcileFiscal(facts: NightAuditFinancialFacts): {
         fiscalStatus: document.status,
         externalReference: document.externalReference,
         mode: document.mode,
-        status: rowStatus(problem ? severity : null),
-        issue: problem ? created.description : "",
+        status: rowStatus(problem || informational ? severity : null),
+        issue: problem || informational ? created.description : "",
         action: actionLabel,
         route: targetRoute,
         search: targetSearch,

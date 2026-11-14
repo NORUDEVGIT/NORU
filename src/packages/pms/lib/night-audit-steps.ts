@@ -47,7 +47,7 @@ export const END_OF_DAY_STEPS = [
     id: "cashier",
     number: 6,
     title: "Cashier Closure",
-    summary: "Hotel cashier shifts and drawer figures for the day.",
+    summary: "Open cashier shifts must be closed before End of Day.",
   },
   {
     id: "reconcile",
@@ -372,7 +372,7 @@ const CATALOG: Readonly<Record<string, CatalogEntry>> = {
   open_cashier_shift: {
     step: "cashier",
     title: "Cashier shift still open",
-    kind: "policy",
+    kind: "blocker",
     sourceModule: "Cashiering",
     resolve: [P.CASHIERING_SHIFT_EDIT, P.CASHIERING_SHIFT_AUTHORIZE],
   },
@@ -468,6 +468,13 @@ const CATALOG: Readonly<Record<string, CatalogEntry>> = {
     kind: "information",
     sourceModule: "Cashiering / Fiscal",
     resolve: [],
+  },
+  fiscal_waived: {
+    step: "reconcile",
+    title: "Fiscal issue waived (persistent override)",
+    kind: "information",
+    sourceModule: "Cashiering / Fiscal",
+    resolve: FISCAL_FIX,
   },
   unallocated_guest_payment: {
     step: "reconcile",
@@ -640,12 +647,11 @@ export const OPEN_CASHIER_SHIFTS_POLICY_KEY = "open_cashier_shifts";
 
 /**
  * Card 1 restaurants.business_date_blockers, already normalized by
- * parseBusinessDateBlockers (an empty or missing list means the defaults).
+ * parseBusinessDateBlockers. The stored `open_cashier_shifts` key is deprecated
+ * and ignored: an open hotel cashier shift always blocks End of Day.
  */
-export function endOfDayPolicyFromBlockers(blockers: readonly string[]): EndOfDayPolicy {
-  return {
-    openCashierShifts: blockers.includes(OPEN_CASHIER_SHIFTS_POLICY_KEY) ? "block" : "do_not_block",
-  };
+export function endOfDayPolicyFromBlockers(_blockers: readonly string[]): EndOfDayPolicy {
+  return DEFAULT_END_OF_DAY_POLICY;
 }
 
 /**
@@ -677,18 +683,10 @@ const CARD1_OTHER_DEFAULT_BLOCKERS = [
 export function classifyCondition(
   exceptionType: string,
   sourceSeverity: string,
-  policy: EndOfDayPolicy = DEFAULT_END_OF_DAY_POLICY,
+  _policy: EndOfDayPolicy = DEFAULT_END_OF_DAY_POLICY,
 ): { kind: ConditionKind; scope: ConditionScope } {
   const code = conditionCode(exceptionType);
   const entry = CATALOG[code];
-  if (entry?.kind === "policy") {
-    if (code === "open_cashier_shift") {
-      return {
-        kind: policy.openCashierShifts === "block" ? "blocker" : "information",
-        scope: "policy",
-      };
-    }
-  }
   if (entry && (entry.kind === "blocker" || entry.kind === "information")) {
     return { kind: entry.kind, scope: "system" };
   }
@@ -737,6 +735,10 @@ export type EndOfDayCondition = {
   amount?: number | null;
   /** fiscal_registrations.id when this fiscal document was already sent. */
   fiscalRegistrationId?: string;
+  /** Active persistent fiscal override (fiscal_waived information only). */
+  persistentOverrideId?: string;
+  /** hotel_cashier_shifts.membership_id for an open-shift blocker. */
+  shiftMembershipId?: string | null;
 };
 
 /** One issue as the financial and operational reconcilers emit it. */
@@ -759,6 +761,8 @@ export type SourceIssue = {
   roomNumber?: string | null;
   reservationRoomId?: string | null;
   fiscalRegistrationId?: string | null;
+  fiscalOverrideId?: string | null;
+  shiftMembershipId?: string | null;
 };
 
 export const NIGHT_AUDIT_RETURN = {
@@ -864,6 +868,13 @@ export function conditionFromIssue(
       permissions: [P.FRONT_OFFICE_CHECK_IN],
     };
   }
+  if (issue.code === "open_cashier_shift" && actions[0]) {
+    actions[0] = {
+      ...actions[0],
+      label: "Open Cashier Shift",
+      permissions: [P.CASHIERING_SHIFT_EDIT, P.CASHIERING_SHIFT_AUTHORIZE],
+    };
+  }
   if ((issue.code === "overstay" || issue.code === "departure_due_today") && actions[1]) {
     actions[1] = {
       ...actions[1],
@@ -881,7 +892,10 @@ export function conditionFromIssue(
     step: conditionStep(issue.code, issue.category),
     kind,
     scope,
-    title: entry?.title ?? (issue.title || humanize(issue.code)),
+    title:
+      issue.code === "open_cashier_shift" && issue.title
+        ? issue.title
+        : (entry?.title ?? (issue.title || humanize(issue.code))),
     explanation: issue.description,
     entity: issueEntity(issue),
     sourceModule: entry?.sourceModule ?? issue.ownerModule ?? "Night Audit",
@@ -896,8 +910,29 @@ export function conditionFromIssue(
     currency: issue.currency ?? null,
     amount: issue.amount ?? null,
     ...(issue.fiscalRegistrationId ? { fiscalRegistrationId: issue.fiscalRegistrationId } : {}),
+    ...(issue.fiscalOverrideId ? { persistentOverrideId: issue.fiscalOverrideId } : {}),
+    ...(issue.shiftMembershipId ? { shiftMembershipId: issue.shiftMembershipId } : {}),
   };
 }
+
+/**
+ * Who may open the existing cashier-shift screen for this blocker.
+ * Edit covers the actor's own shift. Authorize covers any shift.
+ * Neither permission, and no role, bypasses the blocker itself.
+ */
+export function canManageOpenCashierShift(input: {
+  shiftMembershipId: string | null | undefined;
+  actorMembershipId: string | null | undefined;
+  canEdit: boolean;
+  canAuthorize: boolean;
+}): boolean {
+  if (input.canAuthorize) return true;
+  if (!input.canEdit || !input.shiftMembershipId || !input.actorMembershipId) return false;
+  return input.shiftMembershipId === input.actorMembershipId;
+}
+
+export const OPEN_SHIFT_UNAUTHORIZED_COPY =
+  "This shift must be closed by an authorized staff member.";
 
 /** Mandatory sources. When one cannot be read, its steps are blocked — never silently passed. */
 export type EndOfDaySource = "operational" | "financial";
@@ -1052,7 +1087,7 @@ const STEP_CHECKS: Partial<Record<EndOfDayStepId, readonly CheckDefinition[]>> =
   cashier: [
     {
       id: "open_shifts",
-      label: "Hotel cashier shifts are closed",
+      label: "Open cashier shifts must be closed before End of Day",
       codes: ["open_cashier_shift"],
     },
   ],
@@ -1213,6 +1248,8 @@ export function closeBlockedCopy(count: number): string {
 
 export const UNAUTHORIZED_RESOLVE_COPY =
   "This issue must be resolved by an authorized staff member.";
+
+export const OPEN_CASHIER_SHIFT_RULE = "Open cashier shifts must be closed before End of Day.";
 
 /* --------------------------------------------------------------- domains */
 

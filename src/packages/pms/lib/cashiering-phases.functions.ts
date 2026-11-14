@@ -14,8 +14,6 @@ import {
   type TransactionType,
 } from "./cashiering.server";
 import type { CashierResult } from "./cashiering.functions";
-import { propertyDayBounds } from "./cashiering-control";
-
 const idSchema = z.string().uuid();
 
 export interface FolioWindowRow {
@@ -812,22 +810,13 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
       (Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / 86_400_000;
     if (span > 31) throw cashierError("Choose a report range of 31 days or less.");
 
-    const { data: restaurant, error: restaurantError } = await supabaseAdmin
-      .from("restaurants")
-      .select("timezone")
-      .eq("id", data.restaurantId)
-      .maybeSingle();
-    if (restaurantError) throw cashierError(restaurantError.message);
-    const timezone = (restaurant as { timezone: string | null } | null)?.timezone?.trim() || "UTC";
-    const boundsStart = propertyDayBounds(fromDate, timezone).startIso;
-    const boundsEnd = propertyDayBounds(toDate, timezone).endIso;
-
+    // The range is hotel days: each line carries the business_date it was posted on (0208).
     const { data: txns, error } = await supabaseAdmin
       .from("folio_transactions")
       .select("id, folio_id, transaction_type, description, amount, payment_method, posted_at")
       .eq("restaurant_id", data.restaurantId)
-      .gte("posted_at", boundsStart)
-      .lt("posted_at", boundsEnd)
+      .gte("business_date", fromDate)
+      .lte("business_date", toDate)
       .order("posted_at", { ascending: false })
       .limit(5000);
     if (error) throw cashierError(error.message);

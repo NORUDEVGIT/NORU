@@ -183,6 +183,8 @@ const CASHIER_ERRORS: Record<string, string> = {
   SHIFT_NOT_FOUND: "Cashier shift not found for this property.",
   SHIFT_ALREADY_OPEN: "You already have an open cashier shift.",
   SHIFT_ALREADY_CLOSED: "That cashier shift is already closed.",
+  CASHIER_SHIFT_CLOSED_DATE:
+    "This cashier shift belongs to a closed Business Date. Close the shift and open a new shift before posting cash.",
   INVALID_CLOSING_CASH: "Enter the cash counted at close.",
   INVALID_MOVEMENT: "That drawer movement is not supported.",
   HOTEL_DRAWER_MOVEMENT_IMMUTABLE: "A drawer movement cannot be changed. Post another movement.",
