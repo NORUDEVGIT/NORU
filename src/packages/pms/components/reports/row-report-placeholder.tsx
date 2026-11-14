@@ -7,15 +7,11 @@ import type { ReportPageSize, RowReportDefinition } from "@/packages/pms/lib/rep
  */
 export function RowReportPlaceholder({
   definition,
-  businessDate,
-  timezone,
   page,
   pageSize,
   onPageChange,
 }: {
   definition: RowReportDefinition;
-  businessDate: string;
-  timezone: string;
   page: number;
   pageSize: ReportPageSize;
   onPageChange: (page: number, pageSize: ReportPageSize) => void;
@@ -24,8 +20,6 @@ export function RowReportPlaceholder({
     <ReportPageShell
       definition={definition}
       phase="placeholder"
-      businessDate={businessDate}
-      timezone={timezone}
       page={page}
       pageSize={pageSize}
       totalRows={0}

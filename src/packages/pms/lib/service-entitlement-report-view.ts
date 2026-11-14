@@ -53,6 +53,8 @@ export const FULFILLMENT_COLUMNS = [
 export function serviceFilterSearch(input: {
   report: "meal-service" | "service-fulfillment";
   serviceDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   meal?: ServiceMealFilter | undefined;
   status?: ServiceStatusFilter | undefined;
   room?: string | undefined;
@@ -70,6 +72,8 @@ export function serviceFilterSearch(input: {
     },
     {
       serviceDate: input.serviceDate,
+      ...(input.from ? { from: input.from } : {}),
+      ...(input.to ? { to: input.to } : {}),
       ...(input.report === "meal-service" ? { meal: input.meal ?? "BREAKFAST" } : {}),
       ...(input.status && input.status !== "OPEN" ? { status: input.status } : {}),
       ...(input.room ? { room: input.room } : {}),
@@ -103,6 +107,8 @@ export function serviceReportRequest(input: {
   restaurantId: string;
   category: ServiceReportCategory;
   serviceDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   meal: ServiceMealFilter;
   status: ServiceStatusFilter;
   room?: string | undefined;
@@ -116,6 +122,8 @@ export function serviceReportRequest(input: {
   return {
     restaurantId: input.restaurantId,
     serviceDate: input.serviceDate,
+    ...(input.from ? { from: input.from } : {}),
+    ...(input.to ? { to: input.to } : {}),
     category: input.category,
     meal: input.meal,
     status: input.status,

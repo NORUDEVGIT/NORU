@@ -60,6 +60,8 @@ export function policeExcelFileName(stayDate: string, presence: PoliceStayPresen
 /** Full export filters. Page and page size are intentionally absent. */
 export function policeExportFilters(input: {
   stayDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   presence: PoliceStayPresence;
   name?: string | undefined;
   nationality?: string | undefined;
@@ -70,6 +72,8 @@ export function policeExportFilters(input: {
   const room = input.room?.trim();
   return {
     stayDate: input.stayDate,
+    ...(input.from ? { from: input.from } : {}),
+    ...(input.to ? { to: input.to } : {}),
     presence: input.presence,
     export: true,
     ...(name ? { name } : {}),
@@ -80,6 +84,8 @@ export function policeExportFilters(input: {
 
 export function policeAccessSnapshot(filters: {
   stayDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   presence?: string | undefined;
   name?: string | undefined;
   nationality?: string | undefined;
@@ -89,6 +95,8 @@ export function policeAccessSnapshot(filters: {
     stayDate: DATE_ONLY.test(filters.stayDate) ? filters.stayDate : "",
     presence: filters.presence === "HISTORICAL" ? "HISTORICAL" : "IN_HOUSE",
   };
+  if (filters.from && DATE_ONLY.test(filters.from)) snapshot.from = filters.from;
+  if (filters.to && DATE_ONLY.test(filters.to)) snapshot.to = filters.to;
   const name = filters.name?.trim();
   const nationality = filters.nationality?.trim();
   const room = filters.room?.trim();
@@ -109,6 +117,8 @@ export function policeExcelUnnamedWarning(count: number): string | null {
 export function policeWorkbookRows(input: {
   propertyName: string;
   stayDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   presence: PoliceStayPresence;
   generatedAt: string;
   rows: readonly PoliceStayReportRow[];
@@ -120,6 +130,9 @@ export function policeWorkbookRows(input: {
     [text(cleanLabel(input.propertyName, 160), true)],
     [text("Police / Guest Stay Report", true)],
     [text("Stay Date"), text(input.stayDate)],
+    ...(input.from && input.to && (input.from !== input.stayDate || input.to !== input.stayDate)
+      ? [[text("Date Range"), text(`${input.from} → ${input.to}`)] as PoliceSheetCell[]]
+      : []),
     [text("Presence"), text(input.presence === "HISTORICAL" ? "Historical" : "In House")],
     [text("Generated At"), text(input.generatedAt)],
     [text("Named Guests"), number(input.namedGuestCount)],

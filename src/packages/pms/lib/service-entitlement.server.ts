@@ -4,6 +4,12 @@
  */
 import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import {
+  REPORT_DATE_RANGE_LIMIT,
+  eachReportDate,
+  reportDateSpan,
+  reportDateWindow,
+} from "@/packages/pms/lib/reports-shell";
+import {
   assembleServiceEntitlementReport,
   ServiceEntitlementReportError,
   type ServiceEntitlementReportFilters,
@@ -63,12 +69,20 @@ export async function loadServiceEntitlementReport(
   filters: ServiceEntitlementReportFilters,
 ): Promise<ServiceEntitlementReportResult> {
   const serviceDate = assertDate(filters.serviceDate);
+  const from = filters.from ? assertDate(filters.from) : undefined;
+  const to = filters.to ? assertDate(filters.to) : undefined;
+  const window = reportDateWindow(serviceDate, from, to);
+  if (reportDateSpan(window) > REPORT_DATE_RANGE_LIMIT) {
+    throw new ServiceEntitlementReportError(SERVICE_REPORT_TOO_LARGE_MESSAGE);
+  }
   const property = await loadProperty(db, restaurantId);
   const policy = await loadPolicy(db, restaurantId);
-  if (serviceDate >= property.businessDate) {
-    await reconcileServiceDate(db, restaurantId, serviceDate, policy);
+  for (const date of eachReportDate(window)) {
+    if (date >= property.businessDate) {
+      await reconcileServiceDate(db, restaurantId, date, policy);
+    }
   }
-  const stored = await listEntitlements(db, restaurantId, serviceDate);
+  const stored = await listEntitlements(db, restaurantId, window.from, window.to);
   const departments = await loadDepartments(db, restaurantId);
   const stayStatuses = await loadStayStatuses(db, restaurantId, stored);
   const rows = stored.map((row) => toSourceRow(row, restaurantId, departments, stayStatuses));
@@ -77,7 +91,7 @@ export async function loadServiceEntitlementReport(
     businessDate: property.businessDate,
     timezone: property.timezone,
     rows,
-    filters: { ...filters, serviceDate },
+    filters: { ...filters, serviceDate, from: window.from, to: window.to },
   });
 }
 
@@ -464,17 +478,24 @@ async function loadStoredForDate(
 async function listEntitlements(
   db: ServiceEntitlementDb,
   restaurantId: string,
-  serviceDate: string,
+  from: string,
+  to: string,
 ): Promise<Record<string, unknown>[]> {
-  const result = await db
+  const selected = db
     .from("pms_reservation_service_entitlements")
     .select(
       "id, restaurant_id, reservation_id, service_kind, meal_code, service_reference_id, service_name_snapshot, service_date, adult_quantity, child_quantity, total_quantity, department_id, meal_plan_name_snapshot, room_number_snapshot, guest_name_snapshot, building_snapshot, floor_snapshot, notes_snapshot, status",
     )
-    .eq("restaurant_id", restaurantId)
-    .eq("service_date", serviceDate);
+    .eq("restaurant_id", restaurantId);
+  const result =
+    from === to
+      ? await selected.eq("service_date", from)
+      : await selected.gte("service_date", from).lte("service_date", to);
   if (result.error) throw new ServiceEntitlementReportError();
-  return (result.data ?? []).filter((row) => text(row.restaurant_id) === restaurantId);
+  return (result.data ?? []).filter((row) => {
+    const date = text(row.service_date).slice(0, 10);
+    return text(row.restaurant_id) === restaurantId && date >= from && date <= to;
+  });
 }
 
 async function loadStayStatuses(

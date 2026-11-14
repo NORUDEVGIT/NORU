@@ -11,7 +11,10 @@
 import { roomOccupantCapacity } from "./reservation-room-occupants.ts";
 import {
   DEFAULT_REPORT_PAGE_SIZE,
+  REPORT_DATE_RANGE_LIMIT,
   REPORT_PAGE_SIZES,
+  reportDateSpan,
+  reportDateWindow,
   type ReportPageSize,
 } from "./reports-shell.ts";
 
@@ -30,6 +33,8 @@ export const POLICE_STAY_HISTORICAL_STATUSES = ["checked_in", "checked_out"] as 
 
 export type PoliceStayReportFilters = {
   stayDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   name?: string | undefined;
   nationality?: string | undefined;
   presence?: PoliceStayPresence | undefined;
@@ -121,6 +126,8 @@ export type PoliceStayReportResult = {
   };
   context: {
     stayDate: string;
+    from: string;
+    to: string;
     businessDate: string;
     timezone: string;
     presence: PoliceStayPresence;
@@ -148,7 +155,17 @@ export function policeStayOverlaps(
   departureDate: string,
   stayDate: string,
 ): boolean {
-  return arrivalDate <= stayDate && departureDate > stayDate;
+  return policeStayOverlapsRange(arrivalDate, departureDate, stayDate, stayDate);
+}
+
+/** A stay overlaps the inclusive From/To window when it covers any night inside it. */
+export function policeStayOverlapsRange(
+  arrivalDate: string,
+  departureDate: string,
+  from: string,
+  to: string,
+): boolean {
+  return arrivalDate <= to && departureDate > from;
 }
 
 export function policeGuestName(parts: {
@@ -171,6 +188,10 @@ export function assemblePoliceStayReport(input: {
   filters?: PoliceStayReportFilters;
 }): PoliceStayReportResult {
   const presence = input.filters?.presence ?? "IN_HOUSE";
+  const window = reportDateWindow(input.stayDate, input.filters?.from, input.filters?.to);
+  if (reportDateSpan(window) > REPORT_DATE_RANGE_LIMIT) {
+    throw new PoliceStayReportError(POLICE_STAY_TOO_LARGE_MESSAGE);
+  }
   const statuses = new Set(policeStayStatuses(presence));
   const nameNeedle = (input.filters?.name ?? "").trim().toLowerCase();
   const nationalityNeedle = (input.filters?.nationality ?? "").trim().toLowerCase();
@@ -181,7 +202,7 @@ export function assemblePoliceStayReport(input: {
     (unit) =>
       unit.restaurantId === input.restaurantId &&
       statuses.has(unit.status) &&
-      policeStayOverlaps(unit.arrivalDate, unit.departureDate, input.stayDate) &&
+      policeStayOverlapsRange(unit.arrivalDate, unit.departureDate, window.from, window.to) &&
       roomMatches(unit, roomNeedle),
   );
 
@@ -220,6 +241,8 @@ export function assemblePoliceStayReport(input: {
     },
     context: {
       stayDate: input.stayDate,
+      from: window.from,
+      to: window.to,
       businessDate: input.businessDate,
       timezone: input.timezone,
       presence,
@@ -419,9 +442,15 @@ export async function loadPoliceStayDataset(
   resolveBusinessDate: (persistedBusinessDate: string | null, timezone: string) => string,
 ): Promise<PoliceStayReportResult> {
   const stayDate = assertStayDate(filters.stayDate);
+  const from = filters.from ? assertStayDate(filters.from) : undefined;
+  const to = filters.to ? assertStayDate(filters.to) : undefined;
+  const window = reportDateWindow(stayDate, from, to);
+  if (reportDateSpan(window) > REPORT_DATE_RANGE_LIMIT) {
+    throw new PoliceStayReportError(POLICE_STAY_TOO_LARGE_MESSAGE);
+  }
   const presence = filters.presence ?? "IN_HOUSE";
   const property = await loadProperty(db, restaurantId, resolveBusinessDate);
-  const units = await listUnits(db, restaurantId, stayDate, presence, filters.room);
+  const units = await listUnits(db, restaurantId, window.from, window.to, presence, filters.room);
   if (units.length > POLICE_STAY_REPORT_SAFETY_LIMIT) {
     throw new PoliceStayReportError(POLICE_STAY_TOO_LARGE_MESSAGE);
   }
@@ -469,7 +498,7 @@ export async function loadPoliceStayDataset(
       rooms: rooms as RoomRow[],
       roomTypes: roomTypes as RoomTypeRow[],
     }),
-    filters: { ...filters, stayDate, presence },
+    filters: { ...filters, stayDate, from: window.from, to: window.to, presence },
   });
 }
 
@@ -512,7 +541,8 @@ async function loadProperty(
 async function listUnits(
   db: PoliceStayDb,
   restaurantId: string,
-  stayDate: string,
+  from: string,
+  to: string,
   presence: PoliceStayPresence,
   room: string | undefined,
 ): Promise<UnitRow[]> {
@@ -520,8 +550,8 @@ async function listUnits(
     .from("hotel_reservation_rooms")
     .select(UNIT_COLUMNS)
     .eq("restaurant_id", restaurantId)
-    .lte("arrival_date", stayDate)
-    .gt("departure_date", stayDate)
+    .lte("arrival_date", to)
+    .gt("departure_date", from)
     .in("status", policeStayStatuses(presence));
   if (room && isUuid(room)) query = query.eq("room_id", room);
   const result = await query;

@@ -38,7 +38,7 @@ export function ReportExportMenu({
       <DropdownMenuTrigger
         type="button"
         data-testid="reports-export-menu"
-        className="report-print-hide inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs font-semibold text-[#251605] shadow-2xs transition-colors hover:border-[#C89933] hover:bg-[#FAF8F4]"
+        className="report-print-hide inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-[#C89933] px-3 text-xs font-semibold text-[#251605] hover:bg-[#B98B2D]"
       >
         <Download className="size-3.5 text-[#8A6A24]" />
         <span>Export</span>

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { ReportFilterBar } from "@/packages/pms/components/reports/report-filter-bar";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
 import {
   ReportTableHeaderCell,
@@ -11,13 +12,6 @@ import {
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
 import { cn } from "@/shared/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import { ISO_COUNTRIES } from "@/packages/pms/lib/pms-geography";
 import {
   exportPoliceStayWorkbook,
@@ -59,20 +53,7 @@ import {
   policeUnnamedWarning,
 } from "@/packages/pms/lib/police-stay-report-view";
 import { POLICE_STAY_TOO_LARGE_MESSAGE } from "@/packages/pms/lib/police-stay-report";
-import {
-  AlertCircle,
-  Calendar,
-  Check,
-  ChevronDown,
-  DoorClosed,
-  Globe,
-  Info,
-  RotateCcw,
-  Search,
-  ShieldAlert,
-  Users,
-  X,
-} from "lucide-react";
+import { Users } from "lucide-react";
 import {
   DEFAULT_REPORT_PAGE_SIZE,
   parseReportPage,
@@ -81,9 +62,6 @@ import {
   type ReportPageSize,
   type ReportsRouteSearch,
 } from "@/packages/pms/lib/reports-shell";
-
-const FIELD =
-  "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
 
 /**
  * Police / Guest Stay screen. Rows come only from getPoliceStayReport.
@@ -129,6 +107,8 @@ export function PoliceStayReportScreen({
   const writeFilters = useCallback(
     (patch: {
       stayDate?: string;
+      from?: string | null;
+      to?: string | null;
       presence?: typeof presence;
       name?: string;
       nationality?: string;
@@ -138,10 +118,27 @@ export function PoliceStayReportScreen({
       resetPage?: boolean;
     }) => {
       const nextPage = patch.page ?? (patch.resetPage === false ? page : 1);
+      const stayChanged = patch.stayDate !== undefined && patch.stayDate !== stayDate;
+      const nextFrom = stayChanged
+        ? undefined
+        : patch.from === null
+          ? undefined
+          : patch.from !== undefined
+            ? patch.from
+            : search.from;
+      const nextTo = stayChanged
+        ? undefined
+        : patch.to === null
+          ? undefined
+          : patch.to !== undefined
+            ? patch.to
+            : search.to;
       void navigate({
         to: "/restaurant/pms/reports",
         search: policeFilterSearch({
           stayDate: patch.stayDate ?? stayDate,
+          from: nextFrom,
+          to: nextTo,
           presence: patch.presence ?? presence,
           name: patch.name !== undefined ? patch.name : search.name,
           nationality: patch.nationality !== undefined ? patch.nationality : search.nationality,
@@ -151,7 +148,18 @@ export function PoliceStayReportScreen({
         }),
       });
     },
-    [navigate, page, pageSize, presence, search.name, search.nationality, search.room, stayDate],
+    [
+      navigate,
+      page,
+      pageSize,
+      presence,
+      search.from,
+      search.name,
+      search.nationality,
+      search.room,
+      search.to,
+      stayDate,
+    ],
   );
 
   const query = useQuery({
@@ -159,6 +167,8 @@ export function PoliceStayReportScreen({
       "police-stay-report",
       restaurantId,
       search.stayDate ?? "",
+      search.from ?? "",
+      search.to ?? "",
       presence,
       search.name ?? "",
       search.nationality ?? "",
@@ -171,6 +181,8 @@ export function PoliceStayReportScreen({
         data: policeReportRequest({
           restaurantId,
           stayDate,
+          from: search.from,
+          to: search.to,
           presence,
           name: search.name,
           nationality: search.nationality,
@@ -207,6 +219,8 @@ export function PoliceStayReportScreen({
         data: policeReportRequest({
           restaurantId,
           stayDate,
+          from: search.from,
+          to: search.to,
           presence,
           name: search.name,
           nationality: search.nationality,
@@ -227,9 +241,11 @@ export function PoliceStayReportScreen({
     pageSize,
     presence,
     restaurantId,
+    search.from,
     search.name,
     search.nationality,
     search.room,
+    search.to,
     stayDate,
   ]);
 
@@ -242,6 +258,8 @@ export function PoliceStayReportScreen({
         data: {
           restaurantId,
           stayDate,
+          ...(search.from ? { from: search.from } : {}),
+          ...(search.to ? { to: search.to } : {}),
           presence,
           propertyName,
           ...(search.name ? { name: search.name } : {}),
@@ -261,9 +279,11 @@ export function PoliceStayReportScreen({
     presence,
     propertyName,
     restaurantId,
+    search.from,
     search.name,
     search.nationality,
     search.room,
+    search.to,
     stayDate,
   ]);
 
@@ -277,28 +297,7 @@ export function PoliceStayReportScreen({
   const warning = policeUnnamedWarning(unnamed);
   const errorMessage = failure === "too-large" ? POLICE_STAY_TOO_LARGE_MESSAGE : undefined;
 
-  const [knownGuests, setKnownGuests] = useState<Map<string, { label: string; room?: string }>>(
-    new Map(),
-  );
   const [knownRooms, setKnownRooms] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (result?.rows) {
-      setKnownGuests((prev) => {
-        const next = new Map(prev);
-        for (const row of result.rows) {
-          const name = row.guestName?.trim();
-          if (name && name !== "—" && !next.has(name.toLowerCase())) {
-            next.set(name.toLowerCase(), {
-              label: name,
-              room: row.roomNumber ? `Rm ${row.roomNumber}` : undefined,
-            });
-          }
-        }
-        return next;
-      });
-    }
-  }, [result?.rows]);
 
   useEffect(() => {
     if (result?.summary?.rooms || result?.rows) {
@@ -314,16 +313,6 @@ export function PoliceStayReportScreen({
       });
     }
   }, [result?.rows, result?.summary?.rooms]);
-
-  const guestOptions = useMemo(() => {
-    return Array.from(knownGuests.values())
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .map((item) => ({
-        value: item.label,
-        label: item.label,
-        subLabel: item.room,
-      }));
-  }, [knownGuests]);
 
   const nationalityOptions = useMemo(() => {
     const activeNationalities = new Set<string>();
@@ -377,8 +366,6 @@ export function PoliceStayReportScreen({
       restaurantId={restaurantId}
       definition={definition}
       phase={phase}
-      businessDate={businessDate}
-      timezone={timezone}
       page={page}
       pageSize={pageSize}
       totalRows={result?.total ?? 0}
@@ -392,93 +379,93 @@ export function PoliceStayReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
-      kpis={
-        phase === "ready" && result ? (
-          <div className="report-print-hide flex flex-wrap gap-2" data-testid="police-summary">
-            <Summary
-              label="Named Guests"
-              value={result.summary.namedGuestCount}
-              testId="police-named-count"
-            />
-            <Summary label="Unnamed Occupancy" value={unnamed} testId="police-unnamed-count" />
-          </div>
-        ) : null
+      search={
+        <ReportToolbarSearch
+          value={search.name ?? ""}
+          placeholder="Search guest name"
+          testId="police-guest-name"
+          onCommit={(name) => writeFilters({ name, resetPage: true })}
+        />
       }
       filters={
-        <ReportFilterBar
+        <PmsFilterMenu
+          activeCount={
+            (stayDate !== businessDate ? 1 : 0) +
+            (search.from ? 1 : 0) +
+            (search.to ? 1 : 0) +
+            (presence === "HISTORICAL" ? 1 : 0) +
+            (search.nationality ? 1 : 0) +
+            (search.room ? 1 : 0)
+          }
           onClear={() =>
             void navigate({
               to: "/restaurant/pms/reports",
               search: policeClearedSearch(businessDate),
             })
           }
+          buttonTestId="police-filters-button"
+          menuTestId="police-filters-menu"
         >
-          <Filter label="Stay date">
-            <input
-              type="date"
-              className={FIELD}
-              data-testid="police-stay-date"
-              value={stayDate}
-              onChange={(event) => writeFilters({ stayDate: event.target.value, resetPage: true })}
-            />
-          </Filter>
-          <Filter label="Presence">
-            <Select
-              value={presence}
-              onValueChange={(val) =>
-                writeFilters({
-                  presence: val === "HISTORICAL" ? "HISTORICAL" : "IN_HOUSE",
-                  resetPage: true,
-                })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="police-presence">
-                <SelectValue placeholder="Presence" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="IN_HOUSE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  In House
-                </SelectItem>
-                <SelectItem value="HISTORICAL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Historical
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Filter>
-          <SearchableComboboxField
-            label="Guest"
-            testId="police-guest-name"
-            placeholder="Search guest name"
-            value={search.name ?? ""}
-            options={guestOptions}
-            leftIcon={Search}
-            onCommit={(name) => writeFilters({ name, resetPage: true })}
-            emptyMessage="No matching guests"
-            widthClass="w-52"
+          <ReportFilterDate
+            label="Stay date"
+            testId="police-stay-date"
+            value={stayDate}
+            onChange={(next) => writeFilters({ stayDate: next, resetPage: true })}
           />
-          <SearchableComboboxField
+          <ReportFilterDate
+            label="From"
+            testId="police-from"
+            value={search.from ?? ""}
+            onChange={(next) => writeFilters({ from: next || null, resetPage: true })}
+          />
+          <ReportFilterDate
+            label="To"
+            testId="police-to"
+            value={search.to ?? ""}
+            onChange={(next) => writeFilters({ to: next || null, resetPage: true })}
+          />
+          <PmsFilterChoiceRow
+            label="Presence"
+            value={presence}
+            neutralValue="IN_HOUSE"
+            current={presence === "HISTORICAL" ? "Historical" : ""}
+            options={[
+              ["IN_HOUSE", "In House"],
+              ["HISTORICAL", "Historical"],
+            ]}
+            onChange={(val) =>
+              writeFilters({
+                presence: val === "HISTORICAL" ? "HISTORICAL" : "IN_HOUSE",
+                resetPage: true,
+              })
+            }
+          />
+          <PmsFilterChoiceRow
             label="Nationality"
-            testId="police-nationality"
-            placeholder="Select nationality"
-            value={search.nationality ?? ""}
-            options={nationalityOptions}
-            leftIcon={Globe}
-            onCommit={(nationality) => writeFilters({ nationality, resetPage: true })}
-            emptyMessage="No matching countries"
-            widthClass="w-48"
+            value={search.nationality || "all"}
+            current={search.nationality ?? ""}
+            options={[
+              ["all", "All nationalities"],
+              ...nationalityOptions.map((opt) => [opt.value, opt.label] as const),
+            ]}
+            onChange={(val) =>
+              writeFilters({ nationality: val === "all" ? "" : val, resetPage: true })
+            }
           />
-          <SearchableComboboxField
+          <PmsFilterChoiceRow
             label="Room"
-            testId="police-room"
-            placeholder="Select room"
-            value={search.room ?? ""}
-            options={roomOptions}
-            leftIcon={DoorClosed}
-            onCommit={(room) => writeFilters({ room, resetPage: true })}
-            emptyMessage="No matching rooms"
-            widthClass="w-44"
+            value={search.room || "all"}
+            current={search.room ? `Room ${search.room}` : ""}
+            options={[
+              ["all", "All rooms"],
+              ...roomOptions.map((opt) => [opt.value, opt.label] as const),
+              ...(search.room && !roomOptions.some((opt) => opt.value === search.room)
+                ? [[search.room, `Room ${search.room}`] as const]
+                : []),
+            ]}
+            onChange={(val) => writeFilters({ room: val === "all" ? "" : val, resetPage: true })}
           />
-        </ReportFilterBar>
+        </PmsFilterMenu>
       }
     >
       {phase === "ready" && result ? (
@@ -635,7 +622,9 @@ export function PoliceStayReportScreen({
               propertyDetail={propertyDetail}
               timezone={timezone}
               presence={presence}
-              stayDate={stayDate}
+              stayDate={printState.result.context.stayDate}
+              from={printState.result.context.from}
+              to={printState.result.context.to}
               filterSummary={policeFilterSummary({
                 name: search.name,
                 nationality: search.nationality,
@@ -656,6 +645,8 @@ function PolicePrintSheet({
   timezone,
   presence,
   stayDate,
+  from,
+  to,
   filterSummary,
   result,
 }: {
@@ -664,6 +655,8 @@ function PolicePrintSheet({
   timezone: string;
   presence: "IN_HOUSE" | "HISTORICAL";
   stayDate: string;
+  from: string;
+  to: string;
   filterSummary: string | null;
   result: PoliceStayReportResult;
 }) {
@@ -678,6 +671,11 @@ function PolicePrintSheet({
           {presence === "HISTORICAL" ? "Historical Stay Register" : "Stay register"} · Stay Date:{" "}
           {policeStayDateLabel(stayDate)} · Presence: {policePresenceLabel(presence)}
         </p>
+        {from !== stayDate || to !== stayDate ? (
+          <p className="text-xs">
+            Date range: {policeStayDateLabel(from)} → {policeStayDateLabel(to)}
+          </p>
+        ) : null}
         <p className="text-xs">
           Generated: {policeGeneratedLabel(new Date().toISOString(), timezone)}
         </p>
@@ -751,217 +749,4 @@ function downloadPoliceWorkbook(fileName: string, base64: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function Summary({ label, value, testId }: { label: string; value: number; testId: string }) {
-  const isNamed = testId.includes("named");
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-xl border p-3 shadow-2xs transition-all",
-        isNamed
-          ? "border-emerald-200/90 bg-white hover:border-emerald-300"
-          : "border-amber-200/90 bg-white hover:border-amber-300",
-      )}
-      data-testid={testId}
-    >
-      <div
-        className={cn(
-          "grid size-9 place-items-center rounded-lg border",
-          isNamed
-            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-            : "border-amber-200 bg-amber-50 text-amber-700",
-        )}
-      >
-        {isNamed ? <Users className="size-4" /> : <ShieldAlert className="size-4" />}
-      </div>
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">{label}</p>
-        <p className="font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function Filter({
-  label,
-  hint,
-  className,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn("relative flex w-44 min-w-36 flex-col gap-1.5", className)}>
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
-      {children}
-      {hint ? <span className="text-[10px] leading-snug text-[#7A7167]">{hint}</span> : null}
-    </div>
-  );
-}
-
-function SearchableComboboxField({
-  label,
-  testId,
-  placeholder,
-  value,
-  options,
-  leftIcon: LeftIcon,
-  onCommit,
-  emptyMessage = "No matches found",
-  widthClass = "w-48",
-}: {
-  label: string;
-  testId: string;
-  placeholder: string;
-  value: string;
-  options: Array<{ value: string; label: string; subLabel?: string }>;
-  leftIcon: typeof Search;
-  onCommit: (value: string) => void;
-  emptyMessage?: string;
-  widthClass?: string;
-}) {
-  const [draft, setDraft] = useState(value);
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => setDraft(value), [value]);
-
-  useEffect(() => {
-    if (draft.trim() === value.trim()) return;
-    const timer = window.setTimeout(() => onCommit(draft.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [draft, onCommit, value]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const query = draft.trim().toLowerCase();
-  const filteredOptions = useMemo(() => {
-    if (!query) return options;
-    return options.filter(
-      (opt) =>
-        opt.label.toLowerCase().includes(query) ||
-        opt.value.toLowerCase().includes(query) ||
-        (opt.subLabel && opt.subLabel.toLowerCase().includes(query)),
-    );
-  }, [options, query]);
-
-  return (
-    <Filter label={label} className={widthClass}>
-      <div ref={containerRef} className="relative w-full">
-        <LeftIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#A89F91]" />
-        <input
-          className={cn(FIELD, "pl-8 pr-12")}
-          data-testid={testId}
-          placeholder={placeholder}
-          value={draft}
-          onFocus={() => setIsOpen(true)}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            setIsOpen(true);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              onCommit(draft.trim());
-              setIsOpen(false);
-            } else if (event.key === "Escape") {
-              setIsOpen(false);
-            }
-          }}
-        />
-        <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
-          {draft ? (
-            <button
-              type="button"
-              className="grid size-5 place-items-center rounded text-[#A89F91] transition-colors hover:bg-[#F2ECE3] hover:text-[#251605]"
-              onClick={() => {
-                setDraft("");
-                onCommit("");
-                setIsOpen(false);
-              }}
-              title="Clear"
-            >
-              <X className="size-3" />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="grid size-5 place-items-center rounded text-[#A89F91] transition-colors hover:bg-[#F2ECE3] hover:text-[#251605]"
-            onClick={() => setIsOpen((prev) => !prev)}
-            title="Toggle list"
-          >
-            <ChevronDown
-              className={cn("size-3 transition-transform duration-150", isOpen && "rotate-180")}
-            />
-          </button>
-        </div>
-
-        {isOpen ? (
-          <div className="absolute left-0 top-full z-50 mt-1 max-h-52 w-full min-w-56 overflow-y-auto rounded-xl border border-[#DDD4C5] bg-white p-1 shadow-xl">
-            {options.length > 0 && draft ? (
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[#8A6A24] transition-colors hover:bg-[#FAF3E3]"
-                onClick={() => {
-                  setDraft("");
-                  onCommit("");
-                  setIsOpen(false);
-                }}
-              >
-                <span>Clear filter (Show all)</span>
-                <RotateCcw className="size-3 text-[#A89F91]" />
-              </button>
-            ) : null}
-
-            {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-center text-xs text-[#A89F91]">
-                {emptyMessage}
-              </div>
-            ) : (
-              filteredOptions.map((opt) => {
-                const isSelected = value.trim().toLowerCase() === opt.value.trim().toLowerCase();
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors",
-                      isSelected
-                        ? "bg-[#FAF3E3] font-medium text-[#8A6A24]"
-                        : "text-[#251605] hover:bg-[#F9F7F2] hover:text-[#8A6A24]",
-                    )}
-                    onClick={() => {
-                      setDraft(opt.value);
-                      onCommit(opt.value);
-                      setIsOpen(false);
-                    }}
-                  >
-                    <span className="truncate">{opt.label}</span>
-                    {opt.subLabel ? (
-                      <span className="ml-1.5 shrink-0 rounded bg-[#F2ECE3] px-1 py-0.5 text-[9px] font-medium text-[#7A7167]">
-                        {opt.subLabel}
-                      </span>
-                    ) : isSelected ? (
-                      <Check className="size-3.5 shrink-0 text-[#C89933]" />
-                    ) : null}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        ) : null}
-      </div>
-    </Filter>
-  );
 }

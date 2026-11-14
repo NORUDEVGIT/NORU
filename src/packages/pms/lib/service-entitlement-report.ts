@@ -4,7 +4,10 @@
  */
 import {
   DEFAULT_REPORT_PAGE_SIZE,
+  REPORT_DATE_RANGE_LIMIT,
   REPORT_PAGE_SIZES,
+  reportDateSpan,
+  reportDateWindow,
   type ReportPageSize,
 } from "./reports-shell.ts";
 import {
@@ -64,6 +67,8 @@ export type ServiceEntitlementSourceRow = ServiceEntitlementReportRow & {
 
 export type ServiceEntitlementReportFilters = {
   serviceDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   category: ServiceReportCategory;
   meal?: ServiceMealFilter | undefined;
   departmentId?: string | undefined;
@@ -93,6 +98,8 @@ export type ServiceEntitlementReportResult = {
   };
   context: {
     serviceDate: string;
+    from: string;
+    to: string;
     category: ServiceReportCategory;
     meal: ServiceMealFilter;
     status: ServiceStatusFilter;
@@ -120,10 +127,14 @@ export function assembleServiceEntitlementReport(input: {
   const meal = serviceMealFilter(input.filters.meal);
   const status = serviceStatusFilter(input.filters.status);
   const stay = serviceStayFilter(input.filters.stay);
+  const window = reportDateWindow(input.filters.serviceDate, input.filters.from, input.filters.to);
+  if (reportDateSpan(window) > REPORT_DATE_RANGE_LIMIT) {
+    throw new ServiceEntitlementReportError(SERVICE_REPORT_TOO_LARGE_MESSAGE);
+  }
   const roomQuery = (input.filters.room ?? "").trim().toLowerCase();
   const selected = input.rows
     .filter((row) => row.restaurantId === input.restaurantId)
-    .filter((row) => row.serviceDate === input.filters.serviceDate)
+    .filter((row) => row.serviceDate >= window.from && row.serviceDate <= window.to)
     .filter((row) =>
       input.filters.category === "MEAL"
         ? row.serviceKind === "MEAL"
@@ -142,6 +153,8 @@ export function assembleServiceEntitlementReport(input: {
     .filter((row) => (roomQuery ? row.roomNumber.toLowerCase().includes(roomQuery) : true))
     .filter((row) => matchesStay(row.stayStatus, stay))
     .sort((left, right) => {
+      const date = left.serviceDate.localeCompare(right.serviceDate);
+      if (date !== 0) return date;
       const room = compareRoomNumbers(left.roomNumber, right.roomNumber);
       if (room !== 0) return room;
       return left.serviceName.localeCompare(right.serviceName);
@@ -162,6 +175,8 @@ export function assembleServiceEntitlementReport(input: {
     summary: summarize(selected),
     context: {
       serviceDate: input.filters.serviceDate,
+      from: window.from,
+      to: window.to,
       category: input.filters.category,
       meal,
       status,

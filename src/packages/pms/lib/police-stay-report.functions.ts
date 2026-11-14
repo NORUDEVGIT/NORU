@@ -47,6 +47,8 @@ export const getPoliceStayReport = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         stayDate: dateSchema,
+        from: dateSchema.optional(),
+        to: dateSchema.optional(),
         name: textFilter,
         nationality: z.string().trim().max(80).optional(),
         presence: z.enum(POLICE_STAY_PRESENCE).optional(),
@@ -105,6 +107,8 @@ export const exportPoliceStayWorkbook = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         stayDate: dateSchema,
+        from: dateSchema.optional(),
+        to: dateSchema.optional(),
         name: textFilter,
         nationality: z.string().trim().max(80).optional(),
         presence: z.enum(POLICE_STAY_PRESENCE).optional(),
@@ -118,6 +122,8 @@ export const exportPoliceStayWorkbook = createServerFn({ method: "POST" })
     const presence: PoliceStayPresence = data.presence ?? "IN_HOUSE";
     const filters = policeExportFilters({
       stayDate: data.stayDate,
+      from: data.from,
+      to: data.to,
       presence,
       name: data.name,
       nationality: data.nationality,
@@ -132,6 +138,8 @@ export const exportPoliceStayWorkbook = createServerFn({ method: "POST" })
             const sheet = policeWorkbookRows({
               propertyName: data.propertyName ?? "",
               stayDate: result.context.stayDate,
+              from: result.context.from,
+              to: result.context.to,
               presence: result.context.presence,
               generatedAt: formatDateTimeInZone(new Date().toISOString(), result.context.timezone),
               rows: result.rows,
@@ -173,6 +181,8 @@ async function authorizePolice(
 
 function snapshotFilters(data: {
   stayDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   presence?: PoliceStayPresence | undefined;
   name?: string | undefined;
   nationality?: string | undefined;
@@ -180,6 +190,8 @@ function snapshotFilters(data: {
 }) {
   return {
     stayDate: data.stayDate,
+    from: data.from,
+    to: data.to,
     presence: data.presence ?? "IN_HOUSE",
     name: data.name,
     nationality: data.nationality,

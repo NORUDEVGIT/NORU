@@ -78,6 +78,8 @@ export function serviceExcelFileName(input: {
 
 export function serviceAccessSnapshot(filters: {
   serviceDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   category: string;
   meal?: string | undefined;
   status?: string | undefined;
@@ -92,6 +94,8 @@ export function serviceAccessSnapshot(filters: {
     stay:
       filters.stay === "IN_HOUSE" ? "IN_HOUSE" : filters.stay === "CONFIRMED" ? "CONFIRMED" : "ALL",
   };
+  if (filters.from) snapshot.from = filters.from;
+  if (filters.to) snapshot.to = filters.to;
   if (filters.meal) snapshot.meal = filters.meal;
   if (filters.room?.trim()) snapshot.room = filters.room.trim().slice(0, 40);
   if (filters.departmentId) snapshot.departmentId = filters.departmentId;
@@ -138,6 +142,10 @@ export function serviceWorkbookRows(
     [text(propertyName, true)],
     [text(meal ? "Meal Service" : "Service Fulfillment", true)],
     [text("Service Date"), text(result.context.serviceDate)],
+    ...(result.context.from !== result.context.serviceDate ||
+    result.context.to !== result.context.serviceDate
+      ? [[text("Date Range"), text(`${result.context.from} → ${result.context.to}`)] as PoliceSheetCell[]]
+      : []),
     [
       text("Guests"),
       text(
