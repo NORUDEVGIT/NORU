@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -29,8 +29,8 @@ import {
   SecretInput,
 } from "@/packages/pms/components/settings/pms-card6-integration-bits";
 import {
+  ensureFiscalItemMappings,
   getFiscalIntegrationStatus,
-  saveFiscalBuyerCodeMapping,
   saveFiscalCredentials,
   saveFiscalIntegrationConfig,
   saveFiscalItemMapping,
@@ -40,8 +40,10 @@ import {
 import {
   FISCAL_DOCUMENT_MODE,
   FISCAL_ITEM_UNIT,
+  FISCAL_MAPPING_CHARGE_SOURCES,
   fiscalItemCodeNumber,
   fiscalNatureOfSupplies,
+  providerTaxCode,
   type FiscalCatalogRow,
   type FiscalNatureOfSupplies,
 } from "@/packages/pms/lib/fiscal/fiscal.types";
@@ -87,7 +89,8 @@ export function FiscalIntegrationDrawer({
   const testConnection = useServerFn(testFiscalConnection);
   const saveTax = useServerFn(saveFiscalTaxMapping);
   const saveItem = useServerFn(saveFiscalItemMapping);
-  const saveBuyer = useServerFn(saveFiscalBuyerCodeMapping);
+  const ensureItems = useServerFn(ensureFiscalItemMappings);
+  const itemsSeeded = useRef(false);
 
   const query = useQuery({
     queryKey: ["fiscal-integration", restaurantId],
@@ -107,6 +110,10 @@ export function FiscalIntegrationDrawer({
   const [replaceCredentials, setReplaceCredentials] = useState(false);
 
   useEffect(() => {
+    if (!open) itemsSeeded.current = false;
+  }, [open]);
+
+  useEffect(() => {
     if (!status) return;
     setEnvironment(status.connection.environment);
     setBaseUrl(status.connection.baseUrl);
@@ -120,6 +127,23 @@ export function FiscalIntegrationDrawer({
     await queryClient.invalidateQueries({ queryKey: ["fiscal-integration", restaurantId] });
     await queryClient.invalidateQueries({ queryKey: ["pms-card6-integrations", restaurantId] });
   };
+
+  useEffect(() => {
+    if (!open || section !== "Mappings" || !canEdit || !status || itemsSeeded.current) return;
+    itemsSeeded.current = true;
+    void ensureItems({ data: { restaurantId } })
+      .then(async (result) => {
+        if (result.pendingConnection) {
+          itemsSeeded.current = false;
+          return;
+        }
+        if (result.created > 0) await refresh();
+      })
+      .catch((error: Error) => {
+        itemsSeeded.current = false;
+        toast.error(error.message);
+      });
+  }, [open, section, canEdit, status, restaurantId, ensureItems]);
 
   const configMutation = useMutation({
     mutationFn: () =>
@@ -399,12 +423,6 @@ export function FiscalIntegrationDrawer({
                   toast.success("Item mapping saved.");
                 })
               }
-              onBuyer={(input) =>
-                saveBuyer({ data: { restaurantId, ...input } }).then(async () => {
-                  await refresh();
-                  toast.success("Buyer code saved.");
-                })
-              }
             />
           ) : null}
           {section === "Status" && status ? (
@@ -483,10 +501,6 @@ export function FiscalIntegrationDrawer({
                   {FISCAL_DOCUMENT_MODE}
                 </p>
                 <p>
-                  <span className="font-medium text-[#251605]">Buyer codes: </span>
-                  {status.buyerMappings.length} configured
-                </p>
-                <p>
                   <span className="font-medium text-[#251605]">Registration Queue: </span>
                   {status.queue.pending} pending, {status.queue.failed} failed,{" "}
                   {status.queue.registered} registered
@@ -540,7 +554,6 @@ function FiscalMappings({
   canEdit,
   onTax,
   onItem,
-  onBuyer,
 }: {
   status: MappingSnapshot;
   canEdit: boolean;
@@ -562,12 +575,9 @@ function FiscalMappings({
     natureOfSupplies: FiscalNatureOfSupplies;
     harmonizationCode: string | null;
   }) => Promise<unknown>;
-  onBuyer: (input: {
-    mappingType: string;
-    internalValue: string;
-    externalValue: string;
-  }) => Promise<unknown>;
 }) {
+  const [itemsOpen, setItemsOpen] = useState(false);
+  const chargeSources = FISCAL_MAPPING_CHARGE_SOURCES.filter((source) => source !== "room");
   return (
     <div className="space-y-6">
       <section className="space-y-2">
@@ -606,7 +616,8 @@ function FiscalMappings({
         })}
         <MappingRow
           title="No tax / exempt"
-          detail="Enter the provider code. NORU does not guess one."
+          detail="Enter the provider code in capitals. NORU does not guess one."
+          uppercase
           statusLabel={
             status.taxMappings.some((row: FiscalCatalogRow) => row.mapping_kind === "NO_TAX")
               ? "Mapped"
@@ -629,59 +640,28 @@ function FiscalMappings({
         />
       </section>
       <section className="space-y-2">
-        <h3 className="font-medium text-[#251605]">Items</h3>
-        <p className="text-xs text-muted-foreground">
-          Leave the item code blank to assign the next number. Nature is Service or Goods. Unit is{" "}
-          {FISCAL_ITEM_UNIT} for every item.
-        </p>
-        <ItemRow
-          title="Room Accommodation"
-          detail="One fiscal item for every rate plan"
-          defaultNature="service"
-          current={status.itemMappings.find(
-            (row: FiscalCatalogRow) => row.charge_source === "room",
-          )}
-          canEdit={canEdit}
-          onSave={(values) =>
-            onItem({
-              ...values,
-              serviceTypeId: null,
-              departmentId: null,
-              chargeSource: "room",
-              isDefault: false,
-            })
-          }
-        />
-
-        {status.serviceTypes.map((service: FiscalCatalogRow) => (
-          <ItemRow
-            key={service.id}
-            title={service.name}
-            detail={`service ${service.code}`}
-            current={status.itemMappings.find(
-              (row: FiscalCatalogRow) => row.service_type_id === service.id,
-            )}
-            canEdit={canEdit}
-            onSave={(values) =>
-              onItem({
-                ...values,
-                serviceTypeId: service.id,
-                departmentId: null,
-                chargeSource: null,
-                isDefault: false,
-              })
-            }
-          />
-        ))}
-        {status.chargeSources
-          .filter((source: string) => source !== "room")
-          .map((source: string) => (
+        <button
+          type="button"
+          className="flex w-full items-center justify-between rounded-xl border border-[#E5DED1] px-3 py-2 text-left"
+          aria-expanded={itemsOpen}
+          onClick={() => setItemsOpen((open) => !open)}
+        >
+          <span>
+            <span className="block text-sm font-medium text-[#251605]">Item codes</span>
+            <span className="block text-xs text-muted-foreground">
+              Prefilled as Service. Expand to change a code or nature.
+            </span>
+          </span>
+          <span className="text-xs text-muted-foreground">{itemsOpen ? "Hide" : "Show"}</span>
+        </button>
+        {itemsOpen ? (
+          <div className="space-y-2">
             <ItemRow
-              key={source}
-              title={source}
-              detail="charge source"
+              title="Room Accommodation"
+              detail="One fiscal item for every rate plan"
+              defaultNature="service"
               current={status.itemMappings.find(
-                (row: FiscalCatalogRow) => row.charge_source === source,
+                (row: FiscalCatalogRow) => row.charge_source === "room",
               )}
               canEdit={canEdit}
               onSave={(values) =>
@@ -689,29 +669,72 @@ function FiscalMappings({
                   ...values,
                   serviceTypeId: null,
                   departmentId: null,
-                  chargeSource: source,
+                  chargeSource: "room",
                   isDefault: false,
                 })
               }
             />
-          ))}
-        <ItemRow
-          title="Property default"
-          detail="used when nothing more specific matches"
-          current={status.itemMappings.find((row: FiscalCatalogRow) => row.is_default)}
-          canEdit={canEdit}
-          onSave={(values) =>
-            onItem({
-              ...values,
-              serviceTypeId: null,
-              departmentId: null,
-              chargeSource: null,
-              isDefault: true,
-            })
-          }
-        />
+            {status.serviceTypes.map((service: FiscalCatalogRow) => (
+              <ItemRow
+                key={service.id}
+                title={service.name ?? "Service"}
+                detail={`service ${service.code ?? ""}`}
+                defaultNature="service"
+                current={status.itemMappings.find(
+                  (row: FiscalCatalogRow) => row.service_type_id === service.id,
+                )}
+                canEdit={canEdit}
+                onSave={(values) =>
+                  onItem({
+                    ...values,
+                    serviceTypeId: service.id,
+                    departmentId: null,
+                    chargeSource: null,
+                    isDefault: false,
+                  })
+                }
+              />
+            ))}
+            {chargeSources.map((source) => (
+              <ItemRow
+                key={source}
+                title={source}
+                detail="charge source"
+                defaultNature="service"
+                current={status.itemMappings.find(
+                  (row: FiscalCatalogRow) => row.charge_source === source,
+                )}
+                canEdit={canEdit}
+                onSave={(values) =>
+                  onItem({
+                    ...values,
+                    serviceTypeId: null,
+                    departmentId: null,
+                    chargeSource: source,
+                    isDefault: false,
+                  })
+                }
+              />
+            ))}
+            <ItemRow
+              title="Property default"
+              detail="used when nothing more specific matches"
+              defaultNature="service"
+              current={status.itemMappings.find((row: FiscalCatalogRow) => row.is_default)}
+              canEdit={canEdit}
+              onSave={(values) =>
+                onItem({
+                  ...values,
+                  serviceTypeId: null,
+                  departmentId: null,
+                  chargeSource: null,
+                  isDefault: true,
+                })
+              }
+            />
+          </div>
+        ) : null}
       </section>
-      <BuyerRow canEdit={canEdit} types={status.buyerTypes} onSave={onBuyer} />
     </div>
   );
 }
@@ -736,7 +759,7 @@ function TaxMappingRow({
   }) => Promise<unknown>;
 }) {
   const separate = current?.fiscal_treatment === "SEPARATE_ITEM";
-  const [taxCode, setTaxCode] = useState(current?.external_tax_code ?? "");
+  const [taxCode, setTaxCode] = useState(providerTaxCode(current?.external_tax_code ?? ""));
   const [treatment, setTreatment] = useState<"SAME_LINE_TAX" | "SEPARATE_ITEM">(
     separate ? "SEPARATE_ITEM" : "SAME_LINE_TAX",
   );
@@ -745,7 +768,7 @@ function TaxMappingRow({
     fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service",
   );
   useEffect(() => {
-    setTaxCode(current?.external_tax_code ?? "");
+    setTaxCode(providerTaxCode(current?.external_tax_code ?? ""));
     setTreatment(current?.fiscal_treatment === "SEPARATE_ITEM" ? "SEPARATE_ITEM" : "SAME_LINE_TAX");
     setItemCode(current?.external_item_code ?? "");
     setNature(fiscalNatureOfSupplies(current?.nature_of_supplies ?? "") ?? "service");
@@ -766,7 +789,9 @@ function TaxMappingRow({
           <Input
             value={taxCode}
             placeholder="External TaxCode"
-            onChange={(event) => setTaxCode(event.target.value)}
+            autoCapitalize="characters"
+            spellCheck={false}
+            onChange={(event) => setTaxCode(providerTaxCode(event.target.value))}
             disabled={!canEdit}
           />
         </div>
@@ -860,6 +885,7 @@ function MappingRow({
   canEdit,
   initial,
   placeholder,
+  uppercase = false,
   onSave,
 }: {
   title: string;
@@ -868,10 +894,12 @@ function MappingRow({
   canEdit: boolean;
   initial: string;
   placeholder: string;
+  uppercase?: boolean;
   onSave: (value: string) => Promise<unknown>;
 }) {
-  const [value, setValue] = useState(initial);
-  useEffect(() => setValue(initial), [initial]);
+  const shown = (next: string) => (uppercase ? providerTaxCode(next) : next);
+  const [value, setValue] = useState(shown(initial));
+  useEffect(() => setValue(shown(initial)), [initial, uppercase]);
   return (
     <div className="grid gap-2 rounded-xl border border-[#E5DED1] p-3 md:grid-cols-[1fr_12rem_auto]">
       <div>
@@ -882,7 +910,9 @@ function MappingRow({
       <Input
         value={value}
         placeholder={placeholder}
-        onChange={(event) => setValue(event.target.value)}
+        autoCapitalize={uppercase ? "characters" : undefined}
+        spellCheck={uppercase ? false : undefined}
+        onChange={(event) => setValue(shown(event.target.value))}
         disabled={!canEdit}
       />
       {canEdit ? (
@@ -995,73 +1025,5 @@ function ItemRow({
         </Button>
       ) : null}
     </div>
-  );
-}
-
-function BuyerRow({
-  canEdit,
-  types,
-  onSave,
-}: {
-  canEdit: boolean;
-  types: string[];
-  onSave: (input: {
-    mappingType: string;
-    internalValue: string;
-    externalValue: string;
-  }) => Promise<unknown>;
-}) {
-  const [mappingType, setMappingType] = useState(types[0] ?? "ID_TYPE");
-  const [internalValue, setInternalValue] = useState("");
-  const [externalValue, setExternalValue] = useState("");
-  return (
-    <section className="space-y-2">
-      <h3 className="font-medium text-[#251605]">Buyer codes</h3>
-      <p className="text-xs text-muted-foreground">
-        Map a NORU value to the provider code. No code list is prefilled.
-      </p>
-      <div className="grid gap-2 md:grid-cols-3">
-        <Select value={mappingType} onValueChange={setMappingType}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {types.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          value={internalValue}
-          placeholder="NORU value"
-          onChange={(event) => setInternalValue(event.target.value)}
-          disabled={!canEdit}
-        />
-        <Input
-          value={externalValue}
-          placeholder="External code"
-          onChange={(event) => setExternalValue(event.target.value)}
-          disabled={!canEdit}
-        />
-      </div>
-      {canEdit ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() =>
-            onSave({ mappingType, internalValue, externalValue })
-              .then(() => {
-                setInternalValue("");
-                setExternalValue("");
-              })
-              .catch((error: Error) => toast.error(error.message))
-          }
-        >
-          Save buyer code
-        </Button>
-      ) : null}
-    </section>
   );
 }

@@ -53,6 +53,7 @@ import {
   FISCAL_BUYER_MAPPING_TYPES,
   FISCAL_CATEGORY,
   FISCAL_CHARGE_SOURCES,
+  FISCAL_MAPPING_CHARGE_SOURCES,
   FISCAL_ENVIRONMENTS,
   FISCAL_INTEGRATION_NAME,
   FISCAL_ITEM_UNIT,
@@ -69,6 +70,7 @@ import {
   maskDeviceId,
   maskTin,
   normalizeFiscalConnection,
+  providerTaxCode,
   requireExternalCode,
   type FiscalCatalogRow,
   type FiscalConnectionConfig,
@@ -629,7 +631,9 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
-      const code = requireExternalCode(data.externalTaxCode, "External tax code");
+      const code = providerTaxCode(
+        requireExternalCode(data.externalTaxCode, "External tax code"),
+      );
       const db = await admin();
       const row = await requireFiscalRow(db, data.restaurantId);
       const treatment = data.fiscalTreatment ?? "SAME_LINE_TAX";
@@ -869,6 +873,79 @@ export const saveFiscalItemMapping = createServerFn({ method: "POST" })
       }
       await touchMapping(db, data.restaurantId, context.userId, row.id);
       return { ok: true };
+    } catch (error) {
+      safeError(error);
+    }
+  });
+
+/** Fills missing item mappings as Service and assigns the next item code. Existing rows stay as saved. */
+export const ensureFiscalItemMappings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<{ created: number; pendingConnection: boolean }> => {
+    await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE,
+    );
+    try {
+      const db = await admin();
+      const row = await loadFiscalRow(db, data.restaurantId);
+      if (!row) return { created: 0, pendingConnection: true };
+      const [services, existing] = await Promise.all([
+        db.from("pms_guest_service_types").select("id").eq("restaurant_id", data.restaurantId),
+        db
+          .from("fiscal_item_mappings")
+          .select("service_type_id, charge_source, is_default")
+          .eq("integration_id", row.id),
+      ]);
+      if (services.error || existing.error) {
+        throw new FiscalError("FISCAL_MAPPING_INVALID", "Item codes could not be prepared.");
+      }
+      const saved = fiscalRecords(existing.data);
+      const hasService = (id: string) => saved.some((item) => item.service_type_id === id);
+      const hasSource = (source: string) => saved.some((item) => item.charge_source === source);
+      const targets: Array<{
+        serviceTypeId: string | null;
+        chargeSource: (typeof FISCAL_MAPPING_CHARGE_SOURCES)[number] | null;
+        isDefault: boolean;
+      }> = [];
+      for (const service of fiscalRecords(services.data)) {
+        const id = typeof service.id === "string" ? service.id : "";
+        if (!id || hasService(id)) continue;
+        targets.push({ serviceTypeId: id, chargeSource: null, isDefault: false });
+      }
+      for (const source of FISCAL_MAPPING_CHARGE_SOURCES) {
+        if (hasSource(source)) continue;
+        targets.push({ serviceTypeId: null, chargeSource: source, isDefault: false });
+      }
+      if (!saved.some((item) => item.is_default === true)) {
+        targets.push({ serviceTypeId: null, chargeSource: null, isDefault: true });
+      }
+      let created = 0;
+      for (const target of targets) {
+        const itemCode = await assignFiscalItemCode(db, data.restaurantId, "", null);
+        const inserted = await db.from("fiscal_item_mappings").insert({
+          restaurant_id: data.restaurantId,
+          integration_id: row.id,
+          service_type_id: target.serviceTypeId,
+          department_id: null,
+          charge_source: target.chargeSource,
+          is_default: target.isDefault,
+          external_item_code: itemCode,
+          external_unit: FISCAL_ITEM_UNIT,
+          nature_of_supplies: "service",
+          harmonization_code: null,
+          active: true,
+        });
+        if (inserted.error) {
+          if (inserted.error.message.includes("duplicate")) continue;
+          throw new FiscalError("FISCAL_MAPPING_INVALID", "Item codes could not be prepared.");
+        }
+        created += 1;
+      }
+      if (created > 0) await touchMapping(db, data.restaurantId, context.userId, row.id);
+      return { created, pendingConnection: false };
     } catch (error) {
       safeError(error);
     }

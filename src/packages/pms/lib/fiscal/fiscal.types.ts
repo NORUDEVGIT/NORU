@@ -101,6 +101,15 @@ export const FISCAL_CHARGE_SOURCES = [
 ] as const;
 export type FiscalChargeSource = (typeof FISCAL_CHARGE_SOURCES)[number];
 
+/** Origins the fiscal mapping step prepares. POS and transfer are not posted today. */
+export const FISCAL_MAPPING_CHARGE_SOURCES = [
+  "room",
+  "manual",
+  "service",
+  "package",
+  "system",
+] as const satisfies readonly FiscalChargeSource[];
+
 export const FISCAL_ERROR_CODES = [
   "FISCAL_CONFIG_MISSING",
   "FISCAL_CREDENTIALS_MISSING",
@@ -483,4 +492,9 @@ export function requireExternalCode(value: string, label: string): string {
     throw new FiscalError("FISCAL_MAPPING_INVALID", `${label} is too long.`);
   }
   return trimmed;
+}
+
+/** Provider TaxCode is stored in capitals. Digits stay, so VAT15 remains valid. */
+export function providerTaxCode(value: string): string {
+  return value.toUpperCase();
 }
