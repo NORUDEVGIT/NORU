@@ -4,10 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ChevronUp, FileText, Plus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import type {
-  DebitNoteSnapshot,
-  DebitSourceGroup,
-} from "@/packages/pms/lib/cashiering-debit-notes";
+import type { DebitNoteSnapshot } from "@/packages/pms/lib/cashiering-debit-notes";
 import {
   createInvoiceDebitNoteDraft,
   deleteInvoiceDebitNoteDraft,
@@ -18,7 +15,7 @@ import {
   updateInvoiceDebitNoteDraft,
 } from "@/packages/pms/lib/cashiering-debit-notes.functions";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import { CompanyDebitNoteFiscalSection } from "@/packages/pms/components/cashiering/company-debit-note-fiscal-section";
@@ -32,6 +29,85 @@ import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-inv
 import { cashieringInvoiceAccess } from "@/packages/pms/lib/cashiering-invoice-access";
 import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+
+function DebitAmountField({
+  included,
+  total,
+  money,
+  onChange,
+}: {
+  included: boolean;
+  total: number;
+  money: (value: number) => string;
+  onChange: (included: boolean) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? (included ? String(total) : "");
+  const filled = included ? total : 0;
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2">
+        <Input
+          inputMode="decimal"
+          value={shown}
+          aria-label="Debit amount"
+          placeholder="0"
+          className="h-9 text-right tabular-nums"
+          onChange={(event) => {
+            const raw = event.target.value;
+            if (!raw.trim()) {
+              setDraft(null);
+              onChange(false);
+              return;
+            }
+            const amount = Number(raw);
+            if (Number.isFinite(amount) && amount >= total) {
+              setDraft(null);
+              onChange(true);
+              return;
+            }
+            setDraft(raw);
+          }}
+          onBlur={() => {
+            const amount = Number(shown);
+            setDraft(null);
+            onChange(Number.isFinite(amount) && amount > 0);
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-9 shrink-0 border-[#DDD4C5]"
+          onClick={() => {
+            setDraft(null);
+            onChange(true);
+          }}
+        >
+          Full
+        </Button>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={total}
+        step={0.01}
+        value={filled}
+        aria-label="Debit amount slider"
+        className="mt-2 h-1.5 w-full cursor-pointer accent-[#C89933]"
+        onChange={(event) => {
+          setDraft(null);
+          onChange(Number(event.target.value) > 0);
+        }}
+      />
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {included
+          ? `${money(total)} · whole charge`
+          : `Not included · ${money(total)} available`}
+      </p>
+    </div>
+  );
+}
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white shadow-sm";
 const HEAD =
@@ -300,189 +376,144 @@ export function DebitNoteSection({
       {editing && (board.draft || canEditDraft) ? (
         <div className={cn(CARD, "overflow-hidden")}>
           <div className="border-b border-[#E8E1D7] px-4 py-3">
-            <h3 className="font-display text-lg">Create Debit Note</h3>
-            <p className="text-sm">
-              Original invoice {board.invoiceNumber} · Bill to {board.billToName} · {board.currency}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Original {money(board.originalTotal)} · Previous credits{" "}
-              {money(-board.previousCredits)} · Previous debits {money(board.previousDebits)} ·
-              Current net {money(board.netInvoice)}
+            <h3 className="font-display text-lg">Create debit note</h3>
+            <p className="text-sm text-muted-foreground">
+              {board.invoiceNumber} · {board.billToName} · Net {money(board.netInvoice)}
             </p>
           </div>
-          <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.5fr)_280px]">
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                <input
-                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-sm"
-                  placeholder="Search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+          {board.eligibleGroups.length > 0 ? (
+            <div className="flex flex-wrap gap-2 border-b border-[#E8E1D7] px-4 py-3">
+              <Input
+                className="h-9 w-40"
+                placeholder="Search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <Input
+                className="h-9 w-36"
+                type="date"
+                aria-label="Posted on"
+                value={postedOn}
+                onChange={(event) => setPostedOn(event.target.value)}
+              />
+              <select
+                className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2 text-sm"
+                aria-label="Department"
+                value={department}
+                onChange={(event) => setDepartment(event.target.value)}
+              >
+                <option value="">Department</option>
+                {departments.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              {accountInvoiceId ? (
+                <Input
+                  className="h-9 w-44"
+                  placeholder="Guest or folio"
+                  value={source}
+                  onChange={(event) => setSource(event.target.value)}
                 />
-                <input
-                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-sm"
-                  type="date"
-                  value={postedOn}
-                  onChange={(event) => setPostedOn(event.target.value)}
-                />
-                <select
-                  className="h-8 rounded-md border border-[#E8E1D7] px-2 text-sm"
-                  value={department}
-                  onChange={(event) => setDepartment(event.target.value)}
-                >
-                  <option value="">Department</option>
-                  {departments.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                {accountInvoiceId ? (
-                  <input
-                    className="h-8 rounded-md border border-[#E8E1D7] px-2 text-sm"
-                    placeholder="Source guest or folio"
-                    value={source}
-                    onChange={(event) => setSource(event.target.value)}
-                  />
-                ) : null}
-              </div>
-              {board.eligibleGroups.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#E8E1D7] bg-[#F7F4EE] px-4 py-6 text-sm">
-                  <p>No charges are available to add to this invoice.</p>
-                  {onPostCharge ? (
-                    <Button
-                      size="sm"
-                      className="mt-3 h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
-                      onClick={onPostCharge}
-                    >
-                      <Plus className="size-4" /> Post Charge
-                    </Button>
-                  ) : (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      A transferred or direct account charge must already exist before it can be
-                      added with a debit note.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-left text-sm">
-                    <thead className={HEAD}>
-                      <tr>
-                        <th className="px-2 py-2" />
-                        <th className="px-2 py-2">Date</th>
-                        <th className="px-2 py-2">Charge</th>
-                        <th className="px-2 py-2">Source</th>
-                        <th className="px-2 py-2">Department</th>
-                        <th className="px-2 py-2 text-right">Qty / unit</th>
-                        <th className="px-2 py-2 text-right">Subtotal</th>
-                        <th className="px-2 py-2 text-right">Tax</th>
-                        <th className="px-2 py-2 text-right">Service</th>
-                        <th className="px-2 py-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visible.map((group) => (
-                        <DebitSourceRow
-                          key={group.sourceGroupId}
-                          group={group}
-                          checked={selected.includes(group.sourceGroupId)}
-                          money={money}
-                          dateTime={dateTime}
-                          onToggle={(checked) =>
-                            setSelected((current) =>
-                              checked
-                                ? [...current, group.sourceGroupId]
-                                : current.filter((id) => id !== group.sourceGroupId),
-                            )
-                          }
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                  {visible.length === 0 ? (
-                    <p className="px-2 py-3 text-sm text-muted-foreground">
-                      No charges match these filters.
-                    </p>
-                  ) : null}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Need to add a new charge? Post it first. A debit note can only document a charge
-                that is already on the ledger.
-              </p>
-              {onPostCharge && board.eligibleGroups.length > 0 ? (
-                <Button size="sm" variant="outline" className="h-8" onClick={onPostCharge}>
-                  <Plus className="size-4" /> Post Charge
-                </Button>
               ) : null}
             </div>
-            <aside className="space-y-2 rounded-xl border border-[#E8E1D7] bg-[#F7F4EE] p-3 text-sm">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Debit note — draft
-              </p>
-              <p>
-                {board.invoiceNumber} · {board.billToName} · {board.currency}
-              </p>
+          ) : null}
+          {board.eligibleGroups.length === 0 ? (
+            <div className="px-4 py-6 text-sm">
+              <p>No charges are available to add to this invoice.</p>
+              {onPostCharge ? (
+                <Button
+                  size="sm"
+                  className="mt-3 h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
+                  onClick={onPostCharge}
+                >
+                  <Plus className="size-4" /> Post Charge
+                </Button>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Post the charge first. A debit note can only add a charge already on the ledger.
+                </p>
+              )}
+            </div>
+          ) : visible.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-muted-foreground">No charges match these filters.</p>
+          ) : (
+            <ul className="divide-y divide-[#E8E1D7]">
+              {visible.map((group) => {
+                const guest = group.sourceGuest
+                  ? `${group.sourceGuest}${group.sourceFolioNumber ? ` · ${group.sourceFolioNumber}` : ""}`
+                  : null;
+                const included = selected.includes(group.sourceGroupId);
+                return (
+                  <li
+                    key={group.sourceGroupId}
+                    className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_16rem]"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{group.description}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {dateTime(group.postedAt)}
+                        {guest ? ` · ${guest}` : ""}
+                        {group.departmentName ? ` · ${group.departmentName}` : ""}
+                        {group.quantity != null
+                          ? ` · ${group.quantity} × ${group.unitAmount == null ? "—" : money(group.unitAmount)}`
+                          : ""}
+                      </p>
+                    </div>
+                    <DebitAmountField
+                      included={included}
+                      total={group.grossTotal}
+                      money={money}
+                      onChange={(next) =>
+                        setSelected((current) =>
+                          next
+                            ? current.includes(group.sourceGroupId)
+                              ? current
+                              : [...current, group.sourceGroupId]
+                            : current.filter((id) => id !== group.sourceGroupId),
+                        )
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {onPostCharge && board.eligibleGroups.length > 0 ? (
+            <div className="border-t border-[#E8E1D7] px-4 py-3">
+              <Button size="sm" variant="outline" className="h-8" onClick={onPostCharge}>
+                <Plus className="size-4" /> Post Charge
+              </Button>
+            </div>
+          ) : null}
+          <div className="grid gap-4 border-t border-[#E8E1D7] p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <label className="block text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Reason</span>
+              <textarea
+                className="mt-1 w-full rounded-md border border-[#E8E1D7] px-2 py-1.5 text-sm"
+                rows={2}
+                maxLength={500}
+                placeholder="Why these charges are being added"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </label>
+            <div className="space-y-1 text-sm">
               <p className="flex justify-between">
-                <span>Subtotal</span>
-                <span>{money(preview?.subtotal ?? 0)}</span>
+                <span className="text-muted-foreground">Debit</span>
+                <span className="font-semibold tabular-nums">{money(thisDebit)}</span>
               </p>
-              <p className="flex justify-between">
-                <span>Tax</span>
-                <span>{money(preview?.tax ?? 0)}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>Service charge</span>
-                <span>{money(preview?.serviceCharge ?? 0)}</span>
-              </p>
-              <p className="flex justify-between font-medium">
-                <span>Debit total</span>
-                <span>{money(thisDebit)}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>Original invoice</span>
-                <span>{money(board.originalTotal)}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>Credits</span>
-                <span>{money(-board.previousCredits)}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>Previous debits</span>
-                <span>{money(board.previousDebits)}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>This debit</span>
-                <span>{money(thisDebit)}</span>
-              </p>
-              <p className="flex justify-between font-medium">
-                <span>New net invoice</span>
-                <span>{money(newNet)}</span>
+              <p className="flex justify-between text-xs text-muted-foreground">
+                <span>Invoice after debit</span>
+                <span className="tabular-nums">{money(newNet)}</span>
               </p>
               {preview && !preview.ok && preview.code ? (
                 <p className="text-xs text-amber-800">
                   {PREVIEW_TEXT[preview.code] ?? "That charge cannot be added to this debit note."}
                 </p>
               ) : null}
-            </aside>
-          </div>
-          <div className="grid gap-4 border-t border-[#E8E1D7] p-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-            <label className="block text-xs text-muted-foreground">
-              Reason *
-              <textarea
-                className="mt-1 w-full rounded-md border border-[#E8E1D7] px-2 py-1 text-sm text-foreground"
-                rows={3}
-                maxLength={500}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-              />
-            </label>
-            <p className="text-xs text-muted-foreground">
-              The debit note number is assigned on issue. Owner or manager access is required. There
-              is no approval step. Issuing documents the selected charges and does not post them
-              again.
-            </p>
+            </div>
           </div>
           <div className="flex justify-end gap-2 border-t border-[#E8E1D7] px-4 py-3">
             <Button
@@ -637,44 +668,6 @@ export function DebitNoteSection({
         ) : null}
       </CashieringPrintLayer>
     </section>
-  );
-}
-
-function DebitSourceRow({
-  group,
-  checked,
-  money,
-  dateTime,
-  onToggle,
-}: {
-  group: DebitSourceGroup;
-  checked: boolean;
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  onToggle: (checked: boolean) => void;
-}) {
-  const source = group.sourceGuest
-    ? `${group.sourceGuest}${group.sourceFolioNumber ? ` · ${group.sourceFolioNumber}` : ""}`
-    : "—";
-  return (
-    <tr className="border-b border-[#E8E1D7]">
-      <td className="px-2 py-2">
-        <Checkbox checked={checked} onCheckedChange={(value) => onToggle(value === true)} />
-      </td>
-      <td className="px-2 py-2 text-xs">{dateTime(group.postedAt)}</td>
-      <td className="px-2 py-2">{group.description}</td>
-      <td className="px-2 py-2 text-xs">{source}</td>
-      <td className="px-2 py-2 text-xs">{group.departmentName ?? "—"}</td>
-      <td className="px-2 py-2 text-right text-xs tabular-nums">
-        {group.quantity == null
-          ? "—"
-          : `${group.quantity} × ${group.unitAmount == null ? "—" : money(group.unitAmount)}`}
-      </td>
-      <td className="px-2 py-2 text-right tabular-nums">{money(group.subtotal)}</td>
-      <td className="px-2 py-2 text-right tabular-nums">{money(group.taxTotal)}</td>
-      <td className="px-2 py-2 text-right tabular-nums">{money(group.serviceChargeTotal)}</td>
-      <td className="px-2 py-2 text-right tabular-nums">{money(group.grossTotal)}</td>
-    </tr>
   );
 }
 

@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Menu } from "lucide-react";
 
+import { FolioChromeSlot, FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
-import { ReportFilterDate } from "@/packages/pms/components/reports/report-filter-bar";
 import { CashieringToolbarSearch } from "@/packages/pms/components/cashiering/cashiering-shell-slots";
 import { Button } from "@/shared/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
@@ -268,31 +268,44 @@ export function TransactionHistoryPanel({
 
   return (
     <section className="space-y-3" data-testid="folio-history">
-      <div className="flex items-center gap-2">
+      <FolioChromeSlot name="dates">
+        <FolioDateRange
+          from={from}
+          to={to}
+          onFrom={(value) => {
+            setFrom(value);
+            setPage(1);
+          }}
+          onTo={(value) => {
+            setTo(value);
+            setPage(1);
+          }}
+          fromTestId="folio-history-from"
+          toTestId="folio-history-to"
+        />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="search">
         <HistoryViewMenu mode={mode} onSelect={setMode} />
         <CashieringToolbarSearch
-              value={search}
-              placeholder="Description, method, or name"
-              testId="folio-history-search"
-              onChange={(value) => {
-                setSearch(value);
-                setPage(1);
-              }}
-            />
-            <div className="shrink-0">
+          value={search}
+          placeholder="Description, method, or name"
+          testId="folio-history-search"
+          onChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+        />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="filter">
             <PmsFilterMenu
               activeCount={
                 (quick !== "all" ? 1 : 0) +
-                (from ? 1 : 0) +
-                (to ? 1 : 0) +
                 (method !== "all" ? 1 : 0) +
                 (actor !== "all" ? 1 : 0) +
                 (sort !== "newest" ? 1 : 0)
               }
               onClear={() => {
                 setQuick("all");
-                setFrom("");
-                setTo("");
                 setMethod("all");
                 setActor("all");
                 setSort("newest");
@@ -308,24 +321,6 @@ export function TransactionHistoryPanel({
                 options={QUICK.map((item) => [item.id, item.label] as const)}
                 onChange={(value) => {
                   setQuick(value as HistoryQuickFilter);
-                  setPage(1);
-                }}
-              />
-              <ReportFilterDate
-                label="From"
-                testId="folio-history-from"
-                value={from}
-                onChange={(value) => {
-                  setFrom(value);
-                  setPage(1);
-                }}
-              />
-              <ReportFilterDate
-                label="To"
-                testId="folio-history-to"
-                value={to}
-                onChange={(value) => {
-                  setTo(value);
                   setPage(1);
                 }}
               />
@@ -367,8 +362,7 @@ export function TransactionHistoryPanel({
                 onChange={(value) => setSort(value === "oldest" ? "oldest" : "newest")}
               />
             </PmsFilterMenu>
-            </div>
-          </div>
+      </FolioChromeSlot>
 
       {mode === "activity" ? (
         <ActivityTable events={activity} dateTime={dateTime} onViewDocuments={onViewDocuments} />
