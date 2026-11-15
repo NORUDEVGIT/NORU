@@ -6,7 +6,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   departuresRequiringSettlement,
-  propertyDayBounds,
   shiftCashMovementTitle,
   splitStampedCash,
   summarizeBusinessDateActivity,
@@ -38,16 +37,16 @@ export const getCashieringBusinessDateActivity = createServerFn({ method: "GET" 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadCashierProperty(supabaseAdmin, data.restaurantId);
     const viewedBusinessDate = data.viewDate ?? property.businessDate;
-    const bounds = propertyDayBounds(viewedBusinessDate, property.timezone);
 
+    // Rows carry the hotel day they were posted on (0208), so a post after
+    // midnight but before close stays on the day it belongs to.
     const { data: txns, error } = await supabaseAdmin
       .from("folio_transactions")
       .select(
-        "id, folio_id, financial_account_id, transaction_type, category, description, amount, posted_at, created_at, payment_method, original_transaction_id, reference_type, reference_id, transfer_id, posted_by_membership_id",
+        "id, folio_id, financial_account_id, transaction_type, category, description, amount, posted_at, created_at, business_date, payment_method, original_transaction_id, reference_type, reference_id, transfer_id, posted_by_membership_id",
       )
       .eq("restaurant_id", data.restaurantId)
-      .gte("posted_at", bounds.startIso)
-      .lt("posted_at", bounds.endIso);
+      .eq("business_date", viewedBusinessDate);
     if (error) throw new Error(error.message);
 
     const raw = (txns ?? []) as ActivityTxn[];
@@ -67,6 +66,7 @@ export const getCashieringBusinessDateActivity = createServerFn({ method: "GET" 
       amount: Number(row.amount),
       postedAt: row.posted_at,
       createdAt: row.created_at ?? row.posted_at,
+      businessDate: row.business_date,
       paymentMethod: row.payment_method,
       originalTransactionId: row.original_transaction_id,
       referenceType: row.reference_type,
@@ -233,6 +233,7 @@ type ActivityTxn = {
   amount: number | string;
   posted_at: string;
   created_at: string | null;
+  business_date: string | null;
   payment_method: string | null;
   original_transaction_id: string | null;
   reference_type: string | null;

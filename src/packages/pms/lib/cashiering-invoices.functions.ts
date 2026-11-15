@@ -14,6 +14,7 @@ import {
 } from "@/packages/pms/lib/cashiering-document-property";
 import {
   mapFolioInvoiceSnapshot,
+  uninvoicedGuestChargeIds,
   type InvoiceBoard,
   type InvoiceComponentLine,
   type InvoiceDraftRow,
@@ -177,6 +178,92 @@ export const issueGuestFolioInvoice = createServerFn({ method: "POST" })
     });
     if (error) return { ok: false, message: cashierError(error.message).message };
     return { ok: true, invoice: mapInvoiceRow(row as Parameters<typeof mapInvoiceRow>[0]) };
+  });
+
+const NO_UNINVOICED_CHARGES =
+  "There are no uninvoiced charges on this folio. Payments and deposits stay off the invoice.";
+
+/** Issues every uninvoiced charge group. Does not snapshot the folio or include a deposit. */
+export const issueGuestFolioChargeInvoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        folioId: idSchema,
+        idempotencyKey: z.string().min(8).max(80).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<InvoiceActionResult> => {
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE,
+    );
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: board, error: boardError } = await supabaseAdmin.rpc(
+      "list_guest_folio_invoice_groups",
+      {
+        _restaurant_id: data.restaurantId,
+        _folio_id: data.folioId,
+      },
+    );
+    if (boardError) return { ok: false, message: cashierError(boardError.message).message };
+    const row = (board ?? {}) as Record<string, unknown>;
+    if (row.legacyFolio === true) {
+      return { ok: false, message: cashierError("LEGACY_FOLIO_ALREADY_INVOICED").message };
+    }
+    const sourceIds = uninvoicedGuestChargeIds(
+      Array.isArray(row.groups)
+        ? row.groups.map((group) => {
+            const item = group as Record<string, unknown>;
+            return {
+              parentTransactionId: item.parentTransactionId ? String(item.parentTransactionId) : null,
+              invoiceState: item.invoiceState ? String(item.invoiceState) : null,
+            };
+          })
+        : [],
+    );
+    if (sourceIds.length === 0) return { ok: false, message: NO_UNINVOICED_CHARGES };
+
+    const draftRaw = row.draft as Record<string, unknown> | null;
+    const notes = draftRaw?.notes ? String(draftRaw.notes) : null;
+    const { data: draft, error: draftError } = await supabaseAdmin.rpc(
+      "create_guest_folio_invoice_draft",
+      {
+        _restaurant_id: data.restaurantId,
+        _folio_id: data.folioId,
+        _notes: notes,
+        _membership_id: me.id,
+      },
+    );
+    if (draftError) return { ok: false, message: cashierError(draftError.message).message };
+    const draftId = String((draft as { id?: string } | null)?.id ?? "");
+    if (!draftId) return { ok: false, message: "The invoice draft could not be created." };
+
+    const { error: updateError } = await supabaseAdmin.rpc("update_guest_folio_invoice_draft", {
+      _restaurant_id: data.restaurantId,
+      _draft_id: draftId,
+      _notes: notes,
+      _source_ids: sourceIds,
+      _membership_id: me.id,
+    });
+    if (updateError) return { ok: false, message: cashierError(updateError.message).message };
+
+    const { data: issued, error: issueError } = await supabaseAdmin.rpc(
+      "issue_guest_folio_invoice_draft",
+      {
+        _restaurant_id: data.restaurantId,
+        _draft_id: draftId,
+        _membership_id: me.id,
+        _idempotency_key: data.idempotencyKey
+          ? assertIdempotencyKey(data.idempotencyKey)
+          : undefined,
+      },
+    );
+    if (issueError) return { ok: false, message: cashierError(issueError.message).message };
+    return { ok: true, invoice: mapInvoiceRow(issued as Parameters<typeof mapInvoiceRow>[0]) };
   });
 
 export const reprintGuestFolioInvoice = createServerFn({ method: "POST" })

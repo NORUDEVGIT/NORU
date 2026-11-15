@@ -403,7 +403,7 @@ export const CARD1_DEFAULT_BLOCKERS = [
 
 export const CARD1_BLOCKER_LABELS: Record<(typeof CARD1_DEFAULT_BLOCKERS)[number], string> = {
   incomplete_night_audit: "Incomplete Night Audit",
-  open_cashier_shifts: "Open cashier shifts",
+  open_cashier_shifts: "Open cashier shifts (deprecated; End of Day always blocks)",
   unsettled_folios: "Unsettled / unbalanced folios",
   pending_offline_sync: "Pending offline sync",
   critical_system_errors: "Critical system errors",

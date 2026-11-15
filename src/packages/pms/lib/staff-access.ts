@@ -351,6 +351,11 @@ export const STAFF_ACCESS_MODULES: readonly StaffAccessModule[] = [
         permissions: [
           item(P.NIGHT_AUDIT_CLOSE_DATE, "Close Business Date", "Close the property business date."),
           item(P.NIGHT_AUDIT_FISCAL_AUTHORIZE, "Fiscal Override", "Authorize a fiscal close override."),
+          item(
+            P.NIGHT_AUDIT_FISCAL_OVERRIDE_PERSISTENT,
+            "Persistent Fiscal Override",
+            "Waive one fiscal document on all future End of Days until revoked.",
+          ),
           item(P.NIGHT_AUDIT_RECOVER_DATE, "Business Date Recovery", "Recover a business date."),
           item(
             P.NIGHT_AUDIT_WINDOW_OVERRIDE,

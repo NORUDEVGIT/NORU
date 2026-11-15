@@ -630,6 +630,22 @@ export type CheckInDocumentCandidate = {
   [key: string]: unknown;
 };
 
+function documentText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** A guest_documents row saved at registration. The profile has no documents column. */
+export function identityDocumentOnFile(documents: CheckInDocumentCandidate[]): boolean {
+  return documents.some((doc) => {
+    const record = doc as Record<string, unknown>;
+    return Boolean(
+      documentText(doc.documentNumberMasked ?? doc.documentNumber ?? record.document_number) ||
+        documentText(doc.typeId ?? record.id_type_id) ||
+        documentText(doc.kind),
+    );
+  });
+}
+
 /**
  * Validates Front Office check-in requirements:
  * 1. Checks check_in field requirements on the guest (core and custom).
@@ -651,6 +667,7 @@ export function validateGuestCheckInRequirements(params: {
   }
 
   const pType = params.profileType ?? resolveIndividualProfileType(config);
+  const documentSaved = identityDocumentOnFile(documents);
   const rules = resolveGuestFieldRules(
     config,
     pType,
@@ -662,6 +679,10 @@ export function validateGuestCheckInRequirements(params: {
       : rule,
   ).map((rule) =>
     params.skipCustomFields && rule.category === "custom_value"
+      ? { ...rule, requiredForContext: false }
+      : rule,
+  ).map((rule) =>
+    documentSaved && (rule.canonicalKey === "documents" || rule.code === "IDENTITY_DOCUMENT")
       ? { ...rule, requiredForContext: false }
       : rule,
   );

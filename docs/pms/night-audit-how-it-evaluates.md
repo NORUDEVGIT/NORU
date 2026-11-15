@@ -42,7 +42,7 @@ The live board is the older checklist that still has to agree with close. These 
 - Arrivals still pending or confirmed on or before the business date
 - Overstays
 - Folio or invoice settlement contradictions (an ordinary open folio balance is not one of these)
-- An open hotel cashier drawer, when the property uses hotel drawers
+- An open hotel cashier shift. This always blocks. A stored “do not block” setting is ignored.
 - An occupied room that is out of order or out of service, or an occupied room with an open housekeeping discrepancy
 - A checked-in stay with no room
 - Two checked-in stays in one room
@@ -83,7 +83,9 @@ There is no Close button on Control Center.
 
 Financial answers: can tonight’s money be locked without hiding a broken folio, invoice, allocation, drawer, or fiscal document?
 
-It uses the same settlement rules as Cashiering. It does not recompute tax or settlement with a second formula. Amounts are the frozen snapshots already stored on the documents. The business-date window is the property’s local day, not the server’s clock.
+It uses the same settlement rules as Cashiering. It does not recompute tax or settlement with a second formula. Amounts are the frozen snapshots already stored on the documents.
+
+**Business date attribution.** Every financial row carries the hotel day it belongs to in a `business_date` column (folio transactions, hotel drawers and drawer movements, guest and account invoices, credit and debit notes, all allocation tables, withholding certificates, fiscal registrations). The database stamps it on insert from `restaurants.business_date`; a value sent by a client is ignored, and a stamped value can never be changed. A post made after midnight but before Close Business Date belongs to the open hotel day. Cash taken on a hotel drawer belongs to the drawer’s day; everything else belongs to the current hotel day. Transfers stamp both sides with the same day. A reversal belongs to the day it is made; the original row keeps its date. Daily totals use `business_date =`. Rows that existed before this change were back-filled from their timestamp in the property’s zone and are marked as derived. If a property’s business date cannot be resolved, the write fails rather than guessing. The stamp takes a shared lock on the property row, so a post cannot interleave with Close Business Date.
 
 Financial is **Blocked** when any blocker below exists, **Warning** when there are warnings and no blockers, and **Ready** when there are neither. If the read fails, the section is **Unavailable** and close is locked.
 
@@ -138,9 +140,11 @@ Only **hotel** drawers are in this check. Outlet drawers are outside Night Audit
 
 | Finding                            | Severity | What it means                                                                       |
 | ---------------------------------- | -------- | ----------------------------------------------------------------------------------- |
-| Open hotel drawer                  | Blocker  | A hotel cashier shift is still open.                                                |
-| Closed drawer with a cash variance | Warning  | The drawer was closed, and the counted cash does not match. Close is still allowed. |
+| Open hotel drawer                  | Blocker  | Any open hotel cashier shift, including one from an earlier or a future hotel day. No setting and no role can waive it. |
+| Closed drawer with a cash variance | Info     | The drawer was closed, and the counted cash does not match. Close is still allowed. |
 | No hotel drawers on the property   | N/A      | Till close does not apply.                                                          |
+
+Cash, including a payment, deposit, refund, cash in, or cash out, can be posted only on a shift that is open on the current business date. Closing an older open shift is still allowed, so bad historical data can be recovered. There is no override for an open shift.
 
 ### Fiscalization
 
@@ -149,8 +153,11 @@ Only documents whose type is handled by the property’s fiscal integration are 
 | Document status                                                            | Severity |
 | -------------------------------------------------------------------------- | -------- |
 | FAILED, NOT_REGISTERED, BLOCKED, CANCEL_PENDING, or an unrecognized status | Blocker  |
-| PENDING                                                                    | Warning  |
+| PENDING                                                                    | Info     |
 | REGISTERED, CANCELLED                                                      | Info     |
+| Covered by an active persistent override                                   | Info     |
+
+Fiscal problems carry forward. A document that should be registered but has no registration at all (`fiscal_not_registered`) keeps blocking every later End of Day until it is registered, becomes ineligible, or is waived persistently. Eligibility follows Cashiering: a credit or debit note needs a registered parent invoice; a sales receipt needs a live allocation against a registered credit-mode invoice; withholding needs a registered account invoice and must not be reversed. Documents from before the fiscal integration was set up are not counted. Closed runs are never rewritten.
 
 A device fault that was later fixed does not clear this by itself. The document status has to change. After the document is registered, Recheck drops the blocker. While it is still failed or not registered, the date cannot be closed. Night Audit does not retry the fiscal device.
 
@@ -161,6 +168,11 @@ For an exceptional fiscal outage, an **Owner** or **Manager** may authorize a cl
 The override does not repair, cancel, register, retry, or otherwise change the fiscal document. Its actual status remains visible as FAILED, NOT_REGISTERED, BLOCKED, or the original status. It remains in the fiscal queue and will naturally be considered by later reconciliations if their ordinary scope includes it. All non-fiscal blockers — including folio integrity, allocations, arrivals, room conflicts, unavailable reconciliations, and operational issues — remain non-overrideable.
 
 An overridden issue is shown as **Overridden** in Exceptions, Financial, Run & Close, and the permanently retained closed-run history, with its fiscal status, reason, authorizer, and timestamp. It no longer counts as a blocking exception for that one run; it does not become resolved.
+
+The override has two scopes. A reason category and a reason are always required.
+
+- **This End of Day only** — the behaviour above. It ends when the run closes or the fiscal condition changes.
+- **All future End of Days** — covers one exact document (property, source type, source id) on every later End of Day. It is never global and never covers another document. It needs the separate CRITICAL permission `night_audit.fiscal.override_persistent` (owners hold it implicitly; no template grants it) and the confirmation “I understand this fiscal issue will remain unresolved.” The document is then shown as information (“Fiscal issue waived”) with the reason. It can be revoked with a reason; the row is kept. It is revoked automatically once the document is registered or cancelled. The server and `close_business_date` both enforce it; the fiscal status never changes.
 
 ### Tax and service charge
 

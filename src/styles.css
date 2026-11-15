@@ -234,7 +234,7 @@
   body:has(.report-print-root) aside,
   body:has(.report-print-root) [data-testid="fo-top-command"],
   body:has(.report-print-root) [data-testid="pms-module-nav"],
-  body:has(.report-print-root) [data-testid="reports-desk-header"],
+  body:has(.report-print-root) [data-testid="reports-toolbar"],
   body:has(.report-print-root) .report-print-hide {
     display: none !important;
   }

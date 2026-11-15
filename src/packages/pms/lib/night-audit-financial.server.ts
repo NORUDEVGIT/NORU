@@ -1,11 +1,12 @@
 /**
  * Property-scoped financial read for Night Audit.
  *
- * The audit date is restaurants.business_date. Timestamp membership uses
- * propertyDayBounds / belongsToBusinessDate. This module does not post,
- * allocate, register, retry, or close a drawer.
+ * The audit date is restaurants.business_date. A row belongs to it when its
+ * stamped business_date (0208) matches. A row without a stamp falls back to
+ * propertyDayBounds / belongsToBusinessDate on its timestamp. This module
+ * does not post, allocate, register, retry, revoke, or close a drawer.
  */
-import { belongsToBusinessDate, propertyDayBounds } from "./cashiering-control";
+import { belongsToBusinessDate, propertyCalendarDate, propertyDayBounds } from "./cashiering-control";
 import { activeWithholdingNet } from "./cashiering-account-allocation";
 import { fiscalSnapshotMode, registeredCashDebitCover } from "./cashiering-cash-debit-cover";
 import {
@@ -65,6 +66,15 @@ export async function loadNightAuditFinancialReconciliation(
   const bounds = propertyDayBounds(businessDate, timezone);
   const onAuditDate = (iso: string | null | undefined) =>
     Boolean(iso) && iso! >= bounds.startIso && iso! < bounds.endIso && belongsToBusinessDate(iso!, businessDate, timezone);
+  const stampedDay = (stamped: string | null | undefined) => (stamped ? stamped.slice(0, 10) : null);
+  /** Hotel-day membership: the stamped business_date, else the timestamp window. */
+  const onHotelDay = (stamped: string | null | undefined, iso: string | null | undefined) => {
+    const day = stampedDay(stamped);
+    return day ? day === businessDate : onAuditDate(iso);
+  };
+  /** Stamped on or before the audit date. Unstamped rows use their timestamp's property-local date. */
+  const hotelDayOf = (stamped: string | null | undefined, iso: string | null | undefined) =>
+    stampedDay(stamped) ?? (iso ? propertyCalendarDate(iso, timezone) : null);
 
   type FolioRow = {
     id: string;
@@ -81,6 +91,7 @@ export async function loadNightAuditFinancialReconciliation(
     category: string | null;
     amount: number | string;
     posted_at: string;
+    business_date: string | null;
     payment_method: string | null;
     reference_type: string | null;
     reference_id: string | null;
@@ -100,7 +111,7 @@ export async function loadNightAuditFinancialReconciliation(
     admin
       .from("folio_transactions")
       .select(
-        "id, folio_id, financial_account_id, transaction_type, category, amount, posted_at, payment_method, reference_type, reference_id, original_transaction_id, transfer_id, transfer_direction",
+        "id, folio_id, financial_account_id, transaction_type, category, amount, posted_at, business_date, payment_method, reference_type, reference_id, original_transaction_id, transfer_id, transfer_direction",
       )
       .eq("restaurant_id", restaurantId)
       .order("id", { ascending: true })
@@ -133,6 +144,7 @@ export async function loadNightAuditFinancialReconciliation(
     folio_id: string;
     issued_number: string;
     issued_at: string | null;
+    business_date: string | null;
     coverage_scope: string | null;
     snapshot: unknown;
   };
@@ -143,13 +155,16 @@ export async function loadNightAuditFinancialReconciliation(
     note_type: string;
     total_delta: number | string;
     issued_at: string | null;
+    business_date: string | null;
   };
   type PaymentAlloc = {
     id: string;
     invoice_id: string;
     amount: number | string;
     payment_transaction_id: string;
+    reverses_allocation_id?: string | null;
     created_at?: string | null;
+    business_date?: string | null;
   };
   type DepositAlloc = PaymentAlloc & { deposit_transaction_id: string };
   type ChargeAlloc = { charge_transaction_id: string; amount: number | string };
@@ -157,7 +172,7 @@ export async function loadNightAuditFinancialReconciliation(
     selectAll<InvoiceRow>((from, to) =>
       admin
         .from("guest_folio_invoices")
-        .select("id, folio_id, issued_number, issued_at, coverage_scope, snapshot")
+        .select("id, folio_id, issued_number, issued_at, business_date, coverage_scope, snapshot")
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
         .range(from, to),
@@ -167,7 +182,7 @@ export async function loadNightAuditFinancialReconciliation(
     selectAll<NoteRow>((from, to) =>
       admin
         .from("invoice_credit_notes")
-        .select("id, guest_invoice_id, account_invoice_id, note_type, total_delta, issued_at")
+        .select("id, guest_invoice_id, account_invoice_id, note_type, total_delta, issued_at, business_date")
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
         .range(from, to),
@@ -177,7 +192,7 @@ export async function loadNightAuditFinancialReconciliation(
     selectAll<PaymentAlloc>((from, to) =>
       admin
         .from("guest_payment_invoice_allocations")
-        .select("id, invoice_id, amount, payment_transaction_id, created_at")
+        .select("id, invoice_id, amount, payment_transaction_id, reverses_allocation_id, created_at, business_date")
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
         .range(from, to),
@@ -187,7 +202,7 @@ export async function loadNightAuditFinancialReconciliation(
     selectAll<DepositAlloc>((from, to) =>
       admin
         .from("guest_deposit_invoice_allocations")
-        .select("id, invoice_id, amount, deposit_transaction_id, created_at")
+        .select("id, invoice_id, amount, deposit_transaction_id, reverses_allocation_id, created_at, business_date")
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
         .range(from, to),
@@ -269,6 +284,7 @@ export async function loadNightAuditFinancialReconciliation(
     financial_account_id: string;
     issued_number: string | null;
     issued_at: string | null;
+    business_date: string | null;
     snapshot: unknown;
   };
   type AccountAllocRow = {
@@ -277,7 +293,9 @@ export async function loadNightAuditFinancialReconciliation(
     invoice_id: string;
     payment_transaction_id: string;
     amount: number | string;
+    reverses_allocation_id?: string | null;
     created_at?: string | null;
+    business_date?: string | null;
   };
   type CertificateRow = {
     id: string;
@@ -286,6 +304,7 @@ export async function loadNightAuditFinancialReconciliation(
     amount: number | string;
     reverses_certificate_id: string | null;
     created_at?: string | null;
+    business_date?: string | null;
   };
   const accounts = await optional(() =>
     selectAll<AccountRow>((from, to) =>
@@ -301,7 +320,7 @@ export async function loadNightAuditFinancialReconciliation(
     selectAll<AccountInvoiceRow>((from, to) =>
       admin
         .from("financial_account_invoices")
-        .select("id, financial_account_id, issued_number, issued_at, snapshot")
+        .select("id, financial_account_id, issued_number, issued_at, business_date, snapshot")
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
         .range(from, to),
@@ -311,7 +330,9 @@ export async function loadNightAuditFinancialReconciliation(
     selectAll<AccountAllocRow>((from, to) =>
       admin
         .from("financial_account_payment_allocations")
-        .select("id, financial_account_id, invoice_id, payment_transaction_id, amount, created_at")
+        .select(
+          "id, financial_account_id, invoice_id, payment_transaction_id, amount, reverses_allocation_id, created_at, business_date",
+        )
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
         .range(from, to),
@@ -321,7 +342,7 @@ export async function loadNightAuditFinancialReconciliation(
     selectAll<CertificateRow>((from, to) =>
       admin
         .from("withholding_certificates")
-        .select("id, financial_account_id, invoice_id, amount, reverses_certificate_id, created_at")
+        .select("id, financial_account_id, invoice_id, amount, reverses_certificate_id, created_at, business_date")
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
         .range(from, to),
@@ -393,12 +414,21 @@ export async function loadNightAuditFinancialReconciliation(
 
   const shiftResult = await admin.rpc("list_hotel_drawers", { _restaurant_id: restaurantId });
   if (shiftResult.error) throw new Error(shiftResult.error.message);
+  // list_hotel_drawers returns the latest 100 shifts. An older shift that is
+  // still open must still block, so every open shift is read as well.
+  const openShiftResult = await admin
+    .from("hotel_cashier_shifts")
+    .select("id, membership_id, status, opened_at, closed_at, business_date, opening_cash")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "open");
+  if (openShiftResult.error) throw new Error(openShiftResult.error.message);
   const shiftRows = (Array.isArray(shiftResult.data) ? shiftResult.data : []) as Array<{
     id: string;
     membership_id: string;
     status: "open" | "closed";
     opened_at: string;
     closed_at?: string | null;
+    business_date?: string | null;
     opening?: number | string | null;
     cash_in?: number | string | null;
     cash_out?: number | string | null;
@@ -407,6 +437,30 @@ export async function loadNightAuditFinancialReconciliation(
     closing_count?: number | string | null;
     variance?: number | string | null;
   }>;
+  const listed = new Set(shiftRows.map((shift) => shift.id));
+  for (const shift of (openShiftResult.data ?? []) as Array<{
+    id: string;
+    membership_id: string;
+    status: "open";
+    opened_at: string;
+    closed_at?: string | null;
+    business_date?: string | null;
+    opening_cash?: number | string | null;
+  }>) {
+    if (listed.has(shift.id)) continue;
+    shiftRows.push({
+      id: shift.id,
+      membership_id: shift.membership_id,
+      status: "open",
+      opened_at: shift.opened_at,
+      closed_at: shift.closed_at ?? null,
+      business_date: shift.business_date ?? null,
+      opening: shift.opening_cash ?? null,
+      expected: null,
+      closing_count: null,
+      variance: null,
+    });
+  }
   const optionalNum = (value: number | string | null | undefined) =>
     value == null ? null : num(value);
 
@@ -443,13 +497,18 @@ export async function loadNightAuditFinancialReconciliation(
 
   const integration = await admin
     .from("pms_integrations")
-    .select("enabled")
+    .select("enabled, created_at")
     .eq("restaurant_id", restaurantId)
     .eq("category", "fiscal")
     .eq("provider", "erp_fiscal")
     .maybeSingle();
   if (integration.error) throw new Error(integration.error.message);
   const integrationEnabled = Boolean(integration.data) && integration.data.enabled !== false;
+  // Documents from hotel days before the fiscal connection existed were never
+  // fiscal documents. They are not carried forward as missing.
+  const fiscalStartDay: string | null = integration.data?.created_at
+    ? propertyCalendarDate(String(integration.data.created_at), timezone)
+    : null;
 
   type FiscalRow = {
     id: string;
@@ -463,13 +522,14 @@ export async function loadNightAuditFinancialReconciliation(
     external_rrn: string | null;
     request_snapshot: unknown;
     created_at: string;
+    business_date: string | null;
   };
   const fiscalRows = await optional(() =>
     selectAll<FiscalRow>((from, to) =>
       admin
         .from("fiscal_registrations")
         .select(
-          "id, source_type, source_id, fiscal_document_type, status, trnx_id, external_document_number, external_irn, external_rrn, request_snapshot, created_at",
+          "id, source_type, source_id, fiscal_document_type, status, trnx_id, external_document_number, external_irn, external_rrn, request_snapshot, created_at, business_date",
         )
         .eq("restaurant_id", restaurantId)
         .order("id", { ascending: true })
@@ -477,6 +537,44 @@ export async function loadNightAuditFinancialReconciliation(
     ),
   );
   const registeredKeys = new Set(fiscalRows.map((row) => `${row.source_type}:${row.source_id}`));
+  const registrationBySource = new Map(fiscalRows.map((row) => [`${row.source_type}:${row.source_id}`, row]));
+
+  // Active persistent waivers (0209). Exact source only; never a whole type.
+  type WaiverRow = {
+    id: string;
+    source_type: string;
+    source_id: string;
+    reason: string;
+    reason_category: string | null;
+    overridden_by_membership_id: string;
+    overridden_at: string;
+  };
+  const waiverRows = await optional(() =>
+    selectAll<WaiverRow>((from, to) =>
+      admin
+        .from("night_audit_fiscal_overrides")
+        .select("id, source_type, source_id, reason, reason_category, overridden_by_membership_id, overridden_at")
+        .eq("restaurant_id", restaurantId)
+        .eq("scope", "persistent")
+        .is("invalidated_at", null)
+        .is("revoked_at", null)
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  );
+  const waiverBySource = new Map(waiverRows.map((row) => [`${row.source_type}:${row.source_id}`, row]));
+  const waiverFor = (sourceType: string, sourceId: string): FiscalDocumentFact["waiver"] => {
+    const row = waiverBySource.get(`${sourceType}:${sourceId}`);
+    return row
+      ? {
+          overrideId: row.id,
+          reason: row.reason,
+          reasonCategory: row.reason_category,
+          overriddenByMembershipId: row.overridden_by_membership_id,
+          overriddenAt: row.overridden_at,
+        }
+      : null;
+  };
   const guestInvoiceById = new Map(invoices.map((inv) => [inv.id, inv]));
   const accountInvoiceById = new Map(accountInvoices.map((inv) => [inv.id, inv]));
   const noteById = new Map(notes.map((n) => [n.id, n]));
@@ -487,9 +585,10 @@ export async function loadNightAuditFinancialReconciliation(
 
   const fiscalDocuments: FiscalDocumentFact[] = [];
   for (const row of fiscalRows) {
-    const onDate = onAuditDate(row.created_at);
+    // A finished registration is shown on its source's hotel day only. An
+    // unfinished one is carried forward until it is finished.
     const terminal = row.status === "REGISTERED" || row.status === "CANCELLED";
-    if (terminal && !onDate) continue;
+    if (terminal && !onHotelDay(row.business_date, row.created_at)) continue;
 
     let folioId: string | null = null;
     let accountId: string | null = null;
@@ -605,12 +704,44 @@ export async function loadNightAuditFinancialReconciliation(
       accountId,
       invoiceId,
       registrationId: row.id,
+      waiver: waiverFor(row.source_type, row.source_id),
     });
   }
-  const pushMissing = (document: FiscalDocumentFact, at: string | null) => {
-    if (!onAuditDate(at)) return;
+  // A fiscal source with no registration row is missing on every End of Day
+  // from its own hotel day until it is registered, ineligible, or waived. It is
+  // not limited to the audit date: a missed document must not disappear at midnight.
+  const registeredOriginal = (sourceType: string, invoiceId: string | null | undefined) => {
+    if (!invoiceId) return null;
+    const row = registrationBySource.get(`${sourceType}:${invoiceId}`);
+    return row?.status === "REGISTERED" ? row : null;
+  };
+  // A sales receipt exists only for a CREDIT-mode original (fiscal-sales-receipt).
+  const creditOriginal = (sourceType: string, invoiceId: string | null | undefined) => {
+    const row = registeredOriginal(sourceType, invoiceId);
+    return Boolean(row) && fiscalSnapshotMode(row!.request_snapshot) === "CREDIT";
+  };
+  const reversedAllocationIds = new Set(
+    [...paymentAllocations, ...depositAllocations, ...accountAllocations].flatMap((row) =>
+      row.reverses_allocation_id ? [row.reverses_allocation_id] : [],
+    ),
+  );
+  const reversedCertificateIds = new Set(
+    certificates.flatMap((row) => (row.reverses_certificate_id ? [row.reverses_certificate_id] : [])),
+  );
+  const liveAllocation = (row: { id: string; amount: number | string; reverses_allocation_id?: string | null }) =>
+    num(row.amount) > 0 && !row.reverses_allocation_id && !reversedAllocationIds.has(row.id);
+  const pushMissing = (
+    document: FiscalDocumentFact,
+    stamped: string | null | undefined,
+    at: string | null,
+    eligible = true,
+  ) => {
+    if (!eligible) return;
+    const day = hotelDayOf(stamped, at);
+    if (!day || day > businessDate) return;
+    if (fiscalStartDay && day < fiscalStartDay) return;
     if (registeredKeys.has(`${document.sourceType}:${document.id}`)) return;
-    fiscalDocuments.push(document);
+    fiscalDocuments.push({ ...document, waiver: waiverFor(document.sourceType, document.id) });
   };
   for (const invoice of invoices) {
     if (invoice.coverage_scope === "legacy_folio") continue;
@@ -627,6 +758,7 @@ export async function loadNightAuditFinancialReconciliation(
         folioId: invoice.folio_id,
         invoiceId: invoice.id,
       },
+      invoice.business_date,
       invoice.issued_at,
     );
   }
@@ -645,6 +777,7 @@ export async function loadNightAuditFinancialReconciliation(
         accountId: invoice.financial_account_id,
         invoiceId: invoice.id,
       },
+      invoice.business_date,
       invoice.issued_at,
     );
   }
@@ -665,7 +798,9 @@ export async function loadNightAuditFinancialReconciliation(
         accountId: aInv?.financial_account_id ?? null,
         invoiceId: gInv?.id ?? aInv?.id ?? null,
       },
+      note.business_date,
       note.issued_at,
+      gInv ? Boolean(registeredOriginal("guest_invoice", gInv.id)) : Boolean(registeredOriginal("account_invoice", aInv?.id)),
     );
   }
   for (const row of paymentAllocations) {
@@ -683,7 +818,9 @@ export async function loadNightAuditFinancialReconciliation(
         folioId: inv?.folio_id ?? null,
         invoiceId: row.invoice_id,
       },
+      row.business_date,
       row.created_at ?? null,
+      liveAllocation(row) && creditOriginal("guest_invoice", row.invoice_id),
     );
   }
   for (const row of depositAllocations) {
@@ -701,7 +838,9 @@ export async function loadNightAuditFinancialReconciliation(
         folioId: inv?.folio_id ?? null,
         invoiceId: row.invoice_id,
       },
+      row.business_date,
       row.created_at ?? null,
+      liveAllocation(row) && creditOriginal("guest_invoice", row.invoice_id),
     );
   }
   for (const row of accountAllocations) {
@@ -718,7 +857,9 @@ export async function loadNightAuditFinancialReconciliation(
         accountId: row.financial_account_id ?? accountInvoiceById.get(row.invoice_id)?.financial_account_id ?? null,
         invoiceId: row.invoice_id,
       },
+      row.business_date,
       row.created_at ?? null,
+      liveAllocation(row) && creditOriginal("account_invoice", row.invoice_id),
     );
   }
   for (const row of certificates) {
@@ -735,7 +876,11 @@ export async function loadNightAuditFinancialReconciliation(
         accountId: row.financial_account_id ?? accountInvoiceById.get(row.invoice_id)?.financial_account_id ?? null,
         invoiceId: row.invoice_id,
       },
+      row.business_date,
       row.created_at ?? null,
+      !row.reverses_certificate_id &&
+        !reversedCertificateIds.has(row.id) &&
+        Boolean(registeredOriginal("account_invoice", row.invoice_id)),
     );
   }
 
@@ -771,7 +916,7 @@ export async function loadNightAuditFinancialReconciliation(
         transactionType: txn.transaction_type,
         category: txn.category,
         paymentMethod: txn.payment_method,
-        onAuditDate: onAuditDate(txn.posted_at),
+        onAuditDate: onHotelDay(txn.business_date, txn.posted_at),
       })),
     missingFolios: reservations
       .filter(
@@ -823,7 +968,7 @@ export async function loadNightAuditFinancialReconciliation(
         ),
         snapshotTax: snapshotNumber(invoice.snapshot, "tax"),
         snapshotServiceCharge: snapshotNumber(invoice.snapshot, "serviceCharge"),
-        issuedOnAuditDate: onAuditDate(invoice.issued_at),
+        issuedOnAuditDate: onHotelDay(invoice.business_date, invoice.issued_at),
       };
     }),
     sources: transactions
@@ -869,16 +1014,24 @@ export async function loadNightAuditFinancialReconciliation(
         amount: num(txn.amount),
         accountId: txn.financial_account_id,
       })),
-    // Every open shift, plus shifts closed during this business date. Older closed
-    // shifts belong to the day they closed on.
+    // Every open shift, plus closed shifts of this hotel day. A shift belongs to
+    // the business_date it was opened on (0208); unstamped rows use closed_at.
     drawers: shiftRows
-      .filter((shift) => shift.status === "open" || onAuditDate(shift.closed_at))
+      .filter(
+        (shift) =>
+          shift.status === "open" ||
+          (shift.business_date
+            ? stampedDay(shift.business_date) === businessDate
+            : onAuditDate(shift.closed_at)),
+      )
       .map((shift) => ({
         id: shift.id,
         cashier: cashierNames.get(shift.membership_id) ?? "Cashier",
+        membershipId: shift.membership_id,
         shift: shift.id.slice(0, 8),
         openedAt: shift.opened_at,
         closedAt: shift.closed_at ?? null,
+        businessDate: stampedDay(shift.business_date),
         opening: optionalNum(shift.opening),
         cashIn: optionalNum(shift.cash_in),
         cashOut: optionalNum(shift.cash_out),
@@ -896,7 +1049,7 @@ export async function loadNightAuditFinancialReconciliation(
       .filter(
         (txn) =>
           (txn.category === "tax" || txn.category === "service_charge") &&
-          onAuditDate(txn.posted_at),
+          onHotelDay(txn.business_date, txn.posted_at),
       )
       .map((txn) => ({
         currency,

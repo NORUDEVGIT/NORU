@@ -136,7 +136,7 @@ const SHARED_CORE_LINKS: {
     title: "Accounting & Finance",
     note: "Property-wide folios, payments and night audit.",
     to: "/restaurant/pms/cashiering",
-    tab: "overview",
+    tab: "folios",
     icon: Wallet,
   },
   {

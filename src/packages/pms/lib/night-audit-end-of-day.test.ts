@@ -101,14 +101,15 @@ describe("End of Day conditions", () => {
     assert.equal(condition("missing_folio", "warning").kind, "information");
   });
 
-  it("applies the Card 1 open-shift policy and keeps integrity blockers regardless", () => {
+  it("always blocks an open cashier shift, even when the stored policy would not", () => {
     const block = condition("open_cashier_shift", "blocking", { openCashierShifts: "block" });
-    const allow = condition("open_cashier_shift", "blocking", {
+    const legacy = condition("open_cashier_shift", "blocking", {
       openCashierShifts: "do_not_block",
     });
     assert.equal(block.kind, "blocker");
-    assert.equal(block.scope, "policy");
-    assert.equal(allow.kind, "information");
+    assert.equal(block.scope, "system");
+    assert.equal(legacy.kind, "blocker");
+    assert.equal(legacy.fiscalOverrideable, false);
     const integrity = condition("closed_folio_nonzero_balance", "blocking", {
       openCashierShifts: "do_not_block",
     });
@@ -165,12 +166,12 @@ describe("End of Day domains", () => {
 });
 
 describe("Card 1 open-shift policy", () => {
-  it("reads the policy from the stored blocker list", () => {
+  it("ignores a stored list that omits the open-shift key", () => {
     assert.deepEqual(endOfDayPolicyFromBlockers(parseBusinessDateBlockers(null)), {
       openCashierShifts: "block",
     });
     assert.deepEqual(endOfDayPolicyFromBlockers(["unsettled_folios"]), {
-      openCashierShifts: "do_not_block",
+      openCashierShifts: "block",
     });
     assert.deepEqual(OPEN_SHIFT_POLICY_LABEL, {
       block: "Must be closed",
@@ -193,10 +194,11 @@ describe("Card 1 open-shift policy", () => {
     ]);
   });
 
-  it("is exposed in Card 1 and states that integrity checks cannot be turned off", () => {
+  it("is a fixed requirement in Card 1, with no do-not-block choice", () => {
     const card1 = read("../components/settings/pms-property-setup-card1-steps.tsx");
-    assert.match(card1, /id="card1-eod-open-shifts"/);
-    assert.match(card1, /Open cashier shifts before End of Day/);
+    assert.match(card1, /data-testid="card1-eod-open-shifts"/);
+    assert.match(card1, /\{OPEN_CASHIER_SHIFT_RULE\}/);
+    assert.doesNotMatch(card1, /do_not_block|Do not block/);
     assert.match(
       card1,
       /System integrity checks always block End of Day and cannot be turned off\./,

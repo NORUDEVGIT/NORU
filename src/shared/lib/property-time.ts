@@ -62,6 +62,39 @@ export function isValidTimeZone(value: string): boolean {
   }
 }
 
+const COUNTRY_TIMEZONES: Record<string, string> = {
+  ethiopia: "Africa/Addis_Ababa",
+  et: "Africa/Addis_Ababa",
+  eth: "Africa/Addis_Ababa",
+  kenya: "Africa/Nairobi",
+  ke: "Africa/Nairobi",
+  nigeria: "Africa/Lagos",
+  ng: "Africa/Lagos",
+  egypt: "Africa/Cairo",
+  eg: "Africa/Cairo",
+  "south africa": "Africa/Johannesburg",
+  za: "Africa/Johannesburg",
+  "united kingdom": "Europe/London",
+  uk: "Europe/London",
+  gb: "Europe/London",
+  ireland: "Europe/Dublin",
+  ie: "Europe/Dublin",
+  "united arab emirates": "Asia/Dubai",
+  uae: "Asia/Dubai",
+  ae: "Asia/Dubai",
+  india: "Asia/Kolkata",
+  in: "Asia/Kolkata",
+};
+
+/**
+ * Initial timezone for a newly registered property, from its country. Only
+ * used at creation; an existing property's stored zone is never re-derived.
+ */
+export function timezoneForCountry(country: string | null | undefined): string {
+  const key = (country ?? "").trim().toLowerCase();
+  return COUNTRY_TIMEZONES[key] ?? DEFAULT_TIMEZONE;
+}
+
 function safeZone(timeZone: string | null | undefined): string {
   if (!timeZone) return DEFAULT_TIMEZONE;
   return isValidTimeZone(timeZone) ? timeZone : DEFAULT_TIMEZONE;

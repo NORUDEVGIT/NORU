@@ -37,6 +37,7 @@ export interface AuditFinance {
 const NIGHT_AUDIT_ERRORS: Record<string, string> = {
   AUDIT_RUN_NOT_FOUND: "Night audit run not found for this property.",
   BLOCKING_EXCEPTIONS_OPEN: "Resolve every blocker before closing the business date.",
+  OPEN_CASHIER_SHIFT: "An open cashier shift must be closed before End of Day can continue.",
   STALE_BUSINESS_DATE:
     "This run is not the current business date. Refresh Night Audit and close the current date.",
   AUDIT_RUN_NOT_CLOSABLE: "This night audit run cannot be closed.",

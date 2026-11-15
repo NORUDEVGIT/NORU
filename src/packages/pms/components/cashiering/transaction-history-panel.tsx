@@ -1,10 +1,13 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Menu } from "lucide-react";
 
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { ReportFilterDate } from "@/packages/pms/components/reports/report-filter-bar";
+import { CashieringToolbarSearch } from "@/packages/pms/components/cashiering/cashiering-shell-slots";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -53,6 +56,85 @@ const QUICK: Array<{ id: HistoryQuickFilter; label: string }> = [
 ];
 
 const METHODS = ["cash", "card", "bank_transfer", "mobile_money", "other"] as const;
+
+const HISTORY_VIEWS = [
+  {
+    id: "financial" as const,
+    label: "Transactions",
+    detail: "Balance-affecting events. Tax and service stay inside the charge.",
+  },
+  {
+    id: "activity" as const,
+    label: "Activity",
+    detail: "Invoices, notes, allocations, and close. These do not change the balance.",
+  },
+];
+
+function HistoryViewMenu({
+  mode,
+  onSelect,
+}: {
+  mode: "financial" | "activity";
+  onSelect: (mode: "financial" | "activity") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="History view"
+          title="History view"
+          data-testid="folio-history-view-trigger"
+          className={cn(
+            "inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-[#DDD4C5] bg-white text-[#251605]",
+            "hover:bg-[#F7F4EE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+            "data-[state=open]:bg-[#F3EEE4]",
+          )}
+        >
+          <Menu className="size-4" aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-72 p-1.5"
+        data-testid="folio-history-view-menu"
+        aria-label="History view"
+      >
+        <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          History
+        </p>
+        <div className="flex flex-col gap-0.5">
+          {HISTORY_VIEWS.map((item) => {
+            const active = item.id === mode;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                data-testid={`folio-history-view-${item.id}`}
+                aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  setOpen(false);
+                  onSelect(item.id);
+                }}
+                className={cn(
+                  "rounded-md px-2.5 py-2 text-left transition-colors",
+                  active ? "bg-[#F4E9D0] text-[#251605]" : "text-foreground hover:bg-[#F7F4EE]",
+                )}
+              >
+                <span className="block text-sm font-medium">{item.label}</span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                  {item.detail}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function signed(money: Money, value: number): string {
   if (value < -0.009) return `− ${money(Math.abs(value))}`;
@@ -186,137 +268,112 @@ export function TransactionHistoryPanel({
 
   return (
     <section className="space-y-3" data-testid="folio-history">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === "financial" ? "default" : "outline"}
-            onClick={() => setMode("financial")}
-          >
-            Transactions
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === "activity" ? "default" : "outline"}
-            onClick={() => setMode("activity")}
-          >
-            Activity
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {mode === "financial"
-            ? "Balance-affecting events. Tax and service stay inside the charge."
-            : "Invoices, notes, allocations, and close. These do not change the balance."}
-        </p>
-      </div>
+      <div className="flex items-center gap-2">
+        <HistoryViewMenu mode={mode} onSelect={setMode} />
+        <CashieringToolbarSearch
+              value={search}
+              placeholder="Description, method, or name"
+              testId="folio-history-search"
+              onChange={(value) => {
+                setSearch(value);
+                setPage(1);
+              }}
+            />
+            <div className="shrink-0">
+            <PmsFilterMenu
+              activeCount={
+                (quick !== "all" ? 1 : 0) +
+                (from ? 1 : 0) +
+                (to ? 1 : 0) +
+                (method !== "all" ? 1 : 0) +
+                (actor !== "all" ? 1 : 0) +
+                (sort !== "newest" ? 1 : 0)
+              }
+              onClear={() => {
+                setQuick("all");
+                setFrom("");
+                setTo("");
+                setMethod("all");
+                setActor("all");
+                setSort("newest");
+                setPage(1);
+              }}
+              buttonTestId="folio-history-filters-button"
+              menuTestId="folio-history-filters-menu"
+            >
+              <PmsFilterChoiceRow
+                label="Type"
+                value={quick}
+                current={quick === "all" ? "" : (QUICK.find((item) => item.id === quick)?.label ?? "")}
+                options={QUICK.map((item) => [item.id, item.label] as const)}
+                onChange={(value) => {
+                  setQuick(value as HistoryQuickFilter);
+                  setPage(1);
+                }}
+              />
+              <ReportFilterDate
+                label="From"
+                testId="folio-history-from"
+                value={from}
+                onChange={(value) => {
+                  setFrom(value);
+                  setPage(1);
+                }}
+              />
+              <ReportFilterDate
+                label="To"
+                testId="folio-history-to"
+                value={to}
+                onChange={(value) => {
+                  setTo(value);
+                  setPage(1);
+                }}
+              />
+              <PmsFilterChoiceRow
+                label="Method"
+                value={method}
+                current={method === "all" ? "" : (historyMethodLabel(method) ?? "")}
+                options={[
+                  ["all", "All methods"] as const,
+                  ...METHODS.map((code) => [code, historyMethodLabel(code) ?? code] as const),
+                ]}
+                onChange={(value) => {
+                  setMethod(value);
+                  setPage(1);
+                }}
+              />
+              <PmsFilterChoiceRow
+                label="Posted by"
+                value={actor}
+                current={actor === "all" ? "" : actor}
+                options={[
+                  ["all", "All users"] as const,
+                  ...actors.map((name) => [name, name] as const),
+                ]}
+                onChange={(value) => {
+                  setActor(value);
+                  setPage(1);
+                }}
+              />
+              <PmsFilterChoiceRow
+                label="Order"
+                value={sort}
+                neutralValue="newest"
+                current={sort === "oldest" ? "Oldest first" : ""}
+                options={[
+                  ["newest", "Newest first"],
+                  ["oldest", "Oldest first"],
+                ]}
+                onChange={(value) => setSort(value === "oldest" ? "oldest" : "newest")}
+              />
+            </PmsFilterMenu>
+            </div>
+          </div>
 
       {mode === "activity" ? (
         <ActivityTable events={activity} dateTime={dateTime} onViewDocuments={onViewDocuments} />
       ) : (
         <>
-          <div className="flex flex-wrap gap-2">
-            {QUICK.map((item) => (
-              <Button
-                key={item.id}
-                type="button"
-                size="sm"
-                variant={quick === item.id ? "default" : "outline"}
-                onClick={() => {
-                  setQuick(item.id);
-                  setPage(1);
-                }}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
-            <Field label="From">
-              <Input
-                type="date"
-                value={from}
-                onChange={(event) => {
-                  setFrom(event.target.value);
-                  setPage(1);
-                }}
-              />
-            </Field>
-            <Field label="To">
-              <Input
-                type="date"
-                value={to}
-                onChange={(event) => {
-                  setTo(event.target.value);
-                  setPage(1);
-                }}
-              />
-            </Field>
-            <Field label="Method">
-              <Select
-                value={method}
-                onValueChange={(value) => {
-                  setMethod(value);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All methods</SelectItem>
-                  {METHODS.map((code) => (
-                    <SelectItem key={code} value={code}>
-                      {historyMethodLabel(code)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Posted by">
-              <Select
-                value={actor}
-                onValueChange={(value) => {
-                  setActor(value);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All users</SelectItem>
-                  {actors.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Search">
-              <Input
-                value={search}
-                placeholder="Description, method, or name"
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
-              />
-            </Field>
-            <Field label="Order">
-              <Select value={sort} onValueChange={(value) => setSort(value as "newest" | "oldest")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest first</SelectItem>
-                  <SelectItem value="oldest">Oldest first</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
           <div className="overflow-x-auto rounded-xl border border-[#E8E1D7] bg-card">
             <table className="w-full min-w-[880px] text-sm">
               <thead className="border-b border-[#E8E1D7] bg-[#F7F4EE] text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -578,14 +635,5 @@ function ActivityTable({
         </tbody>
       </table>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block space-y-1 text-xs text-muted-foreground">
-      <Label>{label}</Label>
-      {children}
-    </label>
   );
 }

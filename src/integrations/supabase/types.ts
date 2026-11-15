@@ -586,6 +586,7 @@ export type Database = {
       }
       financial_account_invoices: {
         Row: {
+          business_date: string | null
           financial_account_id: string
           id: string
           idempotency_key: string | null
@@ -599,6 +600,7 @@ export type Database = {
           snapshot: Json
         }
         Insert: {
+          business_date?: string | null
           financial_account_id: string
           id?: string
           idempotency_key?: string | null
@@ -612,6 +614,7 @@ export type Database = {
           snapshot: Json
         }
         Update: {
+          business_date?: string | null
           financial_account_id?: string
           id?: string
           idempotency_key?: string | null
@@ -686,6 +689,7 @@ export type Database = {
       }
       financial_account_payment_allocations: {
         Row: {
+          business_date: string | null
           amount: number
           created_at: string
           created_by_membership_id: string | null
@@ -700,6 +704,7 @@ export type Database = {
           reverses_allocation_id: string | null
         }
         Insert: {
+          business_date?: string | null
           amount: number
           created_at?: string
           created_by_membership_id?: string | null
@@ -714,6 +719,7 @@ export type Database = {
           reverses_allocation_id?: string | null
         }
         Update: {
+          business_date?: string | null
           amount?: number
           created_at?: string
           created_by_membership_id?: string | null
@@ -1180,6 +1186,7 @@ export type Database = {
       }
       fiscal_registrations: {
         Row: {
+          business_date: string | null
           acknowledged_at: string | null
           acknowledged_at_raw: string | null
           attempt_count: number
@@ -1215,6 +1222,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          business_date?: string | null
           acknowledged_at?: string | null
           acknowledged_at_raw?: string | null
           attempt_count?: number
@@ -1250,6 +1258,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          business_date?: string | null
           acknowledged_at?: string | null
           acknowledged_at_raw?: string | null
           attempt_count?: number
@@ -1784,6 +1793,7 @@ export type Database = {
       }
       folio_deposit_allocations: {
         Row: {
+          business_date: string | null
           actor_membership_id: string | null
           amount: number
           charge_transaction_id: string
@@ -1794,6 +1804,7 @@ export type Database = {
           restaurant_id: string
         }
         Insert: {
+          business_date?: string | null
           actor_membership_id?: string | null
           amount: number
           charge_transaction_id: string
@@ -1804,6 +1815,7 @@ export type Database = {
           restaurant_id: string
         }
         Update: {
+          business_date?: string | null
           actor_membership_id?: string | null
           amount?: number
           charge_transaction_id?: string
@@ -1916,6 +1928,7 @@ export type Database = {
       }
       folio_transactions: {
         Row: {
+          business_date: string | null
           amount: number
           category: string
           charge_snapshot: Json | null
@@ -1946,6 +1959,7 @@ export type Database = {
           unit_amount: number | null
         }
         Insert: {
+          business_date?: string | null
           amount: number
           category: string
           charge_snapshot?: Json | null
@@ -1976,6 +1990,7 @@ export type Database = {
           unit_amount?: number | null
         }
         Update: {
+          business_date?: string | null
           amount?: number
           category?: string
           charge_snapshot?: Json | null
@@ -2826,6 +2841,7 @@ export type Database = {
       }
       guest_deposit_invoice_allocations: {
         Row: {
+          business_date: string | null
           amount: number
           created_at: string
           created_by_membership_id: string | null
@@ -2840,6 +2856,7 @@ export type Database = {
           reverses_allocation_id: string | null
         }
         Insert: {
+          business_date?: string | null
           amount: number
           created_at?: string
           created_by_membership_id?: string | null
@@ -2854,6 +2871,7 @@ export type Database = {
           reverses_allocation_id?: string | null
         }
         Update: {
+          business_date?: string | null
           amount?: number
           created_at?: string
           created_by_membership_id?: string | null
@@ -3236,6 +3254,7 @@ export type Database = {
       }
       guest_folio_invoices: {
         Row: {
+          business_date: string | null
           coverage_scope: string
           folio_id: string
           id: string
@@ -3250,6 +3269,7 @@ export type Database = {
           snapshot: Json
         }
         Insert: {
+          business_date?: string | null
           coverage_scope?: string
           folio_id: string
           id?: string
@@ -3264,6 +3284,7 @@ export type Database = {
           snapshot: Json
         }
         Update: {
+          business_date?: string | null
           coverage_scope?: string
           folio_id?: string
           id?: string
@@ -3492,6 +3513,7 @@ export type Database = {
       }
       guest_payment_invoice_allocations: {
         Row: {
+          business_date: string | null
           amount: number
           created_at: string
           created_by_membership_id: string | null
@@ -3506,6 +3528,7 @@ export type Database = {
           reverses_allocation_id: string | null
         }
         Insert: {
+          business_date?: string | null
           amount: number
           created_at?: string
           created_by_membership_id?: string | null
@@ -3520,6 +3543,7 @@ export type Database = {
           reverses_allocation_id?: string | null
         }
         Update: {
+          business_date?: string | null
           amount?: number
           created_at?: string
           created_by_membership_id?: string | null
@@ -4285,6 +4309,7 @@ export type Database = {
       }
       hotel_cashier_shifts: {
         Row: {
+          business_date: string | null
           closed_at: string | null
           closing_count: number | null
           created_at: string
@@ -4297,6 +4322,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          business_date?: string | null
           closed_at?: string | null
           closing_count?: number | null
           created_at?: string
@@ -4309,6 +4335,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          business_date?: string | null
           closed_at?: string | null
           closing_count?: number | null
           created_at?: string
@@ -4658,6 +4685,7 @@ export type Database = {
       }
       hotel_drawer_movements: {
         Row: {
+          business_date: string | null
           actor_membership_id: string | null
           amount: number
           created_at: string
@@ -4669,6 +4697,7 @@ export type Database = {
           restaurant_id: string
         }
         Insert: {
+          business_date?: string | null
           actor_membership_id?: string | null
           amount: number
           created_at?: string
@@ -4680,6 +4709,7 @@ export type Database = {
           restaurant_id: string
         }
         Update: {
+          business_date?: string | null
           actor_membership_id?: string | null
           amount?: number
           created_at?: string
@@ -7836,6 +7866,7 @@ export type Database = {
       }
       invoice_credit_notes: {
         Row: {
+          business_date: string | null
           account_invoice_id: string | null
           created_at: string
           currency: string
@@ -7860,6 +7891,7 @@ export type Database = {
           total_delta: number
         }
         Insert: {
+          business_date?: string | null
           account_invoice_id?: string | null
           created_at?: string
           currency: string
@@ -7884,6 +7916,7 @@ export type Database = {
           total_delta: number
         }
         Update: {
+          business_date?: string | null
           account_invoice_id?: string | null
           created_at?: string
           currency?: string
@@ -18814,6 +18847,7 @@ export type Database = {
       }
       withholding_certificates: {
         Row: {
+          business_date: string | null
           amount: number
           certificate_date: string
           created_at: string
@@ -18831,6 +18865,7 @@ export type Database = {
           reverses_certificate_id: string | null
         }
         Insert: {
+          business_date?: string | null
           amount: number
           certificate_date: string
           created_at?: string
@@ -18848,6 +18883,7 @@ export type Database = {
           reverses_certificate_id?: string | null
         }
         Update: {
+          business_date?: string | null
           amount?: number
           certificate_date?: string
           created_at?: string
@@ -20921,6 +20957,14 @@ export type Database = {
       list_guest_folio_invoice_groups: {
         Args: { _folio_id: string; _restaurant_id: string }
         Returns: Json
+      }
+      current_property_business_date: {
+        Args: { _restaurant_id: string }
+        Returns: string
+      }
+      fiscal_source_business_date: {
+        Args: { _restaurant_id: string; _source_id: string; _source_type: string }
+        Returns: string
       }
       list_hotel_drawers: { Args: { _restaurant_id: string }; Returns: Json }
       list_invoice_credit_board: {

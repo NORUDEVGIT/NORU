@@ -59,7 +59,7 @@ import {
   getReservationFolio,
   type FolioDetail,
 } from "@/packages/pms/lib/cashiering.functions";
-import { issueGuestFolioInvoice } from "@/packages/pms/lib/cashiering-invoices.functions";
+import { issueGuestFolioChargeInvoice } from "@/packages/pms/lib/cashiering-invoices.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import { useRestaurantTime } from "@/core/state/property-format";
 
@@ -96,7 +96,7 @@ export function ReservationDetailFolioTab({
   const fetchRemainder = useServerFn(getReservationDepositRemainder);
   const fetchDepositPolicy = useServerFn(getDefaultDepositPolicy);
   const fetchCorrectionNotice = useServerFn(getCashieringCorrectionNotice);
-  const issueInvoice = useServerFn(issueGuestFolioInvoice);
+  const issueInvoice = useServerFn(issueGuestFolioChargeInvoice);
   const [issuingInvoice, setIssuingInvoice] = useState(false);
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
@@ -162,8 +162,12 @@ export function ReservationDetailFolioTab({
       refuseMissingFolio();
       return;
     }
-    if (issuedInvoice) {
-      toast.message(`Invoice ${issuedInvoice.issuedNumber} is already issued.`);
+    if (folio.legacyFolioInvoice) {
+      toast.message(
+        issuedInvoice
+          ? `Invoice ${issuedInvoice.issuedNumber} covers this whole folio. Another invoice cannot be issued.`
+          : "This folio already has a whole-folio invoice. Another invoice cannot be issued.",
+      );
       return;
     }
     setIssuingInvoice(true);
@@ -251,9 +255,9 @@ export function ReservationDetailFolioTab({
             dateTime={dateTime}
             canPostCharge={Boolean(open && cashierCanManage)}
             canPostPayment={Boolean(open && cashierCanOperate)}
-            canIssueInvoice={Boolean(folio && cashierCanManage && !issuedInvoice)}
+            canIssueInvoice={Boolean(folio && cashierCanManage && !folio.legacyFolioInvoice)}
             issuingInvoice={issuingInvoice}
-            issuedNumber={issuedInvoice?.issuedNumber ?? null}
+            issuedNumber={folio?.legacyFolioInvoice ? (issuedInvoice?.issuedNumber ?? null) : null}
             onCharge={() => startEntry("charge")}
             onPayment={() => startEntry("payment")}
             onInvoice={() => void createInvoice()}

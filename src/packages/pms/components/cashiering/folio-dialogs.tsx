@@ -20,6 +20,7 @@ import {
   User,
 } from "lucide-react";
 
+import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -1010,22 +1011,11 @@ export function TenderReceiptPrint({
   dateTime: (iso: string | null | undefined) => string;
 }) {
   return (
-    <>
-      <article
-        className="tender-receipt hidden bg-white p-6 text-sm text-foreground print:block"
-        data-testid="tender-receipt"
-      >
+    <CashieringPrintLayer active>
+      <article className="tender-receipt bg-white text-sm text-foreground" data-testid="tender-receipt">
         <TenderReceiptDocument receipt={receipt} money={money} dateTime={dateTime} />
       </article>
-      <style>{`
-        @media print {
-          @page { margin: 10mm; }
-          body * { visibility: hidden; }
-          .tender-receipt, .tender-receipt * { visibility: visible; }
-          .tender-receipt { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
-        }
-      `}</style>
-    </>
+    </CashieringPrintLayer>
   );
 }
 

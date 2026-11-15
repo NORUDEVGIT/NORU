@@ -1,22 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { ReportFilterBar } from "@/packages/pms/components/reports/report-filter-bar";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
 import {
   ReportTableHeaderCell,
   ReportTableShell,
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   exportFiscalRegistrationWorkbook,
   getFiscalRegistrationReport,
@@ -58,7 +52,7 @@ import {
   fiscalReportRequest,
   fiscalTotalsCaption,
 } from "@/packages/pms/lib/fiscal-registration-report-view";
-import { FileSpreadsheet, Search } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
   DEFAULT_REPORT_PAGE_SIZE,
@@ -70,9 +64,6 @@ import {
 } from "@/packages/pms/lib/reports-shell";
 import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
-
-const FIELD =
-  "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
 
 /**
  * Fiscal Registration Report screen. Rows come only from getFiscalRegistrationReport.
@@ -284,8 +275,6 @@ export function FiscalRegistrationReportScreen({
       restaurantId={restaurantId}
       definition={definition}
       phase={phase}
-      businessDate={businessDate}
-      timezone={timezone}
       page={page}
       pageSize={pageSize}
       totalRows={result?.total ?? 0}
@@ -303,139 +292,91 @@ export function FiscalRegistrationReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
-      kpis={
-        phase === "ready" && result ? (
-          <div className="report-print-hide flex flex-wrap gap-2" data-testid="fiscal-summary-kpis">
-            {result.totals.map((total) => (
-              <KpiStrip
-                key={total.currency}
-                total={total}
-                documentType={documentType}
-                multiCurrency={result.totals.length > 1}
-              />
-            ))}
-          </div>
-        ) : null
+      search={
+        <ReportToolbarSearch
+          value={search.query ?? ""}
+          placeholder="Fiscal doc no., party, IRN, RRN"
+          testId="fiscal-query"
+          onCommit={(next) => writeFilters({ query: next, resetPage: true })}
+        />
       }
       filters={
-        <ReportFilterBar
+        <PmsFilterMenu
+          activeCount={
+            (from !== businessDate ? 1 : 0) +
+            (to !== businessDate ? 1 : 0) +
+            (documentType !== "INV" ? 1 : 0) +
+            (mode !== "ALL" ? 1 : 0) +
+            (status !== "ALL" ? 1 : 0)
+          }
           onClear={() =>
             void navigate({
               to: "/restaurant/pms/reports",
               search: fiscalClearedSearch(businessDate),
             })
           }
+          buttonTestId="fiscal-filters-button"
+          menuTestId="fiscal-filters-menu"
         >
-          <Filter label="From">
-            <input
-              type="date"
-              className={FIELD}
-              data-testid="fiscal-from"
-              value={from}
-              onChange={(event) => writeFilters({ from: event.target.value, resetPage: true })}
-            />
-          </Filter>
-          <Filter label="To">
-            <input
-              type="date"
-              className={FIELD}
-              data-testid="fiscal-to"
-              value={to}
-              onChange={(event) => writeFilters({ to: event.target.value, resetPage: true })}
-            />
-          </Filter>
-          <Filter label="Document Type">
-            <Select
-              value={documentType}
-              onValueChange={(val) =>
-                writeFilters({
-                  documentType: fiscalReportDocumentType(val),
-                  resetPage: true,
-                })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="fiscal-document-type">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="INV" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Invoices
-                </SelectItem>
-                <SelectItem value="CRE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Credit Notes
-                </SelectItem>
-                <SelectItem value="DEB" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Debit Notes
-                </SelectItem>
-                <SelectItem value="SR" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Sales Receipts
-                </SelectItem>
-                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  All
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Filter>
-          <Filter label="Mode">
-            <Select
-              value={mode}
-              onValueChange={(val) =>
-                writeFilters({
-                  mode: fiscalReportMode(val),
-                  resetPage: true,
-                })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="fiscal-mode">
-                <SelectValue placeholder="Select mode" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  All
-                </SelectItem>
-                <SelectItem value="CASH" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Cash
-                </SelectItem>
-                <SelectItem value="CREDIT" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Credit
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Filter>
-          <Filter label="Status">
-            <Select
-              value={status}
-              onValueChange={(val) =>
-                writeFilters({
-                  status: fiscalReportStatus(val),
-                  resetPage: true,
-                })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="fiscal-status">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                {FISCAL_REPORT_STATUSES.map((token) => (
-                  <SelectItem
-                    key={token}
-                    value={token}
-                    className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5"
-                  >
-                    {token === "ALL" ? "All" : token.replaceAll("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Filter>
-          <DraftField
-            label="Search"
-            testId="fiscal-query"
-            placeholder="Fiscal doc no., party, IRN, RRN"
-            value={search.query ?? ""}
-            onCommit={(next) => writeFilters({ query: next, resetPage: true })}
+          <ReportFilterDate
+            label="From"
+            testId="fiscal-from"
+            value={from}
+            onChange={(next) => writeFilters({ from: next, resetPage: true })}
           />
-        </ReportFilterBar>
+          <ReportFilterDate
+            label="To"
+            testId="fiscal-to"
+            value={to}
+            onChange={(next) => writeFilters({ to: next, resetPage: true })}
+          />
+          <PmsFilterChoiceRow
+            label="Document Type"
+            value={documentType}
+            neutralValue="INV"
+            current={
+              documentType === "CRE"
+                ? "Credit Notes"
+                : documentType === "DEB"
+                  ? "Debit Notes"
+                  : documentType === "SR"
+                    ? "Sales Receipts"
+                    : documentType === "ALL"
+                      ? "All"
+                      : ""
+            }
+            options={[
+              ["INV", "Invoices"],
+              ["CRE", "Credit Notes"],
+              ["DEB", "Debit Notes"],
+              ["SR", "Sales Receipts"],
+              ["ALL", "All"],
+            ]}
+            onChange={(val) =>
+              writeFilters({ documentType: fiscalReportDocumentType(val), resetPage: true })
+            }
+          />
+          <PmsFilterChoiceRow
+            label="Mode"
+            value={mode}
+            current={mode === "CASH" ? "Cash" : mode === "CREDIT" ? "Credit" : ""}
+            options={[
+              ["ALL", "All"],
+              ["CASH", "Cash"],
+              ["CREDIT", "Credit"],
+            ]}
+            onChange={(val) => writeFilters({ mode: fiscalReportMode(val), resetPage: true })}
+          />
+          <PmsFilterChoiceRow
+            label="Status"
+            value={status}
+            current={status === "ALL" ? "" : status.replaceAll("_", " ")}
+            options={FISCAL_REPORT_STATUSES.map(
+              (token) => [token, token === "ALL" ? "All" : token.replaceAll("_", " ")] as const,
+            )}
+            onChange={(val) => writeFilters({ status: fiscalReportStatus(val), resetPage: true })}
+          />
+        </PmsFilterMenu>
       }
     >
       {phase === "ready" && result ? (
@@ -656,62 +597,6 @@ function FiscalPrintSheet({
   );
 }
 
-function KpiStrip({
-  total,
-  documentType,
-  multiCurrency,
-}: {
-  total: FiscalRegistrationReportResult["totals"][number];
-  documentType: FiscalReportDocumentTypeFilter;
-  multiCurrency: boolean;
-}) {
-  const currencyLabel = multiCurrency ? ` (${total.currency})` : "";
-  if (documentType === "CRE") {
-    return (
-      <>
-        <Summary label={`Credit Notes${currencyLabel}`} value={String(total.creditCount)} />
-        <Summary label={`Credit Amount${currencyLabel}`} value={fiscalMoney(total.creditTotal)} />
-      </>
-    );
-  }
-  if (documentType === "DEB") {
-    return (
-      <>
-        <Summary label={`Debit Notes${currencyLabel}`} value={String(total.debitCount)} />
-        <Summary label={`Debit Amount${currencyLabel}`} value={fiscalMoney(total.debitTotal)} />
-      </>
-    );
-  }
-  if (documentType === "SR") {
-    return (
-      <>
-        <Summary label={`Sales Receipts${currencyLabel}`} value={String(total.salesReceiptCount)} />
-        <Summary
-          label={`Sales Receipt Amount${currencyLabel}`}
-          value={fiscalMoney(total.salesReceiptTotal)}
-        />
-      </>
-    );
-  }
-  return (
-    <>
-      <Summary label={`Invoices${currencyLabel}`} value={String(total.invoiceCount)} />
-      <Summary label={`Invoice Total${currencyLabel}`} value={fiscalMoney(total.invoiceTotal)} />
-      <Summary label={`Credit${currencyLabel}`} value={fiscalMoney(total.creditTotal)} />
-      <Summary label={`Debit${currencyLabel}`} value={fiscalMoney(total.debitTotal)} />
-      <Summary
-        label={`Net Total${currencyLabel}`}
-        value={fiscalMoney(total.invoiceTotal + total.creditTotal + total.debitTotal)}
-      />
-      <Summary
-        label={`Sales Receipts${currencyLabel}`}
-        value={fiscalMoney(total.salesReceiptTotal)}
-      />
-      <Summary label={`Registered${currencyLabel}`} value={String(total.registeredCount)} />
-    </>
-  );
-}
-
 function SalesReceiptCell({
   mode,
   amount,
@@ -809,58 +694,4 @@ function downloadFiscalWorkbook(fileName: string, base64: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-2xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</p>
-      <p className="mt-1 font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
-    </div>
-  );
-}
-
-function Filter({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex w-44 min-w-36 flex-col gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function DraftField({
-  label,
-  testId,
-  placeholder,
-  value,
-  onCommit,
-}: {
-  label: string;
-  testId: string;
-  placeholder: string;
-  value: string;
-  onCommit: (value: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  useEffect(() => {
-    if (draft.trim() === value.trim()) return;
-    const timer = window.setTimeout(() => onCommit(draft.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [draft, onCommit, value]);
-  return (
-    <Filter label={label}>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#A89F91]" />
-        <input
-          className={cn(FIELD, "pl-8")}
-          data-testid={testId}
-          placeholder={placeholder}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-      </div>
-    </Filter>
-  );
 }

@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
-  FileSpreadsheet,
   FileText,
+  Menu,
   PackageCheck,
   Receipt,
   ShieldCheck,
@@ -12,22 +13,13 @@ import {
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import {
-  REPORTS_DESK_EYEBROW,
-  REPORTS_DESK_TITLE,
-  reportByCode,
-  type ReportGroupId,
-  type ReportId,
-  type ReportsView,
-} from "@/packages/pms/lib/reports-shell";
+  ReportsShellProvider,
+  type ReportsShellSlots,
+} from "@/packages/pms/components/reports/reports-shell-slots";
+import { type ReportGroupId, type ReportId, type ReportsView } from "@/packages/pms/lib/reports-shell";
 import { Button } from "@/shared/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-} from "@/shared/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import { cn } from "@/shared/lib/utils";
 
 export interface ReportOptionMeta {
   id: ReportId;
@@ -95,8 +87,6 @@ export function ReportsChrome({
   hasPrevious,
   returnLabel,
   onReturn,
-  onOpenCenter,
-  onOpenCategory,
   onSearch,
   children,
 }: {
@@ -112,12 +102,17 @@ export function ReportsChrome({
   onSearch?: (value: string) => void;
   children: ReactNode;
 }) {
+  const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
+  const [searchSlot, setSearchSlot] = useState<HTMLElement | null>(null);
+  const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
+  const [exportSlot, setExportSlot] = useState<HTMLElement | null>(null);
+  const slots = useMemo<ReportsShellSlots>(
+    () => ({ search: searchSlot, filter: filterSlot, export: exportSlot }),
+    [exportSlot, filterSlot, searchSlot],
+  );
   const activeCode: ReportId =
     currentReportId ??
     (view.kind === "analytics" || view.kind === "row" ? view.report : "police");
-  const openReportMeta = REPORT_OPTIONS_CATALOGUE.find((r) => r.id === activeCode);
-  const openReport = reportByCode(activeCode);
-  const CurrentIcon = openReportMeta?.icon ?? FileSpreadsheet;
 
   return (
     <RoomInventoryChrome
@@ -129,32 +124,26 @@ export function ReportsChrome({
       shellTestId="reports-command-shell"
       onRoomSearch={onSearch ?? (() => {})}
     >
-      <div className="min-w-0 bg-[#FAF8F4]" data-testid="reports-desk">
-        <header
-          className="border-b border-[#DDD4C5] bg-white shadow-2xs"
-          data-testid="reports-desk-header"
+      <ReportsShellProvider value={slots}>
+        <div
+          className="flex min-h-[calc(100vh-4rem)] flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4"
+          data-testid="reports-desk"
         >
-          <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8A6A24]">
-                  {openReportMeta?.group ?? REPORTS_DESK_EYEBROW}
-                </span>
-                {openReportMeta?.badge ? (
-                  <span className="rounded-full border border-[#E5D7B7] bg-[#FAF3E3] px-2 py-0.5 text-[10px] font-semibold text-[#8A6A24]">
-                    {openReportMeta.badge}
-                  </span>
-                ) : null}
-              </div>
-              <h1 className="mt-0.5 font-display text-2xl font-bold tracking-tight text-[#251605]">
-                {openReport?.name ?? openReportMeta?.name ?? REPORTS_DESK_TITLE}
-              </h1>
-              <p className="max-w-2xl text-xs text-[#7A7167]">
-                {openReport?.description ?? openReportMeta?.description ?? `Operational registers, statutory compliance documents, and service delivery handoff for ${membership.restaurant.name}.`}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
+          <section
+            ref={setToolbarSlot}
+            className="relative w-full min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm"
+            data-testid="reports-toolbar"
+          >
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5">
+            <div className="relative size-8 shrink-0" />
+            <ReportsBurger
+              active={activeCode}
+              toolbarSlot={toolbarSlot}
+              onSelect={(id) => onSelectReport?.(id)}
+            />
+            <div ref={setSearchSlot} className="min-w-0 flex-1 overflow-hidden" />
+            <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1.5">
+              <div ref={setFilterSlot} className="shrink-0 empty:hidden" />
               {hasPrevious && onReturn ? (
                 <Button
                   type="button"
@@ -162,82 +151,108 @@ export function ReportsChrome({
                   size="sm"
                   onClick={onReturn}
                   data-testid="reports-return-to-previous"
-                  className="h-10 gap-1.5 rounded-xl border-[#DDD4C5] bg-[#FAF8F4] px-3.5 text-xs font-semibold text-[#5C5346] shadow-xs hover:border-[#C89933] hover:bg-[#FAF3E3] transition-all"
+                  className="h-9 shrink-0 gap-1.5 border-[#DDD4C5] bg-white px-3 text-xs font-semibold text-[#5C5346] hover:bg-[#F7F4EE] hover:text-[#251605]"
                 >
                   <ArrowLeft className="size-3.5 text-[#8A6A24]" />
-                  <span>{returnLabel || "Return"}</span>
+                  {returnLabel || "Return"}
                 </Button>
               ) : null}
-
-              {/* Single Window Report Type Switcher Dropdown */}
-              <div className="flex items-center gap-2">
-                <Select
-                  value={activeCode}
-                  onValueChange={(val) => onSelectReport?.(val as ReportId)}
-                >
-                  <SelectTrigger
-                    className="h-10 min-w-[260px] sm:min-w-[320px] gap-2 rounded-xl border border-[#DDD4C5] bg-white px-3 text-xs font-semibold text-[#251605] shadow-xs hover:border-[#C89933] transition-all focus:ring-1 focus:ring-[#8A6A24]"
-                    data-testid="reports-type-select-trigger"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <CurrentIcon className="size-4 text-[#8A6A24] shrink-0" />
-                      <span className="truncate text-foreground font-semibold">
-                        {openReport?.name ?? openReportMeta?.name ?? "Select Report Type"}
-                      </span>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent
-                    className="z-50 max-h-[420px] w-[320px] sm:w-[400px] rounded-xl border border-[#DDD4C5] bg-white p-1.5 shadow-xl"
-                    data-testid="reports-type-select-content"
-                  >
-                    {REPORT_GROUPS_STRUCTURE.map((groupName) => {
-                      const itemsInGroup = REPORT_OPTIONS_CATALOGUE.filter((r) => r.group === groupName);
-                      if (itemsInGroup.length === 0) return null;
-
-                      return (
-                        <SelectGroup key={groupName}>
-                          <SelectLabel className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#8A6A24]">
-                            {groupName}
-                          </SelectLabel>
-                          {itemsInGroup.map((item) => {
-                            const ItemIcon = item.icon;
-                            return (
-                              <SelectItem
-                                key={item.id}
-                                value={item.id}
-                                className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-[#FAF6F0] focus:bg-[#FAF6F0]"
-                              >
-                                <div className="flex items-start gap-2.5 w-full">
-                                  <div className="mt-0.5 flex size-6 items-center justify-center rounded-md bg-[#FAF3E3] text-[#8A6A24] shrink-0">
-                                    <ItemIcon className="size-3.5" />
-                                  </div>
-                                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                                    <div className="flex items-center justify-between gap-1.5">
-                                      <span className="font-semibold text-[#251605] truncate">{item.name}</span>
-                                      {item.badge ? (
-                                        <span className="rounded-md border border-[#E5D7B7] bg-[#FAF3E3] px-1.5 py-0.2 text-[9px] font-semibold text-[#8A6A24] uppercase">
-                                          {item.badge}
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                    <span className="text-[11px] text-[#7A7167] line-clamp-1">{item.description}</span>
-                                  </div>
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectGroup>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div ref={setExportSlot} className="shrink-0 empty:hidden" />
             </div>
-          </div>
-        </header>
-
-        <main className="p-5 sm:p-6">{children}</main>
-      </div>
+            </div>
+          </section>
+          <main className="min-w-0">{children}</main>
+        </div>
+      </ReportsShellProvider>
     </RoomInventoryChrome>
   );
+}
+
+function ReportsBurger({
+  active,
+  toolbarSlot,
+  onSelect,
+}: {
+  active: ReportId;
+  toolbarSlot: HTMLElement | null;
+  onSelect: (id: ReportId) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = (
+    <div
+      className={cn(
+        "pointer-events-none z-30",
+        toolbarSlot ? "absolute left-1 top-1/2 -translate-y-1/2" : "absolute top-3 left-3",
+      )}
+    >
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="Report type"
+            title="Report type"
+            data-testid="reports-nav-trigger"
+            className={cn(
+              "pointer-events-auto inline-flex size-8 items-center justify-center rounded-md text-[#251605]",
+              "opacity-50 transition-opacity hover:bg-[#F3EEE4] hover:opacity-100",
+              "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+              "data-[state=open]:bg-[#F3EEE4] data-[state=open]:opacity-100",
+            )}
+          >
+            <Menu className="size-4" aria-hidden="true" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={8}
+          className="pointer-events-auto w-72 p-1.5"
+          data-testid="reports-type-menu"
+          aria-label="Report type"
+        >
+          <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Reports
+          </p>
+          <div className="flex flex-col gap-0.5">
+            {REPORT_GROUPS_STRUCTURE.map((groupName) => {
+              const items = REPORT_OPTIONS_CATALOGUE.filter((row) => row.group === groupName);
+              if (items.length === 0) return null;
+              return (
+                <div key={groupName} className="flex flex-col gap-0.5">
+                  <p className="px-2.5 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    {groupName}
+                  </p>
+                  {items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = item.id === active;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        data-testid={`reports-nav-${item.id}`}
+                        onClick={() => {
+                          setOpen(false);
+                          onSelect(item.id);
+                        }}
+                        aria-current={isActive ? "page" : undefined}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
+                          isActive
+                            ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                            : "text-foreground hover:bg-[#F7F4EE]",
+                        )}
+                      >
+                        <Icon className="size-4 shrink-0 text-[#8A6A24]" aria-hidden="true" />
+                        <span className="flex-1">{item.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+  return toolbarSlot ? createPortal(trigger, toolbarSlot) : trigger;
 }

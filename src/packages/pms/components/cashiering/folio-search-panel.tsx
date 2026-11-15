@@ -24,10 +24,11 @@ import {
   UserRound,
   UsersRound,
   Wallet,
-  X,
 } from "lucide-react";
 
 import { FolioActionMenu } from "@/packages/pms/components/cashiering/folio-action-menu";
+import { FolioReservationQuickView } from "@/packages/pms/components/cashiering/folio-reservation-quick-view";
+import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
 import type { FolioPermissionGrants } from "@/packages/pms/lib/folio-workspace";
 import {
   FolioSearchFolioStatusBadge,
@@ -100,7 +101,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
-import { Sheet, SheetContent } from "@/shared/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
@@ -404,6 +405,8 @@ export function FolioSearchPanel({
   const [debouncedSearch, setDebouncedSearch] = useState(barFilters.search);
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.folio ?? null);
   const [selectedGuestRow, setSelectedGuestRow] = useState<GuestFolioSearchRow | null>(null);
+  const [guestPreviewId, setGuestPreviewId] = useState<string | null>(null);
+  const [reservationQuickId, setReservationQuickId] = useState<string | null>(null);
   const page = searchParams.page ?? 1;
   const pageSize = searchParams.pageSize ?? FOLIO_SEARCH_DEFAULT_PAGE_SIZE;
   const sortId = (searchParams.sort as FolioSearchSortId) ?? "arrival_date_desc";
@@ -568,6 +571,8 @@ export function FolioSearchPanel({
   function closeDrawer() {
     setSelectedId(null);
     setSelectedGuestRow(null);
+    setGuestPreviewId(null);
+    setReservationQuickId(null);
     patchSearchParams({ folio: undefined });
   }
 
@@ -804,7 +809,7 @@ export function FolioSearchPanel({
       <Sheet open={Boolean(selectedId)} onOpenChange={(open) => !open && closeDrawer()}>
         <SheetContent
           side="right"
-          className="w-full overflow-y-auto border-l border-[#E8E1D7] bg-background p-0 sm:max-w-[440px]"
+          className="flex h-dvh w-full flex-col gap-0 overflow-hidden border-l border-[#3A2A16] bg-background p-0 sm:max-w-xl [&>button]:text-[#F6EFE4] [&>button]:hover:text-white"
           data-testid="folio-details-drawer"
         >
           <FolioDetailsDrawer
@@ -819,9 +824,26 @@ export function FolioSearchPanel({
             canManage={canManage}
             grants={grants}
             onClose={closeDrawer}
+            onViewGuest={setGuestPreviewId}
+            onViewReservation={setReservationQuickId}
           />
         </SheetContent>
       </Sheet>
+
+      <GuestQuickViewDrawer
+        restaurantId={restaurantId}
+        previewId={guestPreviewId}
+        onClose={() => setGuestPreviewId(null)}
+      />
+      {reservationQuickId && detailQuery.data?.reservationId === reservationQuickId ? (
+        <FolioReservationQuickView
+          restaurantId={restaurantId}
+          reservationId={reservationQuickId}
+          folio={detailQuery.data}
+          businessDate=""
+          onClose={() => setReservationQuickId(null)}
+        />
+      ) : null}
 
       <FolioSearchMoreFiltersSheet
         restaurantId={restaurantId}
@@ -1416,6 +1438,8 @@ function FolioDetailsDrawer({
   canManage,
   grants = null,
   onClose,
+  onViewGuest,
+  onViewReservation,
 }: {
   row: GuestFolioSearchRow | null;
   detail: FolioDetail | null;
@@ -1428,25 +1452,38 @@ function FolioDetailsDrawer({
   canManage: boolean;
   grants?: Partial<FolioPermissionGrants> | null;
   onClose: () => void;
+  onViewGuest?: (guestId: string) => void;
+  onViewReservation?: (reservationId: string) => void;
 }) {
   const folio = detail ?? row;
   if ((loading || !folio) && selectedId) {
     return (
-      <div className="space-y-4 p-5">
-        <Skeleton className="h-5 w-32" />
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-24 w-full" />
+      <div className="flex h-full flex-col">
+        <SheetHeader className="shrink-0 space-y-2 border-b border-[#3A2A16] bg-[#1A1208] px-5 py-4 pr-14 text-left">
+          <SheetTitle className="font-display text-base font-semibold text-[#F6EFE4]">Folio details</SheetTitle>
+          <SheetDescription className="text-[#CDBCA6]">Loading folio…</SheetDescription>
+        </SheetHeader>
+        <div className="space-y-4 p-5">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     );
   }
   if (error && !folio) {
     return (
-      <div className="space-y-3 p-5 text-sm">
-        <p className="text-destructive">Could not load folio details.</p>
-        <p className="text-muted-foreground">{error}</p>
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>
-          Close
-        </Button>
+      <div className="flex h-full flex-col">
+        <SheetHeader className="shrink-0 space-y-2 border-b border-[#3A2A16] bg-[#1A1208] px-5 py-4 pr-14 text-left">
+          <SheetTitle className="font-display text-base font-semibold text-[#F6EFE4]">Folio details</SheetTitle>
+          <SheetDescription className="text-[#CDBCA6]">Could not load this folio.</SheetDescription>
+        </SheetHeader>
+        <div className="space-y-3 p-5 text-sm">
+          <p className="text-destructive">Could not load folio details.</p>
+          <p className="text-muted-foreground">{error}</p>
+          <Button type="button" variant="outline" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        </div>
       </div>
     );
   }
@@ -1469,8 +1506,10 @@ function FolioDetailsDrawer({
     : 0;
 
   const guestId = detail?.guestId;
+  const reservationId = detail?.reservationId ?? row?.reservationId ?? null;
   const guestPhone = detail?.guestPhone ?? row?.guestPhone ?? "—";
   const guestEmail = detail?.guestEmail ?? row?.guestEmail ?? "—";
+  const guestNationality = detail?.guestNationality?.trim() || "—";
   const ratePlanName = detail?.ratePlanName ?? row?.ratePlanName ?? "—";
   const recentActivity = detail
     ? [...detail.transactions]
@@ -1479,47 +1518,47 @@ function FolioDetailsDrawer({
     : [];
 
   return (
-    <div className="flex min-h-full flex-col bg-background" data-testid="folio-quick-view">
-      <div className="border-b border-[#E8E1D7] bg-card px-4 py-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <FileText className="size-4 shrink-0 text-[#C89933]" aria-hidden />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Folio Details
-            </p>
+    <div className="flex h-full min-h-0 flex-col bg-background" data-testid="folio-quick-view">
+      <SheetHeader className="shrink-0 space-y-2 border-b border-[#3A2A16] bg-[#1A1208] px-5 py-4 pr-14 text-left">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SheetTitle className="font-display text-base font-semibold text-[#F6EFE4]">
+              {folio.folioNumber}
+            </SheetTitle>
+            <SheetDescription className="truncate text-[#CDBCA6]">{folio.guestName}</SheetDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            {folio.id ? (
-              <FolioActionMenu
-                folio={{ id: folio.id, folioNumber: folio.folioNumber, status: folio.status }}
-                canOperate={canOperate}
-                canManage={canManage}
-                grants={grants}
-              />
-            ) : null}
-            <Button type="button" variant="ghost" size="icon" className="size-8" onClick={onClose}>
-              <X className="size-4" />
-            </Button>
-          </div>
+          {folio.id ? (
+            <FolioActionMenu
+              folio={{ id: folio.id, folioNumber: folio.folioNumber, status: folio.status }}
+              canOperate={canOperate}
+              canManage={canManage}
+              grants={grants}
+              triggerClassName="text-[#F6EFE4] hover:bg-white/10 hover:text-white"
+            />
+          ) : null}
         </div>
-
-        <h2 className="mt-3 font-display text-xl font-semibold leading-tight">{folio.folioNumber}</h2>
-        <p className="mt-0.5 truncate text-sm font-medium">{folio.guestName}</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <FolioSearchFolioStatusBadge status={folio.status} />
           <FolioSearchStayStatusBadge status={folio.reservationStatus} />
         </div>
-        <Button asChild variant="outline" size="sm" className="mt-3 h-8 w-full gap-1">
-          <Link
-            to="/restaurant/pms/cashiering/folios/$folioId"
-            params={{ folioId: folio.id }}
-            data-testid="folio-open-page"
+        {folio.id ? (
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-8 w-full gap-1 border-[#C89933]/40 bg-transparent text-[#F6EFE4] hover:bg-white/10 hover:text-white"
           >
-            Open in Workspace
-            <ArrowRight className="size-3.5" />
-          </Link>
-        </Button>
-      </div>
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: folio.id }}
+              data-testid="folio-open-page"
+            >
+              Open Folio
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </Button>
+        ) : null}
+      </SheetHeader>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         <DrawerCard title="Guest">
@@ -1535,20 +1574,24 @@ function FolioDetailsDrawer({
                 <p className="text-[11px] text-muted-foreground">Guest Profile</p>
               </div>
             </div>
-            {guestId ? (
-              <Button asChild variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs">
-                <Link to="/restaurant/pms/guests/$guestId" params={{ guestId }}>
-                  View Profile
-                  <ArrowRight className="ml-1 size-3" />
-                </Link>
-              </Button>
-            ) : null}
           </div>
           <div className="mt-3 space-y-2 text-sm">
             <DrawerContactRow icon={Phone} value={guestPhone} />
             <DrawerContactRow icon={Mail} value={guestEmail} />
-            <DrawerContactRow icon={Globe} value="—" muted />
+            <DrawerContactRow icon={Globe} value={guestNationality} muted={guestNationality === "—"} />
           </div>
+          {guestId && onViewGuest ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
+              onClick={() => onViewGuest(guestId)}
+              data-testid="folio-list-view-guest"
+            >
+              View Guest Profile <ArrowRight className="size-3.5" />
+            </Button>
+          ) : null}
         </DrawerCard>
 
         <DrawerCard title="Stay">
@@ -1579,6 +1622,18 @@ function FolioDetailsDrawer({
                   ? ` · ${detail?.bookingSource ?? row?.bookingSource}`
                   : ""}
               </p>
+            ) : null}
+            {reservationId && onViewReservation ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
+                onClick={() => onViewReservation(reservationId)}
+                data-testid="folio-list-view-reservation"
+              >
+                View Reservation <ArrowRight className="size-3.5" />
+              </Button>
             ) : null}
           </div>
         </DrawerCard>
@@ -1641,12 +1696,6 @@ function FolioDetailsDrawer({
                 );
               })}
             </ul>
-            <Button asChild variant="ghost" size="sm" className="mt-3 h-8 w-full text-xs">
-              <Link to="/restaurant/pms/cashiering/folios/$folioId" params={{ folioId: folio.id }}>
-                View all transactions
-                <ArrowRight className="ml-1 size-3" />
-              </Link>
-            </Button>
           </DrawerCard>
         ) : null}
       </div>

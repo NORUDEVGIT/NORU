@@ -285,13 +285,6 @@ const HOUSEKEEPING_NAV: NavEntry[] = [
 const CASHIERING_NAV: NavEntry[] = [
   {
     to: "/restaurant/pms/cashiering",
-    tab: "overview",
-    label: "Overview",
-    icon: LayoutDashboard,
-    roles: CASH,
-  },
-  {
-    to: "/restaurant/pms/cashiering",
     tab: "folios",
     label: "Folios",
     icon: ReceiptText,

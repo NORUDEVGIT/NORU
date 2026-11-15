@@ -1,22 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { ReportFilterBar } from "@/packages/pms/components/reports/report-filter-bar";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
 import {
   ReportTableHeaderCell,
   ReportTableShell,
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
 import {
   exportCashierInvoiceWorkbook,
   getCashierInvoiceReport,
@@ -60,7 +54,7 @@ import {
   isCashierDetailRow,
   isCashierSummaryRow,
 } from "@/packages/pms/lib/cashier-invoice-report-view";
-import { Receipt, Search } from "lucide-react";
+import { Receipt } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
   DEFAULT_REPORT_PAGE_SIZE,
@@ -70,9 +64,6 @@ import {
   type ReportPageSize,
   type ReportsRouteSearch,
 } from "@/packages/pms/lib/reports-shell";
-
-const FIELD =
-  "h-9 w-full rounded-lg border border-[#DDD4C5] bg-white px-3 text-xs text-[#251605] placeholder:text-[#A89F91] focus:border-[#C89933] focus:ring-1 focus:ring-[#C89933] focus:outline-hidden transition-all shadow-2xs";
 
 /**
  * Cashier Invoice Report screen. Rows come only from getCashierInvoiceReport.
@@ -277,8 +268,6 @@ export function CashierInvoiceReportScreen({
       restaurantId={restaurantId}
       definition={definition}
       phase={phase}
-      businessDate={businessDate}
-      timezone={timezone}
       page={page}
       pageSize={pageSize}
       totalRows={result?.total ?? 0}
@@ -292,139 +281,94 @@ export function CashierInvoiceReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
-      kpis={
-        phase === "ready" && result ? (
-          <div
-            className="report-print-hide flex flex-wrap gap-2"
-            data-testid="cashier-summary-kpis"
-          >
-            {result.totals.map((total) => (
-              <KpiStrip
-                key={total.currency}
-                total={total}
-                documentType={documentType}
-                multiCurrency={result.totals.length > 1}
-              />
-            ))}
-          </div>
-        ) : null
+      search={
+        <ReportToolbarSearch
+          value={search.query ?? ""}
+          placeholder="Document no. or party"
+          testId="cashier-query"
+          onCommit={(next) => writeFilters({ query: next, resetPage: true })}
+        />
       }
       filters={
-        <ReportFilterBar
+        <PmsFilterMenu
+          activeCount={
+            (from !== businessDate ? 1 : 0) +
+            (to !== businessDate ? 1 : 0) +
+            (documentType !== "INV" ? 1 : 0) +
+            (grain !== "summary" ? 1 : 0) +
+            (search.issuer ? 1 : 0)
+          }
           onClear={() =>
             void navigate({
               to: "/restaurant/pms/reports",
               search: cashierClearedSearch(businessDate),
             })
           }
+          buttonTestId="cashier-filters-button"
+          menuTestId="cashier-filters-menu"
         >
-          <Filter label="From">
-            <input
-              type="date"
-              className={FIELD}
-              data-testid="cashier-from"
-              value={from}
-              onChange={(event) => writeFilters({ from: event.target.value, resetPage: true })}
-            />
-          </Filter>
-          <Filter label="To">
-            <input
-              type="date"
-              className={FIELD}
-              data-testid="cashier-to"
-              value={to}
-              onChange={(event) => writeFilters({ to: event.target.value, resetPage: true })}
-            />
-          </Filter>
-          <Filter label="Document Type">
-            <Select
-              value={documentType}
-              onValueChange={(val) =>
-                writeFilters({
-                  documentType: cashierDocumentType(val),
-                  resetPage: true,
-                })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="cashier-document-type">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="INV" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Invoices
-                </SelectItem>
-                <SelectItem value="CRE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Credit Notes
-                </SelectItem>
-                <SelectItem value="DEB" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Debit Notes
-                </SelectItem>
-                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  All
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Filter>
-          <Filter label="View">
-            <Select
-              value={grain}
-              onValueChange={(val) =>
-                writeFilters({
-                  grain: cashierReportGrain(val),
-                  resetPage: true,
-                })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="cashier-grain">
-                <SelectValue placeholder="Select view" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="summary" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Summary
-                </SelectItem>
-                <SelectItem value="detail" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Detail
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Filter>
-          <Filter label="Issued By">
-            <Select
-              value={search.issuer || "__all__"}
-              onValueChange={(val) =>
-                writeFilters({
-                  issuer: val === "__all__" ? "" : val,
-                  resetPage: true,
-                })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="cashier-issuer">
-                <SelectValue placeholder="All issuers" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="__all__" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  All issuers
-                </SelectItem>
-                {issuers.map((issuer) => (
-                  <SelectItem
-                    key={issuer.id}
-                    value={issuer.id}
-                    className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5"
-                  >
-                    {issuer.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Filter>
-          <DraftField
-            label="Search"
-            testId="cashier-query"
-            placeholder="Document no. or party"
-            value={search.query ?? ""}
-            onCommit={(next) => writeFilters({ query: next, resetPage: true })}
+          <ReportFilterDate
+            label="From"
+            testId="cashier-from"
+            value={from}
+            onChange={(next) => writeFilters({ from: next, resetPage: true })}
           />
-        </ReportFilterBar>
+          <ReportFilterDate
+            label="To"
+            testId="cashier-to"
+            value={to}
+            onChange={(next) => writeFilters({ to: next, resetPage: true })}
+          />
+          <PmsFilterChoiceRow
+            label="Document Type"
+            value={documentType}
+            neutralValue="INV"
+            current={
+              documentType === "CRE"
+                ? "Credit Notes"
+                : documentType === "DEB"
+                  ? "Debit Notes"
+                  : documentType === "ALL"
+                    ? "All"
+                    : ""
+            }
+            options={[
+              ["INV", "Invoices"],
+              ["CRE", "Credit Notes"],
+              ["DEB", "Debit Notes"],
+              ["ALL", "All"],
+            ]}
+            onChange={(val) =>
+              writeFilters({ documentType: cashierDocumentType(val), resetPage: true })
+            }
+          />
+          <PmsFilterChoiceRow
+            label="View"
+            value={grain}
+            neutralValue="summary"
+            current={grain === "detail" ? "Detail" : ""}
+            options={[
+              ["summary", "Summary"],
+              ["detail", "Detail"],
+            ]}
+            onChange={(val) => writeFilters({ grain: cashierReportGrain(val), resetPage: true })}
+          />
+          <PmsFilterChoiceRow
+            label="Issued By"
+            value={search.issuer || "all"}
+            current={issuers.find((issuer) => issuer.id === search.issuer)?.name ?? ""}
+            options={[
+              ["all", "All issuers"],
+              ...issuers.map((issuer) => [issuer.id, issuer.name] as const),
+              ...(search.issuer && !issuers.some((issuer) => issuer.id === search.issuer)
+                ? [[search.issuer, search.issuer] as const]
+                : []),
+            ]}
+            onChange={(val) =>
+              writeFilters({ issuer: val === "all" ? "" : val, resetPage: true })
+            }
+          />
+        </PmsFilterMenu>
       }
     >
       {phase === "ready" && result ? (
@@ -775,60 +719,6 @@ function CashierPrintSheet({
   );
 }
 
-function KpiStrip({
-  total,
-  documentType,
-  multiCurrency,
-}: {
-  total: CashierInvoiceReportResult["totals"][number];
-  documentType: CashierDocumentTypeFilter;
-  multiCurrency: boolean;
-}) {
-  const currencyLabel = multiCurrency ? ` (${total.currency})` : "";
-  if (documentType === "CRE") {
-    return (
-      <>
-        <Summary label={`Credit Notes${currencyLabel}`} value={String(total.creditCount)} />
-        <Summary label={`Credit Amount${currencyLabel}`} value={cashierMoney(total.creditTotal)} />
-      </>
-    );
-  }
-  if (documentType === "DEB") {
-    return (
-      <>
-        <Summary label={`Debit Notes${currencyLabel}`} value={String(total.debitCount)} />
-        <Summary label={`Debit Amount${currencyLabel}`} value={cashierMoney(total.debitTotal)} />
-      </>
-    );
-  }
-  if (documentType === "ALL") {
-    return (
-      <>
-        <Summary label={`Invoice Total${currencyLabel}`} value={cashierMoney(total.invoiceTotal)} />
-        <Summary label={`Credit Notes${currencyLabel}`} value={cashierMoney(total.creditTotal)} />
-        <Summary label={`Debit Notes${currencyLabel}`} value={cashierMoney(total.debitTotal)} />
-        <Summary
-          label={`Net Documents${currencyLabel}`}
-          value={cashierMoney(total.invoiceTotal + total.creditTotal + total.debitTotal)}
-        />
-      </>
-    );
-  }
-  return (
-    <>
-      <Summary label={`Documents${currencyLabel}`} value={String(total.documentCount)} />
-      <Summary label={`Subtotal${currencyLabel}`} value={cashierMoney(total.subtotal)} />
-      <Summary label={`Tax${currencyLabel}`} value={cashierMoney(total.tax)} />
-      <Summary label={`Service Charge${currencyLabel}`} value={cashierMoney(total.serviceCharge)} />
-      <Summary label={`Grand Total${currencyLabel}`} value={cashierMoney(total.grandTotal)} />
-      <Summary
-        label={`Net Total${currencyLabel}`}
-        value={cashierMoney(total.invoiceTotal + total.creditTotal + total.debitTotal)}
-      />
-    </>
-  );
-}
-
 function NoteAmount({
   amount,
   fiscal,
@@ -901,58 +791,4 @@ function downloadCashierWorkbook(fileName: string, base64: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-2xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</p>
-      <p className="mt-1 font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
-    </div>
-  );
-}
-
-function Filter({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex w-44 min-w-36 flex-col gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function DraftField({
-  label,
-  testId,
-  placeholder,
-  value,
-  onCommit,
-}: {
-  label: string;
-  testId: string;
-  placeholder: string;
-  value: string;
-  onCommit: (value: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  useEffect(() => {
-    if (draft.trim() === value.trim()) return;
-    const timer = window.setTimeout(() => onCommit(draft.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [draft, onCommit, value]);
-  return (
-    <Filter label={label}>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#A89F91]" />
-        <input
-          className={cn(FIELD, "pl-8")}
-          data-testid={testId}
-          placeholder={placeholder}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-      </div>
-    </Filter>
-  );
 }

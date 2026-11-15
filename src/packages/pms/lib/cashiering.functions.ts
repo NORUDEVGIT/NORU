@@ -22,7 +22,6 @@ import {
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { propertyDayBounds } from "./cashiering-control";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
@@ -170,7 +169,7 @@ export interface CashieringDashboard {
   transfersSupported: boolean;
   openShifts: number;
   myOpenShiftId: string | null;
-  /** Canonical hotel business date. Activity is the property-timezone day of this date, not UTC midnight. */
+  /** Canonical hotel business date. Activity is every row stamped with this business_date. */
   businessDate: string;
 }
 
@@ -1275,9 +1274,8 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       property?.business_date ? property.business_date.slice(0, 10) : null,
       timezone,
     );
-    // Client `today` is not the hotel day. Rows have no business_date column, so
-    // this window is property-local midnight to the next property-local midnight.
-    const bounds = propertyDayBounds(businessDate, timezone);
+    // Client `today` is not the hotel day. "Today" totals use the business_date
+    // stamped on each row (0208), never a clock window.
 
     const { data: folios } = await supabaseAdmin
       .from("guest_folios")
@@ -1306,8 +1304,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       .from("folio_transactions")
       .select("transaction_type, amount")
       .eq("restaurant_id", data.restaurantId)
-      .gte("posted_at", bounds.startIso)
-      .lt("posted_at", bounds.endIso);
+      .eq("business_date", businessDate);
 
     let todayPayments = 0;
     let todayCharges = 0;

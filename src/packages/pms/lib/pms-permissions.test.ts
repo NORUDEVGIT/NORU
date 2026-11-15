@@ -179,9 +179,9 @@ function seedGrant(
 }
 
 describe("PMS RBAC Phase 1 catalogue", () => {
-  it("locks 98 distinct typed permission codes with parent View and risk metadata", () => {
-    assert.equal(PMS_PERMISSION_CODES.length, 98);
-    assert.equal(new Set(PMS_PERMISSION_CODES).size, 98);
+  it("locks 102 distinct typed permission codes with parent View and risk metadata", () => {
+    assert.equal(PMS_PERMISSION_CODES.length, 102);
+    assert.equal(new Set(PMS_PERMISSION_CODES).size, 102);
     for (const code of PMS_PERMISSION_CODES) {
       assert.equal(PMS_PERMISSION_PARENT_VIEW[code], parentViewPermission(code));
       assert.ok(["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(PMS_PERMISSION_RISK[code]));
@@ -195,6 +195,8 @@ describe("PMS RBAC Phase 1 catalogue", () => {
       PMS_PERMISSIONS.NIGHT_AUDIT_CLOSE_DATE,
       PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_AUTHORIZE,
       PMS_PERMISSIONS.NIGHT_AUDIT_RECOVER_DATE,
+      PMS_PERMISSIONS.NIGHT_AUDIT_WINDOW_OVERRIDE,
+      PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_OVERRIDE_PERSISTENT,
       PMS_PERMISSIONS.CONFIG_PROPERTY_ACTIVATE,
       PMS_PERMISSIONS.ROLES_CREATE,
       PMS_PERMISSIONS.ROLES_ASSIGN_PERMISSIONS,

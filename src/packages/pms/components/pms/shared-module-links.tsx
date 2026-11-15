@@ -46,7 +46,7 @@ const SHARED: Partial<Record<ModuleKey, SharedTarget>> = {
   accounting_finance: {
     icon: Wallet,
     to: "/restaurant/pms/cashiering",
-    search: { tab: "overview" },
+    search: { tab: "folios" },
     note: "Property-wide finance follow-up across hotel, restaurant and purchasing.",
   },
   reports_analytics: {

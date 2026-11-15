@@ -211,7 +211,7 @@ export function FinancialAccountWorkspacePage({
       active="accounts"
       onNavigate={goDesk}
       onSearch={() => goDesk("folios")}
-      onPostPayment={() => goDesk("overview")}
+      onPostPayment={() => goDesk("folios")}
       returnTo={returnTo}
       returnToLabel={returnToLabel}
     >
