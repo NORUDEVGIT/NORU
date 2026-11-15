@@ -85,8 +85,15 @@ export const Route = createFileRoute("/restaurant/pms/cashiering")({
 
 function CashieringPmsRoute() {
   const search = Route.useSearch();
+  // `location` updates as soon as a click starts. `resolvedLocation` stays on the
+  // folio until the next module has finished loading. Using the pending path
+  // mounts the cashiering desk mid-navigation, and a folio tab such as
+  // "payments" is then rewritten to Financial Activity.
   const isChildWorkspace = useRouterState({
-    select: (state) => /\/cashiering\/(?:folios|accounts)\/[^/]+/.test(state.location.pathname),
+    select: (state) => {
+      const pathname = state.resolvedLocation?.pathname ?? state.location.pathname;
+      return /\/cashiering\/(?:folios|accounts)\/[^/]+/.test(pathname);
+    },
   });
   // Folio and financial-account pages are child routes and render their own shells.
   if (isChildWorkspace) return <Outlet />;

@@ -52,7 +52,6 @@ import {
   labelTransactionType,
 } from "@/packages/pms/components/cashiering/folio-bits";
 import {
-  listCashierShifts,
   listFolioTenderHistory,
   postFolioEntry,
   type FolioTransactionRow,
@@ -92,10 +91,12 @@ import {
   type FolioChargeGroup,
   type FolioDepositLine,
   type FolioFinancialSummary,
-  type FolioWorkspaceTabId,
   type TenderTypeFilter,
 } from "@/packages/pms/lib/folio-workspace";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { ReportFilterDate } from "@/packages/pms/components/reports/report-filter-bar";
+import { CashieringToolbarSearch } from "@/packages/pms/components/cashiering/cashiering-shell-slots";
 import { useMoney } from "@/core/state/property-format";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { Button } from "@/shared/components/ui/button";
@@ -765,7 +766,6 @@ export function ChargesTab({
   onPostCharge,
   onPostAdjustment,
   onTransferCharge,
-  onGoTab,
   highlightLineId,
 }: {
   workspace: FolioWorkspace;
@@ -776,7 +776,6 @@ export function ChargesTab({
   onPostCharge: () => void;
   onPostAdjustment: () => void;
   onTransferCharge: () => void;
-  onGoTab: (tab: FolioWorkspaceTabId) => void;
   highlightLineId?: string | null;
 }) {
   const caps = workspace.capabilities;
@@ -939,48 +938,6 @@ export function ChargesTab({
           </TableScroll>
         )}
       </SectionCard>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard
-          title="Recent Payments"
-          action={
-            <button type="button" className={LINK_ACTION} onClick={() => onGoTab("payments")}>
-              View all <ArrowRight className="size-3" />
-            </button>
-          }
-        >
-          {workspace.recentPayments.length === 0 ? (
-            <EmptyCompact icon={CreditCard} title="No payments received yet." />
-          ) : (
-            <ul className="divide-y divide-[#E8E1D7]/80">
-              {workspace.recentPayments.map((row) => (
-                <li key={row.id} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-700">
-                    <CreditCard className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{methodLabel(row.paymentMethod)}</p>
-                    <p className="text-[11px] text-muted-foreground">{dateTime(row.postedAt)}</p>
-                  </div>
-                  <span className="text-sm font-semibold tabular-nums">
-                    {money(Math.abs(row.amount))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-        <SectionCard
-          title="Deposit Summary"
-          action={
-            <button type="button" className={LINK_ACTION} onClick={() => onGoTab("payments")}>
-              Manage <ArrowRight className="size-3" />
-            </button>
-          }
-        >
-          <DepositTotals summary={workspace.depositSummary} money={money} />
-        </SectionCard>
-      </div>
     </div>
   );
 }
@@ -1154,57 +1111,53 @@ export function PaymentsDepositsTab({
   return (
     <div className="space-y-4" data-testid="payments-deposits">
       <section className={cn(CARD, "overflow-hidden")}>
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#E8E1D7] px-4 py-3">
-          <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2">
-            <div className="min-w-[180px] flex-1">
-              <Label htmlFor="tender-search" className="text-[11px] text-muted-foreground">
-                Search
-              </Label>
-              <Input
-                id="tender-search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Notes, method, or posted by"
-                className="h-8"
-              />
-            </div>
-            <div className="w-[140px]">
-              <Label className="text-[11px] text-muted-foreground">Type</Label>
-              <Select value={type} onValueChange={(value) => setType(value as TenderTypeFilter)}>
-                <SelectTrigger className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  <SelectItem value="payment">Payment</SelectItem>
-                  <SelectItem value="deposit">Deposit</SelectItem>
-                  <SelectItem value="refund">Refund</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="tender-from" className="text-[11px] text-muted-foreground">
-                From
-              </Label>
-              <Input
-                id="tender-from"
-                type="date"
-                value={from}
-                onChange={(event) => setFrom(event.target.value)}
-                className="h-8 w-[148px]"
-              />
-            </div>
-            <div>
-              <Label htmlFor="tender-to" className="text-[11px] text-muted-foreground">
-                To
-              </Label>
-              <Input
-                id="tender-to"
-                type="date"
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-                className="h-8 w-[148px]"
-              />
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] px-4 py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <CashieringToolbarSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Notes, method, or posted by"
+              testId="tender-search"
+            />
+            <div className="shrink-0">
+              <PmsFilterMenu
+                activeCount={(type !== "all" ? 1 : 0) + (from ? 1 : 0) + (to ? 1 : 0)}
+                onClear={() => {
+                  setType("all");
+                  setFrom("");
+                  setTo("");
+                }}
+                buttonTestId="tender-filters-button"
+                menuTestId="tender-filters-menu"
+              >
+                <PmsFilterChoiceRow
+                  label="Type"
+                  value={type}
+                  current={
+                    type === "all"
+                      ? ""
+                      : type === "payment"
+                        ? "Payments"
+                        : type === "deposit"
+                          ? "Deposits"
+                          : "Refunds"
+                  }
+                  options={[
+                    ["all", "All types"],
+                    ["payment", "Payments"],
+                    ["deposit", "Deposits"],
+                    ["refund", "Refunds"],
+                  ]}
+                  onChange={(value) => setType(value as TenderTypeFilter)}
+                />
+                <ReportFilterDate
+                  label="From"
+                  testId="tender-from"
+                  value={from}
+                  onChange={setFrom}
+                />
+                <ReportFilterDate label="To" testId="tender-to" value={to} onChange={setTo} />
+              </PmsFilterMenu>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1617,12 +1570,6 @@ export function SettlementTab({
   const currency = folio.currency?.trim() || "ETB";
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [invoiceFilter, setInvoiceFilter] = useState<"all" | "unsettled">("all");
-  const fetchShifts = useServerFn(listCashierShifts);
-  const shifts = useQuery({
-    queryKey: ["settlement-cashier-shifts", restaurantId],
-    queryFn: () => fetchShifts({ data: { restaurantId } }),
-  });
-  const shiftOpen = (shifts.data ?? []).some((shift) => shift.status === "open");
   const fetchInvoiceSettlement = useServerFn(listGuestInvoiceSettlementForFolio);
   const invoiceSettlement = useQuery({
     queryKey: ["guest-invoice-settlement", restaurantId, folio.id],
@@ -1646,38 +1593,6 @@ export function SettlementTab({
 
   return (
     <div className="space-y-4" data-testid="folio-settlement">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label={meta.label}
-          value={formatBalance(money, balance)}
-          detail={open ? "Ledger balance" : "Financially closed"}
-          icon={Wallet}
-          tint={meta.tint}
-          valueClassName={meta.text}
-        />
-        <KpiCard
-          label="Deposits"
-          value={money(summary.deposits)}
-          detail="Already included in the balance"
-          icon={WalletCards}
-          tint={KPI_TINT.deposit}
-        />
-        <KpiCard
-          label="Cashier shift"
-          value={shiftOpen ? "Open" : "None"}
-          detail="Informational. Posting is not blocked."
-          icon={Coins}
-          tint={KPI_TINT.neutral}
-        />
-        <KpiCard
-          label="Folio status"
-          value={open ? "Open" : "Closed"}
-          detail={folio.closedAt ? `Closed ${dateTime(folio.closedAt)}` : "Accepting postings"}
-          icon={FileText}
-          tint={open ? KPI_TINT.tax : KPI_TINT.neutral}
-        />
-      </div>
-
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <SectionCard
           title="Settlement summary"
@@ -2283,6 +2198,7 @@ export function FolioSidebar({
   dateTime,
   onViewInvoice,
   onClose,
+  onViewGuest,
   onViewReservation,
 }: {
   workspace: FolioWorkspace;
@@ -2290,6 +2206,7 @@ export function FolioSidebar({
   dateTime: DateTimeFormat;
   onViewInvoice: () => void;
   onClose?: () => void;
+  onViewGuest?: (guestId: string) => void;
   onViewReservation?: (reservationId: string) => void;
 }) {
   const folio = workspace.folio;
@@ -2404,21 +2321,34 @@ export function FolioSidebar({
           ) : null}
         </div>
         {folio.guestId ? (
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
-          >
-            <Link
-              to="/restaurant/pms/guests/$guestId"
-              params={{ guestId: folio.guestId }}
-              search={{ returnTo: `/restaurant/pms/cashiering/folios/${folio.id}` }}
+          onViewGuest ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onViewGuest(folio.guestId)}
+              className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
               data-testid="folio-view-guest"
             >
               View Guest Profile <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="mt-3 h-8 w-full gap-1 border-[#E8E1D7] hover:bg-[#F7F4EE]"
+            >
+              <Link
+                to="/restaurant/pms/guests/$guestId"
+                params={{ guestId: folio.guestId }}
+                search={{ returnTo: `/restaurant/pms/cashiering/folios/${folio.id}` }}
+                data-testid="folio-view-guest"
+              >
+                View Guest Profile <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          )
         ) : null}
       </SidebarCard>
 

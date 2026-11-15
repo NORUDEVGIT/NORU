@@ -17,8 +17,6 @@ import {
   Link2,
   Lock,
   Network,
-  PanelRightClose,
-  PanelRightOpen,
   Printer,
   Receipt,
   ReceiptText,
@@ -58,6 +56,8 @@ import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-char
 import { FolioInvoicePanel } from "@/packages/pms/components/cashiering/folio-invoice-panel";
 import { GuestPaymentAllocationDrawer } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
+import { FolioReservationQuickView } from "@/packages/pms/components/cashiering/folio-reservation-quick-view";
+import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
 import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import {
@@ -123,6 +123,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/shared/components/ui/sheet";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
@@ -300,7 +307,7 @@ function MetaCell({
   muted?: boolean;
 }) {
   return (
-    <div className="min-w-0 px-4 py-2.5 lg:border-l lg:border-[#E8E1D7]/80 lg:first:border-l-0">
+    <div className="min-w-0 rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] px-3 py-2">
       <dt className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         <Icon className="size-3.5" />
         {label}
@@ -384,7 +391,9 @@ function FolioWorkspaceBody({
   const caps = workspace.capabilities;
 
   const [tab, setTab] = useState<FolioWorkspaceTabId>(() => resolveTab(initialTab));
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [guestPreviewId, setGuestPreviewId] = useState<string | null>(null);
+  const [reservationQuickId, setReservationQuickId] = useState<string | null>(null);
   const [viewReservationId, setViewReservationId] = useState<string | null>(null);
   const [entryType, setEntryType] = useState<TransactionType | null>(null);
   const [entrySourceId, setEntrySourceId] = useState<string | null>(null);
@@ -662,6 +671,17 @@ function FolioWorkspaceBody({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 border-[#E8E1D7] px-3 text-xs"
+                onClick={() => setDetailsOpen(true)}
+                data-testid="folio-details"
+              >
+                <BedDouble className="size-3.5 text-[#8A6A24]" />
+                Details
+              </Button>
               <div className="hidden items-center gap-3 text-[11px] text-muted-foreground md:flex">
                 <span className="flex items-center gap-1">
                   <Building2 className="size-3.5" />
@@ -748,25 +768,54 @@ function FolioWorkspaceBody({
               </DropdownMenu>
             </div>
           </div>
-          <dl className="grid grid-cols-2 border-t border-[#E8E1D7] bg-muted/10 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fit,minmax(120px,1fr))]">
-            {meta.map((item) => (
-              <MetaCell key={item.label} {...item} />
-            ))}
-          </dl>
         </header>
+
+        <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <SheetContent
+            side="right"
+            className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl [&>button]:text-[#F6EFE4] [&>button]:hover:text-white"
+            data-testid="folio-details-drawer"
+          >
+            <SheetHeader className="shrink-0 space-y-1 border-b border-[#3A2A16] bg-[#1A1208] px-5 py-4 pr-12 text-left">
+              <SheetTitle className="font-display text-base font-semibold text-[#F6EFE4]">
+                Folio details
+              </SheetTitle>
+              <SheetDescription className="text-[#CDBCA6]">
+                {folio.guestName}
+                {subline ? ` · ${subline}` : ""}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+              <dl className="grid grid-cols-2 gap-2">
+                {meta.map((item) => (
+                  <MetaCell key={item.label} {...item} />
+                ))}
+              </dl>
+              <FolioSidebar
+                workspace={workspace}
+                money={money}
+                dateTime={dateTime}
+                onViewInvoice={() => {
+                  setDetailsOpen(false);
+                  selectTab("invoices");
+                }}
+                onViewGuest={(guestId) => {
+                  setDetailsOpen(false);
+                  setGuestPreviewId(guestId);
+                }}
+                onViewReservation={(resId) => {
+                  setDetailsOpen(false);
+                  setReservationQuickId(resId);
+                }}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
 
         <FolioKpiRow summary={workspace.financialSummary} money={money} />
 
-        <div
-          className={cn(
-            "grid items-start gap-4 transition-all duration-200",
-            showSidebar
-              ? "lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]"
-              : "grid-cols-1",
-          )}
-        >
-          <div className="min-w-0 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] pb-0.5">
+        <div className="min-w-0 space-y-4">
+            <div className="border-b border-[#E8E1D7] pb-0.5">
               <nav
                 className="flex items-end gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 role="tablist"
@@ -794,38 +843,6 @@ function FolioWorkspaceBody({
                   </button>
                 ))}
               </nav>
-
-              <div className="flex items-center gap-2 pb-1.5 pt-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowSidebar((prev) => !prev)}
-                  className={cn(
-                    "h-8 gap-1.5 px-3 text-xs font-medium transition-all shadow-xs",
-                    showSidebar
-                      ? "border-[#C89933]/50 bg-[#C89933]/10 text-[#765719] hover:bg-[#C89933]/15"
-                      : "border-[#E8E1D7] bg-card text-muted-foreground hover:bg-[#F7F4EE] hover:text-foreground",
-                  )}
-                  title={
-                    showSidebar
-                      ? "Hide side cards to give tables maximum space"
-                      : "Show side cards with guest, stay and document details"
-                  }
-                >
-                  {showSidebar ? (
-                    <>
-                      <PanelRightClose className="size-3.5" />
-                      <span>Hide Details</span>
-                    </>
-                  ) : (
-                    <>
-                      <PanelRightOpen className="size-3.5" />
-                      <span>Show Details</span>
-                    </>
-                  )}
-                </Button>
-              </div>
             </div>
 
             {tab === "charges" ? (
@@ -839,7 +856,6 @@ function FolioWorkspaceBody({
                 onPostCharge={() => openEntry("charge")}
                 onPostAdjustment={() => openEntry("adjustment")}
                 onTransferCharge={() => openTransfer(null)}
-                onGoTab={selectTab}
               />
             ) : null}
             {tab === "payments" ? (
@@ -1009,17 +1025,6 @@ function FolioWorkspaceBody({
                 onIssueInvoice={() => setIssueOpen(true)}
               />
             ) : null}
-          </div>
-          {showSidebar ? (
-            <FolioSidebar
-              workspace={workspace}
-              money={money}
-              dateTime={dateTime}
-              onViewInvoice={() => selectTab("invoices")}
-              onClose={() => setShowSidebar(false)}
-              onViewReservation={(resId) => setViewReservationId(resId)}
-            />
-          ) : null}
         </div>
       </div>
 
@@ -1351,6 +1356,24 @@ function FolioWorkspaceBody({
         onPostReplacement={() => setEntryType("charge")}
         money={money}
       />
+      <GuestQuickViewDrawer
+        restaurantId={restaurantId}
+        previewId={guestPreviewId}
+        onClose={() => setGuestPreviewId(null)}
+      />
+      {reservationQuickId ? (
+        <FolioReservationQuickView
+          restaurantId={restaurantId}
+          reservationId={reservationQuickId}
+          folio={folio}
+          businessDate={businessDate}
+          onClose={() => setReservationQuickId(null)}
+          onOpenFull={() => {
+            setViewReservationId(reservationQuickId);
+            setReservationQuickId(null);
+          }}
+        />
+      ) : null}
       <ReservationWorkspaceOverlay
         open={viewReservationId !== null}
         title={folio.confirmationNumber ?? "Reservation"}

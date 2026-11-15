@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -103,7 +103,14 @@ export function CashieringWorkspace({
     setShellSlots((current) => (current.cta === node ? current : { ...current, cta: node }));
   }, []);
 
+  const pendingPath = useRouterState({ select: (state) => state.location.pathname });
+  const onCashieringDesk =
+    pendingPath === "/restaurant/pms/cashiering" || pendingPath === "/restaurant/pms/cashiering/";
+
   useEffect(() => {
+    // A click on another module updates the pending path before this desk unmounts.
+    // Rewriting the URL here cancels that click and opens Financial Activity instead.
+    if (!onCashieringDesk) return;
     if (search.tab === tab || (!search.tab && tab === "folios")) return;
     const { tab: _tab, folio, ...rest } = search;
     const legacyActivity = activityFilterFromLegacyTab(search.tab);
@@ -115,7 +122,7 @@ export function CashieringWorkspace({
       }),
       replace: true,
     });
-  }, [navigate, search, tab]);
+  }, [navigate, onCashieringDesk, search, tab]);
 
   const fetchAccess = useServerFn(getCashieringAccess);
   const fetchDashboard = useServerFn(getCashieringDashboard);
