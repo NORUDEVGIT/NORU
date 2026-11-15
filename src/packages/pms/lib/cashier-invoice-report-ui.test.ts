@@ -93,7 +93,7 @@ describe("Cashier invoice report screen", () => {
     assert.match(screen, /cashierClearedSearch\(businessDate\)/);
   });
 
-  it("renders Summary and Detail columns and KPI strip", () => {
+  it("renders Summary and Detail columns without a KPI strip", () => {
     assert.ok(CASHIER_SUMMARY_COLUMNS.includes("Grand Total"));
     assert.ok(CASHIER_SUMMARY_COLUMNS.includes("Credit"));
     assert.ok(CASHIER_SUMMARY_COLUMNS.includes("Debit"));
@@ -105,9 +105,7 @@ describe("Cashier invoice report screen", () => {
     assert.match(screen, /cashier-summary-row/);
     assert.match(screen, /cashier-detail-row/);
     assert.match(screen, /NoteAmount/);
-    assert.match(screen, /cashier-summary-kpis/);
-    assert.match(screen, /documentType === "ALL"/);
-    assert.match(screen, /Net Documents/);
+    assert.doesNotMatch(screen, /cashier-summary-kpis/);
   });
 
   it("keeps loading, empty, error, and no-access distinct", () => {

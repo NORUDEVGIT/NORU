@@ -284,6 +284,44 @@ describe("Police stay report read model", () => {
     assert.equal(checkoutMorning.rows.length, 0);
   });
 
+  it("keeps the stay date and includes guests who overlap the from/to range", () => {
+    const people = [guest({ guestProfileId: "g1", firstName: "Abebe" })];
+    const result = assemblePoliceStayReport({
+      restaurantId: PROPERTY,
+      stayDate: "2026-10-20",
+      businessDate: "2026-10-20",
+      timezone: "Africa/Addis_Ababa",
+      units: [
+        unit({
+          reservationRoomId: "during",
+          arrivalDate: "2026-10-19",
+          departureDate: "2026-10-22",
+          occupants: people,
+        }),
+        unit({
+          reservationRoomId: "earlier",
+          arrivalDate: "2026-10-01",
+          departureDate: "2026-10-03",
+          occupants: [guest({ guestProfileId: "g2", firstName: "Sara" })],
+        }),
+        unit({
+          reservationRoomId: "after",
+          arrivalDate: "2026-10-25",
+          departureDate: "2026-10-27",
+          occupants: [guest({ guestProfileId: "g3", firstName: "Lulit" })],
+        }),
+      ],
+      filters: { stayDate: "2026-10-20", from: "2026-10-01", to: "2026-10-21" },
+    });
+    assert.deepEqual(
+      result.rows.map((row) => row.reservationRoomId),
+      ["during", "earlier"],
+    );
+    assert.equal(result.context.stayDate, "2026-10-20");
+    assert.equal(result.context.from, "2026-10-01");
+    assert.equal(result.context.to, "2026-10-21");
+  });
+
   it("excludes cancelled, no-show, and confirmed stays from the in-house register", () => {
     const people = [guest({ guestProfileId: "g1", firstName: "Abebe" })];
     const result = report([

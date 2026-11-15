@@ -469,6 +469,30 @@ describe("service entitlement report", () => {
       result.rows.map((row) => row.id),
       ["b"],
     );
+    const ranged = assembleServiceEntitlementReport({
+      restaurantId: PROPERTY,
+      businessDate: "2026-10-22",
+      timezone: "Africa/Addis_Ababa",
+      filters: {
+        serviceDate: "2026-10-22",
+        from: "2026-10-21",
+        to: "2026-10-22",
+        category: "MEAL",
+        meal: "BREAKFAST",
+      },
+      rows: [
+        breakfast,
+        { ...breakfast, id: "old", serviceDate: "2026-10-21" },
+        { ...breakfast, id: "next", serviceDate: "2026-10-23" },
+      ],
+    });
+    assert.deepEqual(
+      ranged.rows.map((row) => row.id),
+      ["old", "b"],
+    );
+    assert.equal(ranged.context.serviceDate, "2026-10-22");
+    assert.equal(ranged.context.from, "2026-10-21");
+    assert.equal(ranged.context.to, "2026-10-22");
     assert.equal(result.summary.totalPax, 2);
     assert.equal("folio" in result.rows[0]!, false);
   });

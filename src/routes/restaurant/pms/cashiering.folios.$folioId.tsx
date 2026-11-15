@@ -12,6 +12,7 @@ export const Route = createFileRoute("/restaurant/pms/cashiering/folios/$folioId
   validateSearch: (search: Record<string, unknown>) => ({
     ...(typeof search.action === "string" ? { action: search.action } : {}),
     ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
+    ...(typeof search.line === "string" ? { line: search.line } : {}),
     ...(typeof search.payment === "string" ? { payment: search.payment } : {}),
     ...(typeof search.invoice === "string" ? { invoice: search.invoice } : {}),
     ...(typeof search.modalTab === "string" ? { modalTab: search.modalTab } : {}),
@@ -61,6 +62,7 @@ function GuestFolioRoute() {
           folioId={folioId}
           initialAction={search.action}
           initialTab={search.tab}
+          initialLineId={search.line}
           initialPaymentId={search.payment}
           initialInvoiceId={search.invoice}
           initialModalTab={search.modalTab}

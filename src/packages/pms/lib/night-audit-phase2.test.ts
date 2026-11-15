@@ -432,8 +432,28 @@ describe("cashier drawers", () => {
   it("blocks one open hotel drawer", () => {
     const result = reconcileNightAuditFinancials(facts({ drawers: [drawer({ state: "open", id: "shift-1" })] }));
     assert.equal(result.summary.openDrawerCount, 1);
-    assert.equal(result.issues.some((row) => row.code === "open_cashier_shift"), true);
+    assert.equal(result.issues.some((row) => row.code === "open_cashier_shift" && row.severity === "blocking"), true);
+    assert.equal(result.issues.find((row) => row.code === "open_cashier_shift")?.title, "Cashier shift is still open");
     assert.equal(result.status, "blocked");
+  });
+
+  it("blocks an open shift from an earlier business date and a future one", () => {
+    const earlier = reconcileNightAuditFinancials(facts({
+      drawers: [drawer({ state: "open", businessDate: "2026-10-20" })],
+    }));
+    const earlierIssue = earlier.issues.find((row) => row.code === "open_cashier_shift");
+    assert.equal(earlierIssue?.title, "Previous Business Date cashier shift is still open");
+    assert.match(earlierIssue?.description ?? "", /20 Oct 2026/);
+    assert.equal(earlier.status, "blocked");
+
+    const future = reconcileNightAuditFinancials(facts({
+      drawers: [drawer({ state: "open", businessDate: "2026-10-22" })],
+    }));
+    assert.equal(
+      future.issues.find((row) => row.code === "open_cashier_shift")?.title,
+      "Cashier shift is open on a future Business Date",
+    );
+    assert.equal(future.status, "blocked");
   });
 
   it("blocks every open hotel drawer", () => {
@@ -450,10 +470,11 @@ describe("cashier drawers", () => {
     assert.equal(result.drawerState, "clear");
   });
 
-  it("warns on a closed drawer variance", () => {
+  it("keeps a closed drawer variance as information", () => {
     const result = reconcileNightAuditFinancials(facts({ drawers: [drawer({ variance: 12 })] }));
-    assert.equal(result.issues.some((row) => row.code === "closed_shift_variance" && row.severity === "warning"), true);
-    assert.equal(result.status, "warning");
+    assert.equal(result.issues.some((row) => row.code === "closed_shift_variance" && row.severity === "info"), true);
+    assert.equal(result.issues.some((row) => row.code === "open_cashier_shift"), false);
+    assert.equal(result.status, "ready");
   });
 
   it("ignores a restaurant outlet shift", () => {
@@ -518,10 +539,11 @@ describe("fiscal", () => {
     assert.equal(result.issues.some((row) => row.code === "fiscal_blocked"), true);
   });
 
-  it("warns on PENDING", () => {
+  it("reports PENDING as information, not a warning or blocker", () => {
     const result = reconcileNightAuditFinancials(facts({ integrationEnabled: true, fiscalDocuments: [document({ status: "PENDING" })] }));
-    assert.equal(result.issues.some((row) => row.code === "fiscal_pending" && row.severity === "warning"), true);
-    assert.equal(result.status, "warning");
+    assert.equal(result.issues.some((row) => row.code === "fiscal_pending" && row.severity === "info"), true);
+    assert.equal(result.issues.some((row) => row.severity === "warning" || row.severity === "blocking"), false);
+    assert.notEqual(result.status, "blocked");
   });
 
   it("accepts CANCELLED as a terminal pass", () => {
@@ -624,7 +646,7 @@ describe("workspace behavior", () => {
     const result = reconcileNightAuditFinancials(facts({ drawers: [{ id: "shift-1", cashier: "Sam", shift: "s", openedAt: "2026-10-21T06:00:00.000Z", expectedCash: 1, closingCount: null, variance: null, state: "open", scope: "hotel", currency: "ETB" }] }));
     const issue = result.issues[0];
     assert.equal(issue?.route, "/restaurant/pms/cashiering");
-    assert.match(issue?.description ?? "", /open hotel drawer/i);
+    assert.match(issue?.description ?? "", /must be closed before End of Day can continue/i);
     assert.match(workspace, /"Recheck"/);
     for (const source of [steps, parts, workspace]) {
       assert.doesNotMatch(source, /Mark resolved|mark resolved|updateException/i);

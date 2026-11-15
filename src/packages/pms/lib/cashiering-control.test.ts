@@ -320,7 +320,8 @@ describe("cashier drawer expected cash", () => {
 describe("cashier control writers stay authoritative", () => {
   it("does not let cashiering edit the business date or invent shift controls", () => {
     const dashboard = poster.slice(poster.indexOf("export const getCashieringDashboard"));
-    assert.match(dashboard, /propertyDayBounds/);
+    assert.match(dashboard, /\.eq\("business_date", businessDate\)/);
+    assert.doesNotMatch(dashboard.slice(0, dashboard.indexOf("export const initializeFolio")), /propertyDayBounds/);
     assert.doesNotMatch(
       dashboard.slice(0, dashboard.indexOf("export const initializeFolio")),
       /T00:00:00Z/,

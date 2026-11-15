@@ -178,7 +178,7 @@ function OwnerLink({ definition }: { definition: AnalyticsReportDefinition }) {
 
   if (definition.code === "financial") {
     return (
-      <Link to="/restaurant/pms/cashiering" search={{ tab: "overview" }} className={className}>
+      <Link to="/restaurant/pms/cashiering" search={{ tab: "folios" }} className={className}>
         <span>{definition.ownerLabel}</span>
         <ArrowUpRight className="size-3.5" />
       </Link>

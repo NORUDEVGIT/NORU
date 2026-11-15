@@ -102,7 +102,8 @@ describe("Reservation Detail Folio & Payments tab", () => {
     expect(overview).not.toMatch(/id: "folio".*deferred: true/);
     expect(folioUi).toContain("getReservationFolio");
     expect(folioUi).toContain("getFolio");
-    expect(folioUi).toContain("issueGuestFolioInvoice");
+    expect(folioUi).toContain("issueGuestFolioChargeInvoice");
+    expect(folioUi).not.toContain("useServerFn(issueGuestFolioInvoice)");
     expect(folioUi).toContain("FolioEntryDialog");
     expect(folioUi).toContain("CloseFolioDialog");
     expect(folioUi).not.toContain("Back to Packages");
@@ -288,7 +289,8 @@ describe("Reservation Detail Folio & Payments tab", () => {
   });
 
   it("hands invoice to Cashiering and does not persist folio notes in this tab", () => {
-    expect(folioUi).toContain("issueGuestFolioInvoice");
+    expect(folioUi).toContain("issueGuestFolioChargeInvoice");
+    expect(folioUi).not.toContain("useServerFn(issueGuestFolioInvoice)");
     expect(folioUi).not.toContain("FOLIO_INVOICE_GAP_COPY");
     expect(folioUi).not.toContain("FOLIO_BILLING_EDIT_GAP_COPY");
     expect(folioUi).not.toContain("FOLIO_NOTES_GAP_COPY");

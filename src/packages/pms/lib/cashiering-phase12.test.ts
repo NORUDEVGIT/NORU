@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   buildCashieringReportCsv,
   escapeCashieringCsvCell,
+  reportActivityMatches,
 } from "./cashiering-phases.functions";
 
 const sql = readFileSync(
@@ -41,13 +42,14 @@ describe("Cashiering Phase 12 exceptions and reports", () => {
     assert.match(poster, /listCashieringExceptions/);
     assert.match(poster, /settlement_exception/);
     assert.match(poster, /getCashieringReportTotals/);
-    assert.match(poster, /propertyDayBounds/);
+    assert.match(poster, /\.gte\("business_date", fromDate\)/);
+    assert.match(poster, /\.lte\("business_date", toDate\)/);
     assert.doesNotMatch(poster, /list_cashiering_exceptions|cashiering_report_totals/);
     assert.match(panels, /Cleared only by a real settling post/);
     assert.match(panels, /data-testid="cashiering-attention-required"/);
-    assert.match(desk, /Attention Required/);
+    assert.doesNotMatch(desk, /tab === "overview"/);
     assert.doesNotMatch(desk, /Today’s Activity/);
-    assert.match(shell, /exceptions: "overview"/);
+    assert.match(shell, /exceptions: "folios"/);
     assert.doesNotMatch(shell, /id: "exceptions"/);
     assert.match(shell, /id: "reports"/);
   });
@@ -56,11 +58,33 @@ describe("Cashiering Phase 12 exceptions and reports", () => {
     assert.match(poster, /page: z\.coerce\.number/);
     assert.match(poster, /limit: z\.coerce\.number/);
     assert.match(poster, /totalPages/);
-    assert.match(poster, /ledger\.slice\(start, start \+ limit\)/);
+    assert.match(poster, /matched\.slice\(start, start \+ limit\)/);
+    assert.match(poster, /reportActivityMatches/);
+    assert.match(poster, /search: z\.string\(\)\.trim\(\)\.max\(80\)/);
+    assert.match(panels, /testId="cashiering-report-search"/);
+    assert.match(panels, /buttonTestId="cashiering-report-filters-button"/);
+    assert.match(panels, /Transaction Type/);
+    assert.match(panels, /Payment Method/);
+    assert.equal(reportActivityMatches("charge", "all"), true);
+    assert.equal(reportActivityMatches("adjustment", undefined), true);
+    assert.equal(reportActivityMatches("charge", "payment"), false);
+    assert.equal(reportActivityMatches("payment", "payment"), true);
+    assert.equal(reportActivityMatches("deposit", "deposit"), true);
+    assert.equal(reportActivityMatches("refund", "refund"), true);
+    assert.equal(reportActivityMatches("transfer_in", "transfer"), true);
+    assert.equal(reportActivityMatches("transfer_out", "transfer"), true);
+    assert.equal(reportActivityMatches("payment", "transfer"), false);
+    assert.match(poster, /order: z\.enum\(\["newest", "oldest"\]\)/);
+    assert.match(poster, /ascending: !newestFirst/);
+    assert.match(panels, /Newest first/);
+    assert.match(panels, /Oldest first/);
+    assert.match(panels, /line: line\.id/);
     assert.match(panels, /data-testid="cashiering-report-pagination"/);
     assert.match(panels, /data-testid="report-prev-page"/);
     assert.match(panels, /data-testid="report-next-page"/);
-    assert.match(panels, /Rows per page limit/);
+    assert.match(panels, /aria-label="Change rows per page"/);
+    assert.match(panels, /CASHIERING_REPORT_READ_LIMIT/);
+    assert.match(poster, /max\(CASHIERING_REPORT_READ_LIMIT\)/);
   });
 
   it("supports report export via CSV and print layer", () => {
@@ -71,6 +95,7 @@ describe("Cashiering Phase 12 exceptions and reports", () => {
     assert.match(panels, /data-testid="export-csv-page"/);
     assert.match(panels, /data-testid="export-print"/);
     assert.match(panels, /CashieringPrintLayer/);
+    assert.match(panels, /singlePage=\{false\}/);
     assert.match(panels, /data-testid="cashiering-report-print"/);
   });
 
@@ -106,8 +131,11 @@ describe("Cashiering Phase 12 exceptions and reports", () => {
           type: "charge",
           description: "Deluxe Suite, 1 Night",
           amount: 500,
+          roomNumber: "101",
           paymentMethod: null,
           postedAt: "2026-10-01T14:00:00Z",
+          postedBy: "Ada",
+          referenceType: null,
         },
       ],
     });

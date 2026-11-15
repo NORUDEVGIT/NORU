@@ -221,12 +221,12 @@ describe("RPT-01 reports foundation", () => {
   it("wraps filters and export actions instead of a fixed wide bar", () => {
     const filters = read("../components/reports/report-filter-bar.tsx");
     const pagination = read("../components/reports/report-pagination.tsx");
-    const page = read("../components/reports/report-page-shell.tsx");
+    const chrome = read("../components/reports/reports-chrome.tsx");
     const catalogue = read("../components/reports/reports-catalogue.tsx");
-    const joined = [filters, pagination, page, catalogue].join("\n");
+    const joined = [filters, pagination, chrome, catalogue].join("\n");
     assert.match(filters, /flex-wrap/);
     assert.match(pagination, /flex-wrap/);
-    assert.match(page, /flex-wrap/);
+    assert.match(chrome, /flex-wrap/);
     assert.match(catalogue, /sm:grid-cols-2/);
     assert.doesNotMatch(joined, /min-w-\[\d{3,}px\]|w-\[\d{4,}px\]/);
   });

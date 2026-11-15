@@ -39,7 +39,7 @@ import {
 } from "./night-audit-operational";
 import { loadNightAuditOperationalReconciliation } from "./night-audit-operational.server";
 import { exceptionSyncKey, planExceptionSync } from "./night-audit-exceptions";
-import { selectAll } from "./night-audit-read";
+import { selectAll, selectByIds } from "./night-audit-read";
 import {
   canRetryOtbSnapshot,
   canSyncRunExceptions,
@@ -197,10 +197,13 @@ export type EndOfDayAccess = {
   canClose: boolean;
   canOverrideWindow: boolean;
   canAuthorizeFiscal: boolean;
+  /** night_audit.fiscal.override_persistent. Without it only "This End of Day only" is offered. */
+  canOverrideFiscalPersistent: boolean;
   canRetryOtb: boolean;
   canRecover: boolean;
   financialDetail: boolean;
   operationalDetail: boolean;
+  membershipId: string;
 };
 
 export type EndOfDayLastClose = {
@@ -459,10 +462,13 @@ type FiscalOverrideRow = {
   overridden_at: string;
   invalidated_at: string | null;
   invalidated_reason: string | null;
+  scope?: "run_only" | "persistent" | null;
+  revoked_at?: string | null;
+  revocation_reason?: string | null;
 };
 
 const FISCAL_OVERRIDE_COLUMNS =
-  "id, exception_id, fiscal_status, fiscal_reference, reason, reason_category, overridden_by_membership_id, overridden_at, invalidated_at, invalidated_reason";
+  "id, exception_id, fiscal_status, fiscal_reference, reason, reason_category, overridden_by_membership_id, overridden_at, invalidated_at, invalidated_reason, scope, revoked_at, revocation_reason";
 
 async function exceptionRowsForRun(admin: Admin, runId: string): Promise<ExceptionRow[]> {
   return selectAll<ExceptionRow>((from, to) =>
@@ -488,6 +494,7 @@ async function fiscalOverridesForRun(
       .eq("restaurant_id", restaurantId)
       .eq("night_audit_run_id", runId)
       .is("invalidated_at", null)
+      .is("revoked_at", null)
       .order("overridden_at", { ascending: true })
       .range(from, to),
   );
@@ -559,6 +566,52 @@ async function warningReviewHistoryForRun(
   }
 }
 
+export const PERSISTENT_OVERRIDE_RESOLVED_REASON = "Source fiscal document resolved.";
+
+/**
+ * A persistent waiver ends when its exact source is registered or cancelled.
+ * The row is kept with revoked_at; nothing is deleted and fiscal status is
+ * never written here.
+ */
+async function revokeResolvedPersistentOverrides(admin: Admin, restaurantId: string): Promise<void> {
+  const active = await selectAll<{ id: string; source_type: string; source_id: string }>((from, to) =>
+    admin
+      .from("night_audit_fiscal_overrides")
+      .select("id, source_type, source_id")
+      .eq("restaurant_id", restaurantId)
+      .eq("scope", "persistent")
+      .is("invalidated_at", null)
+      .is("revoked_at", null)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  if (active.length === 0) return;
+  const registrations = await selectByIds<{ source_type: string; source_id: string; status: string }>(
+    [...new Set(active.map((row) => row.source_id))],
+    (chunk) =>
+      admin
+        .from("fiscal_registrations")
+        .select("source_type, source_id, status")
+        .eq("restaurant_id", restaurantId)
+        .in("source_id", chunk),
+  );
+  const resolved = new Set(
+    registrations
+      .filter((row) => row.status === "REGISTERED" || row.status === "CANCELLED")
+      .map((row) => `${row.source_type}:${row.source_id}`),
+  );
+  const ids = active
+    .filter((row) => resolved.has(`${row.source_type}:${row.source_id}`))
+    .map((row) => row.id);
+  if (ids.length === 0) return;
+  const revoked = await admin
+    .from("night_audit_fiscal_overrides")
+    .update({ revoked_at: new Date().toISOString(), revocation_reason: PERSISTENT_OVERRIDE_RESOLVED_REASON })
+    .in("id", ids)
+    .is("revoked_at", null);
+  if (revoked.error) throw revoked.error;
+}
+
 const RESOLVED_NOTE = "Cleared automatically — the underlying issue was fixed.";
 const LEGACY_INFORMATION_NOTE =
   "No longer tracked — informational items do not block End of Day.";
@@ -582,6 +635,8 @@ async function syncRunExceptions(
     .maybeSingle();
   if (currentError) throw currentError;
   if (!current || !canSyncRunExceptions((current as { status: string }).status)) return;
+
+  await revokeResolvedPersistentOverrides(admin, restaurantId);
 
   const existingRows = await exceptionRowsForRun(admin, runId);
   const plan = planExceptionSync(
@@ -642,12 +697,15 @@ async function syncRunExceptions(
       if (resolved.error) throw resolved.error;
     }
 
-    // The source condition is gone: an active fiscal override for these exact
-    // exceptions is invalidated. A later reopen needs a fresh authorization.
+    // The source condition is gone: an active run-only fiscal override for these
+    // exact exceptions is invalidated. A later reopen needs a fresh authorization.
+    // A persistent waiver is not touched here: its own exception resolves
+    // because the waiver turns it into information. It ends only by revocation.
     const invalidated = await admin
       .from("night_audit_fiscal_overrides")
       .update({ invalidated_at: now, invalidated_reason: "Source fiscal condition resolved." })
       .in("exception_id", plan.resolveIds)
+      .eq("scope", "run_only")
       .is("invalidated_at", null);
     if (invalidated.error) throw invalidated.error;
 
@@ -802,7 +860,11 @@ async function nightAuditActorFlags(
     canClose: has(PMS_PERMISSIONS.NIGHT_AUDIT_CLOSE_DATE),
     canOverrideWindow: has(PMS_PERMISSIONS.NIGHT_AUDIT_WINDOW_OVERRIDE),
     canAuthorizeFiscal: has(PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_AUTHORIZE),
+    canOverrideFiscalPersistent:
+      has(PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_AUTHORIZE) &&
+      has(PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_OVERRIDE_PERSISTENT),
     canRecover: has(PMS_PERMISSIONS.NIGHT_AUDIT_RECOVER_DATE),
+    membershipId: resolved.membershipId,
   };
 }
 
@@ -1054,10 +1116,12 @@ export const getNightAuditWorkspace = createServerFn({ method: "GET" })
         canClose: flags.canClose,
         canOverrideWindow: flags.canOverrideWindow,
         canAuthorizeFiscal: flags.canAuthorizeFiscal,
+        canOverrideFiscalPersistent: flags.canOverrideFiscalPersistent,
         canRetryOtb: flags.canException,
         canRecover: flags.canRecover,
         financialDetail: flags.financial,
         operationalDetail: flags.operational,
+        membershipId: flags.membershipId,
       },
       lastClosed: lastClosedRaw
         ? {
@@ -1202,10 +1266,17 @@ export const saveNightAuditProgress = createServerFn({ method: "POST" })
 
 /* ----------------------------------------------------------- fiscal override */
 
+export const FISCAL_OVERRIDE_SCOPES = ["run_only", "persistent"] as const;
+export type FiscalOverrideScope = (typeof FISCAL_OVERRIDE_SCOPES)[number];
+export const PERSISTENT_OVERRIDE_CONFIRMATION = "I understand this fiscal issue will remain unresolved.";
+
 /**
  * A deliberately narrow authorization: exempt one canonical fiscal blocker from
- * the close gate for this open business-date run. It never updates the fiscal
- * document, its exception severity/status, or a non-fiscal finding.
+ * the close gate. "run_only" covers this open business-date run. "persistent"
+ * covers the exact source (restaurant + source type + source id) on future
+ * End of Days until revoked, and needs its own permission and an explicit
+ * confirmation. Neither updates the fiscal document, its exception
+ * severity/status, or a non-fiscal finding.
  */
 export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1214,14 +1285,20 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
       restaurantId: string;
       exceptionId: string;
       reason: string;
-      reasonCategory?: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number];
+      reasonCategory: (typeof FISCAL_OVERRIDE_REASON_CATEGORIES)[number];
+      scope?: FiscalOverrideScope;
+      confirmPersistent?: boolean;
     }) =>
       z
         .object({
           restaurantId: idSchema,
           exceptionId: idSchema,
           reason: z.string().trim().min(1, "An override reason is required.").max(500),
-          reasonCategory: z.enum(FISCAL_OVERRIDE_REASON_CATEGORIES).optional(),
+          reasonCategory: z.enum(FISCAL_OVERRIDE_REASON_CATEGORIES, {
+            errorMap: () => ({ message: "Choose an override reason category." }),
+          }),
+          scope: z.enum(FISCAL_OVERRIDE_SCOPES).default("run_only"),
+          confirmPersistent: z.boolean().optional(),
         })
         .parse(d),
   )
@@ -1231,6 +1308,18 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
       data.restaurantId,
       PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_AUTHORIZE,
     );
+    const persistent = data.scope === "persistent";
+    if (persistent) {
+      // Enforced here, not only by hiding the option in the UI.
+      await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_OVERRIDE_PERSISTENT,
+      );
+      if (data.confirmPersistent !== true) {
+        return { ok: false, message: `Confirm: ${PERSISTENT_OVERRIDE_CONFIRMATION}` };
+      }
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const property = await loadProperty(supabaseAdmin, data.restaurantId);
     const { data: row } = await supabaseAdmin
@@ -1284,6 +1373,23 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
     }
     const fiscalStatus = fiscalStatusForException(exception.exception_type);
     if (!fiscalStatus) return { ok: false, message: "This fiscal status is not overrideable." };
+    // The persistent source comes from the stored exception, never the client.
+    let fiscalRegistrationId: string | null = null;
+    if (persistent) {
+      if (!exception.reference_type || !exception.reference_id) {
+        return { ok: false, message: "This fiscal blocker has no exact source document to waive." };
+      }
+      const { data: registration } = await (supabaseAdmin as Admin)
+        .from("fiscal_registrations")
+        .select("id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("source_type", exception.reference_type)
+        .eq("source_id", exception.reference_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      fiscalRegistrationId = (registration as { id: string } | null)?.id ?? null;
+    }
     const inserted = await (supabaseAdmin as Admin).from("night_audit_fiscal_overrides").insert({
       restaurant_id: data.restaurantId,
       night_audit_run_id: runRow.id,
@@ -1293,8 +1399,16 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
       fiscal_status: fiscalStatus,
       fiscal_reference: exception.reference_id ?? exception.reference_type,
       reason: data.reason.trim(),
-      ...(data.reasonCategory ? { reason_category: data.reasonCategory } : {}),
+      reason_category: data.reasonCategory,
       overridden_by_membership_id: me.id,
+      scope: data.scope,
+      ...(persistent
+        ? {
+            source_type: exception.reference_type,
+            source_id: exception.reference_id,
+            fiscal_registration_id: fiscalRegistrationId,
+          }
+        : {}),
     });
     if (inserted.error) {
       if (/duplicate key/i.test(inserted.error.message)) return { ok: true };
@@ -1305,7 +1419,57 @@ export const authorizeFiscalCloseOverride = createServerFn({ method: "POST" })
       exceptionId: exception.id,
       businessDate: runRow.business_date,
       fiscalStatus,
-      reasonCategory: data.reasonCategory ?? null,
+      reasonCategory: data.reasonCategory,
+      scope: data.scope,
+      ...(persistent ? { sourceType: exception.reference_type, sourceId: exception.reference_id } : {}),
+      membershipId: me.id,
+    });
+    return { ok: true };
+  });
+
+/**
+ * End a persistent fiscal waiver. The row stays as history with who, when,
+ * and why. Fiscal status is not changed. A run-only override cannot be revoked
+ * here; it ends with its exception.
+ */
+export const revokePersistentFiscalOverride = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { restaurantId: string; overrideId: string; reason: string }) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        overrideId: idSchema,
+        reason: z.string().trim().min(1, "A revocation reason is required.").max(500),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.NIGHT_AUDIT_FISCAL_OVERRIDE_PERSISTENT,
+    );
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: updated, error } = await (supabaseAdmin as Admin)
+      .from("night_audit_fiscal_overrides")
+      .update({
+        revoked_at: new Date().toISOString(),
+        revoked_by_membership_id: me.id,
+        revocation_reason: data.reason.trim(),
+      })
+      .eq("id", data.overrideId)
+      .eq("restaurant_id", data.restaurantId)
+      .eq("scope", "persistent")
+      .is("invalidated_at", null)
+      .is("revoked_at", null)
+      .select("id, source_type, source_id");
+    if (error) return { ok: false, message: nightAuditError(error.message).message };
+    const row = ((updated ?? []) as Array<{ id: string; source_type: string; source_id: string }>)[0];
+    if (!row) return { ok: false, message: "This persistent fiscal override is not active." };
+    await auditEndOfDay(supabaseAdmin, context, data.restaurantId, "night_audit_fiscal_override_revoked", {
+      overrideId: row.id,
+      sourceType: row.source_type,
+      sourceId: row.source_id,
       membershipId: me.id,
     });
     return { ok: true };

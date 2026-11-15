@@ -141,8 +141,22 @@ describe("Police stay report screen", () => {
     );
     const cleared = policeClearedSearch("2026-10-20");
     assert.deepEqual(cleared, { report: "police", stayDate: "2026-10-20" });
+    const ranged = policeFilterSearch({
+      stayDate: "2026-10-20",
+      from: "2026-10-18",
+      to: "2026-10-22",
+      presence: "IN_HOUSE",
+    });
+    assert.equal(ranged.stayDate, "2026-10-20");
+    assert.equal(ranged.from, "2026-10-18");
+    assert.equal(ranged.to, "2026-10-22");
+    assert.match(screen, /police-stay-date/);
+    assert.match(screen, /testId="police-from"/);
+    assert.match(screen, /testId="police-to"/);
     assert.match(screen, /policeClearedSearch\(businessDate\)/);
-    assert.match(screen, /setTimeout\(\(\) => onCommit\(draft\.trim\(\)\), 300\)/);
+    assert.match(screen, /ReportToolbarSearch/);
+    const searchBar = read("../components/reports/report-filter-bar.tsx");
+    assert.match(searchBar, /setTimeout\(\(\) => onCommit\(draft\.trim\(\)\), 300\)/);
   });
 
   it("separates loading, empty, error, and no-access", () => {
@@ -202,7 +216,7 @@ describe("Police stay report screen", () => {
     assert.match(css, /report-print-hide/);
     assert.match(css, /fo-top-command/);
     assert.match(css, /pms-module-nav/);
-    assert.match(css, /reports-desk-header/);
+    assert.match(css, /reports-toolbar/);
     assert.match(css, /report-print-only/);
     assert.match(css, /table-header-group/);
     assert.match(screen, /report-print-only/);

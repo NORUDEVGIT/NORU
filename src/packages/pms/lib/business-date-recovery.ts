@@ -69,5 +69,7 @@ export function businessDateAdjustmentError(message: string): string {
     return "The new business date is the same as the current business date.";
   if (/BUSINESS_DATE_REASON_REQUIRED/.test(message)) return "A reason is required.";
   if (/BUSINESS_DATE_INVALID/.test(message)) return "Enter a valid business date.";
+  if (/OPEN_CASHIER_SHIFT/.test(message))
+    return "Close every open cashier shift before changing the business date.";
   return "The business date could not be adjusted. Nothing was changed.";
 }

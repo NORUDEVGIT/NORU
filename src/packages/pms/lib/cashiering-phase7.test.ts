@@ -41,6 +41,6 @@ describe("Cashiering Phase 7 windows and transfers", () => {
     assert.match(sql, /post_folio_transfer/);
     assert.doesNotMatch(sql, /guest_folios\.balance/);
     assert.match(poster, /post_folio_transfer/);
-    assert.match(shell, /transfers: "overview"/);
+    assert.match(shell, /transfers: "financial-activity"/);
   });
 });

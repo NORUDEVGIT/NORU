@@ -15,6 +15,7 @@ import {
   maskTin,
   nextFiscalRetryAt,
   normalizeFiscalConnection,
+  providerTaxCode,
   redactFiscalPayload,
   requireExternalCode,
 } from "./fiscal.types.ts";
@@ -236,6 +237,11 @@ describe("fiscal redaction, retry, and state", () => {
     assert.equal(canTransitionFiscalStatus("REGISTERED", "PENDING"), false);
     assert.equal(canTransitionFiscalStatus("REGISTERED", "CANCEL_PENDING"), true);
     assert.equal(canTransitionFiscalStatus("FAILED", "PENDING"), true);
+  });
+
+  it("stores a provider tax code in capitals and keeps digits", () => {
+    assert.equal(providerTaxCode("vat15"), "VAT15");
+    assert.equal(providerTaxCode("Vat0"), "VAT0");
   });
 
   it("rejects an empty external code and reports incomplete document readiness", () => {

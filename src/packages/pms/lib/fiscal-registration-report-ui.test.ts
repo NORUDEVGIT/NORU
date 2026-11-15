@@ -98,7 +98,7 @@ describe("Fiscal registration report screen", () => {
     assert.match(screen, /fiscal-summary-row/);
     assert.match(screen, /SalesReceiptCell/);
     assert.match(screen, /NoteAmount/);
-    assert.match(screen, /fiscal-summary-kpis/);
+    assert.doesNotMatch(screen, /fiscal-summary-kpis/);
   });
 
   it("keeps loading, empty, error, and no-access distinct", () => {

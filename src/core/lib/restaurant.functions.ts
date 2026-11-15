@@ -2,7 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { deriveStatus } from "./restaurant-status";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE, isValidTimeZone } from "@/shared/lib/property-time";
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_TIMEZONE,
+  isValidTimeZone,
+  timezoneForCountry,
+} from "@/shared/lib/property-time";
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
@@ -117,6 +122,7 @@ export const registerRestaurant = createServerFn({ method: "POST" })
             city: data.city,
             postcode: data.postcode?.trim() || null,
             country: data.country,
+            timezone: timezoneForCountry(data.country),
             active: true,
             approved: false,
           })

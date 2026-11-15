@@ -114,6 +114,8 @@ export function policeReportFailure(error: unknown): "access" | "too-large" | "l
 export function policeReportRequest(input: {
   restaurantId: string;
   stayDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   presence: PoliceStayPresence;
   name?: string | undefined;
   nationality?: string | undefined;
@@ -125,6 +127,8 @@ export function policeReportRequest(input: {
 }): {
   restaurantId: string;
   stayDate: string;
+  from?: string;
+  to?: string;
   presence: PoliceStayPresence;
   page: number;
   pageSize: ReportPageSize;
@@ -137,6 +141,8 @@ export function policeReportRequest(input: {
   return {
     restaurantId: input.restaurantId,
     stayDate: input.stayDate,
+    ...(input.from ? { from: input.from } : {}),
+    ...(input.to ? { to: input.to } : {}),
     presence: input.presence,
     page: input.page,
     pageSize: input.pageSize,
@@ -149,6 +155,8 @@ export function policeReportRequest(input: {
 
 export function policeFilterSearch(input: {
   stayDate: string;
+  from?: string | undefined;
+  to?: string | undefined;
   presence: PoliceStayPresence;
   name?: string | undefined;
   nationality?: string | undefined;
@@ -165,6 +173,8 @@ export function policeFilterSearch(input: {
     },
     {
       stayDate: input.stayDate,
+      ...(input.from ? { from: input.from } : {}),
+      ...(input.to ? { to: input.to } : {}),
       presence: input.presence,
       ...(input.name ? { name: input.name } : {}),
       ...(input.nationality ? { nationality: input.nationality } : {}),

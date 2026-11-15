@@ -46,6 +46,8 @@ export const getServiceEntitlementReport = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         serviceDate: dateSchema,
+        from: dateSchema.optional(),
+        to: dateSchema.optional(),
         category: z.enum(SERVICE_REPORT_CATEGORIES),
         meal: z.enum(SERVICE_MEAL_FILTERS).optional(),
         departmentId: idSchema.optional(),
@@ -104,6 +106,8 @@ export const exportServiceEntitlementWorkbook = createServerFn({ method: "POST" 
       .object({
         restaurantId: idSchema,
         serviceDate: dateSchema,
+        from: dateSchema.optional(),
+        to: dateSchema.optional(),
         category: z.enum(SERVICE_REPORT_CATEGORIES),
         meal: z.enum(SERVICE_MEAL_FILTERS).optional(),
         departmentId: idSchema.optional(),

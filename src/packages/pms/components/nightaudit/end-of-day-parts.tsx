@@ -18,7 +18,9 @@ import {
   AUDIT_STATUS_LABEL,
   CHECK_STATUS_LABEL,
   STEP_STATUS_LABEL,
+  OPEN_SHIFT_UNAUTHORIZED_COPY,
   UNAUTHORIZED_RESOLVE_COPY,
+  canManageOpenCashierShift,
   blockerCountCopy,
   type EndOfDayAuditStatus,
   type EndOfDayCheck,
@@ -264,6 +266,7 @@ export function CheckList({ checks }: { checks: readonly EndOfDayCheck[] }) {
 
 export type ConditionPermissions = {
   canAny: (codes: readonly PmsPermissionCode[]) => boolean;
+  membershipId?: string | null;
 };
 
 export type ArrivalStayActions = {
@@ -304,15 +307,22 @@ function inlineKind(code: string, label: string): "check-out" | "allocate" | nul
   return null;
 }
 
+export type FiscalOverrideScope = "run_only" | "persistent";
+
 export type FiscalOverrideControl = {
   canAuthorize: boolean;
+  /** Holds night_audit.fiscal.override_persistent. Without it only "This End of Day only" shows. */
+  canPersistent?: boolean;
   runStarted: boolean;
   busy: boolean;
   onAuthorize: (
     exceptionId: string,
     reason: string,
-    category: FiscalReasonCategory | undefined,
+    category: FiscalReasonCategory,
+    scope: FiscalOverrideScope,
+    confirmPersistent: boolean,
   ) => void;
+  onRevoke?: (overrideId: string, reason: string) => void;
 };
 
 function arrivalReservationId(condition: EndOfDayCondition): string | null {
@@ -492,9 +502,20 @@ export function ConditionCard({
   arrival?: ArrivalStayActions;
 }) {
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const [revokeOpen, setRevokeOpen] = useState(false);
   const blocker = condition.kind === "blocker";
+  const canRevoke = Boolean(condition.persistentOverrideId && fiscal.canPersistent && fiscal.onRevoke);
+  const canManageShift =
+    condition.code !== "open_cashier_shift" ||
+    canManageOpenCashierShift({
+      shiftMembershipId: condition.shiftMembershipId,
+      actorMembershipId: permissions.membershipId,
+      canEdit: permissions.canAny([PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT]),
+      canAuthorize: permissions.canAny([PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE]),
+    });
   const visibleActions = condition.actions.filter(
-    (action) => action.permissions.length === 0 || permissions.canAny(action.permissions),
+    (action) =>
+      canManageShift && (action.permissions.length === 0 || permissions.canAny(action.permissions)),
   );
   const canResolve =
     condition.resolvePermissions.length === 0 || permissions.canAny(condition.resolvePermissions);
@@ -585,10 +606,20 @@ export function ConditionCard({
         </p>
       ) : null}
 
+      {blocker && condition.code === "open_cashier_shift" && !canManageShift ? (
+        <p
+          className="mt-2 text-[11px] font-medium text-foreground"
+          data-testid="end-of-day-unauthorized"
+        >
+          {OPEN_SHIFT_UNAUTHORIZED_COPY}
+        </p>
+      ) : null}
+
       {blocker &&
       !condition.fiscalOverride &&
       !canResolve &&
-      condition.code !== "source_unavailable" ? (
+      condition.code !== "source_unavailable" &&
+      condition.code !== "open_cashier_shift" ? (
         <p
           className="mt-2 text-[11px] font-medium text-foreground"
           data-testid="end-of-day-unauthorized"
@@ -603,14 +634,40 @@ export function ConditionCard({
         </p>
       ) : null}
 
+      {canRevoke ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2 h-7 text-[11px]"
+          disabled={fiscal.busy}
+          onClick={() => setRevokeOpen(true)}
+          data-testid="end-of-day-fiscal-override-revoke"
+        >
+          Revoke persistent override
+        </Button>
+      ) : null}
+
       {overrideOpen && condition.exceptionId ? (
         <FiscalOverrideDialog
           condition={condition}
           busy={fiscal.busy}
+          canPersistent={Boolean(fiscal.canPersistent)}
           onClose={() => setOverrideOpen(false)}
-          onSubmit={(reason, category) => {
-            fiscal.onAuthorize(condition.exceptionId!, reason, category);
+          onSubmit={(reason, category, scope, confirmPersistent) => {
+            fiscal.onAuthorize(condition.exceptionId!, reason, category, scope, confirmPersistent);
             setOverrideOpen(false);
+          }}
+        />
+      ) : null}
+
+      {revokeOpen && condition.persistentOverrideId && fiscal.onRevoke ? (
+        <RevokePersistentOverrideDialog
+          busy={fiscal.busy}
+          onClose={() => setRevokeOpen(false)}
+          onSubmit={(reason) => {
+            fiscal.onRevoke!(condition.persistentOverrideId!, reason);
+            setRevokeOpen(false);
           }}
         />
       ) : null}
@@ -618,19 +675,72 @@ export function ConditionCard({
   );
 }
 
+function RevokePersistentOverrideDialog({
+  busy,
+  onClose,
+  onSubmit,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-lg" data-testid="night-audit-fiscal-override-revoke-dialog">
+        <DialogHeader>
+          <DialogTitle>Revoke persistent fiscal override</DialogTitle>
+          <DialogDescription>
+            This document blocks End of Day again until it is registered. The override stays in
+            history.
+          </DialogDescription>
+        </DialogHeader>
+        <label className="block text-sm font-medium">
+          Reason
+          <Textarea
+            className="mt-1 min-h-20"
+            value={reason}
+            maxLength={500}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </label>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={!reason.trim() || busy} onClick={() => onSubmit(reason.trim())}>
+            Revoke override
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FiscalOverrideDialog({
   condition,
   busy,
+  canPersistent,
   onClose,
   onSubmit,
 }: {
   condition: EndOfDayCondition;
   busy: boolean;
+  canPersistent: boolean;
   onClose: () => void;
-  onSubmit: (reason: string, category: FiscalReasonCategory | undefined) => void;
+  onSubmit: (
+    reason: string,
+    category: FiscalReasonCategory,
+    scope: FiscalOverrideScope,
+    confirmPersistent: boolean,
+  ) => void;
 }) {
   const [reason, setReason] = useState("");
   const [category, setCategory] = useState<FiscalReasonCategory | "">("");
+  const [scope, setScope] = useState<FiscalOverrideScope>("run_only");
+  const [confirmed, setConfirmed] = useState(false);
+  const persistent = scope === "persistent";
+  const ready = Boolean(reason.trim()) && Boolean(category) && (!persistent || confirmed);
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-lg" data-testid="night-audit-fiscal-override-dialog">
@@ -678,16 +788,62 @@ function FiscalOverrideDialog({
             ))}
           </select>
         </label>
+        <fieldset className="space-y-1.5 text-sm" data-testid="night-audit-fiscal-override-scope">
+          <legend className="font-medium">Scope</legend>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="fiscal-override-scope"
+              checked={!persistent}
+              onChange={() => setScope("run_only")}
+            />
+            This End of Day only
+          </label>
+          {canPersistent ? (
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="fiscal-override-scope"
+                checked={persistent}
+                onChange={() => setScope("persistent")}
+              />
+              All future End of Days
+            </label>
+          ) : null}
+        </fieldset>
+        {persistent ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-foreground">
+            <p>
+              Future End of Days will not block on this exact document. It stays unregistered and
+              is shown as information until it is registered or the override is revoked.
+            </p>
+            <label className="mt-2 flex items-center gap-2 font-medium">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+                data-testid="night-audit-fiscal-override-persistent-confirm"
+              />
+              I understand this fiscal issue will remain unresolved.
+            </label>
+          </div>
+        ) : null}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button
             type="button"
-            disabled={!reason.trim() || busy}
-            onClick={() => onSubmit(reason.trim(), category || undefined)}
+            disabled={!ready || busy}
+            onClick={() =>
+              category && onSubmit(reason.trim(), category, scope, persistent && confirmed)
+            }
           >
-            {busy ? "Authorizing…" : "Authorize override"}
+            {busy
+              ? "Authorizing…"
+              : persistent
+                ? "Confirm Persistent Override"
+                : "Authorize override"}
           </Button>
         </DialogFooter>
       </DialogContent>

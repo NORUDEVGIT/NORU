@@ -772,3 +772,38 @@ export function reportsReaderDate(businessDate: string): string {
   }
   return businessDate;
 }
+
+/** Inclusive day cap for a report From/To window. A single date is a span of 1. */
+export const REPORT_DATE_RANGE_LIMIT = 31;
+
+/**
+ * Range used by a report. A missing end falls back to the report's own date,
+ * so a night-audit link that only sends that date still reads one day.
+ */
+export function reportDateWindow(
+  single: string,
+  from?: string | undefined,
+  to?: string | undefined,
+): { from: string; to: string } {
+  const start = from && parseReportDate(from) ? from : single;
+  const end = to && parseReportDate(to) ? to : single;
+  return start <= end ? { from: start, to: end } : { from: end, to: start };
+}
+
+export function reportDateSpan(window: { from: string; to: string }): number {
+  const start = Date.parse(`${window.from}T00:00:00Z`);
+  const end = Date.parse(`${window.to}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) return REPORT_DATE_RANGE_LIMIT + 1;
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+export function eachReportDate(window: { from: string; to: string }): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(`${window.from}T00:00:00Z`);
+  const end = Date.parse(`${window.to}T00:00:00Z`);
+  while (cursor.getTime() <= end && dates.length < REPORT_DATE_RANGE_LIMIT) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}

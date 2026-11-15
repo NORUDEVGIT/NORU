@@ -1,22 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
-import { ReportFilterBar } from "@/packages/pms/components/reports/report-filter-bar";
+import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
+import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
 import {
   ReportTableHeaderCell,
   ReportTableShell,
 } from "@/packages/pms/components/reports/report-table-shell";
 import { reportCellClass } from "@/packages/pms/components/reports/report-columns";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/shared/components/ui/select";
+import { Input } from "@/shared/components/ui/input";
 import {
   exportServiceEntitlementWorkbook,
   getServiceEntitlementReport,
@@ -109,6 +104,8 @@ export function ServiceEntitlementReportScreen({
   const writeFilters = useCallback(
     (patch: {
       serviceDate?: string;
+      from?: string | null;
+      to?: string | null;
       meal?: typeof meal;
       status?: typeof status;
       room?: string;
@@ -118,11 +115,28 @@ export function ServiceEntitlementReportScreen({
       pageSize?: ReportPageSize;
       resetPage?: boolean;
     }) => {
+      const dateChanged = patch.serviceDate !== undefined && patch.serviceDate !== serviceDate;
+      const nextFrom = dateChanged
+        ? undefined
+        : patch.from === null
+          ? undefined
+          : patch.from !== undefined
+            ? patch.from
+            : search.from;
+      const nextTo = dateChanged
+        ? undefined
+        : patch.to === null
+          ? undefined
+          : patch.to !== undefined
+            ? patch.to
+            : search.to;
       void navigate({
         to: "/restaurant/pms/reports",
         search: serviceFilterSearch({
           report,
           serviceDate: patch.serviceDate ?? serviceDate,
+          from: nextFrom,
+          to: nextTo,
           meal: patch.meal ?? meal,
           status: patch.status ?? status,
           room: patch.room !== undefined ? patch.room : search.room,
@@ -140,7 +154,9 @@ export function ServiceEntitlementReportScreen({
       pageSize,
       report,
       search.department,
+      search.from,
       search.room,
+      search.to,
       serviceDate,
       status,
       stay,
@@ -153,6 +169,8 @@ export function ServiceEntitlementReportScreen({
       report,
       restaurantId,
       serviceDate,
+      search.from ?? "",
+      search.to ?? "",
       meal,
       status,
       search.room ?? "",
@@ -167,6 +185,8 @@ export function ServiceEntitlementReportScreen({
           restaurantId,
           category,
           serviceDate,
+          from: search.from,
+          to: search.to,
           meal,
           status,
           room: search.room,
@@ -204,6 +224,8 @@ export function ServiceEntitlementReportScreen({
           restaurantId,
           category,
           serviceDate,
+          from: search.from,
+          to: search.to,
           meal,
           status,
           room: search.room,
@@ -227,7 +249,9 @@ export function ServiceEntitlementReportScreen({
     pageSize,
     restaurantId,
     search.department,
+    search.from,
     search.room,
+    search.to,
     serviceDate,
     status,
     stay,
@@ -241,6 +265,8 @@ export function ServiceEntitlementReportScreen({
         data: {
           restaurantId,
           serviceDate,
+          ...(search.from ? { from: search.from } : {}),
+          ...(search.to ? { to: search.to } : {}),
           category,
           meal,
           status,
@@ -264,7 +290,9 @@ export function ServiceEntitlementReportScreen({
     propertyName,
     restaurantId,
     search.department,
+    search.from,
     search.room,
+    search.to,
     serviceDate,
     status,
     stay,
@@ -284,8 +312,6 @@ export function ServiceEntitlementReportScreen({
       restaurantId={restaurantId}
       definition={definition}
       phase={phase}
-      businessDate={businessDate}
-      timezone={result?.context.timezone ?? "UTC"}
       page={page}
       pageSize={pageSize}
       totalRows={result?.total ?? 0}
@@ -302,148 +328,130 @@ export function ServiceEntitlementReportScreen({
             ...(failure === "too-large" ? { errorMessage: SERVICE_REPORT_TOO_LARGE_MESSAGE } : {}),
           }
         : {})}
-      kpis={
-        phase === "ready" && result ? (
-          <div className="report-print-hide flex flex-wrap gap-2" data-testid="service-summary">
-            {category === "MEAL" ? (
-              <>
-                <Summary label="Rooms" value={String(result.summary.rooms)} />
-                <Summary label="Adults" value={String(result.summary.adults)} />
-                <Summary label="Children" value={String(result.summary.children)} />
-                <Summary label="Total Pax" value={String(result.summary.totalPax)} />
-              </>
-            ) : (
-              <>
-                <Summary label="Services Due" value={String(result.summary.services)} />
-                <Summary label="Pending" value={String(result.summary.pending)} />
-                <Summary label="In Progress" value={String(result.summary.inProgress)} />
-                <Summary label="Completed" value={String(result.summary.completed)} />
-              </>
-            )}
-          </div>
-        ) : null
+      search={
+        <ReportToolbarSearch
+          value={search.room ?? ""}
+          placeholder="Room"
+          testId="service-room"
+          onCommit={(room) => writeFilters({ room, resetPage: true })}
+        />
       }
       filters={
-        <ReportFilterBar
+        <PmsFilterMenu
+          activeCount={
+            (serviceDate !== businessDate ? 1 : 0) +
+            (search.from ? 1 : 0) +
+            (search.to ? 1 : 0) +
+            (category === "MEAL" ? (meal !== "BREAKFAST" ? 1 : 0) : search.department ? 1 : 0) +
+            (status !== "OPEN" ? 1 : 0) +
+            (stay !== "ALL" ? 1 : 0)
+          }
           onClear={() =>
             void navigate({
               to: "/restaurant/pms/reports",
               search: serviceClearedSearch(report, businessDate),
             })
           }
+          buttonTestId="service-filters-button"
+          menuTestId="service-filters-menu"
         >
-          <Filter label="Service Date">
-            <input
-              type="date"
-              className={FIELD}
-              data-testid="service-date"
-              value={serviceDate}
-              onChange={(event) =>
-                writeFilters({ serviceDate: event.target.value, resetPage: true })
-              }
-            />
-          </Filter>
+          <ReportFilterDate
+            label="Service Date"
+            testId="service-date"
+            value={serviceDate}
+            onChange={(next) => writeFilters({ serviceDate: next, resetPage: true })}
+          />
+          <ReportFilterDate
+            label="From"
+            testId="service-from"
+            value={search.from ?? ""}
+            onChange={(next) => writeFilters({ from: next || null, resetPage: true })}
+          />
+          <ReportFilterDate
+            label="To"
+            testId="service-to"
+            value={search.to ?? ""}
+            onChange={(next) => writeFilters({ to: next || null, resetPage: true })}
+          />
           {category === "MEAL" ? (
-            <Filter label="Meal">
-              <Select
-                value={meal}
-                onValueChange={(val) =>
-                  writeFilters({ meal: serviceMealFilter(val), resetPage: true })
-                }
-              >
-                <SelectTrigger className={FIELD} data-testid="service-meal">
-                  <SelectValue placeholder="Select meal" />
-                </SelectTrigger>
-                <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                  <SelectItem value="BREAKFAST" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                    Breakfast
-                  </SelectItem>
-                  <SelectItem value="LUNCH" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                    Lunch
-                  </SelectItem>
-                  <SelectItem value="DINNER" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                    Dinner
-                  </SelectItem>
-                  <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                    All meals
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </Filter>
+            <PmsFilterChoiceRow
+              label="Meal"
+              value={meal}
+              neutralValue="BREAKFAST"
+              current={
+                meal === "LUNCH"
+                  ? "Lunch"
+                  : meal === "DINNER"
+                    ? "Dinner"
+                    : meal === "ALL"
+                      ? "All meals"
+                      : ""
+              }
+              options={[
+                ["BREAKFAST", "Breakfast"],
+                ["LUNCH", "Lunch"],
+                ["DINNER", "Dinner"],
+                ["ALL", "All meals"],
+              ]}
+              onChange={(val) => writeFilters({ meal: serviceMealFilter(val), resetPage: true })}
+            />
           ) : (
-            <Filter label="Department">
-              <input
-                className={FIELD}
+            <PmsFilterNoteRow label="Department">
+              <Input
+                value={search.department ?? ""}
                 data-testid="service-department"
                 placeholder="Department id"
-                value={search.department ?? ""}
+                className="h-9 border-[#DDD4C5] bg-white text-xs"
+                aria-label="Department"
                 onChange={(event) =>
                   writeFilters({ department: event.target.value, resetPage: true })
                 }
+                onKeyDown={(event) => event.stopPropagation()}
               />
-            </Filter>
+            </PmsFilterNoteRow>
           )}
-          <Filter label="Status">
-            <Select
-              value={status}
-              onValueChange={(val) =>
-                writeFilters({ status: serviceStatusFilter(val), resetPage: true })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="service-status">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="OPEN" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Due
-                </SelectItem>
-                <SelectItem value="PENDING" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Pending
-                </SelectItem>
-                <SelectItem value="IN_PROGRESS" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  In progress
-                </SelectItem>
-                <SelectItem value="COMPLETED" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Completed
-                </SelectItem>
-                <SelectItem value="CANCELLED" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Cancelled
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Filter>
-          <Filter label="Guests">
-            <Select
-              value={stay}
-              onValueChange={(val) =>
-                writeFilters({ stay: serviceStayFilter(val), resetPage: true })
-              }
-            >
-              <SelectTrigger className={FIELD} data-testid="service-stay">
-                <SelectValue placeholder="Select guest status" />
-              </SelectTrigger>
-              <SelectContent className="border-[#DDD4C5] bg-white rounded-xl shadow-xl p-1 z-50">
-                <SelectItem value="ALL" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  All entitled
-                </SelectItem>
-                <SelectItem value="IN_HOUSE" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  In house only
-                </SelectItem>
-                <SelectItem value="CONFIRMED" className="text-xs text-[#251605] focus:bg-[#FAF3E3] focus:text-[#8A6A24] rounded-lg cursor-pointer py-1.5">
-                  Expected / confirmed
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Filter>
-          <Filter label="Room">
-            <input
-              className={FIELD}
-              data-testid="service-room"
-              value={search.room ?? ""}
-              onChange={(event) => writeFilters({ room: event.target.value, resetPage: true })}
-            />
-          </Filter>
-        </ReportFilterBar>
+          <PmsFilterChoiceRow
+            label="Status"
+            value={status}
+            neutralValue="OPEN"
+            current={
+              status === "PENDING"
+                ? "Pending"
+                : status === "IN_PROGRESS"
+                  ? "In progress"
+                  : status === "COMPLETED"
+                    ? "Completed"
+                    : status === "CANCELLED"
+                      ? "Cancelled"
+                      : ""
+            }
+            options={[
+              ["OPEN", "Due"],
+              ["PENDING", "Pending"],
+              ["IN_PROGRESS", "In progress"],
+              ["COMPLETED", "Completed"],
+              ["CANCELLED", "Cancelled"],
+            ]}
+            onChange={(val) => writeFilters({ status: serviceStatusFilter(val), resetPage: true })}
+          />
+          <PmsFilterChoiceRow
+            label="Guests"
+            value={stay}
+            current={
+              stay === "IN_HOUSE"
+                ? "In house only"
+                : stay === "CONFIRMED"
+                  ? "Expected / confirmed"
+                  : ""
+            }
+            options={[
+              ["ALL", "All entitled"],
+              ["IN_HOUSE", "In house only"],
+              ["CONFIRMED", "Expected / confirmed"],
+            ]}
+            onChange={(val) => writeFilters({ stay: serviceStayFilter(val), resetPage: true })}
+          />
+        </PmsFilterMenu>
       }
     >
       {phase === "ready" && result ? (
@@ -551,6 +559,12 @@ export function ServiceEntitlementReportScreen({
                     : "Service Fulfillment"}
                 </h1>
                 <p className="text-xs">Service date: {printState.rows.context.serviceDate}</p>
+                {printState.rows.context.from !== printState.rows.context.serviceDate ||
+                printState.rows.context.to !== printState.rows.context.serviceDate ? (
+                  <p className="text-xs">
+                    Date range: {printState.rows.context.from} → {printState.rows.context.to}
+                  </p>
+                ) : null}
                 <p className="text-xs">
                   {printState.rows.context.stay === "IN_HOUSE"
                     ? "In house only"
@@ -648,22 +662,4 @@ function downloadWorkbook(fileName: string, base64: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function Summary({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-2xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</p>
-      <p className="mt-1 font-display text-xl font-bold tabular-nums text-[#251605]">{value}</p>
-    </div>
-  );
-}
-
-function Filter({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex w-44 min-w-36 flex-col gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#8A6A24]">{label}</span>
-      {children}
-    </div>
-  );
 }

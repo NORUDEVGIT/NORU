@@ -47,6 +47,7 @@ import {
   getNightAuditWorkspace,
   listNightAuditHistory,
   retryNightAuditOtbSnapshot,
+  revokePersistentFiscalOverride,
   saveNightAuditProgress,
   startNightAudit,
 } from "@/packages/pms/lib/nightaudit.functions";
@@ -138,6 +139,7 @@ export function NightAuditWorkspace({
   const saveProgress = useServerFn(saveNightAuditProgress);
   const close = useServerFn(closeBusinessDate);
   const authorizeFiscal = useServerFn(authorizeFiscalCloseOverride);
+  const revokeFiscal = useServerFn(revokePersistentFiscalOverride);
   const retryOtb = useServerFn(retryNightAuditOtbSnapshot);
   const history = useServerFn(listNightAuditHistory);
   const fetchRun = useServerFn(getNightAuditRun);
@@ -421,14 +423,34 @@ export function NightAuditWorkspace({
     mutationFn: (input: {
       exceptionId: string;
       reason: string;
-      reasonCategory?: FiscalReasonCategory;
+      reasonCategory: FiscalReasonCategory;
+      scope: "run_only" | "persistent";
+      confirmPersistent: boolean;
     }) => authorizeFiscal({ data: { restaurantId, ...input } }),
+    onSuccess: (result, input) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(
+        input.scope === "persistent"
+          ? "Persistent fiscal override authorized for this document. It remains unresolved."
+          : "Fiscal close override authorized. The fiscal document remains unresolved.",
+      );
+      void queryClient.invalidateQueries({ queryKey: [WORKSPACE_KEY, restaurantId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const revokeFiscalMutation = useMutation({
+    mutationFn: (input: { overrideId: string; reason: string }) =>
+      revokeFiscal({ data: { restaurantId, ...input } }),
     onSuccess: (result) => {
       if (!result.ok) {
         toast.error(result.message);
         return;
       }
-      toast.success("Fiscal close override authorized. The fiscal document remains unresolved.");
+      toast.success("Persistent fiscal override revoked. The document blocks End of Day again.");
       void queryClient.invalidateQueries({ queryKey: [WORKSPACE_KEY, restaurantId] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -483,17 +505,15 @@ export function NightAuditWorkspace({
     ? {
         data,
         window: liveWindow,
-        permissions: { canAny: permissions.canAny },
+        permissions: { canAny: permissions.canAny, membershipId: data.access.membershipId },
         fiscal: {
           canAuthorize: data.access.canAuthorizeFiscal,
           runStarted: runOpen,
-          busy: fiscalMutation.isPending,
-          onAuthorize: (exceptionId, reason, reasonCategory) =>
-            fiscalMutation.mutate({
-              exceptionId,
-              reason,
-              ...(reasonCategory ? { reasonCategory } : {}),
-            }),
+          canPersistent: data.access.canOverrideFiscalPersistent,
+          busy: fiscalMutation.isPending || revokeFiscalMutation.isPending,
+          onAuthorize: (exceptionId, reason, reasonCategory, scope, confirmPersistent) =>
+            fiscalMutation.mutate({ exceptionId, reason, reasonCategory, scope, confirmPersistent }),
+          onRevoke: (overrideId, reason) => revokeFiscalMutation.mutate({ overrideId, reason }),
         },
         dateTime: (value) => dateTime(value),
         time: (value) => time(value),
