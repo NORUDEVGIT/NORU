@@ -200,6 +200,8 @@ export function GuestFolioPage({
     void queryClient.invalidateQueries({
       queryKey: ["guest-invoice-settlement", restaurantId, folioId],
     });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-board", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-preview", restaurantId] });
     invalidateFrontOfficeOwnerReads(queryClient);
   }
 

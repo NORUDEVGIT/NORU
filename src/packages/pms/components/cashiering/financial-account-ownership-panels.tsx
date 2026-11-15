@@ -449,6 +449,8 @@ export function FinancialAccountCharges({
     void queryClient.invalidateQueries({
       queryKey: ["financial-account-workspace", restaurantId, accountId],
     });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-board", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-preview", restaurantId] });
   }
 
   return (

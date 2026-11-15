@@ -168,6 +168,8 @@ export function FinancialAccountWorkspacePage({
       queryKey: ["financial-account-workspace", restaurantId, accountId],
     });
     void queryClient.invalidateQueries({ queryKey: ["financial-accounts", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-board", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-preview", restaurantId] });
     invalidateFrontOfficeOwnerReads(queryClient);
   }
 
