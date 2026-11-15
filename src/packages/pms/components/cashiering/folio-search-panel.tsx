@@ -1089,16 +1089,15 @@ function AllAccountsTable({
                         )}
                         <div className="min-w-0">
                           {isGuest ? (
-                          <button
-                            type="button"
-                            className="font-semibold text-foreground hover:text-[#8a6a1f] hover:underline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSelectRow(row);
-                            }}
-                          >
-                            {row.accountNumber}
-                          </button>
+                            <Link
+                              to="/restaurant/pms/cashiering/folios/$folioId"
+                              params={{ folioId: row.guestFolioId! }}
+                              className="font-semibold text-foreground hover:text-[#8a6a1f] hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                              title="Open guest folio workspace"
+                            >
+                              {row.accountNumber}
+                            </Link>
                           ) : (
                             <Link
                               to="/restaurant/pms/cashiering/accounts/$accountId"
@@ -1163,13 +1162,17 @@ function AllAccountsTable({
                       {isGuest ? (
                         <div className="flex items-center justify-end gap-1">
                           <Button
-                            type="button"
+                            asChild
                             variant="ghost"
                             size="sm"
                             className="h-8 px-2.5 text-xs font-medium text-[#8a6a1f] hover:bg-[#C89933]/10 hover:text-[#765719]"
-                            onClick={() => onSelectRow(row)}
                           >
-                            Open
+                            <Link
+                              to="/restaurant/pms/cashiering/folios/$folioId"
+                              params={{ folioId: row.guestFolioId! }}
+                            >
+                              Open
+                            </Link>
                           </Button>
                           <FolioActionMenu
                             folio={{
@@ -1317,16 +1320,15 @@ function GuestFolioTable({
                       <div className="flex items-start gap-2">
                         <FileText className="mt-0.5 size-4 shrink-0 text-[#8a6a1f]" aria-hidden />
                         <div className="min-w-0">
-                          <button
-                            type="button"
+                          <Link
+                            to="/restaurant/pms/cashiering/folios/$folioId"
+                            params={{ folioId: folio.id }}
                             className="font-semibold text-foreground hover:text-[#8a6a1f] hover:underline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSelect(folio);
-                            }}
+                            onClick={(event) => event.stopPropagation()}
+                            title="Open guest folio workspace"
                           >
                             {folio.folioNumber}
-                          </button>
+                          </Link>
                         </div>
                       </div>
                     </td>
@@ -1381,13 +1383,17 @@ function GuestFolioTable({
                     <td className={`${ROOM_TABLE_TD} text-right`} onClick={(event) => event.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button
-                          type="button"
+                          asChild
                           variant="ghost"
                           size="sm"
                           className="h-8 px-2.5 text-xs font-medium text-[#8a6a1f] hover:bg-[#C89933]/10 hover:text-[#765719]"
-                          onClick={() => onSelect(folio)}
                         >
-                          Open
+                          <Link
+                            to="/restaurant/pms/cashiering/folios/$folioId"
+                            params={{ folioId: folio.id }}
+                          >
+                            Open
+                          </Link>
                         </Button>
                         <FolioActionMenu
                           folio={folio}
@@ -1535,6 +1541,23 @@ function FolioDetailsDrawer({
           <FolioSearchFolioStatusBadge status={folio.status} />
           <FolioSearchStayStatusBadge status={folio.reservationStatus} />
         </div>
+        {folio.id ? (
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-8 w-full gap-1 border-[#C89933]/40 bg-transparent text-[#F6EFE4] hover:bg-white/10 hover:text-white"
+          >
+            <Link
+              to="/restaurant/pms/cashiering/folios/$folioId"
+              params={{ folioId: folio.id }}
+              data-testid="folio-open-page"
+            >
+              Open Folio
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </Button>
+        ) : null}
       </SheetHeader>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
