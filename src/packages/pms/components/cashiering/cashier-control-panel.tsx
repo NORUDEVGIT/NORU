@@ -9,7 +9,6 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Building2,
-  Calendar,
   CheckCircle2,
   Clock,
   CreditCard,
@@ -21,7 +20,6 @@ import {
   PiggyBank,
   PlusCircle,
   Receipt,
-  RotateCcw,
   Search,
   User,
   Users,
@@ -116,7 +114,6 @@ export function CashierControl({
   const [now, setNow] = useState(() => Date.now());
   const [mode, setMode] = useState<"desk" | "open" | "close">("desk");
   const [closeId, setCloseId] = useState<string | null>(null);
-  const [viewDate, setViewDate] = useState("");
   const [closedSummary, setClosedSummary] = useState<CashierShiftRow | null>(null);
 
   useEffect(() => {
@@ -139,11 +136,8 @@ export function CashierControl({
     retry: false,
   });
   const activityQuery = useQuery({
-    queryKey: ["cashiering-business-date", restaurantId, viewDate],
-    queryFn: () =>
-      fetchActivity({
-        data: { restaurantId, ...(viewDate ? { viewDate } : {}) },
-      }),
+    queryKey: ["cashiering-business-date", restaurantId],
+    queryFn: () => fetchActivity({ data: { restaurantId } }),
     retry: false,
   });
 
@@ -161,7 +155,6 @@ export function CashierControl({
   const businessDate = activity?.canonicalBusinessDate ?? "—";
   const history = visibleShiftHistory(shifts, membershipId, canAuthorizeShifts);
   const others = canAuthorizeShifts ? otherOpenShifts(shifts, membershipId) : [];
-  const isHistorical = Boolean(viewDate && viewDate !== activity?.canonicalBusinessDate);
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["cashier-shifts", restaurantId] });
@@ -197,62 +190,6 @@ export function CashierControl({
             Close Shift
           </Button>
         </CashieringShellSlot>
-      ) : null}
-
-      <header className="flex flex-wrap items-center justify-end gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2.5 rounded-xl border border-[#E8E1D7] bg-white px-3.5 py-2 shadow-2xs">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-[#FAF5EB] text-[#8A6A24]">
-              <Calendar className="size-4" />
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#7A7167]">
-                Business Date
-              </p>
-              <p
-                className="text-sm font-semibold tabular-nums text-[#251605]"
-                data-testid="business-date"
-              >
-                {businessDate}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 rounded-xl border border-[#E8E1D7] bg-white px-2.5 py-1.5 shadow-2xs text-xs text-[#7A7167]">
-            <span>View Date:</span>
-            <input
-              type="date"
-              value={viewDate || activity?.canonicalBusinessDate || ""}
-              onChange={(event) => {
-                const next = event.target.value;
-                setViewDate(next && next !== activity?.canonicalBusinessDate ? next : "");
-              }}
-              className="bg-transparent text-xs font-medium text-[#251605] outline-none cursor-pointer"
-              aria-label="View business date"
-            />
-          </div>
-        </div>
-      </header>
-
-      {/* Historical View Warning Banner */}
-      {isHistorical ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-[#FCD34D] bg-[#FFFBEB] px-4 py-2.5 text-xs text-[#92400E] shadow-2xs">
-          <div className="flex items-center gap-2">
-            <Calendar className="size-4 shrink-0 text-[#B45309]" />
-            <span>
-              Viewing historical Business Date: <strong>{viewDate}</strong>. Current hotel Business
-              Date is <strong>{activity?.canonicalBusinessDate ?? businessDate}</strong>.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setViewDate("")}
-            className="flex items-center gap-1 font-semibold text-[#B45309] hover:underline"
-          >
-            <RotateCcw className="size-3.5" />
-            Reset to Current
-          </button>
-        </div>
       ) : null}
 
       {/* Closed Shift Summary Toast / Card */}
