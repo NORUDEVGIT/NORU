@@ -150,6 +150,7 @@ export const getCheckInUnit = createServerFn({ method: "POST" })
         arrival: target.arrivalDate,
         departure: target.departureDate,
         excludeReservationId: data.reservationId,
+        ...(target.reservationRoomId ? { reservationRoomId: target.reservationRoomId } : {}),
       },
     });
     const progress = await loadUnitProgress(db, data.restaurantId, data.reservationId, {

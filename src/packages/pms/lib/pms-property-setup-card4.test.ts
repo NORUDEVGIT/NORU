@@ -94,7 +94,7 @@ describe("PMS Property Setup Card 4 Phase 1 shell", () => {
     );
     assert.deepEqual(
       CARD4_MAIN_SECTIONS.map((row) => row.id),
-      ["profile-rules", "guest-service-types", "notifications"],
+      ["profile-rules", "guest-service-types", "notifications", "agreement"],
     );
     assert.deepEqual(
       CARD4_GST_STEPS.map((row) => [row.number, row.id]),

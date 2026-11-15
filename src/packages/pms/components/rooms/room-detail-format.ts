@@ -148,6 +148,49 @@ export function describeRoomEvent(event: RoomInventoryEvent): RoomHistoryEntry {
   };
 }
 
+export interface RoomAuditRow {
+  when: string;
+  event: string;
+  previous: string;
+  next: string;
+  actor: string;
+  context: string;
+}
+
+/** True when a line is still a stored payload, a record id, or a database message. */
+function looksTechnical(line: string): boolean {
+  return /[{}[\]]|_[a-z]|[0-9a-f]{8}-|relation |column |schema |violates /i.test(line);
+}
+
+/**
+ * One History & Audit row. Previous, new, and context are plain sentences.
+ * Stored JSON and database messages stay off the screen.
+ */
+export function roomAuditRow(event: RoomInventoryEvent): RoomAuditRow {
+  const entry = describeRoomEvent(event);
+  const previous: string[] = [];
+  const next: string[] = [];
+  const context: string[] = [];
+  for (const line of entry.details) {
+    if (looksTechnical(line)) continue;
+    if (line.startsWith("Previous status: ")) previous.push(line.slice("Previous status: ".length));
+    else if (line.startsWith("Status: ")) next.push(line.slice("Status: ".length));
+    else if (line.startsWith("Reason: ")) context.push(line.slice("Reason: ".length));
+    else if (line.startsWith("Note: ")) context.push(line.slice("Note: ".length));
+    else context.push(line);
+  }
+  if (entry.effective && !looksTechnical(entry.effective)) context.push(entry.effective);
+  if (entry.expectedReturn) next.push(`Expected return ${entry.expectedReturn}`);
+  return {
+    when: entry.when,
+    event: entry.title,
+    previous: previous.join(" · ") || "—",
+    next: next.join(" · ") || "—",
+    actor: entry.staff,
+    context: context.join(" · ") || "—",
+  };
+}
+
 /** Splits the single room note field into separate entries (blank-line separated). */
 export function splitRoomNotes(notes: string | null | undefined): string[] {
   return (notes ?? "")

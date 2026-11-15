@@ -144,9 +144,35 @@ export function normalizeBlockTypeRule(row: InventoryBlockTypeRule): InventoryBl
   };
 }
 
+/**
+ * Value shown for the single housekeeping-readiness toggle.
+ * Either stored flag turns the toggle on; assignment eligibility still
+ * treats the two columns the same way.
+ */
+export function canonicalHousekeepingReadiness(
+  requireHousekeepingReadiness: boolean,
+  housekeepingAffectsAssignment: boolean,
+): boolean {
+  return requireHousekeepingReadiness || housekeepingAffectsAssignment;
+}
+
+/** Both stored columns follow the one toggle the staff member saved. */
+export function housekeepingAssignmentColumns(enabled: boolean): {
+  housekeeping_affects_assignment: boolean;
+  require_housekeeping_readiness: boolean;
+} {
+  return {
+    housekeeping_affects_assignment: enabled,
+    require_housekeeping_readiness: enabled,
+  };
+}
+
 export function normalizeInventoryRules(draft: InventoryRulesDraft): InventoryRulesDraft {
+  const housekeeping = housekeepingAssignmentColumns(draft.requireHousekeepingReadiness);
   const next: InventoryRulesDraft = {
     ...draft,
+    housekeepingAffectsAssignment: housekeeping.housekeeping_affects_assignment,
+    requireHousekeepingReadiness: housekeeping.require_housekeeping_readiness,
     blockTypes: mergeBlockTypeRules(draft.blockTypes ?? []),
   };
   if (!next.overbookingAllowed) {

@@ -64,20 +64,25 @@ export function PropertySetupPanel({
   helper,
   icon,
   testId,
+  dense,
   children,
 }: {
   title: string;
   helper?: string;
   icon: PropertySetupFieldIconKey | LucideIcon;
   testId?: string;
+  dense?: boolean;
   children: ReactNode;
 }) {
   return (
     <section
-      className="space-y-4 rounded-2xl border border-[#E6E1D8] bg-white p-5"
+      className={cn(
+        "rounded-2xl border border-[#E6E1D8] bg-white",
+        dense ? "space-y-3 p-4" : "space-y-4 p-5",
+      )}
       data-testid={testId}
     >
-      <PropertySetupSectionHeader icon={icon} title={title} description={helper} />
+      <PropertySetupSectionHeader icon={icon} title={title} description={helper} dense={dense} />
       {children}
     </section>
   );

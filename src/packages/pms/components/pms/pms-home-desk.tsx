@@ -28,6 +28,8 @@ export function PmsHomeDesk({
 
   const configuredName = card1.data?.snapshot.draft.name.trim() ?? "";
   const propertyName = configuredName || membership.restaurant.name;
+  const starRating = card1.data?.snapshot.draft.starRating;
+  const stars = typeof starRating === "number" ? starRating : 0;
 
   function resumeWorkspace() {
     const next = readLastPmsWorkspace(restaurantId);
@@ -60,6 +62,15 @@ export function PmsHomeDesk({
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-[#251605] sm:text-5xl">
             {propertyName}
           </h1>
+          {stars > 0 ? (
+            <p
+              className="mt-1.5 text-lg leading-none tracking-wide text-[#C89933] sm:text-xl"
+              aria-label={stars === 1 ? "1 star" : `${stars} stars`}
+              data-testid="pms-home-star-rating"
+            >
+              {"★".repeat(stars)}
+            </p>
+          ) : null}
         </div>
 
         <div className="mt-6 flex justify-center sm:mt-7">

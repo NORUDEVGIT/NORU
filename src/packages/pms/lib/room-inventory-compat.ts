@@ -47,6 +47,20 @@ export interface AssignmentEligibilityInput extends RoomTypeAvailabilityInput {
 
 export type AssignmentEligibilityNote = Record<string, string | number | boolean | null>;
 
+/**
+ * Pair context for a reservation room that is paired for connecting rooms.
+ * Present only when the unit has an active pair and the check was run for it.
+ */
+export interface AssignmentPairContext {
+  /** "Room 2", or "Room 2 (CONF-1)" when the partner is on another reservation. */
+  partnerLabel: string;
+  /** Physical room the partner holds, or null while the partner is unassigned. */
+  partnerRoomNumber: string | null;
+  partnerAssigned: boolean;
+  /** False when the property does not require connecting-room matching. */
+  enforced: boolean;
+}
+
 export interface AssignmentEligibilityResult {
   source: "canonical" | "legacy";
   eligible: boolean;
@@ -54,6 +68,7 @@ export interface AssignmentEligibilityResult {
   warnings: AssignmentEligibilityNote[];
   preferenceScore: number;
   preferenceReasons: string[];
+  pairing?: AssignmentPairContext;
 }
 
 export interface OperationalRestrictionInput {

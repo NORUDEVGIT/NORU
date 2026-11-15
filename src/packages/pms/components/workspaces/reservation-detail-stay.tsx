@@ -229,6 +229,7 @@ export function ReservationDetailStayTab({
       stayCore.arrival,
       stayCore.departure,
       reservation.id,
+      reservation.rooms?.[0]?.id ?? null,
     ],
     queryFn: () =>
       fetchRooms({
@@ -238,6 +239,8 @@ export function ReservationDetailStayTab({
           arrival: stayCore.arrival,
           departure: stayCore.departure,
           excludeReservationId: reservation.id,
+          // The header's assigned room is room 1's compat pointer.
+          ...(reservation.rooms?.[0]?.id ? { reservationRoomId: reservation.rooms[0]!.id } : {}),
         },
       }),
     enabled:

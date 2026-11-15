@@ -35,7 +35,6 @@ import {
   normalizeBedRows,
   normalizeRoomFeatures,
   occupancyErrors,
-  roomLinkErrors,
   sequentialRoomLabels,
   ROOM_CANNOT_LEAVE_TYPE,
   uniqueViolationMessage,
@@ -59,7 +58,6 @@ const idSchema = z.string().uuid();
 const smokingPolicySchema = z.enum(SMOKING_POLICIES);
 const maintenanceStatusSchema = z.enum(MAINTENANCE_STATUSES);
 const hkStatusSchema = z.enum(HK_STATUSES);
-const roomLinkKindSchema = z.enum(ROOM_LINK_KINDS);
 
 type DbClient = {
   from: (table: string) => any;
@@ -293,32 +291,6 @@ async function replaceRoomTypeBeds(
   return { ok: true };
 }
 
-async function replaceRoomLinks(
-  supabase: DbClient,
-  restaurantId: string,
-  roomId: string,
-  links: { otherRoomId: string; kind: RoomLinkKind }[],
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  const { error: delError } = await supabase
-    .from("hotel_room_links")
-    .delete()
-    .eq("restaurant_id", restaurantId)
-    .eq("room_id", roomId);
-  if (delError) return { ok: false, message: "Could not update room links." };
-  if (links.length === 0) return { ok: true };
-  const { error } = await supabase.from("hotel_room_links").insert(
-    links.map((link) => ({
-      restaurant_id: restaurantId,
-      room_id: roomId,
-      other_room_id: link.otherRoomId,
-      kind: link.kind,
-    })),
-  );
-  if (error?.code === "23505") return { ok: false, message: "Duplicate room relationship." };
-  if (error) return { ok: false, message: "Could not save room links." };
-  return { ok: true };
-}
-
 const ROOM_OPERATION_TABLES = [
   "hotel_reservation_rooms",
   "hotel_reservations",
@@ -476,7 +448,15 @@ export interface RoomType {
   infantCapacity: number;
   extraGuestAllowed: boolean;
   extraBedAllowed: boolean;
+  /**
+   * Contains connecting rooms: room-type guidance only. Never read by
+   * assignment; physical connections live in hotel_room_links.
+   */
   connectingEligible: boolean;
+  /**
+   * "Contains accessible rooms": room-type guidance only. Never read by
+   * assignment; the room's own `accessible` flag is the hard-rule source.
+   */
   accessibleEligible: boolean;
   smokingPolicy: SmokingPolicy;
   bedType: string | null;
@@ -500,6 +480,7 @@ export interface RoomType {
   coverUrl: string | null;
 }
 
+/** Seen from the listed room, whichever direction the row was stored in. */
 export interface HotelRoomLink {
   id: string;
   otherRoomId: string;
@@ -520,6 +501,7 @@ export interface HotelRoom {
   floorId: string | null;
   wingId: string | null;
   smoking: boolean;
+  /** The only room capability the "Accessible room required" rule reads. */
   accessible: boolean;
   status: RoomStatus;
   housekeepingStatus: HkStatus | null;
@@ -1093,16 +1075,20 @@ export const listRooms = createServerFn({ method: "POST" })
             .from("hotel_room_links")
             .select("id, room_id, other_room_id, kind")
             .eq("restaurant_id", data.restaurantId)
-            .in("room_id", roomIds)
         : { data: [] as { id: string; room_id: string; other_room_id: string; kind: string }[] };
 
+    // A stored row is one undirected relationship: list it on both rooms.
+    const listedIds = new Set<string>(roomIds);
     const linksByRoom = new Map<string, HotelRoomLink[]>();
+    const addLink = (roomId: string, link: HotelRoomLink) => {
+      if (!listedIds.has(roomId)) return;
+      linksByRoom.set(roomId, [...(linksByRoom.get(roomId) ?? []), link]);
+    };
     for (const link of linkRows ?? []) {
       if (!(ROOM_LINK_KINDS as readonly string[]).includes(link.kind)) continue;
-      linksByRoom.set(link.room_id, [
-        ...(linksByRoom.get(link.room_id) ?? []),
-        { id: link.id, otherRoomId: link.other_room_id, kind: link.kind as RoomLinkKind },
-      ]);
+      const kind = link.kind as RoomLinkKind;
+      addLink(link.room_id, { id: link.id, otherRoomId: link.other_room_id, kind });
+      addLink(link.other_room_id, { id: link.id, otherRoomId: link.room_id, kind });
     }
     const operatedIds = await operatedRoomIds(pmsDb(context.supabase), data.restaurantId, roomIds);
 
@@ -1143,11 +1129,6 @@ export const listRooms = createServerFn({ method: "POST" })
     }));
   });
 
-const roomLinkInput = z.object({
-  otherRoomId: idSchema,
-  kind: roomLinkKindSchema,
-});
-
 const roomInput = z.object({
   restaurantId: idSchema,
   id: idSchema.optional(),
@@ -1169,7 +1150,6 @@ const roomInput = z.object({
   roomFeatures: z.array(z.string().trim().max(40)).max(30).optional(),
   active: z.boolean(),
   notes: z.string().trim().max(1000).nullable().optional(),
-  links: z.array(roomLinkInput).max(20).optional(),
 });
 
 export const saveRoom = createServerFn({ method: "POST" })
@@ -1360,28 +1340,6 @@ export const saveRoom = createServerFn({ method: "POST" })
     }
 
     if (!roomId) return { ok: false as const, message: "Could not save the room." };
-
-    if (data.links) {
-      const targetIds = [...new Set(data.links.map((link) => link.otherRoomId))];
-      const { data: targets } =
-        targetIds.length > 0
-          ? await pmsDb(context.supabase)
-              .from("hotel_rooms")
-              .select("id")
-              .eq("restaurant_id", data.restaurantId)
-              .in("id", targetIds)
-          : { data: [] as { id: string }[] };
-      const allowed = new Set<string>((targets ?? []).map((row: { id: string }) => row.id));
-      const linkIssue = roomLinkErrors(roomId, data.links, allowed);
-      if (linkIssue) return { ok: false as const, message: linkIssue };
-      const linksWrite = await replaceRoomLinks(
-        pmsDb(context.supabase),
-        data.restaurantId,
-        roomId,
-        data.links,
-      );
-      if (!linksWrite.ok) return linksWrite;
-    }
 
     await persistCard2RoomTypesReadiness(pmsDb(context.supabase), data.restaurantId);
     return { ok: true as const, id: roomId };

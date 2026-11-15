@@ -8,6 +8,11 @@
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
+import {
+  PAIR_WRITE_ERRORS,
+  REQUIREMENT_WRITE_ERRORS,
+  pairWriteErrorMessage,
+} from "./room-requirement-rejection";
 
 export const RATE_MANAGE_ROLES = ["owner", "manager"] as const;
 
@@ -40,6 +45,8 @@ export function blankToNull(value: string | null | undefined): string | null {
 }
 
 const RATE_ERRORS: Record<string, string> = {
+  ...REQUIREMENT_WRITE_ERRORS,
+  ...PAIR_WRITE_ERRORS,
   RATE_PLAN_NOT_FOUND: "That rate plan doesn't belong to this property.",
   RATE_PLAN_INACTIVE: "That rate plan is inactive.",
   RATE_PLAN_TYPE_MISMATCH: "That rate plan is for a different room type.",
@@ -161,6 +168,9 @@ const RATE_ERRORS: Record<string, string> = {
 
 /** Map RAISE EXCEPTION codes from the pricing functions to user-facing text. */
 export function rateError(message: string): Error {
+  // A room pair refusal may name the partner's room.
+  const pair = pairWriteErrorMessage(message);
+  if (pair) return new Error(pair);
   if (/duplicate key value/i.test(message)) {
     if (message.includes("hotel_rate_categories"))
       return new Error("A rate category with that code already exists.");

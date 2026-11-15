@@ -70,6 +70,7 @@ export const CARD4_MAIN_SECTIONS = [
   { id: "profile-rules", title: "Guest Profile Rules" },
   { id: "guest-service-types", title: "Guest Service Types" },
   { id: "notifications", title: "Notifications & Communication" },
+  { id: "agreement", title: "Guest Agreement" },
 ] as const;
 
 export type Card4MainSectionId = (typeof CARD4_MAIN_SECTIONS)[number]["id"];

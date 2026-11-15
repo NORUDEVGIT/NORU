@@ -7,7 +7,6 @@ import type {
 export type RuleFlagKey =
   | "sellableStatusRequired"
   | "maintenanceAffectsAvailability"
-  | "housekeepingAffectsAssignment"
   | "requireHousekeepingReadiness"
   | "requireMaintenanceAvailability"
   | "requireRoomTypeMatch"
@@ -47,15 +46,9 @@ export const AVAILABILITY_RULES: RuleDefinition[] = [
 
 export const OPERATIONAL_REQUIREMENT_RULES: RuleDefinition[] = [
   {
-    key: "housekeepingAffectsAssignment",
-    label: "Housekeeping affects assignment",
-    help: "Rooms that do not meet the property's clean and inspection settings cannot be assigned.",
-    kind: "blocking",
-  },
-  {
     key: "requireHousekeepingReadiness",
     label: "Require housekeeping readiness",
-    help: "Runs the same readiness check as Housekeeping affects assignment.",
+    help: "Require rooms to be released by Housekeeping before assignment.",
     kind: "blocking",
   },
   {

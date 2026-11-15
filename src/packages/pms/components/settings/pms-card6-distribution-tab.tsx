@@ -59,6 +59,8 @@ import {
   type DistributionSavePayload,
 } from "@/packages/pms/components/settings/pms-card6-distribution-drawer";
 import { Card6DistributionValidation } from "@/packages/pms/components/settings/pms-card6-distribution-validation";
+import { DistributionSubTabs } from "@/packages/pms/components/workspaces/distribution-workspace";
+import { DistributionChannelTable, useDistribution } from "@/packages/pms/components/distribution/distribution-tabs";
 import {
   deletePmsCard6Distribution,
   getPmsCard6Distribution,
@@ -93,6 +95,7 @@ function toDraft(row: DistributionChannelDetail): DistributionDraft {
   };
 }
 
+/** Settings → Connectivity & Distribution → Distribution. */
 export function Card6DistributionTab({
   restaurantId,
   canEdit,
@@ -102,7 +105,33 @@ export function Card6DistributionTab({
   canEdit: boolean;
   onGoToIntegrations: () => void;
 }) {
+  return (
+    <div data-testid="card6-distribution-tab">
+      <DistributionSubTabs
+        restaurantId={restaurantId}
+        channelsExtra={
+          <ProviderChannelConnections
+            restaurantId={restaurantId}
+            canEdit={canEdit}
+            onGoToIntegrations={onGoToIntegrations}
+          />
+        }
+      />
+    </div>
+  );
+}
+
+function ProviderChannelConnections({
+  restaurantId,
+  canEdit,
+  onGoToIntegrations,
+}: {
+  restaurantId: string;
+  canEdit: boolean;
+  onGoToIntegrations: () => void;
+}) {
   const queryClient = useQueryClient();
+  const overview = useDistribution(restaurantId);
   const load = useServerFn(getPmsCard6Distribution);
   const save = useServerFn(savePmsCard6Distribution);
   const setEnabled = useServerFn(setPmsCard6DistributionEnabled);
@@ -211,12 +240,15 @@ export function Card6DistributionTab({
   };
 
   return (
-    <div className="space-y-5" data-testid="card6-distribution-tab">
+    <section
+      className="space-y-3 rounded-xl border border-[#E6E1D8] bg-white p-3"
+      data-testid="card6-provider-channels"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-2xl text-[#251605]">Distribution</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage your channels and map Noru PMS data to connected distribution providers.
+          <h2 className="text-sm font-semibold text-[#251605]">Provider channels</h2>
+          <p className="mt-0.5 text-sm text-[#7A6A55]">
+            Map Noru PMS data to channels on connected distribution providers.
           </p>
         </div>
         {canEdit ? (
@@ -226,6 +258,7 @@ export function Card6DistributionTab({
               setEditing(null);
               setDrawerOpen(true);
             }}
+            size="sm"
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             data-testid="card6-add-distribution"
           >
@@ -234,7 +267,7 @@ export function Card6DistributionTab({
         ) : null}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <IntegrationSummaryCard label="Total channels" value={summary.total} />
         <IntegrationSummaryCard label="Active" value={summary.connected} tone="positive" />
         <IntegrationSummaryCard label="Pending" value={summary.pending} tone="warning" />
@@ -249,6 +282,10 @@ export function Card6DistributionTab({
         The external sync service is not connected. Sync status and history remain empty until a
         backend confirms real synchronization.
       </IntegrationNotice>
+
+      {overview.data ? (
+        <DistributionChannelTable data={overview.data} restaurantId={restaurantId} />
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[14rem] flex-1">
@@ -306,7 +343,7 @@ export function Card6DistributionTab({
         </Select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-lg border border-[#E6E1D8] bg-white">
         {query.isLoading ? (
           <p className="p-6 text-sm text-muted-foreground">Loading distribution channels…</p>
         ) : query.isError ? (
@@ -632,6 +669,6 @@ export function Card6DistributionTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </section>
   );
 }

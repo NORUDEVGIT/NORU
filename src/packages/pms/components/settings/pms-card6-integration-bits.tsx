@@ -5,30 +5,65 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/shared/lib/utils";
-import {
-  integrationStatusLabel,
-  type IntegrationStatus,
-} from "@/packages/pms/lib/integrations-card6.server";
+import { type IntegrationStatus } from "@/packages/pms/lib/integrations-card6.server";
 
-const STATUS_STYLES: Record<IntegrationStatus, string> = {
-  connected: "border-[#436436]/40 bg-[#436436]/10 text-[#436436]",
-  pending: "border-[#C89933]/50 bg-[#C89933]/10 text-[#7A5511]",
-  not_configured: "border-[#CCCCCC] bg-muted/60 text-muted-foreground",
-  error: "border-destructive/40 bg-destructive/10 text-destructive",
-  disabled: "border-[#CCCCCC] bg-muted/40 text-muted-foreground",
+export type NoruStatusTone =
+  | "connected"
+  | "error"
+  | "pending"
+  | "disabled"
+  | "mapped"
+  | "not_mapped";
+
+const NORU_STATUS_LABEL: Record<NoruStatusTone, string> = {
+  connected: "Connected",
+  error: "Error",
+  pending: "Pending",
+  disabled: "Disabled",
+  mapped: "Mapped",
+  not_mapped: "Not mapped",
 };
 
-export function IntegrationStatusBadge({ status }: { status: IntegrationStatus }) {
+const NORU_STATUS_STYLE: Record<NoruStatusTone, string> = {
+  connected: "bg-[#FBF3DE] text-[#8A641A]",
+  error: "bg-[#F8E6E1] text-[#8C3B2A]",
+  pending: "bg-[#F7F4EE] text-[#5C5346]",
+  disabled: "bg-[#F4EDE0] text-[#7A6A55]",
+  mapped: "bg-[#FBF3DE] text-[#8A641A]",
+  not_mapped: "bg-[#F4EDE0] text-[#7A6A55]",
+};
+
+const INTEGRATION_TONE: Record<IntegrationStatus, NoruStatusTone> = {
+  connected: "connected",
+  pending: "pending",
+  not_configured: "pending",
+  error: "error",
+  disabled: "disabled",
+};
+
+export function NoruStatusChip({
+  tone,
+  testId,
+}: {
+  tone: NoruStatusTone;
+  testId?: string;
+}) {
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-        STATUS_STYLES[status],
+        "inline-flex shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tracking-wide",
+        NORU_STATUS_STYLE[tone],
       )}
-      data-testid={`card6-status-${status}`}
+      {...(testId ? { "data-testid": testId } : {})}
     >
-      {integrationStatusLabel(status)}
+      {NORU_STATUS_LABEL[tone]}
     </span>
+  );
+}
+
+export function IntegrationStatusBadge({ status }: { status: IntegrationStatus }) {
+  return (
+    <NoruStatusChip tone={INTEGRATION_TONE[status]} testId={`card6-status-${status}`} />
   );
 }
 
@@ -42,11 +77,11 @@ export function IntegrationSummaryCard({
   tone?: "neutral" | "positive" | "warning" | "danger";
 }) {
   return (
-    <article className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm">
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <article className="rounded-xl border border-[#E6E1D8] bg-white px-3 py-2">
+      <p className="text-[11px] text-[#7A6A55]">{label}</p>
       <p
         className={cn(
-          "mt-1 font-display text-2xl",
+          "font-display text-xl leading-tight",
           tone === "positive" && "text-[#436436]",
           tone === "warning" && "text-[#7A5511]",
           tone === "danger" && "text-destructive",
@@ -168,12 +203,22 @@ export function IntegrationNotice({
   );
 }
 
+export function SettingsEmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-dashed border-[#E6E1D8] bg-[#FBF7EE] px-4 py-5 text-center">
+      <p className="text-sm font-medium text-[#251605]">{title}</p>
+      <p className="mt-1 text-xs text-[#7A6A55]">{body}</p>
+    </div>
+  );
+}
+
 export function FieldShell({
   id,
   label,
   required,
   help,
   error,
+  dense,
   children,
 }: {
   id: string;
@@ -181,10 +226,11 @@ export function FieldShell({
   required?: boolean;
   help?: string;
   error?: string;
+  dense?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-2">
+    <div className={dense ? "space-y-1" : "space-y-2"}>
       <Label htmlFor={id}>
         {label}
         {required ? <span className="ml-1 text-destructive">*</span> : null}

@@ -46,7 +46,15 @@ import {
   type GroupMemberStatus,
 } from "./guest-group-detail-workspace";
 import { assertActiveGroupType, loadGroupTypes } from "./guest-group-types";
-import { roomInventoryAutoAssignment } from "./guest-group-auto-assignment";
+import { roomInventoryAutoAssignment, type AutoAssignmentNeed } from "./guest-group-auto-assignment";
+import { getAssignmentEligibilityCompat, type UntypedRpcClient } from "./room-inventory-compat";
+import { PAIR_INVALID_REJECTION, PAIR_PARTNER_UNAVAILABLE_REJECTION } from "./room-requirement-rejection";
+import { evaluatePairVerdict } from "./room-pair-eligibility";
+import {
+  loadEvaluationRequirements,
+  requirementRejectionFromBlockers,
+  type RoomRequirementReadDb,
+} from "./reservation-room-requirements";
 import {
   categorizeGroupTxn,
   getGroupInvoices,
@@ -60,6 +68,224 @@ const idSchema = z.string().uuid();
 
 function admin(client: { from: (table: string) => unknown }) {
   return client as { from: (table: string) => any };
+}
+
+/**
+ * The reservation room unit that holds `roomId`, or null when it is not exactly one unit.
+ * Lets a group room check use that unit's stored requirements.
+ */
+async function unitIdHoldingRoom(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  reservationId: string,
+  roomId: string,
+): Promise<string | null> {
+  const result = await db
+    .from("hotel_reservation_rooms")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("reservation_id", reservationId)
+    .eq("room_id", roomId);
+  const rows = (result.data ?? []) as Array<{ id: string }>;
+  return rows.length === 1 ? rows[0]!.id : null;
+}
+
+/** The staff requirement sentence when a swap target fails the occupying unit's stored requirement. */
+async function swapRequirementRefusal(
+  client: unknown,
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  stay: { id: string; room_type_id: string; arrival_date: string; departure_date: string },
+  unitId: string | null,
+  roomId: string,
+  otherReservationId: string,
+): Promise<string | null> {
+  const requirements = await loadEvaluationRequirements(db as unknown as RoomRequirementReadDb, {
+    restaurantId,
+    reservationId: stay.id,
+    reservationRoomId: unitId ?? undefined,
+  }).catch(() => null);
+  if (!requirements || (!requirements.accessibleRoomRequired && !requirements.connectingRoomRequired)) {
+    return null;
+  }
+  const eligibility = await getAssignmentEligibilityCompat(
+    client,
+    {
+      restaurantId,
+      roomId,
+      roomTypeId: stay.room_type_id,
+      arrival: stay.arrival_date,
+      departure: stay.departure_date,
+      excludeReservationId: otherReservationId,
+      accessibleRequired: requirements.accessibleRoomRequired,
+      connectingRequired: requirements.connectingRoomRequired,
+    },
+    () => ({
+      source: "legacy" as const,
+      eligible: true,
+      blockers: [],
+      warnings: [],
+      preferenceScore: 0,
+      preferenceReasons: [],
+    }),
+  ).catch(() => null);
+  return eligibility ? requirementRejectionFromBlockers(eligibility.blockers) : null;
+}
+
+/**
+ * One auto-assignment need per open room unit, carrying that unit's own room type,
+ * dates and guests. A reservation without unit rows is one need for the stay itself.
+ */
+async function groupAssignmentNeeds(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  reservations: Array<{
+    id: string;
+    room_type_id: string;
+    arrival_date: string;
+    departure_date: string;
+    adults: number;
+    children: number;
+    room_id: string | null;
+    special_requests: string | null;
+  }>,
+): Promise<AutoAssignmentNeed[]> {
+  if (reservations.length === 0) return [];
+  const result = await db
+    .from("hotel_reservation_rooms")
+    .select("id, reservation_id, unit_sequence, status, room_type_id, room_id, arrival_date, departure_date, adults, children")
+    .eq("restaurant_id", restaurantId)
+    .in(
+      "reservation_id",
+      reservations.map((row) => row.id),
+    )
+    .order("unit_sequence", { ascending: true });
+  if (result.error && !isMissingSchemaError(result.error)) throw new Error(result.error.message);
+  const units = (result.error ? [] : (result.data ?? [])) as Array<{
+    id: string;
+    reservation_id: string;
+    status: string;
+    room_type_id: string;
+    room_id: string | null;
+    arrival_date: string;
+    departure_date: string;
+    adults: number;
+    children: number;
+  }>;
+  const partners = await activePairPartners(
+    db,
+    restaurantId,
+    units.map((unit) => unit.id),
+  );
+  return reservations.flatMap((row): AutoAssignmentNeed[] => {
+    const own = units.filter((unit) => unit.reservation_id === row.id);
+    if (own.length === 0) {
+      return [
+        {
+          reservationId: row.id,
+          roomTypeId: row.room_type_id,
+          arrival: row.arrival_date,
+          departure: row.departure_date,
+          adults: row.adults,
+          children: row.children,
+          currentRoomId: row.room_id,
+          preferenceNote: row.special_requests,
+        },
+      ];
+    }
+    return own
+      .filter((unit) => ["pending", "confirmed"].includes(unit.status))
+      .map((unit) => ({
+        reservationId: row.id,
+        reservationRoomId: unit.id,
+        roomTypeId: unit.room_type_id,
+        arrival: unit.arrival_date,
+        departure: unit.departure_date,
+        adults: unit.adults,
+        children: unit.children,
+        currentRoomId: unit.room_id,
+        preferenceNote: row.special_requests,
+        pairPartnerReservationRoomId: partners.get(unit.id) ?? null,
+      }));
+  });
+}
+
+/** Partner unit by unit id for every active reservation room pair that touches these units. */
+async function activePairPartners(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  unitIds: string[],
+): Promise<Map<string, string>> {
+  const partners = new Map<string, string>();
+  if (unitIds.length === 0) return partners;
+  const list = unitIds.join(",");
+  const result = await db
+    .from("hotel_reservation_room_pairs")
+    .select("unit_a_id, unit_b_id")
+    .eq("restaurant_id", restaurantId)
+    .is("ended_at", null)
+    .or(`unit_a_id.in.(${list}),unit_b_id.in.(${list})`);
+  // A database that predates reservation room pairs has none.
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return partners;
+    throw new Error(result.error.message);
+  }
+  for (const row of (result.data ?? []) as Array<{ unit_a_id: string; unit_b_id: string }>) {
+    partners.set(row.unit_a_id, row.unit_b_id);
+    partners.set(row.unit_b_id, row.unit_a_id);
+  }
+  return partners;
+}
+
+/**
+ * The staff sentence when a swap would leave a paired unit in a room that does not satisfy
+ * its pair. The partner is judged by the room it will hold after the swap, so two paired
+ * units swapping with each other keep a valid pair. Null when the unit is unpaired.
+ */
+async function swapPairRefusal(
+  db: { from: (table: string) => any },
+  rpcClient: UntypedRpcClient,
+  restaurantId: string,
+  input: {
+    unitId: string | null;
+    candidateRoomId: string;
+    otherUnitId: string | null;
+    otherResultingRoomId: string;
+  },
+): Promise<string | null> {
+  if (!input.unitId) return null;
+  const partner = (await activePairPartners(db, restaurantId, [input.unitId])).get(input.unitId);
+  if (!partner) return null;
+  const partnerSwaps = input.otherUnitId !== null && partner === input.otherUnitId;
+  const verdict = await evaluatePairVerdict(rpcClient, {
+    restaurantId,
+    reservationRoomId: input.unitId,
+    roomId: input.candidateRoomId,
+    ...(partnerSwaps ? { usePartnerRoom: true, partnerRoomId: input.otherResultingRoomId } : {}),
+  });
+  if (!verdict || verdict.eligible) return null;
+  return requirementRejectionFromBlockers(verdict.blockers) ?? PAIR_INVALID_REJECTION;
+}
+
+/** Rooms with a physical connecting link to a room, in either direction. */
+async function connectingRoomIdsOf(
+  db: { from: (table: string) => any },
+  restaurantId: string,
+  roomId: string,
+): Promise<string[]> {
+  const result = await db
+    .from("hotel_room_links")
+    .select("room_id, other_room_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("kind", "connecting")
+    .or(`room_id.eq.${roomId},other_room_id.eq.${roomId}`);
+  if (result.error) {
+    if (isMissingSchemaError(result.error)) return [];
+    throw new Error("Could not load room connections.");
+  }
+  return ((result.data ?? []) as Array<{ room_id: string; other_room_id: string }>).map((row) =>
+    row.room_id === roomId ? row.other_room_id : row.room_id,
+  );
 }
 
 function unavailable(error: { code?: string; message?: string } | null | undefined): boolean {
@@ -1153,6 +1379,8 @@ export const assignGroupRoom = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         groupId: idSchema,
         reservationId: idSchema,
+        /** The room unit to assign. Required when the reservation has several rooms. */
+        reservationRoomId: idSchema.optional(),
         roomId: idSchema.nullable(),
       })
       .parse(input),
@@ -1172,21 +1400,36 @@ export const assignGroupRoom = createServerFn({ method: "POST" })
     if (!existing.data || existing.data.group_account_master_id !== data.groupId) {
       throw new Error("That reservation is not part of this group.");
     }
+    let previous: string | null = existing.data.room_id;
+    if (data.reservationRoomId) {
+      const unit = await db
+        .from("hotel_reservation_rooms")
+        .select("room_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("reservation_id", data.reservationId)
+        .eq("id", data.reservationRoomId)
+        .maybeSingle();
+      previous = (unit.data as { room_id: string | null } | null)?.room_id ?? null;
+    }
     await assignReservationRoom({
       data: {
         restaurantId: data.restaurantId,
         reservationId: data.reservationId,
         roomId: data.roomId,
+        ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
       },
     });
-    const previous = existing.data.room_id;
     const eventType = !data.roomId ? "room_unassigned" : previous && previous !== data.roomId ? "room_changed" : "room_assigned";
     await recordGuestAccountEvent({
       restaurantId: data.restaurantId,
       masterId: data.groupId,
       eventType,
       previousValues: { roomId: previous },
-      newValues: { reservationId: data.reservationId, roomId: data.roomId },
+      newValues: {
+        reservationId: data.reservationId,
+        ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
+        roomId: data.roomId,
+      },
       notes: data.roomId ? "Room assignment updated" : "Room assignment removed",
       actorMembershipId: me.id,
     });
@@ -1203,18 +1446,8 @@ export const autoAssignGroupRooms = createServerFn({ method: "POST" })
     const group = await loadGroupMaster(db, data.restaurantId, data.groupId);
     assertGroupMutable(group);
     const reservations = await loadGroupReservations(db, data.restaurantId, data.groupId);
-    const needs = reservations
-      .filter((row) => ["pending", "confirmed"].includes(row.status))
-      .map((row) => ({
-        reservationId: row.id,
-        roomTypeId: row.room_type_id,
-        arrival: row.arrival_date,
-        departure: row.departure_date,
-        adults: row.adults,
-        children: row.children,
-        currentRoomId: row.room_id,
-        preferenceNote: row.special_requests,
-      }));
+    const open = reservations.filter((row) => ["pending", "confirmed"].includes(row.status));
+    const needs = await groupAssignmentNeeds(db, data.restaurantId, open);
     const proposals = await roomInventoryAutoAssignment.propose({
       restaurantId: data.restaurantId,
       needs,
@@ -1227,8 +1460,10 @@ export const autoAssignGroupRooms = createServerFn({ method: "POST" })
               arrival: input.arrival,
               departure: input.departure,
               excludeReservationId: input.excludeReservationId,
+              ...(input.reservationRoomId ? { reservationRoomId: input.reservationRoomId } : {}),
             },
           }),
+        connectingRoomIds: ({ restaurantId, roomId }) => connectingRoomIdsOf(db, restaurantId, roomId),
       },
     });
     const assigned: typeof proposals = [];
@@ -1244,6 +1479,7 @@ export const autoAssignGroupRooms = createServerFn({ method: "POST" })
             restaurantId: data.restaurantId,
             groupId: data.groupId,
             reservationId: proposal.reservationId,
+            ...(proposal.reservationRoomId ? { reservationRoomId: proposal.reservationRoomId } : {}),
             roomId: proposal.roomId,
           },
         });
@@ -1256,12 +1492,49 @@ export const autoAssignGroupRooms = createServerFn({ method: "POST" })
         });
       }
     }
+    // A paired room is never left holding a room while its partner did not get one.
+    // The database accepted the first side because the partner room was free; if the
+    // partner write then failed, take the first side back.
+    for (const proposal of [...assigned]) {
+      if (!proposal.pairedWith) continue;
+      const partnerFailed = failed.some(
+        (row) => row.reservationRoomId === proposal.pairedWith && !row.assigned && row.reason !== "Already assigned.",
+      );
+      if (!partnerFailed) continue;
+      try {
+        await assignGroupRoom({
+          data: {
+            restaurantId: data.restaurantId,
+            groupId: data.groupId,
+            reservationId: proposal.reservationId,
+            ...(proposal.reservationRoomId ? { reservationRoomId: proposal.reservationRoomId } : {}),
+            roomId: null,
+          },
+        });
+        assigned.splice(assigned.indexOf(proposal), 1);
+        failed.push({
+          ...proposal,
+          roomId: null,
+          roomNumber: null,
+          assigned: false,
+          reason: PAIR_PARTNER_UNAVAILABLE_REJECTION,
+        });
+      } catch {
+        // The room stays as assigned; the result reports it as it is.
+      }
+    }
     if (failed.length > 0) {
       await recordGuestAccountEvent({
         restaurantId: data.restaurantId,
         masterId: data.groupId,
         eventType: "auto_assignment_failed",
-        newValues: { failed: failed.map((row) => ({ reservationId: row.reservationId, reason: row.reason })) },
+        newValues: {
+          failed: failed.map((row) => ({
+            reservationId: row.reservationId,
+            reservationRoomId: row.reservationRoomId ?? null,
+            reason: row.reason,
+          })),
+        },
         notes: `${failed.length} reservation(s) could not be auto-assigned.`,
         actorMembershipId: me.id,
       });
@@ -1513,6 +1786,11 @@ export const swapGroupRooms = createServerFn({ method: "POST" })
     }
     const roomA = a.room_id;
     const roomB = b.room_id;
+    // Each side is evaluated with the stored requirements of the unit that holds its room.
+    const [unitA, unitB] = await Promise.all([
+      unitIdHoldingRoom(db, data.restaurantId, a.id, roomA),
+      unitIdHoldingRoom(db, data.restaurantId, b.id, roomB),
+    ]);
     const [roomsForA, roomsForB] = await Promise.all([
       listAssignableRooms({
         data: {
@@ -1521,6 +1799,8 @@ export const swapGroupRooms = createServerFn({ method: "POST" })
           arrival: a.arrival_date,
           departure: a.departure_date,
           excludeReservationId: b.id,
+          ...(unitA ? { reservationRoomId: unitA } : {}),
+          skipPairCheck: true,
         },
       }),
       listAssignableRooms({
@@ -1530,34 +1810,106 @@ export const swapGroupRooms = createServerFn({ method: "POST" })
           arrival: b.arrival_date,
           departure: b.departure_date,
           excludeReservationId: a.id,
+          ...(unitB ? { reservationRoomId: unitB } : {}),
+          skipPairCheck: true,
         },
       }),
     ]);
     if (!roomsForA.some((row) => row.id === roomB)) {
-      throw new Error("The second room is not available for the first reservation.");
+      throw new Error(
+        (await swapRequirementRefusal(context.supabase, db, data.restaurantId, a, unitA, roomB, b.id)) ??
+          "The second room is not available for the first reservation.",
+      );
     }
     if (!roomsForB.some((row) => row.id === roomA)) {
-      throw new Error("The first room is not available for the second reservation.");
+      throw new Error(
+        (await swapRequirementRefusal(context.supabase, db, data.restaurantId, b, unitB, roomA, a.id)) ??
+          "The first room is not available for the second reservation.",
+      );
     }
+    // Both rooms must still satisfy any reservation room pair once swapped. Checked
+    // before anything is written, so a refused swap changes nothing.
+    const rpcClient = supabaseAdmin as unknown as UntypedRpcClient;
+    const pairRefusal =
+      (await swapPairRefusal(db, rpcClient, data.restaurantId, {
+        unitId: unitA,
+        candidateRoomId: roomB,
+        otherUnitId: unitB,
+        otherResultingRoomId: roomA,
+      })) ??
+      (await swapPairRefusal(db, rpcClient, data.restaurantId, {
+        unitId: unitB,
+        candidateRoomId: roomA,
+        otherUnitId: unitA,
+        otherResultingRoomId: roomB,
+      }));
+    if (pairRefusal) throw new Error(pairRefusal);
     await assignGroupRoom({
-      data: { restaurantId: data.restaurantId, groupId: data.groupId, reservationId: a.id, roomId: null },
+      data: {
+          restaurantId: data.restaurantId,
+          groupId: data.groupId,
+          reservationId: a.id,
+          ...(unitA ? { reservationRoomId: unitA } : {}),
+          roomId: null,
+        },
     });
     await assignGroupRoom({
-      data: { restaurantId: data.restaurantId, groupId: data.groupId, reservationId: b.id, roomId: null },
+      data: {
+          restaurantId: data.restaurantId,
+          groupId: data.groupId,
+          reservationId: b.id,
+          ...(unitB ? { reservationRoomId: unitB } : {}),
+          roomId: null,
+        },
     });
     try {
       await assignGroupRoom({
-        data: { restaurantId: data.restaurantId, groupId: data.groupId, reservationId: b.id, roomId: roomA },
+        data: {
+          restaurantId: data.restaurantId,
+          groupId: data.groupId,
+          reservationId: b.id,
+          ...(unitB ? { reservationRoomId: unitB } : {}),
+          roomId: roomA,
+        },
       });
       await assignGroupRoom({
-        data: { restaurantId: data.restaurantId, groupId: data.groupId, reservationId: a.id, roomId: roomB },
+        data: {
+          restaurantId: data.restaurantId,
+          groupId: data.groupId,
+          reservationId: a.id,
+          ...(unitA ? { reservationRoomId: unitA } : {}),
+          roomId: roomB,
+        },
       });
     } catch (error) {
+      // Put both back. The second side is cleared first, because it may already hold the
+      // first side's room.
       await assignGroupRoom({
-        data: { restaurantId: data.restaurantId, groupId: data.groupId, reservationId: a.id, roomId: roomA },
+        data: {
+          restaurantId: data.restaurantId,
+          groupId: data.groupId,
+          reservationId: b.id,
+          ...(unitB ? { reservationRoomId: unitB } : {}),
+          roomId: null,
+        },
       }).catch(() => undefined);
       await assignGroupRoom({
-        data: { restaurantId: data.restaurantId, groupId: data.groupId, reservationId: b.id, roomId: roomB },
+        data: {
+          restaurantId: data.restaurantId,
+          groupId: data.groupId,
+          reservationId: a.id,
+          ...(unitA ? { reservationRoomId: unitA } : {}),
+          roomId: roomA,
+        },
+      }).catch(() => undefined);
+      await assignGroupRoom({
+        data: {
+          restaurantId: data.restaurantId,
+          groupId: data.groupId,
+          reservationId: b.id,
+          ...(unitB ? { reservationRoomId: unitB } : {}),
+          roomId: roomB,
+        },
       }).catch(() => undefined);
       throw error;
     }
@@ -1571,7 +1923,16 @@ export const bulkAssignGroupRooms = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         groupId: idSchema,
-        assignments: z.array(z.object({ reservationId: idSchema, roomId: idSchema })).min(1).max(50),
+        assignments: z
+          .array(
+            z.object({
+              reservationId: idSchema,
+              reservationRoomId: idSchema.optional(),
+              roomId: idSchema,
+            }),
+          )
+          .min(1)
+          .max(50),
       })
       .parse(input),
   )
@@ -1589,6 +1950,7 @@ export const bulkAssignGroupRooms = createServerFn({ method: "POST" })
             restaurantId: data.restaurantId,
             groupId: data.groupId,
             reservationId: row.reservationId,
+            ...(row.reservationRoomId ? { reservationRoomId: row.reservationRoomId } : {}),
             roomId: row.roomId,
           },
         });
@@ -1611,6 +1973,7 @@ export const moveGroupCheckedInRoom = createServerFn({ method: "POST" })
         restaurantId: idSchema,
         groupId: idSchema,
         reservationId: idSchema,
+        reservationRoomId: idSchema.optional(),
         roomId: idSchema,
         reason: z.string().trim().min(1).max(500),
       })
@@ -1639,6 +2002,7 @@ export const moveGroupCheckedInRoom = createServerFn({ method: "POST" })
       data: {
         restaurantId: data.restaurantId,
         reservationId: data.reservationId,
+        ...(data.reservationRoomId ? { reservationRoomId: data.reservationRoomId } : {}),
         roomId: data.roomId,
         reason: data.reason,
       },

@@ -69,6 +69,23 @@ import {
   bulkPreviewBlocksCreate,
   classifyBulkRoomPreview,
 } from "@/packages/pms/lib/rooms-card2-preview";
+import {
+  ACCESSIBLE_ROOM_HELP_TEXT,
+  ACCESSIBLE_ROOM_LABEL,
+  BULK_CREATE_ACCESSIBLE_WARNING,
+  CONTAINS_ACCESSIBLE_ROOMS_HELP,
+  CONTAINS_ACCESSIBLE_ROOMS_LABEL,
+  SINGLE_CREATE_ACCESSIBLE_SUGGESTION,
+} from "@/packages/pms/lib/room-accessibility";
+import {
+  AccessibilityHintNote,
+  RoomTypeAccessibleRooms,
+} from "@/packages/pms/components/rooms/room-accessibility-panels";
+import {
+  CONTAINS_CONNECTING_ROOMS_HELP,
+  CONTAINS_CONNECTING_ROOMS_LABEL,
+} from "@/packages/pms/lib/room-connections";
+import { RoomTypeConnectingRooms } from "@/packages/pms/components/rooms/room-connections-panels";
 import { parseOptionalMoney, type StagedRoom } from "./room-type-wizard-types";
 import { useRoomTypeWizard } from "./room-type-wizard-context";
 
@@ -517,7 +534,6 @@ export function RoomTypeWizardStep1() {
     if (single.roomCode.trim() && single.roomCode.trim() !== single.roomNumber.trim()) count++;
     if (single.notes.trim()) count++;
     if (single.smoking) count++;
-    if (single.accessible) count++;
     if (single.roomFeatures.length > 0) count++;
     return count;
   }, [single]);
@@ -838,6 +854,7 @@ export function RoomTypeWizardStep1() {
             accessible: room.accessible,
             roomFeatures: room.roomFeatures ?? [],
             persisted: true,
+            hasConnectingLink: room.links.some((link) => link.kind === "connecting"),
           })),
       );
       void queryClient.invalidateQueries({ queryKey: ["pms-card2-rooms", restaurantId] });
@@ -1373,23 +1390,29 @@ export function RoomTypeWizardStep1() {
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-[#EDE6D8] bg-[#FBF9F5] p-3">
-            <div>
-              <label
-                htmlFor="connectingToggle"
-                className="text-xs font-semibold text-[#251605] block cursor-pointer"
-              >
-                Connecting Room Eligible
-              </label>
-              <span className="text-[11px] text-muted-foreground">
-                Can connect with adjacent room
-              </span>
+          <div className="grid gap-2 rounded-lg border border-[#EDE6D8] bg-[#FBF9F5] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <label
+                  htmlFor="connectingToggle"
+                  className="text-xs font-semibold text-[#251605] block cursor-pointer"
+                >
+                  {CONTAINS_CONNECTING_ROOMS_LABEL}
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  {CONTAINS_CONNECTING_ROOMS_HELP}
+                </span>
+              </div>
+              <Switch
+                id="connectingToggle"
+                checked={typeForm.connectingEligible}
+                disabled={disabled}
+                onCheckedChange={(v) => setTypeForm((prev) => ({ ...prev, connectingEligible: v }))}
+              />
             </div>
-            <Switch
-              id="connectingToggle"
-              checked={typeForm.connectingEligible}
-              disabled={disabled}
-              onCheckedChange={(v) => setTypeForm((prev) => ({ ...prev, connectingEligible: v }))}
+            <RoomTypeConnectingRooms
+              containsConnectingRooms={typeForm.connectingEligible}
+              rooms={stagedRooms}
             />
           </div>
         </div>
@@ -1607,23 +1630,29 @@ export function RoomTypeWizardStep1() {
             </PropertySetupField>
           </PropertySetupFormGrid>
 
-          <div className="flex items-center justify-between rounded-lg border border-[#EDE6D8] bg-[#FBF9F5] p-3 max-w-sm">
-            <div>
-              <label
-                htmlFor="accessibleToggle"
-                className="text-xs font-semibold text-[#251605] block cursor-pointer"
-              >
-                Accessible Room Eligible
-              </label>
-              <span className="text-[11px] text-muted-foreground">
-                Eligible for accessible features
-              </span>
+          <div className="grid gap-2 rounded-lg border border-[#EDE6D8] bg-[#FBF9F5] p-3 max-w-md">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <label
+                  htmlFor="accessibleToggle"
+                  className="text-xs font-semibold text-[#251605] block cursor-pointer"
+                >
+                  {CONTAINS_ACCESSIBLE_ROOMS_LABEL}
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  {CONTAINS_ACCESSIBLE_ROOMS_HELP}
+                </span>
+              </div>
+              <Switch
+                id="accessibleToggle"
+                checked={typeForm.accessibleEligible}
+                disabled={disabled}
+                onCheckedChange={(v) => setTypeForm((prev) => ({ ...prev, accessibleEligible: v }))}
+              />
             </div>
-            <Switch
-              id="accessibleToggle"
-              checked={typeForm.accessibleEligible}
-              disabled={disabled}
-              onCheckedChange={(v) => setTypeForm((prev) => ({ ...prev, accessibleEligible: v }))}
+            <RoomTypeAccessibleRooms
+              containsAccessibleRooms={typeForm.accessibleEligible}
+              rooms={stagedRooms}
             />
           </div>
         </CollapsibleContent>
@@ -1938,6 +1967,28 @@ export function RoomTypeWizardStep1() {
                 </p>
               </div>
 
+              <div className="grid gap-1.5 max-w-md" data-testid="wizard-single-accessible-room">
+                <label className="flex items-start gap-2 text-xs font-medium text-[#251605] cursor-pointer">
+                  <Switch
+                    checked={single.accessible}
+                    disabled={disabled}
+                    onCheckedChange={(v) => setSingle((prev) => ({ ...prev, accessible: v }))}
+                  />
+                  <span className="grid gap-0.5">
+                    <span>{ACCESSIBLE_ROOM_LABEL}</span>
+                    <span className="text-[11px] font-normal text-muted-foreground">
+                      {ACCESSIBLE_ROOM_HELP_TEXT}
+                    </span>
+                  </span>
+                </label>
+                {typeForm.accessibleEligible ? (
+                  <AccessibilityHintNote
+                    hint={{ tone: "info", message: SINGLE_CREATE_ACCESSIBLE_SUGGESTION }}
+                    testId="wizard-single-accessible-suggestion"
+                  />
+                ) : null}
+              </div>
+
               {/* Advanced Room Options Collapsible */}
               <Collapsible
                 open={advancedSingleOpen}
@@ -1990,14 +2041,6 @@ export function RoomTypeWizardStep1() {
                         onCheckedChange={(v) => setSingle((prev) => ({ ...prev, smoking: v }))}
                       />
                       Smoking Allowed
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-[#251605] cursor-pointer">
-                      <Switch
-                        checked={single.accessible}
-                        disabled={disabled}
-                        onCheckedChange={(v) => setSingle((prev) => ({ ...prev, accessible: v }))}
-                      />
-                      Accessible Room
                     </label>
                   </div>
 
@@ -2408,7 +2451,13 @@ export function RoomTypeWizardStep1() {
                 </div>
               )}
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
+                {typeForm.accessibleEligible ? (
+                  <AccessibilityHintNote
+                    hint={{ tone: "warning", message: BULK_CREATE_ACCESSIBLE_WARNING }}
+                    testId="wizard-bulk-accessible-warning"
+                  />
+                ) : null}
                 <Button
                   type="button"
                   disabled={

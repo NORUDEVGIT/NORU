@@ -57,6 +57,7 @@ export function useMoveEligibleRoomIds(
           arrival: stay.arrivalDate,
           departure: stay.departureDate,
           excludeReservationId: stay.reservationId,
+          // A header stay has no unit id. A reservation with one unit resolves to it.
         },
       });
       return rows.map((row) => row.id);

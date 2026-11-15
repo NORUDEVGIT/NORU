@@ -1,55 +1,15 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
-import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
-import { DistributionWorkspace } from "@/packages/pms/components/workspaces/distribution-workspace";
-import { supabase } from "@/integrations/supabase/client";
-import { requireRoutePackage } from "@/core/lib/route-package-guard";
+import {
+  CARD6_HASH,
+  requestCard6DistributionTab,
+} from "@/packages/pms/lib/pms-property-setup-card6";
 
+/** Backward-compatible URL. Distribution lives in Settings → Connectivity & Distribution. */
 export const Route = createFileRoute("/restaurant/pms/distribution")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...(typeof search["returnTo"] === "string" ? { returnTo: search["returnTo"] as string } : {}),
-    ...(typeof search["returnToLabel"] === "string" ? { returnToLabel: search["returnToLabel"] as string } : {}),
-  }),
-  beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
-      throw redirect({
-        to: "/restaurant/login",
-        search: { redirect: "/restaurant/pms/distribution" },
-      });
-    }
-
-    await requireRoutePackage("pms");
+  beforeLoad: () => {
+    requestCard6DistributionTab();
+    throw redirect({ to: "/restaurant/settings", hash: CARD6_HASH, replace: true });
   },
-  head: () => ({
-    meta: [
-      { title: "Distribution — NORU PMS" },
-      { name: "description", content: "Direct booking engine, channels and booking activity for your property." },
-      { property: "og:title", content: "Distribution — NORU PMS" },
-      { property: "og:description", content: "Direct booking engine, channels and booking activity for your property." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "robots", content: "noindex" },
-    ],
-  }),
-  component: DistributionPmsRoute,
+  component: () => null,
 });
-
-function DistributionPmsRoute() {
-  const search = Route.useSearch() as { returnTo?: string; returnToLabel?: string };
-  return (
-    <RestaurantShell active="Distribution" module="configuration" pms pmsModule="distribution">
-      {(m) => (
-        <PmsRouteGate restaurantId={m.restaurantId} allow={PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW}>
-        <DistributionWorkspace
-          membership={m}
-          returnTo={search.returnTo}
-          returnToLabel={search.returnToLabel}
-        />
-        </PmsRouteGate>
-      )}
-    </RestaurantShell>
-  );
-}

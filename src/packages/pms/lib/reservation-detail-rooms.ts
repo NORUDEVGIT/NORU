@@ -1,5 +1,9 @@
 import { REVIEW_ROOM_PREFERENCE_FLAGS } from "@/packages/pms/lib/create-reservation-review";
 import { DETAIL_DASH } from "@/packages/pms/lib/reservation-detail-overview";
+import {
+  requirementRejectionFromError,
+  requirementRejectionMessage,
+} from "@/packages/pms/lib/room-requirement-rejection";
 import type { ReservationRoomDisplay } from "@/packages/pms/lib/reservation-room-display.functions";
 import type { AssignableRoom, ReservationDetail } from "@/packages/pms/lib/reservations.functions";
 import type { HotelRoom, RoomType } from "@/packages/pms/lib/rooms.functions";
@@ -46,6 +50,7 @@ export type RoomAssignmentRow = {
   eligible: boolean;
   blockerCode: string | null;
   occupiedUntil: string | null;
+  partnerRoomNumber?: string | null;
 };
 
 export function assignmentLabel(reservation: ReservationDetail): "Assigned" | "Not Assigned" {
@@ -135,6 +140,7 @@ export function buildRoomAssignmentRows(input: {
         eligible: display ? display.eligible : eligibleIds.has(room.id),
         blockerCode: display?.blockerCode ?? null,
         occupiedUntil: display?.occupiedUntil ?? null,
+        ...(display?.partnerRoomNumber ? { partnerRoomNumber: display.partnerRoomNumber } : {}),
       };
     })
     .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }));
@@ -208,11 +214,16 @@ export function roomHoldReason(input: {
   occupiedUntil: string | null;
   statusLabel: string;
   blockerCode: string | null;
+  partnerRoomNumber?: string | null;
 }): string | null {
   if (input.current || input.eligible) return null;
   if (input.occupiedUntil) return `Occupied until ${formatStayDate(input.occupiedUntil)}`;
   if (input.blockerCode === "ROOM_ALREADY_BOOKED") return "Occupied";
   if (input.blockerCode === "ROOM_BLOCKED") return "Blocked";
+  const requirement = requirementRejectionMessage(input.blockerCode, {
+    partnerRoomNumber: input.partnerRoomNumber ?? null,
+  });
+  if (requirement) return requirement;
   if (input.statusLabel === "Out of Order" || input.statusLabel === "Out of Service") {
     return input.statusLabel;
   }
@@ -228,6 +239,9 @@ export function roomCanBeSelected(input: {
 }
 
 export function assignmentAvailabilityMessage(serverMessage: string): string | null {
+  // A refused stay requirement keeps its own sentence ahead of "no longer available".
+  const requirementMessage = requirementRejectionFromError(serverMessage);
+  if (requirementMessage) return requirementMessage;
   if (
     /closed and cannot be changed|no-show|Front Office room move|permission|not found/i.test(
       serverMessage,

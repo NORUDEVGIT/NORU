@@ -1,3 +1,10 @@
+import {
+  ACCESSIBLE_REQUIRED_REJECTION,
+  CONNECTING_REQUIRED_REJECTION,
+  PAIR_INVALID_REJECTION,
+  PAIR_PARTNER_UNAVAILABLE_REJECTION,
+  pairMismatchRejection,
+} from "../../lib/room-requirement-rejection";
 import { eligibilityCodeLabel, preferenceReasonLabel } from "./room-inventory-utils";
 
 export interface EligibilityStaffLine {
@@ -31,6 +38,13 @@ export interface EligibilityStaffInput {
   forCheckIn: boolean;
   /** True when the inspected room's type is the type sent with the request. */
   roomTypeAligned: boolean;
+  /** Present when the checked reservation room is paired for connecting rooms. */
+  pairing?: {
+    partnerLabel: string;
+    partnerRoomNumber: string | null;
+    partnerAssigned: boolean;
+    enforced: boolean;
+  } | null;
 }
 
 const HANDLED_CODES = new Set([
@@ -47,6 +61,9 @@ const HANDLED_CODES = new Set([
   "MAINTENANCE_NOT_CLEAR",
   "ACCESSIBILITY_MISMATCH",
   "CONNECTING_ROOM_REQUIRED",
+  "CONNECTING_PAIR_MISMATCH",
+  "CONNECTING_PAIR_INVALID",
+  "CONNECTING_PARTNER_UNAVAILABLE",
   "BED_TYPE_MISMATCH",
   "BUILDING_PREFERENCE_MISS",
   "FLOOR_PREFERENCE_MISS",
@@ -104,6 +121,37 @@ export function compactStayRange(arrival: string, departure: string): string {
 
 function guestNoun(guests: number): string {
   return `${guests} ${guests === 1 ? "guest" : "guests"}`;
+}
+
+/**
+ * The pair part of an eligibility check. A room that fails the pair reads as the
+ * staff sentence; a room that passes reads as the requirement it satisfied.
+ * Unpaired units and properties that do not enforce pairs add nothing.
+ */
+function pairStaffLines(
+  input: EligibilityStaffInput,
+  blockers: Set<string>,
+  found: boolean,
+): EligibilityStaffLine[] {
+  const pairing = input.pairing;
+  if (!pairing || !pairing.enforced) return [];
+  const lines: EligibilityStaffLine[] = [{ tone: "pass", text: `Paired with ${pairing.partnerLabel}` }];
+  if (blockers.has("CONNECTING_PAIR_MISMATCH")) {
+    lines.push({ tone: "fail", text: pairMismatchRejection(pairing.partnerRoomNumber) });
+  } else if (blockers.has("CONNECTING_PAIR_INVALID")) {
+    lines.push({ tone: "fail", text: PAIR_INVALID_REJECTION });
+  } else if (blockers.has("CONNECTING_PARTNER_UNAVAILABLE")) {
+    lines.push({ tone: "fail", text: PAIR_PARTNER_UNAVAILABLE_REJECTION });
+  } else if (found) {
+    lines.push({
+      tone: "pass",
+      text:
+        pairing.partnerAssigned && pairing.partnerRoomNumber
+          ? `Must connect to Room ${pairing.partnerRoomNumber}`
+          : `Candidate must have an eligible connecting room for ${pairing.partnerLabel}`,
+    });
+  }
+  return lines;
 }
 
 export function eligibilityStaffLines(input: EligibilityStaffInput): EligibilityStaffLine[] {
@@ -217,16 +265,18 @@ export function eligibilityStaffLines(input: EligibilityStaffInput): Eligibility
   }
 
   if (blockers.has("ACCESSIBILITY_MISMATCH")) {
-    lines.push({ tone: "fail", text: "Accessible room required; this room is not accessible." });
+    lines.push({ tone: "fail", text: ACCESSIBLE_REQUIRED_REJECTION });
   } else if (found && input.accessibleRequired) {
     lines.push({ tone: "pass", text: "Room meets the accessibility requirement." });
   }
 
   if (blockers.has("CONNECTING_ROOM_REQUIRED")) {
-    lines.push({ tone: "fail", text: "Connecting room required; this room is not connecting." });
+    lines.push({ tone: "fail", text: CONNECTING_REQUIRED_REJECTION });
   } else if (found && input.connectingRequired) {
     lines.push({ tone: "pass", text: "Connecting room is available." });
   }
+
+  lines.push(...pairStaffLines(input, blockers, found));
 
   if (blockers.has("BED_TYPE_MISMATCH")) {
     const prefers = staffBed(input.bedPreference);

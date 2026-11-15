@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -13,7 +13,9 @@ import {
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   CARD6_SUBTITLE,
+  CARD6_OPEN_DISTRIBUTION_EVENT,
   CARD6_TABS,
+  takeCard6DistributionTabRequest,
   type Card6TabId,
 } from "@/packages/pms/lib/pms-property-setup-card6";
 import { getPmsCard6Integrations } from "@/packages/pms/lib/integrations-card6.functions";
@@ -31,7 +33,20 @@ export function PmsPropertySetupCard6Section({
   canEdit: boolean;
   initialTab?: Card6TabId;
 }) {
-  const [tab, setTab] = useState<Card6TabId>(initialTab);
+  const [tab, setTab] = useState<Card6TabId>(() =>
+    takeCard6DistributionTabRequest() ? "distribution" : initialTab,
+  );
+  const [distributionEntry, setDistributionEntry] = useState(0);
+
+  useEffect(() => {
+    const open = () => {
+      if (!takeCard6DistributionTabRequest()) return;
+      setTab("distribution");
+      setDistributionEntry((count) => count + 1);
+    };
+    window.addEventListener(CARD6_OPEN_DISTRIBUTION_EVENT, open);
+    return () => window.removeEventListener(CARD6_OPEN_DISTRIBUTION_EVENT, open);
+  }, []);
 
   const loadIntegrations = useServerFn(getPmsCard6Integrations);
   const loadDistribution = useServerFn(getPmsCard6Distribution);
@@ -147,6 +162,7 @@ export function PmsPropertySetupCard6Section({
 
             <TabsContent value="distribution">
               <Card6DistributionTab
+                key={distributionEntry}
                 restaurantId={restaurantId}
                 canEdit={canEdit}
                 onGoToIntegrations={() => setTab("integrations")}

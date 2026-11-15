@@ -1721,6 +1721,7 @@ function CalendarBoard({
       hkKnown: hkAvailable && !!hk,
       arrivalDate: stay.arrivalDate,
       departureDate: stay.departureDate,
+      reservationRoomId: stay.reservationRoomId ?? null,
     });
   }
 

@@ -49,6 +49,7 @@ import {
   IntegrationNotice,
   IntegrationStatusBadge,
   IntegrationSummaryCard,
+  SettingsEmptyState,
 } from "@/packages/pms/components/settings/pms-card6-integration-bits";
 import { Card6IntegrationTypeDialog } from "@/packages/pms/components/settings/pms-card6-integration-type-dialog";
 import {
@@ -200,8 +201,8 @@ export function Card6IntegrationsTab({
     : [];
 
   return (
-    <div className="space-y-5" data-testid="card6-integrations-tab">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-3" data-testid="card6-integrations-tab">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <IntegrationSummaryCard label="Total integrations" value={summary.total} />
         <IntegrationSummaryCard label="Enabled" value={summary.enabled} tone="positive" />
         <IntegrationSummaryCard
@@ -213,29 +214,26 @@ export function Card6IntegrationsTab({
       </div>
 
       <article
-        className="rounded-2xl border border-[#CCCCCC] bg-white p-4 shadow-sm"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E6E1D8] bg-white px-3 py-2"
         data-testid="fiscal-integration-card"
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="font-medium text-[#251605]">ERP / Fiscal Integration</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Connect NORU financial documents to the external fiscal service. Guest B2C invoice
-              registration can be started from an issued invoice. Other fiscal documents are not
-              enabled.
-            </p>
-          </div>
-          {canEdit ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setFiscalOpen(true)}
-              data-testid="fiscal-configure"
-            >
-              Configure
-            </Button>
-          ) : null}
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-[#251605]">ERP / Fiscal Integration</p>
+          <p className="text-xs text-[#7A6A55]">
+            Guest B2C invoice registration from an issued invoice. Other fiscal documents stay off.
+          </p>
         </div>
+        {canEdit ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setFiscalOpen(true)}
+            data-testid="fiscal-configure"
+          >
+            Configure
+          </Button>
+        ) : null}
       </article>
 
       {records.length > 0 ? (
@@ -286,6 +284,7 @@ export function Card6IntegrationsTab({
           <Button
             type="button"
             onClick={() => setTypeDialogOpen(true)}
+            size="sm"
             className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             data-testid="card6-add-integration"
           >
@@ -294,23 +293,23 @@ export function Card6IntegrationsTab({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[#CCCCCC] bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#E6E1D8] bg-white">
         {query.isLoading ? (
-          <p className="p-6 text-sm text-muted-foreground">Loading integrations…</p>
+          <p className="p-4 text-sm text-[#7A6A55]">Loading integrations…</p>
         ) : query.isError ? (
-          <p className="p-6 text-sm text-destructive">
+          <p className="p-4 text-sm text-destructive">
             {(query.error as Error | undefined)?.message ?? "Integrations are unavailable."}
           </p>
         ) : filtered.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="font-medium text-[#251605]">
-              {records.length === 0 ? "No integrations yet" : "No integrations match these filters"}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {records.length === 0
-                ? "Connect a payment gateway, messaging provider, ledger or fiscal device to get started."
-                : "Clear the search or change the filters to see the rest."}
-            </p>
+          <div className="p-3">
+            <SettingsEmptyState
+              title={records.length === 0 ? "No integrations yet" : "No integrations match these filters"}
+              body={
+                records.length === 0
+                  ? "Connect a payment gateway, messaging provider, ledger or fiscal device to get started."
+                  : "Clear the search or change the filters to see the rest."
+              }
+            />
           </div>
         ) : (
           <Table>

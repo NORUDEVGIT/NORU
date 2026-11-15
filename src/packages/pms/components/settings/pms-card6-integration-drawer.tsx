@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -29,7 +29,7 @@ import {
 import { cn } from "@/shared/lib/utils";
 import {
   CopyableReadOnlyField,
-  FieldShell,
+  FieldShell as BaseFieldShell,
   IntegrationNotice,
   SecretInput,
 } from "@/packages/pms/components/settings/pms-card6-integration-bits";
@@ -80,6 +80,10 @@ const ENVIRONMENT_LABELS: Record<IntegrationEnvironment, string> = {
   sandbox: "Sandbox",
   production: "Production",
 };
+
+function FieldShell(props: ComponentProps<typeof BaseFieldShell>) {
+  return <BaseFieldShell {...props} dense />;
+}
 
 function firstProviderId(category: string): string {
   return integrationCategory(category)?.providers[0]?.id ?? "";
@@ -349,12 +353,12 @@ export function Card6IntegrationDrawer({
       <AccordionItem
         key={section}
         value={section}
-        className="rounded-2xl border border-[#CCCCCC] bg-white px-4"
+        className="rounded-xl border border-[#E6E1D8] bg-white px-3"
       >
         <AccordionTrigger className="text-sm font-medium text-[#251605]">
           {INTEGRATION_SECTION_LABELS[section]}
         </AccordionTrigger>
-        <AccordionContent className="space-y-3 pb-4">
+        <AccordionContent className="space-y-2 pb-3">
           {section === "credentials" ? (
             <IntegrationNotice tone="warning">
               {record ? SECRET_REENTRY_NOTICE : SECRET_STORAGE_NOTICE}
@@ -386,7 +390,7 @@ export function Card6IntegrationDrawer({
           className="flex w-full flex-col gap-0 p-0 sm:max-w-xl"
           data-testid="card6-integration-drawer"
         >
-          <SheetHeader className="border-b border-[#E5DED1] px-6 py-4 text-left">
+          <SheetHeader className="shrink-0 border-b border-[#E6E1D8] px-5 py-3 text-left">
             <SheetTitle className="font-display text-xl text-[#251605]">
               {record ? "Configure integration" : "Add integration"}
             </SheetTitle>
@@ -396,7 +400,7 @@ export function Card6IntegrationDrawer({
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+          <div className="flex-1 space-y-3 overflow-y-auto px-5 py-3">
             <FieldShell
               id="card6-name"
               label="Integration name"
@@ -488,7 +492,7 @@ export function Card6IntegrationDrawer({
               />
             </FieldShell>
 
-            <div className="flex items-start justify-between gap-4 rounded-xl border border-[#E5DED1] px-3 py-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-[#E6E1D8] px-3 py-2">
               <div>
                 <Label htmlFor="card6-enabled">Enabled</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -506,13 +510,17 @@ export function Card6IntegrationDrawer({
               />
             </div>
 
-            <Accordion type="multiple" defaultValue={[...sections]} className="space-y-3">
+            <Accordion
+              type="multiple"
+              defaultValue={sections.filter((section) => section !== "technical")}
+              className="space-y-2"
+            >
               {sections.map(renderSection)}
 
               {categoryDef && categoryDef.events.length > 0 ? (
                 <AccordionItem
                   value="events"
-                  className="rounded-2xl border border-[#CCCCCC] bg-white px-4"
+                  className="rounded-xl border border-[#E6E1D8] bg-white px-3"
                 >
                   <AccordionTrigger className="text-sm font-medium text-[#251605]">
                     Events
@@ -545,7 +553,7 @@ export function Card6IntegrationDrawer({
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#E5DED1] bg-[#F7F4EE] px-6 py-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[#E6E1D8] bg-[#F7F4EE] px-5 py-2.5">
             <Button type="button" variant="outline" onClick={() => setTestOpen(true)}>
               Test connection
             </Button>

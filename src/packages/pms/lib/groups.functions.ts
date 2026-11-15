@@ -8,6 +8,11 @@ import { PMS_PERMISSIONS } from "./pms-permissions";
 import { assertStayDates, assertArrivalAfterOpeningDate } from "./reservations.server";
 import { createReservation } from "./reservations.functions";
 import {
+  carryRoomingPairToReservations,
+  roomPairErrorMessage,
+  type RoomPairDb,
+} from "./reservation-room-pairs";
+import {
   GROUP_STATUSES,
   GROUP_TYPES,
   allotmentTotals,
@@ -1786,7 +1791,7 @@ export const convertRoomingRow = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, groupId: idSchema, rowId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requireGroupWriter(context as never, data.restaurantId);
+    const me = await requireGroupWriter(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await db(supabaseAdmin)
       .from("pms_group_rooming_rows")
@@ -1842,5 +1847,21 @@ export const convertRoomingRow = createServerFn({ method: "POST" })
       .update({ reservation_id: created.id, status: "created" })
       .eq("id", data.rowId)
       .eq("restaurant_id", data.restaurantId);
-    return { reservationId: created.id, confirmationNumber: created.confirmationNumber };
+    // "Paired with" intent becomes a reservation pair once both rows have reservations.
+    // A failure leaves the intent on the rows; the reservation is never created again.
+    const carried = await carryRoomingPairToReservations(supabaseAdmin as unknown as RoomPairDb, {
+      restaurantId: data.restaurantId,
+      groupId: data.groupId,
+      rowId: data.rowId,
+      actorMembershipId: me.id,
+    });
+    if (!carried.complete) {
+      console.error("convert_rooming_row_pair_failed", { message: carried.errorMessage });
+    }
+    return {
+      reservationId: created.id,
+      confirmationNumber: created.confirmationNumber,
+      pairSaved: carried.complete,
+      pairReason: carried.complete ? null : roomPairErrorMessage(carried.errorMessage),
+    };
   });
