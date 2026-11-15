@@ -14,7 +14,6 @@ import {
   Coins,
   FileText,
   History,
-  LayoutGrid,
   Menu,
   RefreshCw,
   Undo2,
@@ -55,7 +54,6 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 
 const BURGER_ICONS = {
-  overview: LayoutGrid,
   folios: FileText,
   "financial-activity": ClipboardList,
   accounts: Wallet,
@@ -106,7 +104,7 @@ export function CashieringWorkspace({
   }, []);
 
   useEffect(() => {
-    if (search.tab === tab || (!search.tab && tab === "overview")) return;
+    if (search.tab === tab || (!search.tab && tab === "folios")) return;
     const { tab: _tab, folio, ...rest } = search;
     const legacyActivity = activityFilterFromLegacyTab(search.tab);
     void navigate({

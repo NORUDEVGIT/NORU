@@ -1,7 +1,6 @@
 /** Cashiering Desk tab contract. URL-driven. Unsupported modules are not tabs. */
 
 export const CASHIERING_TABS = [
-  { id: "overview", label: "Overview" },
   { id: "folios", label: "Folios" },
   { id: "financial-activity", label: "Financial Activity" },
   { id: "accounts", label: "Accounts" },
@@ -18,11 +17,11 @@ export const CASHIERING_DESK_DESCRIPTION =
   "Manage folios, financial activity, settlement and cashier operations across the property.";
 
 const TAB_ALIASES: Record<string, CashieringTabId> = {
-  dashboard: "overview",
+  dashboard: "folios",
   payments: "financial-activity",
   deposits: "financial-activity",
   refunds: "financial-activity",
-  exceptions: "overview",
+  exceptions: "folios",
   shifts: "cashier-shift",
   "cashier-shifts": "cashier-shift",
   transfers: "financial-activity",
@@ -55,9 +54,9 @@ export function isFolioAction(value: string | undefined): value is FolioAction {
 }
 
 export function resolveCashieringTab(value: string | undefined | null): CashieringTabId {
-  if (!value) return "overview";
+  if (!value) return "folios";
   if (CASHIERING_TABS.some((tab) => tab.id === value)) return value as CashieringTabId;
-  return TAB_ALIASES[value] ?? "overview";
+  return TAB_ALIASES[value] ?? "folios";
 }
 
 export type CashieringSearchParams = {

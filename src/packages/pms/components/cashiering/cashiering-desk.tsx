@@ -31,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import { FolioSearchPanel } from "@/packages/pms/components/cashiering/folio-search-panel";
 import {
   AccountsPanel,
@@ -572,7 +573,7 @@ export function CashieringDesk({
   const foliosQuery = useQuery({
     queryKey: ["cashiering-folios", restaurantId],
     queryFn: () => fetchFolios({ data: { restaurantId, status: "all" } }),
-    enabled: tab === "overview" || tab === "financial-activity",
+    enabled: tab === "financial-activity",
     retry: false,
   });
   const ledgerQuery = useQuery({
@@ -820,24 +821,6 @@ export function CashieringDesk({
   return (
     <CashieringGrantContext.Provider value={grants}>
     <div className="space-y-4" data-testid={`cashiering-panel-${tab}`}>
-      {tab === "overview" ? (
-        <OverviewSnapshot
-          restaurantId={restaurantId}
-          money={money}
-          dateTime={dateTime}
-          loading={dashboardQuery.isLoading}
-          error={dashboardQuery.isError ? (dashboardQuery.error as Error).message : null}
-          search={search}
-          onSearch={(value) => {
-            setSearch(value);
-            onTab("folios", null, { q: value || undefined });
-          }}
-          onOpenShift={(shiftId) =>
-            onTab("cashier-shift", null, shiftId ? { shift: shiftId } : undefined)
-          }
-        />
-      ) : null}
-
       {tab === "financial-activity" ? (
         <FinancialActivityPanel
           activity={activity}
@@ -942,62 +925,6 @@ export function CashieringDesk({
       ) : null}
     </div>
     </CashieringGrantContext.Provider>
-  );
-}
-
-function OverviewSnapshot({
-  restaurantId,
-  money,
-  dateTime,
-  loading,
-  error,
-  search,
-  onSearch,
-  onOpenShift,
-}: {
-  restaurantId: string;
-  money: (value: number) => string;
-  dateTime: (iso: string | null | undefined) => string;
-  loading: boolean;
-  error: string | null;
-  search: string;
-  onSearch: (value: string) => void;
-  onOpenShift: (shiftId?: string) => void;
-}) {
-  return (
-    <div className="space-y-3" data-testid="cashiering-overview">
-      <CashieringShellSlot name="search">
-        <CashieringToolbarSearch
-          value={search}
-          onChange={onSearch}
-          placeholder="Search folios…"
-          testId="cashiering-overview-search"
-        />
-      </CashieringShellSlot>
-      {loading ? (
-        <div className="rounded-lg border border-[#DDD4C5] bg-white p-4 text-sm text-muted-foreground">
-          Loading cashiering…
-        </div>
-      ) : null}
-      {error ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
-      <section className="rounded-lg border border-[#DDD4C5] bg-white p-4 shadow-sm">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.11em] text-[#756A5B]">
-          Attention
-        </h2>
-        <div className="mt-3">
-          <AttentionRequired
-            restaurantId={restaurantId}
-            money={money}
-            dateTime={dateTime}
-            onOpenShift={onOpenShift}
-          />
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -1732,6 +1659,13 @@ function FolioQuickView({
   money: (value: number) => string;
   dateTime: (iso: string | null | undefined) => string;
 }) {
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    return () => window.removeEventListener("afterprint", done);
+  }, [printing]);
   if (loading) {
     return (
       <aside className="rounded-xl border border-[#DDD4C5] bg-card p-5 text-sm text-[#7A7167] shadow-xs">
@@ -1866,15 +1800,46 @@ function FolioQuickView({
           size="sm"
           variant="outline"
           className="min-h-9 border-[#DDD4C5] bg-white text-xs hover:border-[#C89933]/60 hover:text-[#251605]"
-          onClick={() => window.print()}
+          onClick={() => {
+            setPrinting(true);
+            window.setTimeout(() => window.print(), 50);
+          }}
         >
           Print statement
         </Button>
       </div>
       <p className="text-[11px] text-[#7A7167]">
-        Posting is on the folio page. Print statement prints this screen and is not an issued
+        Posting is on the folio page. Print statement prints this folio and is not an issued
         invoice.
       </p>
+      <CashieringPrintLayer active={printing}>
+        <article className="text-sm text-[#251605]">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#7A7167]">
+            Folio statement
+          </p>
+          <h1 className="mt-1 text-lg font-semibold">{folio.guestName}</h1>
+          <p className="text-xs">{folio.folioNumber}</p>
+          <p className="mt-3 text-xs">Outstanding balance {money(folio.balance)}</p>
+          <table className="mt-3 w-full text-xs">
+            <thead>
+              <tr className="border-b text-left">
+                <th className="py-1">Description</th>
+                <th className="py-1">When</th>
+                <th className="py-1 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((row) => (
+                <tr key={row.id} className="border-b">
+                  <td className="py-1 pr-2">{row.description}</td>
+                  <td className="py-1 pr-2">{dateTime(row.postedAt)}</td>
+                  <td className="py-1 text-right tabular-nums">{money(row.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </article>
+      </CashieringPrintLayer>
     </aside>
   );
 }

@@ -143,6 +143,7 @@ export function GuestFolioPage({
   folioId,
   initialAction,
   initialTab,
+  initialLineId,
   initialPaymentId,
   initialInvoiceId,
   initialModalTab,
@@ -153,6 +154,7 @@ export function GuestFolioPage({
   folioId: string;
   initialAction?: string | undefined;
   initialTab?: string | undefined;
+  initialLineId?: string | undefined;
   initialPaymentId?: string | undefined;
   initialInvoiceId?: string | undefined;
   initialModalTab?: string | undefined;
@@ -207,7 +209,7 @@ export function GuestFolioPage({
       returnToLabel={returnToLabel}
       onNavigate={go}
       onSearch={() => go("folios")}
-      onPostPayment={() => go("overview")}
+      onPostPayment={() => go("folios")}
       bodyClassName="space-y-4 p-3 sm:p-4"
     >
       {query.isLoading ? <WorkspaceSkeleton /> : null}
@@ -235,6 +237,7 @@ export function GuestFolioPage({
           workspace={workspace}
           initialAction={initialAction}
           initialTab={initialTab}
+          initialLineId={initialLineId}
           initialPaymentId={initialPaymentId}
           initialInvoiceId={initialInvoiceId}
           initialModalTab={initialModalTab}
@@ -342,6 +345,7 @@ function FolioWorkspaceBody({
   workspace,
   initialAction,
   initialTab,
+  initialLineId,
   initialPaymentId,
   initialInvoiceId,
   initialModalTab,
@@ -356,6 +360,7 @@ function FolioWorkspaceBody({
   workspace: FolioWorkspace;
   initialAction?: string | undefined;
   initialTab?: string | undefined;
+  initialLineId?: string | undefined;
   initialPaymentId?: string | undefined;
   initialInvoiceId?: string | undefined;
   initialModalTab?: string | undefined;
@@ -416,6 +421,16 @@ function FolioWorkspaceBody({
   useEffect(() => {
     setTab(resolveTab(initialTab));
   }, [initialTab]);
+
+  useEffect(() => {
+    if (!initialLineId) return;
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-line-id="${CSS.escape(initialLineId)}"]`)
+        ?.scrollIntoView({ block: "center" });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [initialLineId, tab]);
 
   useEffect(() => {
     const clear = () => setPrintReceipt(null);
@@ -603,7 +618,7 @@ function FolioWorkspaceBody({
           >
             <Link
               to="/restaurant/pms/cashiering"
-              search={cashieringTabSearch("overview")}
+              search={cashieringTabSearch("folios")}
               className="hover:text-foreground"
             >
               Cashiering
@@ -820,6 +835,7 @@ function FolioWorkspaceBody({
                 dateTime={dateTime}
                 actions={rowActions}
                 selectedChargeId={chargeId}
+                highlightLineId={initialLineId}
                 onPostCharge={() => openEntry("charge")}
                 onPostAdjustment={() => openEntry("adjustment")}
                 onTransferCharge={() => openTransfer(null)}
@@ -832,6 +848,7 @@ function FolioWorkspaceBody({
                 money={money}
                 dateTime={dateTime}
                 actions={rowActions}
+                highlightLineId={initialLineId}
                 onReceivePayment={() => openEntry("payment")}
                 onAddDeposit={() => openEntry("deposit")}
               />
@@ -842,6 +859,7 @@ function FolioWorkspaceBody({
                 money={money}
                 dateTime={dateTime}
                 actions={rowActions}
+                highlightLineId={initialLineId}
               />
             ) : null}
             {tab === "transfers" ? (
@@ -849,6 +867,7 @@ function FolioWorkspaceBody({
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
+                highlightLineId={initialLineId}
                 onTransferCharge={() => openTransfer(null)}
               />
             ) : null}

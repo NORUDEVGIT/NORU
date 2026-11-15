@@ -145,6 +145,11 @@ const TABLE_HEAD =
   "border-b border-[#E8E1D7] bg-[#F7F4EE] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
 const TABLE_ROW =
   "border-b border-[#E8E1D7]/70 last:border-0 transition-colors hover:bg-[#F7F4EE]/60";
+const LINE_MARK = "bg-[#F4E9D0] shadow-[inset_3px_0_0_#C89933]";
+
+function lineMarked(id: string, highlightLineId?: string | null) {
+  return Boolean(highlightLineId) && id === highlightLineId;
+}
 const LINK_ACTION =
   "inline-flex items-center gap-1 text-xs font-medium text-[#8a6a1f] hover:text-[#251605]";
 
@@ -511,6 +516,7 @@ function ChargeRow({
   dateTime,
   actions,
   selected,
+  highlighted,
   hasChildren,
   isExpanded,
   onToggleExpand,
@@ -527,6 +533,7 @@ function ChargeRow({
   dateTime: DateTimeFormat;
   actions: RowActions;
   selected?: boolean;
+  highlighted?: boolean;
   hasChildren?: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -544,9 +551,11 @@ function ChargeRow({
         TABLE_ROW,
         child ? "bg-muted/10 text-xs text-muted-foreground" : "cursor-pointer text-foreground",
         selected && "bg-[#C89933]/8 hover:bg-[#C89933]/10",
+        highlighted && LINE_MARK,
       )}
       onClick={child ? undefined : () => actions.onDetails(row)}
       data-selected={selected ? "true" : undefined}
+      data-line-id={row.id}
     >
       <td
         className={cn(
@@ -663,17 +672,25 @@ function ChildTaxRow({
   child,
   parentNet,
   money,
+  highlighted,
 }: {
   child: FolioTransactionRow;
   parentNet: number;
   money: Money;
+  highlighted?: boolean;
 }) {
   const isService = child.category === "service_charge";
   const taxMode = child.taxSnapshot?.calculation;
   const rate = child.taxSnapshot?.rate;
 
   return (
-    <tr className="border-b border-[#E8E1D7]/50 bg-[#FAF8F5]/70 hover:bg-[#FAF8F5] transition-colors text-xs">
+    <tr
+      data-line-id={child.id}
+      className={cn(
+        "border-b border-[#E8E1D7]/50 bg-[#FAF8F5]/70 hover:bg-[#FAF8F5] transition-colors text-xs",
+        highlighted && LINE_MARK,
+      )}
+    >
       <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground/50 text-[11px] font-mono select-none" />
       <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground/50 text-[11px]" />
       <td className="px-3 py-1.5">
@@ -749,6 +766,7 @@ export function ChargesTab({
   onPostAdjustment,
   onTransferCharge,
   onGoTab,
+  highlightLineId,
 }: {
   workspace: FolioWorkspace;
   money: Money;
@@ -759,6 +777,7 @@ export function ChargesTab({
   onPostAdjustment: () => void;
   onTransferCharge: () => void;
   onGoTab: (tab: FolioWorkspaceTabId) => void;
+  highlightLineId?: string | null;
 }) {
   const caps = workspace.capabilities;
   const groups = workspace.chargeGroups;
@@ -775,8 +794,23 @@ export function ChargesTab({
   const hasMore = caps.canAdjust || (caps.canTransfer && groups.length > 0);
   const hasAnyTaxes = groups.some((g) => g.children.length > 0);
 
+  const highlightedChildParent = groups.find((group) =>
+    group.children.some((child) => child.id === highlightLineId),
+  )?.parent.id;
   const [expandAllTaxes, setExpandAllTaxes] = useState(false);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+    () => new Set(highlightedChildParent ? [highlightedChildParent] : []),
+  );
+
+  useEffect(() => {
+    if (!highlightedChildParent) return;
+    setExpandedIds((prev) => {
+      if (prev.has(highlightedChildParent)) return prev;
+      const next = new Set(prev);
+      next.add(highlightedChildParent);
+      return next;
+    });
+  }, [highlightedChildParent]);
 
   const isGroupExpanded = (id: string) =>
     expandAllTaxes ? !expandedIds.has(id) : expandedIds.has(id);
@@ -879,6 +913,7 @@ export function ChargesTab({
                   dateTime={dateTime}
                   actions={actions}
                   selectedChargeId={selectedChargeId}
+                  highlightLineId={highlightLineId}
                   isExpanded={isGroupExpanded(group.parent.id)}
                   onToggleExpand={() => toggleGroup(group.parent.id)}
                 />
@@ -957,6 +992,7 @@ function ChargeGroupRows({
   dateTime,
   actions,
   selectedChargeId,
+  highlightLineId,
   isExpanded,
   onToggleExpand,
 }: {
@@ -966,6 +1002,7 @@ function ChargeGroupRows({
   dateTime: DateTimeFormat;
   actions: RowActions;
   selectedChargeId: string | null;
+  highlightLineId?: string | null;
   isExpanded: boolean;
   onToggleExpand: () => void;
 }) {
@@ -988,6 +1025,7 @@ function ChargeGroupRows({
         dateTime={dateTime}
         actions={actions}
         selected={group.parent.id === selectedChargeId}
+        highlighted={lineMarked(group.parent.id, highlightLineId)}
         hasChildren={hasChildren}
         isExpanded={isExpanded}
         onToggleExpand={onToggleExpand}
@@ -996,7 +1034,13 @@ function ChargeGroupRows({
       />
       {isExpanded &&
         group.children.map((child) => (
-          <ChildTaxRow key={child.id} child={child} parentNet={group.net} money={money} />
+          <ChildTaxRow
+            key={child.id}
+            child={child}
+            parentNet={group.net}
+            money={money}
+            highlighted={lineMarked(child.id, highlightLineId)}
+          />
         ))}
     </>
   );
@@ -1078,6 +1122,7 @@ export function PaymentsDepositsTab({
   actions,
   onReceivePayment,
   onAddDeposit,
+  highlightLineId,
 }: {
   workspace: FolioWorkspace;
   money: Money;
@@ -1085,6 +1130,7 @@ export function PaymentsDepositsTab({
   actions: RowActions;
   onReceivePayment: () => void;
   onAddDeposit: () => void;
+  highlightLineId?: string | null;
 }) {
   const caps = workspace.capabilities;
   const [search, setSearch] = useState("");
@@ -1211,7 +1257,11 @@ export function PaymentsDepositsTab({
                       ? refundable
                       : null;
                 return (
-                  <tr key={row.id} className={TABLE_ROW}>
+                  <tr
+                    key={row.id}
+                    data-line-id={row.id}
+                    className={cn(TABLE_ROW, lineMarked(row.id, highlightLineId) && LINE_MARK)}
+                  >
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
                       {dateTime(row.postedAt)}
                     </td>
@@ -1271,7 +1321,14 @@ export function PaymentsDepositsTab({
               </thead>
               <tbody>
                 {unapplied.map((line) => (
-                  <tr key={line.transaction.id} className={TABLE_ROW}>
+                  <tr
+                    key={line.transaction.id}
+                    data-line-id={line.transaction.id}
+                    className={cn(
+                      TABLE_ROW,
+                      lineMarked(line.transaction.id, highlightLineId) && LINE_MARK,
+                    )}
+                  >
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
                       {dateTime(line.transaction.postedAt)}
                     </td>
@@ -1314,11 +1371,13 @@ export function AdjustmentsTab({
   money,
   dateTime,
   actions,
+  highlightLineId,
 }: {
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
   actions: RowActions;
+  highlightLineId?: string | null;
 }) {
   const rows = workspace.folio.transactions.filter(
     (row) => row.type === "adjustment" || row.type === "discount" || row.type === "refund",
@@ -1345,7 +1404,11 @@ export function AdjustmentsTab({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className={TABLE_ROW}>
+              <tr
+                key={row.id}
+                data-line-id={row.id}
+                className={cn(TABLE_ROW, lineMarked(row.id, highlightLineId) && LINE_MARK)}
+              >
                 <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
                   {dateTime(row.postedAt)}
                 </td>
@@ -1396,11 +1459,13 @@ export function TransfersTab({
   money,
   dateTime,
   onTransferCharge,
+  highlightLineId,
 }: {
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
   onTransferCharge: () => void;
+  highlightLineId?: string | null;
 }) {
   const folio = workspace.folio;
   const rows = folio.transactions.filter(
@@ -1435,6 +1500,7 @@ export function TransfersTab({
       .join(" · ");
     return {
       id,
+      lineIds: lines.map((line) => line.id),
       postedAt: first.postedAt,
       from: out ? folio.folioNumber : otherLabel,
       to: out ? otherLabel : folio.folioNumber,
@@ -1474,7 +1540,16 @@ export function TransfersTab({
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <tr key={entry.id} className={TABLE_ROW}>
+              <tr
+                key={entry.id}
+                data-line-id={
+                  entry.lineIds.find((id) => id === highlightLineId) ?? entry.lineIds[0]
+                }
+                className={cn(
+                  TABLE_ROW,
+                  entry.lineIds.some((id) => lineMarked(id, highlightLineId)) && LINE_MARK,
+                )}
+              >
                 <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">
                   {dateTime(entry.postedAt)}
                 </td>

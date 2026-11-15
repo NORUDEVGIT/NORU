@@ -59,6 +59,7 @@ import {
 import {
   allocateFolioDeposit,
   buildCashieringReportCsv,
+  CASHIERING_REPORT_READ_LIMIT,
   closeFinancialAccount,
   getCashieringReportTotals,
   listCashieringExceptions,
@@ -1147,6 +1148,24 @@ export function AttentionRequired({
   );
 }
 
+const REPORT_TYPE_TONE: Record<string, string> = {
+  charge: "border-blue-200 bg-blue-50 text-blue-800",
+  payment: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  deposit: "border-amber-200 bg-amber-50 text-amber-900",
+  refund: "border-rose-200 bg-rose-50 text-rose-800",
+  adjustment: "border-amber-200 bg-amber-50 text-amber-900",
+  discount: "border-purple-200 bg-purple-50 text-purple-800",
+  transfer_in: "border-sky-200 bg-sky-50 text-sky-800",
+  transfer_out: "border-stone-200 bg-stone-100 text-stone-700",
+};
+
+function reportLineTab(type: string): "charges" | "payments" | "adjustments" | "transfers" {
+  if (type === "payment" || type === "deposit") return "payments";
+  if (type === "adjustment" || type === "discount" || type === "refund") return "adjustments";
+  if (type === "transfer_in" || type === "transfer_out") return "transfers";
+  return "charges";
+}
+
 export function ReportsPanel({
   restaurantId,
   money,
@@ -1164,6 +1183,14 @@ export function ReportsPanel({
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
+  const [order, setOrder] = useState<"newest" | "oldest">("newest");
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [activity, setActivity] = useState<"all" | "payment" | "deposit" | "refund" | "transfer">(
+    "all",
+  );
+  const [method, setMethod] = useState("all");
+  const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [printLines, setPrintLines] = useState<CashieringReportLine[] | null>(null);
@@ -1177,6 +1204,17 @@ export function ReportsPanel({
   }, [weekStart, businessDate]);
 
   useEffect(() => {
+    const next = search.trim();
+    const timer = window.setTimeout(() => {
+      setAppliedSearch((current) => {
+        if (current !== next) setPage(1);
+        return next;
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     if (!printing) return;
     const handleAfterPrint = () => {
       setPrinting(false);
@@ -1188,12 +1226,44 @@ export function ReportsPanel({
 
   const fetchTotals = useServerFn(getCashieringReportTotals);
   const query = useQuery({
-    queryKey: ["cashiering-reports", restaurantId, fromDate, toDate, page, limit],
-    queryFn: () => fetchTotals({ data: { restaurantId, fromDate, toDate, page, limit } }),
+    queryKey: [
+      "cashiering-reports",
+      restaurantId,
+      fromDate,
+      toDate,
+      page,
+      limit,
+      order,
+      appliedSearch,
+      activity,
+      method,
+    ],
+    queryFn: () =>
+      fetchTotals({
+        data: {
+          restaurantId,
+          fromDate,
+          toDate,
+          page,
+          limit,
+          order,
+          search: appliedSearch,
+          activity,
+          method,
+        },
+      }),
     enabled: Boolean(fromDate && toDate),
   });
   const report = query.data;
   const totals = report?.totals;
+
+  function openReportLine(line: CashieringReportLine) {
+    void navigate({
+      to: "/restaurant/pms/cashiering/folios/$folioId",
+      params: { folioId: line.folioId },
+      search: { tab: reportLineTab(line.type), line: line.id },
+    });
+  }
 
   async function exportReport(scope: "all" | "page") {
     if (!report) return;
@@ -1202,7 +1272,17 @@ export function ReportsPanel({
       let linesToExport = report.lines;
       if (scope === "all" && report.total > report.lines.length) {
         const full = await fetchTotals({
-          data: { restaurantId, fromDate, toDate, page: 1, limit: 5000 },
+          data: {
+            restaurantId,
+            fromDate,
+            toDate,
+            page: 1,
+            limit: CASHIERING_REPORT_READ_LIMIT,
+            order,
+            search: appliedSearch,
+            activity,
+            method,
+          },
         });
         linesToExport = full.lines;
       }
@@ -1240,7 +1320,17 @@ export function ReportsPanel({
       let linesToPrint = report.lines;
       if (report.total > report.lines.length) {
         const full = await fetchTotals({
-          data: { restaurantId, fromDate, toDate, page: 1, limit: 5000 },
+          data: {
+            restaurantId,
+            fromDate,
+            toDate,
+            page: 1,
+            limit: CASHIERING_REPORT_READ_LIMIT,
+            order,
+            search: appliedSearch,
+            activity,
+            method,
+          },
         });
         linesToPrint = full.lines;
       }
@@ -1258,6 +1348,67 @@ export function ReportsPanel({
 
   return (
     <div className="space-y-3" data-testid="cashiering-reports-panel">
+      <CashieringShellSlot name="search">
+        <CashieringToolbarSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search guest, folio, method, or description…"
+          testId="cashiering-report-search"
+        />
+      </CashieringShellSlot>
+      <CashieringShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={(activity !== "all" ? 1 : 0) + (method !== "all" ? 1 : 0)}
+          onClear={() => {
+            setActivity("all");
+            setMethod("all");
+            setPage(1);
+          }}
+          buttonTestId="cashiering-report-filters-button"
+          menuTestId="cashiering-report-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Transaction Type"
+            value={activity}
+            current={
+              activity === "all"
+                ? ""
+                : activity === "payment"
+                  ? "Payments"
+                  : activity === "deposit"
+                    ? "Deposits"
+                    : activity === "refund"
+                      ? "Refunds"
+                      : "Transfers"
+            }
+            options={[
+              ["all", "All activity"],
+              ["payment", "Payments"],
+              ["deposit", "Deposits"],
+              ["refund", "Refunds"],
+              ["transfer", "Transfers"],
+            ]}
+            onChange={(value) => {
+              setActivity(value as "all" | "payment" | "deposit" | "refund" | "transfer");
+              setMethod("all");
+              setPage(1);
+            }}
+          />
+          <PmsFilterChoiceRow
+            label="Payment Method"
+            value={method}
+            current={method === "all" ? "" : methodLabel(method)}
+            options={[
+              ["all", "All methods"],
+              ...(report?.methods ?? []).map((item) => [item, methodLabel(item)] as const),
+            ]}
+            onChange={(value) => {
+              setMethod(value);
+              setPage(1);
+            }}
+          />
+        </PmsFilterMenu>
+      </CashieringShellSlot>
       <CashieringShellSlot name="export">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1314,44 +1465,105 @@ export function ReportsPanel({
       ) : null}
       {report && report.lines.length === 0 && !query.isLoading && !query.isError ? (
         <p className="rounded-xl border border-dashed border-[#DDD4C5] p-6 text-center text-sm text-muted-foreground">
-          No folio transactions were posted in this property-local date range.
+          {appliedSearch || activity !== "all" || method !== "all"
+            ? "No folio transactions match this search or filter."
+            : "No folio transactions were posted in this property-local date range."}
         </p>
       ) : null}
       {report && report.lines.length > 0 ? (
         <div className="space-y-3">
-          <div className={ROOM_TABLE_WRAP}>
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className={ROOM_TABLE_HEAD}>
-                <tr>
-                  <th className={ROOM_TABLE_TH}>Posted</th>
-                  <th className={ROOM_TABLE_TH}>Type</th>
+          <div className="min-w-0 overflow-x-auto rounded-lg border border-[#DDD4C5] bg-white shadow-sm">
+            <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-sm">
+              <thead className="sticky top-0 z-10 bg-[#FAF8F4] [&_th]:bg-[#FAF8F4]">
+                <tr className={ROOM_TABLE_HEAD}>
+                  <th className={ROOM_TABLE_TH}>Reference</th>
                   <th className={ROOM_TABLE_TH}>Guest</th>
-                  <th className={ROOM_TABLE_TH}>Folio</th>
+                  <th className={ROOM_TABLE_TH}>Folio No</th>
+                  <th className={ROOM_TABLE_TH}>Room</th>
+                  <th className={ROOM_TABLE_TH}>Type</th>
                   <th className={ROOM_TABLE_TH}>Description</th>
                   <th className={ROOM_TABLE_TH}>Method</th>
                   <th className={`${ROOM_TABLE_TH} text-right`}>Amount</th>
+                  <th className={ROOM_TABLE_TH}>Posted At</th>
+                  <th className={ROOM_TABLE_TH}>Posted By</th>
+                  <th className={ROOM_TABLE_TH}>Status</th>
+                  <th className={`${ROOM_TABLE_TH} text-center`}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {report.lines.map((line) => (
-                  <tr key={line.id} className="border-t border-[#E8E1D7] hover:bg-[#FAF8F4]/60 transition-colors">
-                    <td className="px-3 py-2 text-muted-foreground">
+                  <tr
+                    key={line.id}
+                    tabIndex={0}
+                    data-testid="cashiering-report-row"
+                    className="cursor-pointer outline-none transition-colors hover:bg-[#F4E9D0]/50 focus-visible:bg-[#F4E9D0]/70 [&_td]:border-b [&_td]:border-[#E8E1D7]"
+                    onClick={() => openReportLine(line)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openReportLine(line);
+                      }
+                    }}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-[#251605]">
+                      {shortRef(line.id)}
+                    </td>
+                    <td className="px-3 py-2.5 font-medium text-[#251605]">{line.guestName}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-[#5F554B]">
+                      {line.folioNumber}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs text-[#251605]">
+                      {line.roomNumber ?? "—"}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                          REPORT_TYPE_TONE[line.type] ?? "border-[#DDD4C5] bg-[#FAF8F4] text-[#5C5346]",
+                        )}
+                      >
+                        {labelTransactionType(line.type)}
+                      </span>
+                    </td>
+                    <td className="max-w-[240px] truncate px-3 py-2.5 text-[#251605]" title={line.description}>
+                      {line.description}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs text-[#5C5346]">
+                      {line.paymentMethod ? methodLabel(line.paymentMethod) : methodLabel(line.type)}
+                    </td>
+                    <td
+                      className={cn(
+                        "whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums",
+                        line.amount < 0 ? "text-emerald-700" : "text-[#251605]",
+                      )}
+                    >
+                      {money(line.amount)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted-foreground">
                       {new Date(line.postedAt).toLocaleString()}
                     </td>
-                    <td className="px-3 py-2">{methodLabel(line.type)}</td>
-                    <td className="px-3 py-2 font-medium">{line.guestName}</td>
-                    <td className="px-3 py-2">
-                      <Link
-                        to="/restaurant/pms/cashiering/folios/$folioId"
-                        params={{ folioId: line.folioId }}
-                        className="font-medium underline-offset-4 hover:underline hover:text-[#C89933] transition-colors"
-                      >
-                        {line.folioNumber}
-                      </Link>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs text-[#5C5346]">
+                      {line.postedBy ?? "—"}
                     </td>
-                    <td className="px-3 py-2">{line.description}</td>
-                    <td className="px-3 py-2">{methodLabel(line.paymentMethod)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">{money(line.amount)}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                        Recorded
+                      </span>
+                      {line.referenceType ? (
+                        <div className="mt-1 text-[11px] text-[#7A7167]">{line.referenceType}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2.5 text-center" onClick={(event) => event.stopPropagation()}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 border-[#DDD4C5] bg-white px-2 text-[11px] font-semibold text-[#251605] hover:border-[#C89933]"
+                        onClick={() => openReportLine(line)}
+                      >
+                        View
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1373,6 +1585,21 @@ export function ReportsPanel({
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span>Order:</span>
+                <select
+                  aria-label="Order"
+                  value={order}
+                  onChange={(event) => {
+                    setOrder(event.target.value === "oldest" ? "oldest" : "newest");
+                    setPage(1);
+                  }}
+                  className="h-8 rounded-md border border-[#DDD4C5] bg-background px-2 text-xs font-medium text-foreground shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C89933]"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+              </div>
               <div className="flex items-center gap-2">
                 <span>Rows:</span>
                 <select
@@ -1430,7 +1657,7 @@ export function ReportsPanel({
       </p>
 
       {/* Print / Save as PDF layer */}
-      <CashieringPrintLayer active={printing && Boolean(totals)}>
+      <CashieringPrintLayer active={printing && Boolean(totals)} singlePage={false}>
         {totals ? (
           <article className="space-y-4 bg-white p-6 text-sm text-[#251605]" data-testid="cashiering-report-print">
             <header className="border-b border-[#DDD4C5] pb-4">
@@ -1504,25 +1731,33 @@ export function ReportsPanel({
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-[#DDD4C5] bg-[#FAF8F4] text-left">
+                    <th className="p-1.5">Reference</th>
                     <th className="p-1.5">Posted</th>
                     <th className="p-1.5">Type</th>
                     <th className="p-1.5">Guest</th>
                     <th className="p-1.5">Folio</th>
+                    <th className="p-1.5">Room</th>
                     <th className="p-1.5">Description</th>
                     <th className="p-1.5">Method</th>
                     <th className="p-1.5 text-right">Amount</th>
+                    <th className="p-1.5">Posted by</th>
+                    <th className="p-1.5">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(printLines ?? report?.lines ?? []).map((line) => (
                     <tr key={line.id} className="border-b border-[#E8E1D7]">
+                      <td className="p-1.5">{shortRef(line.id)}</td>
                       <td className="p-1.5 text-muted-foreground">{new Date(line.postedAt).toLocaleString()}</td>
                       <td className="p-1.5">{methodLabel(line.type)}</td>
                       <td className="p-1.5">{line.guestName}</td>
                       <td className="p-1.5">{line.folioNumber}</td>
+                      <td className="p-1.5">{line.roomNumber ?? "—"}</td>
                       <td className="p-1.5">{line.description}</td>
-                      <td className="p-1.5">{methodLabel(line.paymentMethod)}</td>
+                      <td className="p-1.5">{line.paymentMethod ? methodLabel(line.paymentMethod) : methodLabel(line.type)}</td>
                       <td className="p-1.5 text-right tabular-nums">{money(line.amount)}</td>
+                      <td className="p-1.5">{line.postedBy ?? "—"}</td>
+                      <td className="p-1.5">{line.referenceType ? `Recorded · ${line.referenceType}` : "Recorded"}</td>
                     </tr>
                   ))}
                 </tbody>

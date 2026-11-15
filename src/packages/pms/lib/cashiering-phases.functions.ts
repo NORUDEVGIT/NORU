@@ -75,16 +75,21 @@ export interface CashieringReportLine {
   folioId: string;
   folioNumber: string;
   guestName: string;
+  roomNumber: string | null;
   type: string;
   description: string;
   amount: number;
   paymentMethod: string | null;
   postedAt: string;
+  postedBy: string | null;
+  referenceType: string | null;
 }
 
 export interface CashieringReport {
   totals: CashieringReportTotals;
   lines: CashieringReportLine[];
+  /** Payment methods present for the current type and search, before the method filter. */
+  methods: string[];
   page: number;
   limit: number;
   pageSize: number;
@@ -141,24 +146,32 @@ export function buildCashieringReportCsv(input: {
 
   rows.push(["TRANSACTION DETAILS"]);
   rows.push([
+    "Reference",
     "Posted At",
     "Type",
     "Guest Name",
     "Folio Number",
+    "Room",
     "Description",
     "Payment Method",
     "Amount",
+    "Posted By",
+    "Status",
   ]);
 
   for (const line of input.lines) {
     rows.push([
+      line.id,
       line.postedAt,
       line.type,
       line.guestName,
       line.folioNumber,
+      line.roomNumber ?? "",
       line.description,
       line.paymentMethod ?? "",
       String(line.amount),
+      line.postedBy ?? "",
+      line.referenceType ? `Recorded ${line.referenceType}` : "Recorded",
     ]);
   }
 
@@ -779,6 +792,15 @@ export const listCashieringExceptions = createServerFn({ method: "GET" })
 
 const reportDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
+/** Same type choices as Financial Activity. Anything else, including "all", keeps every type. */
+export function reportActivityMatches(type: string, activity: string | undefined) {
+  if (activity === "payment" || activity === "deposit" || activity === "refund") return type === activity;
+  if (activity === "transfer") return type === "transfer_in" || type === "transfer_out";
+  return true;
+}
+/** One report read. The ledger query and the print/export page size share this cap. */
+export const CASHIERING_REPORT_READ_LIMIT = 5000;
+
 export const getCashieringReportTotals = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -789,6 +811,10 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
       page?: number;
       limit?: number;
       pageSize?: number;
+      order?: "newest" | "oldest";
+      search?: string;
+      activity?: "all" | "payment" | "deposit" | "refund" | "transfer";
+      method?: string;
     }) =>
       z
         .object({
@@ -796,14 +822,59 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
           fromDate: reportDate,
           toDate: reportDate,
           page: z.coerce.number().int().min(1).optional().default(1),
-          limit: z.coerce.number().int().min(1).max(500).optional(),
-          pageSize: z.coerce.number().int().min(1).max(500).optional(),
+          limit: z.coerce.number().int().min(1).max(CASHIERING_REPORT_READ_LIMIT).optional(),
+          pageSize: z.coerce.number().int().min(1).max(CASHIERING_REPORT_READ_LIMIT).optional(),
+          order: z.enum(["newest", "oldest"]).optional().default("newest"),
+          search: z.string().trim().max(80).optional(),
+          activity: z.enum(["all", "payment", "deposit", "refund", "transfer"]).optional().default("all"),
+          method: z.string().trim().max(40).optional(),
         })
         .parse(d),
   )
   .handler(async ({ data, context }): Promise<CashieringReport> => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    async function loadReportFolioLabels(ids: string[]) {
+      const map = new Map<string, { number: string; guest: string; room: string | null }>();
+      for (let index = 0; index < ids.length; index += 80) {
+        const chunk = ids.slice(index, index + 80);
+        if (chunk.length === 0) continue;
+        const { data: folios } = await supabaseAdmin
+          .from("guest_folios")
+          .select(
+            "id, folio_number, guest_profiles!guest_folios_guest_same_property(first_name, last_name), hotel_reservations!guest_folios_reservation_same_property(hotel_rooms!hotel_reservations_room_same_type(room_number))",
+          )
+          .eq("restaurant_id", data.restaurantId)
+          .in("id", chunk);
+        for (const folio of (folios ?? []) as unknown as Array<{
+          id: string;
+          folio_number: string;
+          guest_profiles: { first_name: string | null; last_name: string | null } | null;
+          hotel_reservations:
+            | { hotel_rooms?: { room_number: string } | Array<{ room_number: string }> | null }
+            | Array<{
+                hotel_rooms?: { room_number: string } | Array<{ room_number: string }> | null;
+              }>
+            | null;
+        }>) {
+          const guest = [folio.guest_profiles?.first_name, folio.guest_profiles?.last_name]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+          const stay = Array.isArray(folio.hotel_reservations)
+            ? folio.hotel_reservations[0]
+            : folio.hotel_reservations;
+          const rooms = stay?.hotel_rooms;
+          const room = Array.isArray(rooms) ? rooms[0] : rooms;
+          map.set(folio.id, {
+            number: folio.folio_number,
+            guest: guest || "Guest",
+            room: room?.room_number ?? null,
+          });
+        }
+      }
+      return map;
+    }
     const fromDate = data.fromDate <= data.toDate ? data.fromDate : data.toDate;
     const toDate = data.fromDate <= data.toDate ? data.toDate : data.fromDate;
     const span =
@@ -811,17 +882,9 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
     if (span > 31) throw cashierError("Choose a report range of 31 days or less.");
 
     // The range is hotel days: each line carries the business_date it was posted on (0208).
-    const { data: txns, error } = await supabaseAdmin
-      .from("folio_transactions")
-      .select("id, folio_id, transaction_type, description, amount, payment_method, posted_at")
-      .eq("restaurant_id", data.restaurantId)
-      .gte("business_date", fromDate)
-      .lte("business_date", toDate)
-      .order("posted_at", { ascending: false })
-      .limit(5000);
-    if (error) throw cashierError(error.message);
-
-    const ledger = (txns ?? []) as Array<{
+    // Read in pages of 100. A single response is capped by the API, so one `.limit(5000)`
+    // can come back short of the rows that were actually posted.
+    const ledger: Array<{
       id: string;
       folio_id: string;
       transaction_type: string;
@@ -829,10 +892,71 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
       amount: number | string;
       payment_method: string | null;
       posted_at: string;
-    }>;
+      posted_by_membership_id: string | null;
+      reference_type: string | null;
+    }> = [];
+    const readChunk = 100;
+    const newestFirst = data.order !== "oldest";
+    while (ledger.length < CASHIERING_REPORT_READ_LIMIT) {
+      const from = ledger.length;
+      const to = Math.min(from + readChunk, CASHIERING_REPORT_READ_LIMIT) - 1;
+      const { data: txns, error } = await supabaseAdmin
+        .from("folio_transactions")
+        .select(
+          "id, folio_id, transaction_type, description, amount, payment_method, posted_at, posted_by_membership_id, reference_type",
+        )
+        .eq("restaurant_id", data.restaurantId)
+        .gte("business_date", fromDate)
+        .lte("business_date", toDate)
+        .order("posted_at", { ascending: !newestFirst })
+        .order("id", { ascending: !newestFirst })
+        .range(from, to);
+      if (error) throw cashierError(error.message);
+      const batch = (txns ?? []) as typeof ledger;
+      ledger.push(...batch);
+      if (batch.length < to - from + 1) break;
+    }
+
+    const activity = data.activity ?? "all";
+    const searchText = (data.search ?? "").trim().toLowerCase();
+    const methodFilter = data.method && data.method !== "all" ? data.method : "";
+    const byType = ledger.filter((row) => reportActivityMatches(row.transaction_type, activity));
+    const searchLabels = new Map<string, { number: string; guest: string; room: string | null }>();
+    if (searchText) {
+      const loaded = await loadReportFolioLabels([...new Set(byType.map((row) => row.folio_id))]);
+      for (const [id, label] of loaded) searchLabels.set(id, label);
+    }
+    const searched = searchText
+      ? byType.filter((row) => {
+          const label = searchLabels.get(row.folio_id);
+          const haystack = [
+            label?.guest,
+            label?.number,
+            label?.room,
+            row.description,
+            row.payment_method,
+            row.transaction_type,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(searchText);
+        })
+      : byType;
+    const methods = [
+      ...new Set(
+        searched
+          .map((row) => row.payment_method)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ].sort();
+    const matched = methodFilter
+      ? searched.filter((row) => (row.payment_method ?? "") === methodFilter)
+      : searched;
+
     const sum = (type: string, signed: (amount: number) => number) =>
       Math.round(
-        ledger
+        matched
           .filter((row) => row.transaction_type === type)
           .reduce((total, row) => total + signed(Number(row.amount)), 0) * 100,
       ) / 100;
@@ -845,53 +969,80 @@ export const getCashieringReportTotals = createServerFn({ method: "GET" })
       discounts: sum("discount", (amount) => -amount),
       transfersOut: sum("transfer_out", (amount) => -amount),
       transfersIn: sum("transfer_in", (amount) => amount),
-      lineCount: ledger.length,
+      lineCount: matched.length,
       netMovement:
-        Math.round(ledger.reduce((total, row) => total + Number(row.amount), 0) * 100) / 100,
+        Math.round(matched.reduce((total, row) => total + Number(row.amount), 0) * 100) / 100,
     };
 
     const limit = data.limit ?? data.pageSize ?? 25;
-    const total = ledger.length;
+    const total = matched.length;
     const totalPages = Math.max(1, Math.ceil(total / limit));
     const safePage = Math.min(Math.max(1, data.page ?? 1), totalPages);
     const start = (safePage - 1) * limit;
-    const shown = ledger.slice(start, start + limit);
+    const shown = matched.slice(start, start + limit);
 
     const folioIds = [...new Set(shown.map((row) => row.folio_id))];
-    const folioMeta = new Map<string, { number: string; guest: string }>();
-    if (folioIds.length > 0) {
-      const { data: folios } = await supabaseAdmin
-        .from("guest_folios")
-        .select(
-          "id, folio_number, guest_profiles!guest_folios_guest_same_property(first_name, last_name)",
-        )
+    const folioMeta = await loadReportFolioLabels(folioIds.filter((id) => !searchLabels.has(id)));
+    for (const id of folioIds) {
+      const known = searchLabels.get(id);
+      if (known) folioMeta.set(id, known);
+    }
+
+    const posterIds = [
+      ...new Set(
+        shown
+          .map((row) => row.posted_by_membership_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const posterNames = new Map<string, string>();
+    if (posterIds.length > 0) {
+      const { data: members } = await supabaseAdmin
+        .from("restaurant_users")
+        .select("id, user_id")
         .eq("restaurant_id", data.restaurantId)
-        .in("id", folioIds);
-      for (const folio of (folios ?? []) as unknown as Array<{
-        id: string;
-        folio_number: string;
-        guest_profiles: { first_name: string | null; last_name: string | null } | null;
-      }>) {
-        const guest = [folio.guest_profiles?.first_name, folio.guest_profiles?.last_name]
-          .filter(Boolean)
-          .join(" ")
-          .trim();
-        folioMeta.set(folio.id, { number: folio.folio_number, guest: guest || "Guest" });
+        .in("id", posterIds);
+      const memberRows = (members ?? []) as Array<{ id: string; user_id: string }>;
+      const { data: profiles } = memberRows.length
+        ? await supabaseAdmin
+            .from("profiles")
+            .select("id, first_name, last_name, email")
+            .in(
+              "id",
+              memberRows.map((member) => member.user_id),
+            )
+        : { data: [] as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }> };
+      const byUser = new Map(
+        (profiles ?? []).map((profile) => [
+          profile.id,
+          [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() ||
+            profile.email ||
+            "Staff member",
+        ]),
+      );
+      for (const member of memberRows) {
+        posterNames.set(member.id, byUser.get(member.user_id) ?? "Staff member");
       }
     }
 
     return {
       totals,
+      methods,
       lines: shown.map((row) => ({
         id: row.id,
         folioId: row.folio_id,
         folioNumber: folioMeta.get(row.folio_id)?.number ?? "—",
         guestName: folioMeta.get(row.folio_id)?.guest ?? "Guest",
+        roomNumber: folioMeta.get(row.folio_id)?.room ?? null,
         type: row.transaction_type,
         description: row.description,
         amount: Number(row.amount),
         paymentMethod: row.payment_method,
         postedAt: row.posted_at,
+        postedBy: row.posted_by_membership_id
+          ? (posterNames.get(row.posted_by_membership_id) ?? null)
+          : null,
+        referenceType: row.reference_type,
       })),
       page: safePage,
       limit,

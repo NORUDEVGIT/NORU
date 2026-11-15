@@ -643,7 +643,7 @@ function QuickActionsCard({
         <button
           type="button"
           onClick={() =>
-            onNavigate("overview", { activity: "payment", returnToTab: "cashier-shift" })
+            onNavigate("financial-activity", { activity: "payment", returnToTab: "cashier-shift" })
           }
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
@@ -656,7 +656,7 @@ function QuickActionsCard({
         <button
           type="button"
           onClick={() =>
-            onNavigate("overview", { activity: "deposit", returnToTab: "cashier-shift" })
+            onNavigate("financial-activity", { activity: "deposit", returnToTab: "cashier-shift" })
           }
           className="flex items-center gap-2 rounded-lg border border-[#E8E1D7] bg-white px-2.5 py-2 text-xs font-medium text-[#251605] hover:bg-[#FAF8F4] transition-colors shadow-2xs"
         >
