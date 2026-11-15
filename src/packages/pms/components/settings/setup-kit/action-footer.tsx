@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Loader2, Save } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 
 export function PropertySetupActionFooter({
   onBack,
@@ -18,6 +19,7 @@ export function PropertySetupActionFooter({
   dirty = false,
   extra,
   testId = "property-setup-action-footer",
+  elevated = false,
 }: {
   onBack: () => void;
   onSaveDraft?: () => void;
@@ -33,18 +35,23 @@ export function PropertySetupActionFooter({
   dirty?: boolean;
   extra?: ReactNode;
   testId?: string;
+  elevated?: boolean;
 }) {
   return (
     <footer
-      className="sticky bottom-0 z-10 mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[#E6E1D8] bg-[#F7F4EE]/95 px-4 py-3 backdrop-blur sm:px-6"
+      className={
+        elevated
+          ? "fixed inset-x-0 bottom-0 z-40 flex h-14 w-full items-center justify-between gap-3 border-t border-[#E6E1D8] bg-[#F7F4EE] px-4 shadow-[0_-8px_20px_rgba(37,22,5,0.06)] sm:px-6"
+          : "sticky bottom-0 z-10 mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-[#E6E1D8] bg-[#F7F4EE]/95 px-4 py-3 backdrop-blur sm:px-6"
+      }
       data-testid={testId}
       data-dirty={dirty ? "true" : "false"}
     >
-      <Button type="button" variant="outline" disabled={backDisabled} onClick={onBack}>
+      <Button type="button" variant="outline" className="shrink-0" disabled={backDisabled} onClick={onBack}>
         <ArrowLeft className="size-4" />
         {backLabel}
       </Button>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className={cn("flex items-center gap-2", elevated ? "shrink-0 flex-wrap justify-end sm:flex-nowrap" : "flex-wrap")}>
         {onSaveDraft ? (
           <Button
             type="button"

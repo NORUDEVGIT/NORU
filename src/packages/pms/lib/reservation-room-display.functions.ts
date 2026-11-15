@@ -4,7 +4,15 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isMissingSchemaError } from "@/packages/pms/lib/pms-set2-structure";
 import { getAssignmentEligibilityCompat } from "@/packages/pms/lib/room-inventory-compat";
+import {
+  createPairAwareEvaluator,
+  type PairEligibilityDb,
+} from "@/packages/pms/lib/room-pair-eligibility";
 import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
+import {
+  loadEvaluationRequirements,
+  type RoomRequirementReadDb,
+} from "@/packages/pms/lib/reservation-room-requirements";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 
 const idSchema = z.string().uuid();
@@ -14,6 +22,8 @@ export type ReservationRoomDisplay = {
   eligible: boolean;
   blockerCode: string | null;
   occupiedUntil: string | null;
+  /** The room a paired partner holds, when a pair mismatch blocks this room. */
+  partnerRoomNumber?: string | null;
 };
 
 type OverlapStay = {
@@ -62,6 +72,16 @@ export const listReservationRoomDisplay = createServerFn({ method: "POST" })
       .maybeSingle();
     if (unitError) throw new Error(unitError.message);
     if (!unit) throw new Error("Reservation room was not found.");
+    // This unit's stored requirements, never a sibling's.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const requirements = await loadEvaluationRequirements(
+      supabaseAdmin as unknown as RoomRequirementReadDb,
+      {
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        reservationRoomId: data.reservationRoomId,
+      },
+    );
 
     const { data: rooms, error } = await context.supabase
       .from("hotel_rooms")
@@ -81,6 +101,11 @@ export const listReservationRoomDisplay = createServerFn({ method: "POST" })
       },
     );
 
+    // A paired unit can only move to a room that keeps its pair satisfied.
+    const pairAware = await createPairAwareEvaluator(supabaseAdmin as unknown as PairEligibilityDb, {
+      restaurantId: data.restaurantId,
+      reservationRoomId: data.reservationRoomId,
+    });
     const output: ReservationRoomDisplay[] = [];
     for (const room of candidates) {
       const roomOverlaps = overlaps.filter((stay) => stay.roomId === room.id);
@@ -88,7 +113,7 @@ export const listReservationRoomDisplay = createServerFn({ method: "POST" })
         (stay) => stay.reservationId === data.reservationId && stay.unitId !== unit.id,
       );
       const others = roomOverlaps.filter((stay) => stay.reservationId !== data.reservationId);
-      const eligibility = await getAssignmentEligibilityCompat(
+      const baseEligibility = await getAssignmentEligibilityCompat(
         context.supabase,
         {
           restaurantId: data.restaurantId,
@@ -99,6 +124,8 @@ export const listReservationRoomDisplay = createServerFn({ method: "POST" })
           excludeReservationId: data.reservationId,
           adults: unit.adults,
           children: unit.children,
+          accessibleRequired: requirements.accessibleRoomRequired,
+          connectingRequired: requirements.connectingRoomRequired,
         },
         () => ({
           source: "legacy" as const,
@@ -109,6 +136,7 @@ export const listReservationRoomDisplay = createServerFn({ method: "POST" })
           preferenceReasons: [],
         }),
       );
+      const eligibility = await pairAware(room.id, baseEligibility);
       const evaluatedBlocker = blockerCode(eligibility.blockers);
       const occupiedUntil = (sibling ? [sibling, ...others] : others).reduce<string | null>(
         (latest, stay) => laterDate(latest, stay.departureDate),
@@ -119,6 +147,9 @@ export const listReservationRoomDisplay = createServerFn({ method: "POST" })
         eligible: eligibility.eligible && !sibling,
         blockerCode: sibling ? "ROOM_ALREADY_BOOKED" : evaluatedBlocker,
         occupiedUntil: sibling || evaluatedBlocker === "ROOM_ALREADY_BOOKED" ? occupiedUntil : null,
+        ...(eligibility.pairing?.partnerRoomNumber
+          ? { partnerRoomNumber: eligibility.pairing.partnerRoomNumber }
+          : {}),
       });
     }
     return output;

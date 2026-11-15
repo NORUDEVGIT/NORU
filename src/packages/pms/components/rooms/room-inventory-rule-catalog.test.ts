@@ -19,8 +19,16 @@ describe("inventory rule catalog", () => {
   it("lists every visible rule flag exactly once", () => {
     const keys = [...AVAILABILITY_RULES, ...ASSIGNMENT_RULES].map((rule) => rule.key);
     expect(new Set(keys).size).toBe(keys.length);
-    expect(keys).toHaveLength(13);
-    expect(OPERATIONAL_REQUIREMENT_RULES).toHaveLength(5);
+    expect(keys).toHaveLength(12);
+    expect(OPERATIONAL_REQUIREMENT_RULES).toHaveLength(4);
+    expect(keys as string[]).not.toContain("housekeepingAffectsAssignment");
+    expect(
+      OPERATIONAL_REQUIREMENT_RULES.find((rule) => rule.key === "requireHousekeepingReadiness"),
+    ).toMatchObject({
+      label: "Require housekeeping readiness",
+      help: "Require rooms to be released by Housekeeping before assignment.",
+      kind: "blocking",
+    });
     expect(GUEST_MATCHING_RULES).toHaveLength(6);
   });
 

@@ -48,6 +48,7 @@ import { PmsCard4NotificationEvents } from "@/packages/pms/components/settings/p
 import { PmsCard4AutomationRules } from "@/packages/pms/components/settings/pms-card4-automation-rules";
 import { PmsCard4SenderSettings } from "@/packages/pms/components/settings/pms-card4-sender-settings";
 import { PmsCard4CommunicationDefaults } from "@/packages/pms/components/settings/pms-card4-communication-defaults";
+import { GuestAgreementWorkspace } from "@/packages/pms/components/guests/guest-agreement-workspace";
 import { getPmsCard4CompanyBusiness } from "@/packages/pms/lib/company-business-card4.functions";
 import { companyBusinessConfigured as companyBusinessReady } from "@/packages/pms/lib/company-business-card4.server";
 import { getPmsCard4GroupTypes } from "@/packages/pms/lib/group-types-card4.functions";
@@ -103,13 +104,24 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card4";
 import { cn } from "@/shared/lib/utils";
 
+function initialCard4Section(): Card4MainSectionId {
+  if (typeof window === "undefined") return "profile-rules";
+  if (window.sessionStorage.getItem("noru-open-guest-agreement") === "1") {
+    window.sessionStorage.removeItem("noru-open-guest-agreement");
+    return "agreement";
+  }
+  return "profile-rules";
+}
+
 export function PmsPropertySetupCard4Section({
   restaurantId,
   canEdit,
+  role = "",
   initialStep = "profile-types",
 }: {
   restaurantId: string;
   canEdit: boolean;
+  role?: string;
   initialStep?: string;
 }) {
   const resolvedInitialStep: Card4StepId =
@@ -130,7 +142,7 @@ export function PmsPropertySetupCard4Section({
           ? "preferences"
           : "general";
 
-  const [mainSection, setMainSection] = useState<Card4MainSectionId>("profile-rules");
+  const [mainSection, setMainSection] = useState<Card4MainSectionId>(initialCard4Section);
   const [step, setStep] = useState<Card4StepId>(resolvedInitialStep);
   const [profileTypeTab, setProfileTypeTab] = useState<ProfileTypeTabId>(resolvedInitialTab);
   const [gstStep, setGstStep] = useState<Card4GstStepId>("service-categories");
@@ -586,16 +598,18 @@ export function PmsPropertySetupCard4Section({
     gstStep === "sla-rules" ||
     gstStep === "service-availability";
   const liveStep =
-    mainSection === "profile-rules"
-      ? gprLive
-      : mainSection === "guest-service-types"
-        ? gstLive
-        : notificationStep === "channels" ||
-          notificationStep === "communication-templates" ||
-          notificationStep === "notification-events" ||
-          notificationStep === "automation-rules" ||
-          notificationStep === "sender-settings" ||
-          notificationStep === "communication-defaults";
+    mainSection === "agreement"
+      ? false
+      : mainSection === "profile-rules"
+        ? gprLive
+        : mainSection === "guest-service-types"
+          ? gstLive
+          : notificationStep === "channels" ||
+            notificationStep === "communication-templates" ||
+            notificationStep === "notification-events" ||
+            notificationStep === "automation-rules" ||
+            notificationStep === "sender-settings" ||
+            notificationStep === "communication-defaults";
   const subtitle =
     mainSection === "guest-service-types"
       ? CARD4_GST_SUBTITLE
@@ -650,7 +664,8 @@ export function PmsPropertySetupCard4Section({
                 step === "group-types" ||
                 step === "travel-agency-types")) ||
             mainSection === "guest-service-types" ||
-            mainSection === "notifications"
+            mainSection === "notifications" ||
+            mainSection === "agreement"
               ? null
               : undefined
           }
@@ -699,7 +714,7 @@ export function PmsPropertySetupCard4Section({
                   </button>
                 ))}
               </div>
-              {mainSection === "profile-rules" ? (
+              {mainSection === "agreement" ? null : mainSection === "profile-rules" ? (
                 <div data-testid="pms-card4-steps">
                   <LocalSectionNavigator
                     testId="pms-card4-local-section-nav"
@@ -743,7 +758,9 @@ export function PmsPropertySetupCard4Section({
           }
         >
           <div className="space-y-4">
-            {mainSection === "notifications" ? (
+            {mainSection === "agreement" ? (
+              <GuestAgreementWorkspace restaurantId={restaurantId} role={role} />
+            ) : mainSection === "notifications" ? (
               notificationStep === "channels" ? (
                 <PmsCard4CommunicationChannels
                   restaurantId={restaurantId}

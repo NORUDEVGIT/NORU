@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { ChevronLeft, ChevronRight, Ellipsis, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -29,7 +30,20 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { Badge } from "@/shared/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { SearchableSelect } from "@/shared/components/ui/searchable-select";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
 import {
   completeHousekeepingTask,
@@ -49,6 +63,7 @@ import {
   setRoomRestriction,
   updateHousekeepingTask,
   updateMaintenanceRequest,
+  type HousekeepingTask,
   type RackRoom,
 } from "@/packages/pms/lib/housekeeping.functions";
 import { getPmsSet4Snapshot } from "@/packages/pms/lib/pms-set4-hk-inventory.functions";
@@ -82,8 +97,10 @@ import {
   HkToolbarSearch,
   HkViewSwitcher,
   downloadCsv,
+  HK_SHELL_ICON_BUTTON,
   HK_SHELL_PRIMARY_BUTTON,
 } from "@/packages/pms/components/housekeeping/housekeeping-shell-slots";
+import { addDays } from "@/packages/pms/components/rooms/room-inventory-utils";
 import {
   ROOM_TABLE_HEAD,
   ROOM_TABLE_ROW,
@@ -111,6 +128,16 @@ type HousekeepingTaskGrants = {
 };
 type CleaningProps = Props &
   HousekeepingTaskGrants & { scope: HousekeepingScope; membershipId: string };
+
+type CleaningLane = "pending" | "assigned" | "in_progress" | "completed";
+type CleaningAction = "assign" | "start" | "complete" | "cancel";
+
+const CLEANING_LANES: Array<{ id: CleaningLane; label: string }> = [
+  { id: "pending", label: "Pending" },
+  { id: "assigned", label: "Assigned" },
+  { id: "in_progress", label: "In Progress" },
+  { id: "completed", label: "Completed Today" },
+];
 
 function useInvalidateHousekeeping(restaurantId: string) {
   const qc = useQueryClient();
@@ -571,10 +598,15 @@ export function CleaningBoardTab({
   const assignFn = useServerFn(updateHousekeepingTask);
   const completeFn = useServerFn(completeHousekeepingTask);
   const invalidate = useInvalidateHousekeeping(restaurantId);
+  const [taskDate, setTaskDate] = useState(today);
+
+  useEffect(() => {
+    setTaskDate(today);
+  }, [today]);
 
   const tasks = useQuery({
-    queryKey: ["hk-tasks", restaurantId, today],
-    queryFn: () => fetchTasks({ data: { restaurantId, today } }),
+    queryKey: ["hk-tasks", restaurantId, taskDate],
+    queryFn: () => fetchTasks({ data: { restaurantId, today: taskDate } }),
   });
   const staff = useQuery({
     queryKey: ["hk-staff", restaurantId],
@@ -589,8 +621,13 @@ export function CleaningBoardTab({
   const [assignee, setAssignee] = useState("");
   const [assignNotes, setAssignNotes] = useState("");
   const [query, setQuery] = useState("");
+  const [attendant, setAttendant] = useState("all");
+  const [priority, setPriority] = useState("all");
+  const [taskType, setTaskType] = useState("all");
+  const [lane, setLane] = useState<"all" | CleaningLane>("all");
   const [viewMode, setViewMode] = useState<"board" | "table">("board");
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
   const isSupervisor = scope === "supervisor";
   const own = (assignedId: string | null) => assignedId === membershipId;
@@ -629,81 +666,71 @@ export function CleaningBoardTab({
   });
 
   const loaded = tasks.data ?? [];
-  const todayStr = today;
   const queryText = query.trim().toLowerCase();
-  const all = loaded.filter((t) => {
-    if (!queryText) return true;
-    const hay = `${t.roomNumber} ${t.roomTypeName} ${t.taskType} ${t.status} ${t.assignedName ?? ""} ${t.notes ?? ""}`.toLowerCase();
-    return hay.includes(queryText);
-  });
-  const fieldWork = all.filter(
-    (t) => t.status === "pending" || t.status === "assigned" || t.status === "in_progress",
+  const attendants = useMemo(
+    () => Array.from(new Set(loaded.map((task) => task.assignedName).filter(Boolean) as string[])).sort(),
+    [loaded],
   );
-  const columns: Array<[string, typeof all]> = [
-    ["Pending", all.filter((t) => t.status === "pending")],
-    ["Assigned", all.filter((t) => t.status === "assigned")],
-    ["In progress", all.filter((t) => t.status === "in_progress")],
-    [
-      "Completed today",
-      all.filter((t) => t.status === "completed" && (t.completedAt ?? "").slice(0, 10) === todayStr),
-    ],
-  ];
+  const taskTypes = useMemo(
+    () => Array.from(new Set(loaded.map((task) => task.taskType))).sort(),
+    [loaded],
+  );
+  const narrowed = loaded.filter((task) => {
+    if (attendant === "unassigned" && task.assignedName) return false;
+    if (attendant !== "all" && attendant !== "unassigned" && task.assignedName !== attendant) return false;
+    if (priority !== "all" && task.priority !== priority) return false;
+    if (taskType !== "all" && task.taskType !== taskType) return false;
+    if (queryText) {
+      const hay = `${task.roomNumber} ${task.roomTypeName} ${labelTaskType(task.taskType)} ${cleaningStatusLabel(task.status)} ${cleaningPriorityLabel(task.priority)} ${task.assignedName ?? ""} ${task.notes ?? ""}`.toLowerCase();
+      if (!hay.includes(queryText)) return false;
+    }
+    return true;
+  });
+  const laneTasks = (id: CleaningLane) => narrowed.filter((task) => taskInCleaningLane(task, id, taskDate));
+  const columns = CLEANING_LANES.map((column) => ({
+    ...column,
+    count: laneTasks(column.id).length,
+    tasks: lane === "all" || lane === column.id ? laneTasks(column.id) : [],
+  }));
+  const fieldWork =
+    lane === "all"
+      ? (["pending", "assigned", "in_progress"] as const).flatMap((id) => laneTasks(id))
+      : laneTasks(lane);
+  const tableRows = lane === "all" ? narrowed : laneTasks(lane);
+  const openTask = loaded.find((task) => task.id === openTaskId) ?? null;
+  const laneLabel = CLEANING_LANES.find((column) => column.id === lane)?.label ?? "";
+  const filterCount =
+    (lane !== "all" ? 1 : 0) +
+    (attendant !== "all" ? 1 : 0) +
+    (priority !== "all" ? 1 : 0) +
+    (taskType !== "all" ? 1 : 0);
 
-  function taskActions(t: (typeof all)[number], large: boolean) {
-    if (t.status === "completed" || t.status === "cancelled") return null;
-    const cls = large ? HK_FIELD_ACTION_CLASS : undefined;
-    const hasAction =
-      (isSupervisor && canEditTask) ||
-      (canEditTask && (isSupervisor || own(t.assignedMembershipId))) ||
-      (isSupervisor && canCancelTask);
-    if (!hasAction) return null;
-    return (
-      <HkFieldActions>
-        {isSupervisor && canEditTask ? (
-          <Button size={large ? "default" : "sm"} className={cls} variant="outline" onClick={() => setAssignTask(t.id)}>
-            Assign
-          </Button>
-        ) : null}
-        {canEditTask &&
-        t.status !== "in_progress" &&
-        (isSupervisor || own(t.assignedMembershipId)) ? (
-          <Button
-            size={large ? "default" : "sm"}
-            className={cls}
-            variant="outline"
-            onClick={() => act.mutate({ taskId: t.id, action: "start" })}
-          >
-            Start
-          </Button>
-        ) : null}
-        {canEditTask && (isSupervisor || own(t.assignedMembershipId)) ? (
-          <Button
-            size={large ? "default" : "sm"}
-            className={cls}
-            onClick={() => complete.mutate(t.id)}
-            disabled={complete.isPending}
-          >
-            Complete
-          </Button>
-        ) : null}
-        {isSupervisor && canCancelTask ? (
-          <Button
-            size={large ? "default" : "sm"}
-            className={cls}
-            variant="ghost"
-            onClick={() => act.mutate({ taskId: t.id, action: "cancel" })}
-          >
-            Cancel
-          </Button>
-        ) : null}
-      </HkFieldActions>
-    );
+  function runAction(task: HousekeepingTask, action: CleaningAction) {
+    if (action === "assign") {
+      setAssignee("");
+      setAssignNotes("");
+      setAssignTask(task.id);
+      return;
+    }
+    if (action === "start") {
+      act.mutate({ taskId: task.id, action: "start" });
+      return;
+    }
+    if (action === "cancel") {
+      act.mutate({ taskId: task.id, action: "cancel" });
+      return;
+    }
+    complete.mutate(task.id);
+  }
+
+  function toggleLane(id: CleaningLane) {
+    setLane((current) => (current === id ? "all" : id));
   }
 
   return (
     <div className="space-y-3" data-testid="hk-cleaning-board">
       <HkShellSlot name="date">
-        <HkBusinessDate today={today} />
+        <CleaningDateControl value={taskDate} businessDate={today} onChange={setTaskDate} />
       </HkShellSlot>
       <HkShellSlot name="search">
         <HkToolbarSearch
@@ -713,8 +740,71 @@ export function CleaningBoardTab({
           testId="hk-cleaning-search"
         />
       </HkShellSlot>
+      <HkShellSlot name="filter">
+        <PmsFilterMenu
+          activeCount={filterCount}
+          tooltip="Filters"
+          onClear={() => {
+            setLane("all");
+            setAttendant("all");
+            setPriority("all");
+            setTaskType("all");
+          }}
+          buttonTestId="hk-cleaning-filters-button"
+          menuTestId="hk-cleaning-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Status"
+            value={lane}
+            current={laneLabel}
+            options={[
+              ["all", "All statuses"],
+              ["pending", "Pending"],
+              ["assigned", "Assigned"],
+              ["in_progress", "In Progress"],
+              ["completed", "Completed Today"],
+            ]}
+            onChange={(value) => setLane(value as "all" | CleaningLane)}
+          />
+          <PmsFilterChoiceRow
+            label="Attendant"
+            value={attendant}
+            current={attendant === "unassigned" ? "Unassigned" : attendant === "all" ? "" : attendant}
+            options={[
+              ["all", "All attendants"],
+              ["unassigned", "Unassigned"],
+              ...attendants.map((name) => [name, name] as const),
+            ]}
+            onChange={setAttendant}
+          />
+          <PmsFilterChoiceRow
+            label="Priority"
+            value={priority}
+            current={priority === "all" ? "" : cleaningPriorityLabel(priority)}
+            options={[
+              ["all", "All priorities"],
+              ["normal", "Normal"],
+              ["high", "Priority"],
+              ["urgent", "Urgent"],
+            ]}
+            onChange={setPriority}
+          />
+          <PmsFilterChoiceRow
+            label="Task type"
+            value={taskType}
+            current={taskType === "all" ? "" : labelTaskType(taskType)}
+            options={[["all", "All task types"], ...taskTypes.map((type) => [type, labelTaskType(type)] as const)]}
+            onChange={setTaskType}
+          />
+        </PmsFilterMenu>
+      </HkShellSlot>
       <HkShellSlot name="view">
-        <HkViewSwitcher value={viewMode} onChange={setViewMode} testId="hk-cleaning-view-switcher" />
+        <HkViewSwitcher
+          value={viewMode}
+          onChange={setViewMode}
+          testId="hk-cleaning-view-switcher"
+          labels={{ board: "Board view", table: "List view" }}
+        />
       </HkShellSlot>
       {isSupervisor && canCreateTask ? (
         <HkShellSlot name="cta">
@@ -729,74 +819,86 @@ export function CleaningBoardTab({
         </HkShellSlot>
       ) : null}
       {viewMode === "board" ? (
-      <HkFieldStack testId="hk-cleaning-field-worklist">
-        {tasks.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading tasks…</p>
-        ) : fieldWork.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No open cleaning tasks.</p>
-        ) : (
-          fieldWork.map((t) => (
-            <HkFieldCard key={t.id} testId={`hk-cleaning-card-${t.roomNumber}`}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-medium">Room {t.roomNumber}</p>
-                <PriorityBadge priority={t.priority} />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {labelTaskType(t.taskType)} · {t.roomTypeName}
-              </p>
-              <div className="flex items-center gap-2">
-                <TaskStatusBadge status={t.status} />
-                <span className="text-xs text-muted-foreground">{t.assignedName ?? "Unassigned"}</span>
-              </div>
-              {t.notes ? <p className="text-xs text-muted-foreground">Notes: {t.notes}</p> : null}
-              {taskActions(t, true)}
-            </HkFieldCard>
-          ))
-        )}
-      </HkFieldStack>
+        <HkFieldStack testId="hk-cleaning-field-worklist">
+          {tasks.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading tasks…</p>
+          ) : fieldWork.length === 0 ? (
+            <CleaningEmptyState
+              label={
+                lane === "completed"
+                  ? "No completed tasks"
+                  : lane === "all"
+                    ? "No open cleaning tasks"
+                    : `No ${laneLabel.toLowerCase()} tasks`
+              }
+            />
+          ) : (
+            fieldWork.map((task) => (
+              <CleaningTaskCard
+                key={task.id}
+                task={task}
+                field
+                selected={openTaskId === task.id}
+                pending={act.isPending || complete.isPending}
+                permissions={cleaningPermissions(task, {
+                  isSupervisor,
+                  canEditTask,
+                  canCancelTask,
+                  own: own(task.assignedMembershipId),
+                })}
+                onOpen={() => setOpenTaskId(task.id)}
+                onAction={(action) => runAction(task, action)}
+              />
+            ))
+          )}
+        </HkFieldStack>
       ) : null}
       {viewMode === "board" ? (
-      <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-4">
-        {columns.map(([title, list]) => (
-          <div key={title} className="space-y-3">
-            <h3 className="font-display text-lg">
-              {title} <span className="text-sm text-muted-foreground">({list.length})</span>
-            </h3>
-            {list.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground">
-                Nothing here.
-              </p>
-            ) : (
-              list.map((t) => (
-                <div
-                  key={t.id}
-                  className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4"
-                  data-testid={`hk-cleaning-card-${t.roomNumber}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">Room {t.roomNumber}</p>
-                    <PriorityBadge priority={t.priority} />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {labelTaskType(t.taskType)} · {t.roomTypeName}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <TaskStatusBadge status={t.status} />
-                    <span className="text-xs text-muted-foreground">{t.assignedName ?? "Unassigned"}</span>
-                  </div>
-                  {t.notes ? <p className="text-xs text-muted-foreground">Notes: {t.notes}</p> : null}
-                  <p className="text-xs text-muted-foreground">
-                    Created {formatWhen(t.createdAt)}
-                    {t.startedAt ? ` · Started ${formatWhen(t.startedAt)}` : ""}
-                    {t.completedAt ? ` · Completed ${formatWhen(t.completedAt)}` : ""}
-                  </p>
-                  {taskActions(t, false)}
-                </div>
-              ))
-            )}
-          </div>
-        ))}
-      </div>
+        <div className="hidden gap-2 md:grid md:grid-cols-2 lg:grid-cols-4">
+          {columns.map((column) => (
+            <div key={column.id} className="space-y-2">
+              <button
+                type="button"
+                aria-pressed={lane === column.id}
+                data-testid={`hk-cleaning-lane-${column.id}`}
+                onClick={() => toggleLane(column.id)}
+                className={cn(
+                  "flex w-full cursor-pointer items-center justify-between rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors",
+                  lane === column.id
+                    ? "border-[#C89933] bg-[#F4E9D0] font-semibold text-[#251605] ring-1 ring-[#C89933]/40"
+                    : "border-transparent font-semibold text-[#251605] hover:bg-[#FBF7EE]",
+                )}
+              >
+                <span>{column.label}</span>
+                <span className="tabular-nums text-xs font-medium text-[#756A5B]">({column.count})</span>
+              </button>
+              {tasks.isLoading ? (
+                <p className="px-1 text-xs text-muted-foreground">Loading tasks…</p>
+              ) : column.tasks.length === 0 ? (
+                lane === "all" || lane === column.id ? (
+                  <CleaningEmptyState label={`No ${column.id === "completed" ? "completed" : column.label.toLowerCase()} tasks`} />
+                ) : null
+              ) : (
+                column.tasks.map((task) => (
+                  <CleaningTaskCard
+                    key={task.id}
+                    task={task}
+                    selected={openTaskId === task.id}
+                    pending={act.isPending || complete.isPending}
+                    permissions={cleaningPermissions(task, {
+                      isSupervisor,
+                      canEditTask,
+                      canCancelTask,
+                      own: own(task.assignedMembershipId),
+                    })}
+                    onOpen={() => setOpenTaskId(task.id)}
+                    onAction={(action) => runAction(task, action)}
+                  />
+                ))
+              )}
+            </div>
+          ))}
+        </div>
       ) : (
         <div className={ROOM_TABLE_WRAP} data-testid="hk-cleaning-table">
           <table className="w-full min-w-[880px] text-sm">
@@ -808,7 +910,7 @@ export function CleaningBoardTab({
                 <th className={ROOM_TABLE_TH}>Status</th>
                 <th className={ROOM_TABLE_TH}>Priority</th>
                 <th className={ROOM_TABLE_TH}>Attendant</th>
-                <th className={ROOM_TABLE_TH}>Created</th>
+                <th className={ROOM_TABLE_TH}>When</th>
                 <th className={ROOM_TABLE_TH}>Actions</th>
               </tr>
             </thead>
@@ -819,29 +921,77 @@ export function CleaningBoardTab({
                     Loading tasks…
                   </td>
                 </tr>
-              ) : all.length === 0 ? (
+              ) : tableRows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
-                    No open cleaning tasks.
+                    No tasks match these filters.
                   </td>
                 </tr>
               ) : (
-                all.map((t) => (
-                  <tr key={t.id} className={ROOM_TABLE_ROW}>
-                    <td className={`${ROOM_TABLE_TD} font-medium`}>{t.roomNumber}</td>
-                    <td className={ROOM_TABLE_TD}>{t.roomTypeName}</td>
-                    <td className={ROOM_TABLE_TD}>{labelTaskType(t.taskType)}</td>
-                    <td className={ROOM_TABLE_TD}>
-                      <TaskStatusBadge status={t.status} />
-                    </td>
-                    <td className={ROOM_TABLE_TD}>
-                      <PriorityBadge priority={t.priority} />
-                    </td>
-                    <td className={ROOM_TABLE_TD}>{t.assignedName ?? "Unassigned"}</td>
-                    <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{formatWhen(t.createdAt)}</td>
-                    <td className={ROOM_TABLE_TD}>{taskActions(t, false)}</td>
-                  </tr>
-                ))
+                tableRows.map((task) => {
+                  const permissions = cleaningPermissions(task, {
+                    isSupervisor,
+                    canEditTask,
+                    canCancelTask,
+                    own: own(task.assignedMembershipId),
+                  });
+                  const primary = primaryCleaningAction(task, permissions);
+                  const secondary = secondaryCleaningActions(permissions, primary);
+                  return (
+                    <tr
+                      key={task.id}
+                      tabIndex={0}
+                      className={cn(
+                        ROOM_TABLE_ROW,
+                        "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C89933]",
+                        openTaskId === task.id && "bg-[#F4E9D0]/70",
+                      )}
+                      onClick={() => setOpenTaskId(task.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setOpenTaskId(task.id);
+                        }
+                      }}
+                    >
+                      <td className={`${ROOM_TABLE_TD} font-medium text-[#251605]`}>{task.roomNumber}</td>
+                      <td className={ROOM_TABLE_TD}>{task.roomTypeName}</td>
+                      <td className={ROOM_TABLE_TD}>{labelTaskType(task.taskType)}</td>
+                      <td className={ROOM_TABLE_TD}>
+                        <CleaningStatusChip status={task.status} />
+                      </td>
+                      <td className={ROOM_TABLE_TD}>
+                        <CleaningPriorityChip priority={task.priority} />
+                      </td>
+                      <td className={ROOM_TABLE_TD}>{task.assignedName ?? "Unassigned"}</td>
+                      <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{cleaningCardStamp(task) ?? "—"}</td>
+                      <td className={ROOM_TABLE_TD} onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center gap-1.5">
+                          {primary ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={primary === "complete" ? "default" : "outline"}
+                              className={cn(
+                                "h-8 px-2.5 text-xs",
+                                primary === "complete"
+                                  ? "bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                                  : "border-[#DDD4C5]",
+                              )}
+                              disabled={act.isPending || complete.isPending}
+                              onClick={() => runAction(task, primary)}
+                            >
+                              {cleaningActionLabel(primary)}
+                            </Button>
+                          ) : null}
+                          {secondary.length > 0 ? (
+                            <CleaningActionMenu actions={secondary} onAction={(action) => runAction(task, action)} />
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -899,6 +1049,484 @@ export function CleaningBoardTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CleaningTaskDrawer
+        restaurantId={restaurantId}
+        task={openTask}
+        taskDate={taskDate}
+        pending={act.isPending || complete.isPending}
+        permissions={
+          openTask
+            ? cleaningPermissions(openTask, {
+                isSupervisor,
+                canEditTask,
+                canCancelTask,
+                own: own(openTask.assignedMembershipId),
+              })
+            : null
+        }
+        onAction={(action) => openTask && runAction(openTask, action)}
+        onClose={() => setOpenTaskId(null)}
+      />
+    </div>
+  );
+}
+
+function cleaningStatusLabel(status: string): string {
+  if (status === "pending") return "Pending";
+  if (status === "assigned") return "Assigned";
+  if (status === "in_progress") return "In Progress";
+  if (status === "completed") return "Completed";
+  if (status === "cancelled") return "Cancelled";
+  return status;
+}
+
+function cleaningPriorityLabel(priority: string): string {
+  if (priority === "urgent") return "Urgent";
+  if (priority === "high") return "Priority";
+  return "Normal";
+}
+
+function cleaningActionLabel(action: CleaningAction): string {
+  if (action === "assign") return "Assign";
+  if (action === "start") return "Start cleaning";
+  if (action === "complete") return "Complete";
+  return "Cancel";
+}
+
+function taskInCleaningLane(task: HousekeepingTask, lane: CleaningLane, date: string): boolean {
+  if (lane === "completed") {
+    return task.status === "completed" && (task.completedAt ?? "").slice(0, 10) === date;
+  }
+  return task.status === lane;
+}
+
+function cleaningPermissions(
+  task: HousekeepingTask,
+  opts: { isSupervisor: boolean; canEditTask: boolean; canCancelTask: boolean; own: boolean },
+): Record<CleaningAction, boolean> {
+  const open = task.status !== "completed" && task.status !== "cancelled";
+  const actor = opts.isSupervisor || opts.own;
+  return {
+    assign: open && opts.isSupervisor && opts.canEditTask,
+    start: open && task.status !== "in_progress" && opts.canEditTask && actor,
+    complete: open && opts.canEditTask && actor,
+    cancel: open && opts.isSupervisor && opts.canCancelTask,
+  };
+}
+
+function primaryCleaningAction(
+  task: HousekeepingTask,
+  permissions: Record<CleaningAction, boolean>,
+): CleaningAction | null {
+  if (task.status === "completed" || task.status === "cancelled") return null;
+  if (task.status === "pending" && permissions.assign) return "assign";
+  if (task.status === "assigned" && permissions.start) return "start";
+  if (task.status === "in_progress" && permissions.complete) return "complete";
+  if (permissions.assign) return "assign";
+  if (permissions.start) return "start";
+  if (permissions.complete) return "complete";
+  return null;
+}
+
+function secondaryCleaningActions(
+  permissions: Record<CleaningAction, boolean>,
+  primary: CleaningAction | null,
+): CleaningAction[] {
+  return (["assign", "start", "complete", "cancel"] as const).filter(
+    (action) => permissions[action] && action !== primary,
+  );
+}
+
+function cleaningCardStamp(task: HousekeepingTask): string | null {
+  if (task.status === "completed") {
+    return task.completedAt ? `Completed ${formatWhen(task.completedAt)}` : null;
+  }
+  if (task.status === "in_progress" && task.startedAt) return `Started ${formatWhen(task.startedAt)}`;
+  return `Created ${formatWhen(task.createdAt)}`;
+}
+
+function formatCleaningDate(value: string): string {
+  const day = value.slice(0, 10);
+  const date = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(date.valueOf())) return value;
+  const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" }).format(date);
+  const month = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(date);
+  return `${weekday} ${date.getUTCDate()} ${month}`;
+}
+
+function CleaningStatusChip({ status }: { status: string }) {
+  const tone =
+    status === "assigned"
+      ? "bg-amber-50 text-amber-900"
+      : status === "in_progress"
+        ? "bg-sky-50 text-sky-800"
+        : status === "completed"
+          ? "bg-emerald-50 text-emerald-800"
+          : status === "cancelled"
+            ? "bg-[#F4EFE7] text-[#756A5B] line-through"
+            : "bg-[#F4EFE7] text-[#5F492D]";
+  return (
+    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", tone)}>
+      {cleaningStatusLabel(status)}
+    </span>
+  );
+}
+
+function CleaningPriorityChip({ priority }: { priority: string }) {
+  const tone =
+    priority === "urgent"
+      ? "bg-rose-50 text-rose-800"
+      : priority === "high"
+        ? "bg-[#F4E9D0] text-[#8A641A]"
+        : "border border-[#EADBBD] bg-white text-[#5F492D]";
+  return (
+    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", tone)}>
+      {cleaningPriorityLabel(priority)}
+    </span>
+  );
+}
+
+function CleaningEmptyState({ label }: { label: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-[#DDD4C5] bg-[#FAF8F4] px-2.5 py-3 text-center">
+      <p className="text-xs font-medium text-[#5C5346]">{label}</p>
+    </div>
+  );
+}
+
+function CleaningActionMenu({
+  actions,
+  onAction,
+  floating = false,
+}: {
+  actions: CleaningAction[];
+  onAction: (action: CleaningAction) => void;
+  floating?: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="More task actions"
+          className={cn(
+            "inline-flex size-7 items-center justify-center rounded-md text-[#756A5B] hover:bg-[#F3EEE4] hover:text-[#251605] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
+            floating && "absolute right-1.5 top-1.5 z-10",
+          )}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Ellipsis className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="z-50 w-44" onClick={(event) => event.stopPropagation()}>
+        {actions.map((action) => (
+          <DropdownMenuItem key={action} onSelect={() => onAction(action)}>
+            {cleaningActionLabel(action)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function CleaningTaskCard({
+  task,
+  field = false,
+  selected = false,
+  pending,
+  permissions,
+  onOpen,
+  onAction,
+}: {
+  task: HousekeepingTask;
+  field?: boolean;
+  selected?: boolean;
+  pending: boolean;
+  permissions: Record<CleaningAction, boolean>;
+  onOpen: () => void;
+  onAction: (action: CleaningAction) => void;
+}) {
+  const primary = primaryCleaningAction(task, permissions);
+  const secondary = secondaryCleaningActions(permissions, primary);
+  const stamp = cleaningCardStamp(task);
+  return (
+    <article
+      className={cn(
+        "relative rounded-xl border border-[#E8E0D4] bg-white p-2.5 shadow-[0_1px_2px_rgba(37,22,5,0.06)] transition-colors",
+        "hover:border-[#C89933] hover:bg-[#FBF7EE]",
+        selected && "border-[#C89933] ring-1 ring-[#C89933]/40",
+        field && "py-3",
+      )}
+      data-testid={`hk-cleaning-card-${task.roomNumber}`}
+    >
+      <button
+        type="button"
+        className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C89933]"
+        aria-label={`Open cleaning task for room ${task.roomNumber}`}
+        onClick={onOpen}
+      />
+      {secondary.length > 0 ? <CleaningActionMenu floating actions={secondary} onAction={onAction} /> : null}
+      <div className={cn("pointer-events-none relative", secondary.length > 0 && "pr-7")}>
+        <p className="font-display text-base font-semibold leading-none tracking-tight text-[#251605]">
+          {task.roomNumber}
+        </p>
+        <p className="mt-1 text-xs text-[#5C5346]">{labelTaskType(task.taskType)}</p>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          <CleaningStatusChip status={task.status} />
+          <CleaningPriorityChip priority={task.priority} />
+        </div>
+        <p className="mt-1.5 text-[11px] leading-4 text-[#756A5B]">{task.assignedName ?? "Unassigned"}</p>
+        {stamp ? <p className="mt-0.5 text-[11px] leading-4 text-[#756A5B]">{stamp}</p> : null}
+        {task.notes ? <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#5C5346]">{task.notes}</p> : null}
+      </div>
+      {primary ? (
+        <div className="relative z-10 mt-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={primary === "complete" ? "default" : "outline"}
+            className={cn(
+              field ? HK_FIELD_ACTION_CLASS : "h-8 px-2.5 text-xs",
+              primary === "complete"
+                ? "bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                : "border-[#DDD4C5] bg-white",
+            )}
+            disabled={pending}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAction(primary);
+            }}
+          >
+            {cleaningActionLabel(primary)}
+          </Button>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function CleaningTaskDrawer({
+  restaurantId,
+  task,
+  taskDate,
+  pending,
+  permissions,
+  onAction,
+  onClose,
+}: {
+  restaurantId: string;
+  task: HousekeepingTask | null;
+  taskDate: string;
+  pending: boolean;
+  permissions: Record<CleaningAction, boolean> | null;
+  onAction: (action: CleaningAction) => void;
+  onClose: () => void;
+}) {
+  const fetchHistory = useServerFn(listHousekeepingHistory);
+  const history = useQuery({
+    queryKey: ["hk-history", restaurantId, task?.roomId, "cleaning-drawer"],
+    queryFn: () =>
+      fetchHistory({
+        data: { restaurantId, roomId: task!.roomId, eventGroup: "cleaning" },
+      }),
+    enabled: !!task,
+  });
+  const primary = task && permissions ? primaryCleaningAction(task, permissions) : null;
+  const secondary = permissions ? secondaryCleaningActions(permissions, primary) : [];
+  const activity = (history.data ?? []).slice(0, 6);
+
+  return (
+    <Sheet open={task !== null} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full max-w-[360px] gap-0 overflow-y-auto border-l border-[#DDD4C5] bg-white p-0 shadow-xl sm:max-w-[360px] [&>button]:hidden"
+      >
+        {task ? (
+          <div className="min-h-full bg-white" data-testid="hk-cleaning-drawer">
+            <header className="border-b border-[#E8E1D7] px-4 py-3">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <SheetTitle className="font-display text-lg font-bold leading-tight text-[#251605]">
+                    {task.roomNumber}
+                  </SheetTitle>
+                  <SheetDescription className="mt-1 text-xs leading-4 text-[#5C5346]">
+                    {labelTaskType(task.taskType)}
+                    {" · "}
+                    {formatCleaningDate(taskDate)}
+                  </SheetDescription>
+                </div>
+                <SheetClose className="grid size-8 shrink-0 place-items-center rounded-md text-[#251605] hover:bg-[#F3EEE4]">
+                  <X className="size-4" />
+                  <span className="sr-only">Close</span>
+                </SheetClose>
+              </div>
+            </header>
+
+            <CleaningDrawerSection title="Task summary">
+              <div className="flex flex-wrap gap-1">
+                <CleaningStatusChip status={task.status} />
+                <CleaningPriorityChip priority={task.priority} />
+              </div>
+              <p>{labelTaskType(task.taskType)}</p>
+            </CleaningDrawerSection>
+
+            <CleaningDrawerSection title="Room">
+              <CleaningDrawerFact label="Room" value={task.roomNumber} />
+              <CleaningDrawerFact label="Room type" value={task.roomTypeName} />
+              <Link
+                to={hkRoomQuickViewPath(task.roomId).to}
+                search={hkRoomQuickViewPath(task.roomId).search}
+                className="inline-block text-xs font-medium text-[#8A641A]"
+              >
+                Open room
+              </Link>
+            </CleaningDrawerSection>
+
+            <CleaningDrawerSection title="Assignment">
+              <CleaningDrawerFact label="Attendant" value={task.assignedName ?? "Unassigned"} />
+            </CleaningDrawerSection>
+
+            <CleaningDrawerSection title="Timing">
+              <CleaningDrawerFact label="Created" value={formatWhen(task.createdAt)} />
+              <CleaningDrawerFact label="Started" value={task.startedAt ? formatWhen(task.startedAt) : "—"} />
+              <CleaningDrawerFact label="Completed" value={task.completedAt ? formatWhen(task.completedAt) : "—"} />
+            </CleaningDrawerSection>
+
+            <CleaningDrawerSection title="Notes">
+              {task.notes ? <p className="whitespace-pre-wrap">{task.notes}</p> : <p className="text-[#756A5B]">No notes</p>}
+            </CleaningDrawerSection>
+
+            <CleaningDrawerSection title="Recent activity">
+              {history.isLoading ? (
+                <p className="text-[#756A5B]">Loading activity…</p>
+              ) : history.isError ? (
+                <p className="text-[#756A5B]">Recent activity could not be loaded.</p>
+              ) : activity.length === 0 ? (
+                <p className="text-[#756A5B]">No recent cleaning activity for this room.</p>
+              ) : (
+                activity.map((row) => (
+                  <p key={row.id} className="text-[#5C5346]">
+                    {formatHousekeepingHistoryDetail({
+                      eventType: row.eventType,
+                      notes: row.notes,
+                      newValues: row.newValues,
+                      previousValues: row.previousValues,
+                    })}
+                    {" · "}
+                    {formatWhen(row.createdAt)}
+                  </p>
+                ))
+              )}
+            </CleaningDrawerSection>
+
+            {primary || secondary.length > 0 ? (
+              <CleaningDrawerSection title="Actions">
+                <div className="flex flex-col gap-2">
+                  {primary ? (
+                    <Button
+                      type="button"
+                      className={cn(
+                        HK_FIELD_ACTION_CLASS,
+                        primary === "complete"
+                          ? "bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                          : "border-[#DDD4C5]",
+                      )}
+                      variant={primary === "complete" ? "default" : "outline"}
+                      disabled={pending}
+                      onClick={() => onAction(primary)}
+                    >
+                      {cleaningActionLabel(primary)}
+                    </Button>
+                  ) : null}
+                  {secondary.map((action) => (
+                    <Button
+                      key={action}
+                      type="button"
+                      variant="outline"
+                      className={cn(HK_FIELD_ACTION_CLASS, "border-[#DDD4C5]")}
+                      disabled={pending}
+                      onClick={() => onAction(action)}
+                    >
+                      {cleaningActionLabel(action)}
+                    </Button>
+                  ))}
+                </div>
+              </CleaningDrawerSection>
+            ) : null}
+          </div>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function CleaningDrawerFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2 py-0.5 text-xs">
+      <dt className="text-[#756A5B]">{label}</dt>
+      <dd className="font-medium text-[#251605]">{value}</dd>
+    </div>
+  );
+}
+
+function CleaningDrawerSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-[#E8E1D7] px-4 py-3 last:border-b-0">
+      <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">{title}</h3>
+      <div className="mt-2 space-y-1.5 text-xs leading-5 text-[#251605]">{children}</div>
+    </section>
+  );
+}
+
+function CleaningDateControl({
+  value,
+  businessDate,
+  onChange,
+}: {
+  value: string;
+  businessDate: string;
+  onChange: (value: string) => void;
+}) {
+  const onToday = value === businessDate;
+  return (
+    <div className="flex items-center gap-1.5" data-testid="hk-cleaning-date">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={HK_SHELL_ICON_BUTTON}
+        aria-label="Previous day"
+        onClick={() => onChange(addDays(value, -1))}
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+      <span className="inline-flex h-9 min-w-[6.75rem] items-center justify-center rounded-md border border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605]">
+        {formatCleaningDate(value)}
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={HK_SHELL_ICON_BUTTON}
+        aria-label="Next day"
+        onClick={() => onChange(addDays(value, 1))}
+      >
+        <ChevronRight className="size-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn(
+          "h-9 px-2.5 text-xs",
+          onToday
+            ? "border-[#C89933] bg-[#F4E9D0] font-semibold text-[#251605] hover:bg-[#F4E9D0]"
+            : "border-[#DDD4C5]",
+        )}
+        onClick={() => onChange(businessDate)}
+      >
+        Today
+      </Button>
     </div>
   );
 }

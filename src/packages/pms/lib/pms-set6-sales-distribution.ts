@@ -20,7 +20,7 @@
 import type { Set1DomainReport, Set1Readiness } from "./pms-set1-foundation.ts";
 
 export const SET6_SALES_HREF = "/restaurant/pms/sales-events";
-export const SET6_DISTRIBUTION_HREF = "/restaurant/pms/distribution";
+export const SET6_DISTRIBUTION_HREF = "/restaurant/settings#connectivity-distribution";
 export const SET6_REPORTS_HREF = "/restaurant/pms/reports";
 
 export const SET6_SALES_UNAVAILABLE = "Unavailable — sales and event catalogues are not applied yet.";

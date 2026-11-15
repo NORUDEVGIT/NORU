@@ -423,8 +423,11 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     : [];
 
   const hubBody = (
-    <div className="flex min-h-full flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4" data-testid="pms-set1-hub">
-      <section className="relative w-full min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm">
+    <div
+      className="flex min-h-full flex-col gap-3 bg-[#F7F4EE] p-3 sm:p-4"
+      data-testid="pms-set1-hub"
+    >
+      <section className="relative w-full min-w-0 shrink-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm">
         <div className="flex w-full min-w-0 items-center gap-1.5">
           <SettingsBurger
             active={activeWorkspace}
@@ -586,7 +589,11 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       ) : card5Open ? (
         <PmsPropertySetupCard5Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 5)} />
       ) : card4Open ? (
-        <PmsPropertySetupCard4Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 4)} />
+        <PmsPropertySetupCard4Section
+          restaurantId={restaurantId}
+          canEdit={pmsSettingsCardEditable(accessSnapshot, 4)}
+          role={role}
+        />
       ) : card6Open ? (
         <PmsPropertySetupCard6Section restaurantId={restaurantId} canEdit={pmsSettingsCardEditable(accessSnapshot, 6)} />
       ) : card7Open ? (

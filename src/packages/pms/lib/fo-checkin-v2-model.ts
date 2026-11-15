@@ -15,6 +15,14 @@ import type {
   CheckInUnitProgress,
   CheckInUnitTarget,
 } from "@/packages/pms/lib/fo-check-in-unit";
+import {
+  ACCESSIBLE_REQUIRED_REJECTION,
+  CONNECTING_REQUIRED_REJECTION,
+  PAIR_INVALID_REJECTION,
+  PAIR_PARTNER_UNAVAILABLE_REJECTION,
+  pairMismatchRejection,
+  requirementRejectionMessage,
+} from "@/packages/pms/lib/room-requirement-rejection";
 import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { nightsBetween } from "@/shared/lib/property-dates";
 
@@ -223,8 +231,11 @@ const ASSIGNMENT_BLOCKER_TEXT: Record<string, string> = {
   ROOM_NOT_SELLABLE: "This room is not sellable.",
   OCCUPANCY_EXCEEDED: "This room does not fit the stay occupancy.",
   BED_TYPE_MISMATCH: "This room does not match the required bed type.",
-  ACCESSIBILITY_MISMATCH: "This room does not meet the accessibility requirement.",
-  CONNECTING_ROOM_REQUIRED: "This room is not a connecting room.",
+  ACCESSIBILITY_MISMATCH: ACCESSIBLE_REQUIRED_REJECTION,
+  CONNECTING_ROOM_REQUIRED: CONNECTING_REQUIRED_REJECTION,
+  CONNECTING_PAIR_MISMATCH: pairMismatchRejection(),
+  CONNECTING_PAIR_INVALID: PAIR_INVALID_REJECTION,
+  CONNECTING_PARTNER_UNAVAILABLE: PAIR_PARTNER_UNAVAILABLE_REJECTION,
   ROOM_ALREADY_BOOKED: "This room overlaps another stay.",
   ROOM_BLOCKED: "This room is blocked.",
   MAINTENANCE_NOT_CLEAR: "Maintenance has not cleared this room.",
@@ -237,11 +248,15 @@ export function assignmentIneligibilityReason(
   blockers: ReadonlyArray<{
     code?: string | number | boolean | null;
     message?: string | number | boolean | null;
+    partnerRoomNumber?: string | number | boolean | null;
   }>,
 ): string | null {
   if (eligible) return null;
   const first = blockers[0];
   if (!first) return "This room is not assignable.";
+  // A stay requirement always reads the same way, whatever message the evaluator carried.
+  const requirement = requirementRejectionMessage(first.code, first);
+  if (requirement) return requirement;
   const message = typeof first.message === "string" ? first.message.trim() : "";
   if (message) return message;
   const code = typeof first.code === "string" ? first.code : "";

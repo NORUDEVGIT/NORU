@@ -36,6 +36,15 @@ import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-work
 import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { getAssignmentEligibilityCompat } from "@/packages/pms/lib/room-inventory-compat";
+import {
+  createPairAwareEvaluator,
+  type PairEligibilityDb,
+} from "@/packages/pms/lib/room-pair-eligibility";
+import { requirementRejectionFromBlockers } from "@/packages/pms/lib/room-requirement-rejection";
+import {
+  loadEvaluationRequirements,
+  type RoomRequirementReadDb,
+} from "@/packages/pms/lib/reservation-room-requirements";
 
 const idSchema = z.string().uuid();
 
@@ -198,7 +207,16 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
     });
 
     const assignedRoom = await withAssignedRoom(target.roomId, async (roomId) => {
-      const eligibility = await getAssignmentEligibilityCompat(
+      // The stored requirements of the unit being checked in.
+      const requirements = await loadEvaluationRequirements(
+        supabaseAdmin as unknown as RoomRequirementReadDb,
+        {
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          reservationRoomId: target.reservationRoomId,
+        },
+      );
+      const baseEligibility = await getAssignmentEligibilityCompat(
         supabaseAdmin,
         {
           restaurantId: data.restaurantId,
@@ -209,6 +227,8 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
           excludeReservationId: data.reservationId,
           adults: target.adults,
           children: target.children,
+          accessibleRequired: requirements.accessibleRoomRequired,
+          connectingRequired: requirements.connectingRoomRequired,
         },
         () => ({
           source: "legacy" as const,
@@ -219,8 +239,19 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
           preferenceReasons: [],
         }),
       );
+      // A paired unit's room must still connect to its partner's room.
+      const pairAware = await createPairAwareEvaluator(
+        supabaseAdmin as unknown as PairEligibilityDb,
+        { restaurantId: data.restaurantId, reservationRoomId: requirements.reservationRoomId },
+      );
+      const eligibility = await pairAware(roomId, baseEligibility);
       if (!eligibility.eligible) {
-        return { eligible: false, ready: null, reason: null };
+        return {
+          eligible: false,
+          ready: null,
+          reason: null,
+          ineligibleReason: requirementRejectionFromBlockers(eligibility.blockers),
+        };
       }
       const { data: roomRow } = await supabaseAdmin
         .from("hotel_rooms")
@@ -239,9 +270,15 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
           : null,
         housekeeping.settings,
       );
-      return { eligible: true, ready: readiness.ready, reason: readiness.reason };
+      return {
+        eligible: true,
+        ready: readiness.ready,
+        reason: readiness.reason,
+        ineligibleReason: null,
+      };
     });
     const roomEligible = assignedRoom?.eligible ?? null;
+    const roomIneligibleReason = assignedRoom?.ineligibleReason ?? null;
     const roomReady = assignedRoom?.ready ?? null;
     const roomReadyReason = assignedRoom?.reason ?? null;
 
@@ -277,6 +314,7 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
       verificationWarnings: verification.warnings,
       verificationBlockers: verification.blockers,
       roomEligible,
+      roomIneligibleReason,
       roomReady,
       roomReadyReason,
       deposit: {

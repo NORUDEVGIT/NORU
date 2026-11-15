@@ -299,6 +299,7 @@ export function ReservationDetailWorkspace({
       reservation?.arrivalDate,
       reservation?.departureDate,
       reservationId,
+      reservation?.rooms?.[0]?.id ?? null,
     ],
     queryFn: () =>
       fetchRooms({
@@ -308,6 +309,8 @@ export function ReservationDetailWorkspace({
           arrival: reservation!.arrivalDate,
           departure: reservation!.departureDate,
           excludeReservationId: reservationId,
+          // The header fields are room 1's compat pointers, so evaluate room 1's requirements.
+          ...(reservation!.rooms?.[0]?.id ? { reservationRoomId: reservation!.rooms[0]!.id } : {}),
         },
       }),
     enabled: canViewReservation && !!reservation && reservation.status !== "cancelled",
@@ -1684,6 +1687,7 @@ function AmendDialog({
       departure,
       reservation.id,
       "amend",
+      reservation.rooms?.[0]?.id ?? null,
     ],
     queryFn: () =>
       fetchRooms({
@@ -1693,6 +1697,8 @@ function AmendDialog({
           arrival,
           departure,
           excludeReservationId: reservation.id,
+          // Header amend is room 1's compat pointers; use room 1's requirements.
+          ...(reservation.rooms?.[0]?.id ? { reservationRoomId: reservation.rooms[0]!.id } : {}),
         },
       }),
     enabled: open && datesValid && !!roomTypeId,

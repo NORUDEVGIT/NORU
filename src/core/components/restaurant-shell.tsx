@@ -53,6 +53,10 @@ import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
 import { pmsModuleVisible, pmsSettingsHubVisible } from "@/packages/pms/lib/pms-client-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+import {
+  CARD6_HASH,
+  requestCard6DistributionTab,
+} from "@/packages/pms/lib/pms-property-setup-card6";
 import { PmsIdleWelcomeWatcher } from "@/packages/pms/components/pms/pms-idle-welcome-watcher";
 
 export type RestaurantNavLabel =
@@ -115,6 +119,9 @@ type NavEntry = {
   to: string;
   /** Optional tab search param for pages that host several tabs. */
   tab?: string;
+  /** Optional hash for in-page Settings destinations. */
+  hash?: string;
+  onSelect?: () => void;
   label: string;
   icon: typeof LayoutDashboard;
   /** When set, only these membership roles see the entry. */
@@ -360,7 +367,9 @@ const CONFIGURATION_NAV: NavEntry[] = [
     roles: ["owner", "manager"],
   },
   {
-    to: "/restaurant/pms/distribution",
+    to: "/restaurant/settings",
+    hash: CARD6_HASH,
+    onSelect: requestCard6DistributionTab,
     label: "Distribution",
     icon: Globe,
     section: "Distribution",
@@ -674,7 +683,11 @@ export function RestaurantShell({
                 <Link
                   to={item.to}
                   {...(item.tab ? { search: { tab: item.tab } } : {})}
-                  onClick={() => setNavOpen(false)}
+                  {...(item.hash ? { hash: item.hash } : {})}
+                  onClick={() => {
+                    item.onSelect?.();
+                    setNavOpen(false);
+                  }}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
                     isActive

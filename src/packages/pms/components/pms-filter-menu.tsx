@@ -8,6 +8,7 @@ import {
   PMS_FILTER_ROW,
   PmsFilterTrigger,
 } from "@/packages/pms/components/pms-filter-popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +37,7 @@ export function PmsFilterMenu({
   buttonTestId,
   countTestId,
   menuTestId,
+  tooltip,
   children,
 }: {
   activeCount: number;
@@ -45,6 +47,7 @@ export function PmsFilterMenu({
   buttonTestId?: string;
   countTestId?: string;
   menuTestId?: string;
+  tooltip?: string;
   children: ReactNode;
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -55,15 +58,27 @@ export function PmsFilterMenu({
     if (open === undefined) setUncontrolledOpen(next);
   }
 
+  const trigger = (
+    <DropdownMenuTrigger asChild>
+      <PmsFilterTrigger
+        activeCount={activeCount}
+        buttonTestId={buttonTestId}
+        countTestId={countTestId}
+        title={tooltip ? undefined : "Filters"}
+      />
+    </DropdownMenuTrigger>
+  );
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <PmsFilterTrigger
-          activeCount={activeCount}
-          buttonTestId={buttonTestId}
-          countTestId={countTestId}
-        />
-      </DropdownMenuTrigger>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent>{tooltip}</TooltipContent>
+        </Tooltip>
+      ) : (
+        trigger
+      )}
       <DropdownMenuContent
         align="end"
         collisionPadding={12}

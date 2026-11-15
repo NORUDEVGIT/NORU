@@ -102,6 +102,8 @@ export type RackMoveDraft = {
   hkKnown: boolean;
   arrivalDate: string;
   departureDate: string;
+  /** Selected room when the dragged bar is one unit. Its stored requirements apply at the target. */
+  reservationRoomId?: string | null;
 };
 
 export type RackDatesDraft = {

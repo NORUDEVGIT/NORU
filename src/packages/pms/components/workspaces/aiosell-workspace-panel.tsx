@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -6,6 +6,19 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/shared/components/ui/table";
+import {
+  NoruStatusChip,
+  SettingsEmptyState,
+  type NoruStatusTone,
+} from "@/packages/pms/components/settings/pms-card6-integration-bits";
 import {
   Select,
   SelectContent,
@@ -30,6 +43,108 @@ import {
 } from "@/packages/pms/lib/distribution/aiosell-workspace";
 
 type Environment = "sandbox" | "production";
+
+const cardClass = "rounded-xl border border-[#E6E1D8] bg-white p-3";
+
+function formatStaffTime(value: string | null | undefined): string {
+  if (!value) return "Never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function aiosellTone(value: string): NoruStatusTone {
+  const tone = value.toLowerCase();
+  if (tone.includes("error") || tone.includes("fail") || tone === "attention") return "error";
+  if (tone === "not_ready" || tone === "not_configured" || tone === "missing" || tone === "never") {
+    return "pending";
+  }
+  if (tone === "inactive" || tone === "disabled") return "disabled";
+  if (/(ready|active|connected|configured|success|enabled)/.test(tone)) return "connected";
+  return "pending";
+}
+
+function AiosellRateEditor({
+  rate,
+  onSave,
+  onToggle,
+}: {
+  rate: {
+    ratePlanId: string;
+    name: string;
+    roomTypeName: string;
+    roomCode: string;
+    rateplanCode: string;
+    active: boolean;
+    error: string | null;
+  };
+  onSave: (roomCode: string, rateplanCode: string) => void;
+  onToggle: () => void;
+}) {
+  const [roomCode, setRoomCode] = useState(rate.roomCode);
+  const [rateplanCode, setRateplanCode] = useState(rate.rateplanCode);
+  useEffect(() => {
+    setRoomCode(rate.roomCode);
+    setRateplanCode(rate.rateplanCode);
+  }, [rate.roomCode, rate.rateplanCode]);
+  const dirty = roomCode !== rate.roomCode || rateplanCode !== rate.rateplanCode;
+  const tone: NoruStatusTone = rate.error
+    ? "error"
+    : rate.rateplanCode
+      ? rate.active
+        ? "mapped"
+        : "disabled"
+      : "not_mapped";
+  return (
+    <TableRow>
+      <TableCell className="text-sm text-[#251605]">
+        <p className="font-medium">{rate.name}</p>
+        <p className="text-xs text-[#7A6A55]">{rate.roomTypeName}</p>
+        {rate.error ? <p className="text-xs text-[#8C3B2A]">{rate.error}</p> : null}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-1">
+          <Input
+            className="h-8"
+            value={roomCode}
+            aria-label={`Room code for ${rate.name}`}
+            onChange={(event) => setRoomCode(event.target.value)}
+          />
+          <Input
+            className="h-8"
+            value={rateplanCode}
+            aria-label={`Rate code for ${rate.name}`}
+            onChange={(event) => setRateplanCode(event.target.value)}
+          />
+        </div>
+      </TableCell>
+      <TableCell>
+        <NoruStatusChip tone={tone} />
+      </TableCell>
+      <TableCell className="space-x-1">
+        {dirty ? (
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
+            onClick={() => onSave(roomCode.trim(), rateplanCode.trim())}
+          >
+            Save
+          </Button>
+        ) : null}
+        <Button type="button" size="sm" variant="outline" className="h-8" onClick={onToggle}>
+          {rate.active ? "Deactivate" : "Activate"}
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }) {
   const queryClient = useQueryClient();
@@ -112,20 +227,24 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
   }
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Connection</h2>
-        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+    <div className="space-y-3">
+      <section className={cardClass}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[#251605]">Connection</h2>
+          <NoruStatusChip tone={aiosellTone(view.connectionState)} />
+        </div>
+        <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs text-[#5C5346] sm:grid-cols-2">
           <div>Provider: {view.provider}</div>
           <div>Environment: {view.environment}</div>
           <div>Partner slug: {view.partnerSlug || "Not set"}</div>
           <div>Hotel code: {view.hotelCode || "Not set"}</div>
-          <div>State: {view.connectionState}</div>
-          <div>Credentials: {view.credentialStatus}</div>
-          <div>Last validated: {view.lastValidatedAt ?? "Never"}</div>
-          <div>Last error: {view.lastError ?? "None"}</div>
+          <div className="flex items-center gap-1.5">
+            Credentials <NoruStatusChip tone={aiosellTone(view.credentialStatus)} />
+          </div>
+          <div>Last validated: {formatStaffTime(view.lastValidatedAt)}</div>
+          <div className="sm:col-span-2">Last error: {view.lastError ?? "None"}</div>
         </dl>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
           <Label className="space-y-1 text-xs">
             Environment
             <Select
@@ -156,9 +275,11 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
             />
           </Label>
         </div>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-2 flex gap-2">
           <Button
             type="button"
+            size="sm"
+            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
           >
@@ -166,6 +287,7 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
           </Button>
           <Button
             type="button"
+            size="sm"
             variant="outline"
             onClick={() => validateMutation.mutate()}
             disabled={validateMutation.isPending}
@@ -175,104 +297,114 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Readiness</h2>
-        <p className="mt-1 text-sm capitalize">{view.readiness.level.replaceAll("_", " ")}</p>
-        <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">
+      <section className={cardClass}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[#251605]">Readiness</h2>
+          <NoruStatusChip tone={aiosellTone(view.readiness.level)} />
+        </div>
+        <ul className="mt-2 space-y-1 text-xs text-[#5C5346]">
           {view.readiness.reasons.length === 0 ? <li>Required checks passed.</li> : null}
           {view.readiness.reasons.map((reason) => (
             <li key={reason}>{reason}</li>
           ))}
         </ul>
-        <p className="mt-3 text-sm">{view.productionActivation.message}</p>
-        <p className="mt-2 text-sm text-muted-foreground">{view.staleFetchWarning}</p>
-        <p className="mt-2 text-sm">
-          Webhook: {view.webhook.ready ? view.webhook.url : "Public base URL is not configured."}
-        </p>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Room mappings</h2>
-        <ul className="mt-3 space-y-2 text-sm">
-          {view.rooms.map((room) => (
-            <li key={room.roomTypeId} className="flex flex-wrap items-center gap-2">
-              <span>
-                {room.name}
-                {room.code ? ` (${room.code})` : ""}
-              </span>
-              <Input
-                className="max-w-48"
-                defaultValue={room.roomCode}
-                aria-label={`Aiosell room code for ${room.name}`}
-                onBlur={(event) => {
-                  const roomCode = event.target.value.trim();
-                  if (!roomCode || roomCode === room.roomCode) return;
-                  void saveRoom({
-                    data: { restaurantId, environment, roomTypeId: room.roomTypeId, roomCode },
-                  }).then(refresh);
-                }}
-              />
-              <span>{room.active ? "Active" : "Inactive"}</span>
-              <span>{room.ready ? "Ready" : "Not ready"}</span>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  setRoom({
-                    data: {
-                      restaurantId,
-                      environment,
-                      roomTypeId: room.roomTypeId,
-                      active: !room.active,
-                    },
-                  }).then(refresh)
-                }
-              >
-                {room.active ? "Deactivate" : "Activate"}
-              </Button>
-            </li>
-          ))}
-        </ul>
+      <section className="overflow-hidden rounded-xl border border-[#E6E1D8] bg-white">
+        <div className="border-b border-[#E6E1D8] px-3 py-2">
+          <h2 className="text-sm font-semibold text-[#251605]">Room mappings</h2>
+        </div>
+        {view.rooms.length === 0 ? (
+          <div className="p-3">
+            <SettingsEmptyState title="No room types" body="Room types from inventory show up here for Aiosell codes." />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>NORU item</TableHead>
+                <TableHead>External code</TableHead>
+                <TableHead>Mapping status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {view.rooms.map((room) => (
+                <TableRow key={room.roomTypeId}>
+                  <TableCell className="text-sm text-[#251605]">
+                    <p className="font-medium">{room.name}</p>
+                    {room.code ? <p className="text-xs text-[#7A6A55]">{room.code}</p> : null}
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      className="h-8 max-w-48"
+                      defaultValue={room.roomCode}
+                      aria-label={`Aiosell room code for ${room.name}`}
+                      onBlur={(event) => {
+                        const roomCode = event.target.value.trim();
+                        if (!roomCode || roomCode === room.roomCode) return;
+                        void saveRoom({
+                          data: { restaurantId, environment, roomTypeId: room.roomTypeId, roomCode },
+                        }).then(refresh);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <NoruStatusChip
+                      tone={room.roomCode ? (room.active ? "mapped" : "disabled") : "not_mapped"}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() =>
+                        setRoom({
+                          data: {
+                            restaurantId,
+                            environment,
+                            roomTypeId: room.roomTypeId,
+                            active: !room.active,
+                          },
+                        }).then(refresh)
+                      }
+                    >
+                      {room.active ? "Deactivate" : "Activate"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Rate mappings</h2>
-        <ul className="mt-3 space-y-2 text-sm">
-          {view.rates.map((rate) => (
-            <li key={rate.ratePlanId} className="space-y-1">
-              <div>
-                {rate.name} · {rate.roomTypeName} · {rate.active ? "Active" : "Inactive"}
-                {rate.error ? ` · ${rate.error}` : ""}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  className="max-w-40"
-                  defaultValue={rate.roomCode}
-                  aria-label={`Room code for ${rate.name}`}
-                  id={`${rate.ratePlanId}-room`}
-                />
-                <Input
-                  className="max-w-40"
-                  defaultValue={rate.rateplanCode}
-                  aria-label={`Rate code for ${rate.name}`}
-                  id={`${rate.ratePlanId}-rate`}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const roomCode =
-                      (
-                        document.getElementById(
-                          `${rate.ratePlanId}-room`,
-                        ) as HTMLInputElement | null
-                      )?.value.trim() ?? "";
-                    const rateplanCode =
-                      (
-                        document.getElementById(
-                          `${rate.ratePlanId}-rate`,
-                        ) as HTMLInputElement | null
-                      )?.value.trim() ?? "";
+      <section className="overflow-hidden rounded-xl border border-[#E6E1D8] bg-white">
+        <div className="border-b border-[#E6E1D8] px-3 py-2">
+          <h2 className="text-sm font-semibold text-[#251605]">Rate mappings</h2>
+        </div>
+        {view.rates.length === 0 ? (
+          <div className="p-3">
+            <SettingsEmptyState title="No rate plans" body="Rate plans show up here once they exist for this property." />
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>NORU item</TableHead>
+                <TableHead>External code</TableHead>
+                <TableHead>Mapping status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {view.rates.map((rate) => (
+                <AiosellRateEditor
+                  key={rate.ratePlanId}
+                  rate={rate}
+                  onSave={(roomCode, rateplanCode) => {
                     void saveRate({
                       data: {
                         restaurantId,
@@ -285,13 +417,7 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
                       .then(refresh)
                       .catch((error: Error) => toast.error(error.message));
                   }}
-                >
-                  Save rate
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
+                  onToggle={() =>
                     setRate({
                       data: {
                         restaurantId,
@@ -301,75 +427,110 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
                       },
                     }).then(refresh)
                   }
-                >
-                  {rate.active ? "Deactivate" : "Activate"}
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+                />
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Connected channels</h2>
+      <section className={cardClass}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[#251605]">Connected channels</h2>
+          {view.channels.some(
+            (channel) => channel.code === "booking.com" && channel.enabled,
+          ) ? null : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => bookingChannel.mutate()}
+              disabled={bookingChannel.isPending}
+            >
+              Add Booking.com
+            </Button>
+          )}
+        </div>
         {view.channels.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            No connected OTA channel records for this environment.
-          </p>
+          <div className="mt-2">
+            <SettingsEmptyState
+              title="No connected OTA channels"
+              body="No connected OTA channel records for this environment."
+            />
+          </div>
         ) : (
-          <ul className="mt-2 text-sm">
+          <ul className="mt-2 space-y-1.5">
             {view.channels.map((channel) => (
-              <li key={channel.code}>
-                {channel.code} · {channel.enabled ? "Enabled" : "Inactive"} ·{" "}
-                {channel.operations.join(", ") || "No operations stored"}
+              <li key={channel.code} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-medium text-[#251605]">{channel.code}</span>
+                <NoruStatusChip tone={channel.enabled ? "connected" : "disabled"} />
+                <span className="text-xs text-[#7A6A55]">
+                  {channel.operations.join(", ") || "No operations stored"}
+                </span>
               </li>
             ))}
           </ul>
         )}
-        {view.channels.some(
-          (channel) => channel.code === "booking.com" && channel.enabled,
-        ) ? null : (
-          <Button
-            className="mt-3"
-            type="button"
-            variant="outline"
-            onClick={() => bookingChannel.mutate()}
-            disabled={bookingChannel.isPending}
-          >
-            Add Booking.com
-          </Button>
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-[#E6E1D8] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E6E1D8] px-3 py-2">
+          <h2 className="text-sm font-semibold text-[#251605]">Sync status</h2>
+          <NoruStatusChip
+            tone={
+              view.sync.latestError
+                ? "error"
+                : view.sync.recent.some((event) => aiosellTone(event.status) === "connected")
+                  ? "connected"
+                  : "pending"
+            }
+          />
+        </div>
+        <dl className="grid gap-x-4 gap-y-1 px-3 py-2 text-xs text-[#5C5346] sm:grid-cols-2">
+          <div>Last validation: {formatStaffTime(view.sync.lastValidation?.createdAt)}</div>
+          <div>Last outbound ARI: {formatStaffTime(view.sync.lastAri?.createdAt)}</div>
+          <div>Last inbound reservation: {formatStaffTime(view.sync.lastInbound?.createdAt)}</div>
+          <div>Last reconciliation: {formatStaffTime(view.sync.lastReconciliation?.createdAt)}</div>
+          <div>Last no-show notification: {formatStaffTime(view.sync.lastNoShow?.createdAt)}</div>
+          <div>
+            Latest error: {view.sync.latestError?.message ?? view.sync.latestError?.operation ?? "None"}
+          </div>
+        </dl>
+        {view.sync.recent.length === 0 ? null : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Time</TableHead>
+                <TableHead>Event</TableHead>
+                <TableHead>Provider</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {view.sync.recent.map((event) => (
+                <TableRow key={`${event.createdAt}-${event.operation}`}>
+                  <TableCell className="whitespace-nowrap text-xs text-[#5C5346]">
+                    {formatStaffTime(event.createdAt)}
+                  </TableCell>
+                  <TableCell className="text-sm text-[#251605]">{event.operation}</TableCell>
+                  <TableCell className="text-sm text-[#5C5346]">Aiosell</TableCell>
+                  <TableCell>
+                    <NoruStatusChip tone={aiosellTone(event.status)} />
+                  </TableCell>
+                  <TableCell className="max-w-[16rem] truncate text-xs text-[#5C5346]">
+                    {event.message ?? event.bookingId ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Sync status</h2>
-        <ul className="mt-2 space-y-1 text-sm">
-          <li>Last validation: {view.sync.lastValidation?.createdAt ?? "None"}</li>
-          <li>Last outbound ARI: {view.sync.lastAri?.createdAt ?? "None"}</li>
-          <li>Last inbound reservation: {view.sync.lastInbound?.createdAt ?? "None"}</li>
-          <li>Last reconciliation: {view.sync.lastReconciliation?.createdAt ?? "None"}</li>
-          <li>Last no-show notification: {view.sync.lastNoShow?.createdAt ?? "None"}</li>
-          <li>
-            Latest error:{" "}
-            {view.sync.latestError?.message ?? view.sync.latestError?.operation ?? "None"}
-          </li>
-        </ul>
-        <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-          {view.sync.recent.map((event) => (
-            <li key={`${event.createdAt}-${event.operation}`}>
-              {event.createdAt} · {event.operation} · {event.status}
-              {event.bookingId ? ` · ${event.bookingId}` : ""}
-              {event.message ? ` · ${event.message}` : ""}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-display text-lg">Reconciliation</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{AIOSELL_WINDOW_COPY}</p>
-        <p className="mt-2 text-sm text-muted-foreground">{AIOSELL_STALE_FETCH_WARNING}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <section className={cardClass}>
+        <h2 className="text-sm font-semibold text-[#251605]">Reconciliation</h2>
+        <div className="mt-2 flex flex-wrap gap-2">
           <Input
             type="date"
             value={startDate}
@@ -384,6 +545,8 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
           />
           <Button
             type="button"
+            size="sm"
+            className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
             onClick={() => reconcileMutation.mutate()}
             disabled={reconcileMutation.isPending}
           >
@@ -412,6 +575,20 @@ export function AiosellWorkspacePanel({ restaurantId }: { restaurantId: string }
           </ul>
         ) : null}
       </section>
+
+      <details className="rounded-xl border border-[#E6E1D8] bg-white px-3 py-2">
+        <summary className="cursor-pointer text-sm font-semibold text-[#251605]">
+          Technical details
+        </summary>
+        <div className="mt-2 space-y-2 text-xs leading-relaxed text-[#5C5346]">
+          <p>{view.productionActivation.message}</p>
+          <p>{AIOSELL_WINDOW_COPY}</p>
+          <p>{AIOSELL_STALE_FETCH_WARNING}</p>
+          <p>
+            Webhook: {view.webhook.ready ? view.webhook.url : "Public base URL is not configured."}
+          </p>
+        </div>
+      </details>
     </div>
   );
 }

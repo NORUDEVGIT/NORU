@@ -16,6 +16,13 @@ import {
   evaluateRoomAssignment,
 } from "@/packages/pms/lib/room-inventory.functions";
 import type { RoomInventoryEvent } from "@/packages/pms/lib/room-inventory.functions";
+import {
+  ACCESSIBLE_ROOM_HELP_TEXT,
+  ACCESSIBLE_ROOM_LABEL,
+  ACCESSIBLE_ROOM_RULE_TEXT,
+  isAccessibilityAmenity,
+} from "@/packages/pms/lib/room-accessibility";
+import { getRoomEffectiveAmenities } from "@/packages/pms/lib/rooms-amenities.functions";
 import { saveRoom, type HotelRoom, type RoomType } from "@/packages/pms/lib/rooms.functions";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -33,6 +40,8 @@ import { formatRoomTypeName, statusPhrase } from "./room-board-utils";
 import { describeRoomEvent, type RoomHistoryEntry } from "./room-detail-format";
 import { addDays, dateLabel, eligibilityCodeLabel } from "./room-inventory-utils";
 import { PmsSelect } from "./room-inventory-shared";
+import { RoomAccessibilityFeatures } from "./room-accessibility-panels";
+import { RoomConnectionsSection } from "./room-connections-panels";
 
 const IMPACT_COPY: Record<string, string> = {
   remove_from_inventory: "The room is held and leaves sellable availability for these dates.",
@@ -540,10 +549,12 @@ export function RoomEligibilityDialog({
 
 function CheckField({
   label,
+  help,
   checked,
   onChange,
 }: {
   label: string;
+  help?: string;
   checked: boolean;
   onChange: (value: boolean) => void;
 }) {
@@ -555,7 +566,14 @@ function CheckField({
         onChange={(event) => onChange(event.target.checked)}
         className="mt-0.5 size-4 accent-[#C89933]"
       />
-      {label}
+      {help ? (
+        <span className="grid gap-0.5">
+          <span>{label}</span>
+          <span className="text-[11px] font-normal text-[#756A5B]">{help}</span>
+        </span>
+      ) : (
+        label
+      )}
     </label>
   );
 }
@@ -635,6 +653,21 @@ export function RoomConfigurationDialog({
 
   const selectedType = roomTypes.find((type) => type.id === roomTypeId);
 
+  const fetchEffectiveAmenities = useServerFn(getRoomEffectiveAmenities);
+  const featuresQuery = useQuery({
+    queryKey: ["room-effective-amenities", restaurantId, room?.id, room?.roomTypeId],
+    enabled: open && Boolean(room?.id),
+    queryFn: () => fetchEffectiveAmenities({ data: { restaurantId, roomId: room!.id } }),
+  });
+  const accessibilityFeatures = useMemo(() => {
+    const result = featuresQuery.data;
+    if (!result || !result.ok) return null;
+    const addedIds = new Set(result.added.map((amenity) => amenity.id));
+    return result.effective
+      .filter(isAccessibilityAmenity)
+      .map((amenity) => ({ name: amenity.name, addedToRoom: addedIds.has(amenity.id) }));
+  }, [featuresQuery.data]);
+
   const mutation = useMutation({
     mutationFn: async () => {
       if (!room) throw new Error("Choose a room.");
@@ -677,6 +710,7 @@ export function RoomConfigurationDialog({
         queryClient.invalidateQueries({ queryKey: ["room-board-rooms", restaurantId] }),
         queryClient.invalidateQueries({ queryKey: ["room-board-room-types", restaurantId] }),
         queryClient.invalidateQueries({ queryKey: ["rooms-dashboard", restaurantId] }),
+        queryClient.invalidateQueries({ queryKey: ["room-effective-amenities", restaurantId] }),
       ]);
     },
   });
@@ -730,11 +764,30 @@ export function RoomConfigurationDialog({
         <TextField label="Floor" value={floor} onChange={setFloor} />
         <TextField label="Wing" value={wing} onChange={setWing} />
       </div>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2">
         <CheckField label="Smoking" checked={smoking} onChange={setSmoking} />
-        <CheckField label="Accessible" checked={accessible} onChange={setAccessible} />
         <CheckField label="Sellable" checked={sellable} onChange={setSellable} />
       </div>
+      <div className="grid gap-2" data-testid="room-configuration-accessibility">
+        <CheckField
+          label={ACCESSIBLE_ROOM_LABEL}
+          help={`${ACCESSIBLE_ROOM_HELP_TEXT} ${ACCESSIBLE_ROOM_RULE_TEXT}`}
+          checked={accessible}
+          onChange={setAccessible}
+        />
+        <RoomAccessibilityFeatures
+          accessible={accessible}
+          features={accessibilityFeatures}
+          loading={featuresQuery.isLoading}
+          failed={featuresQuery.isError || featuresQuery.data?.ok === false}
+        />
+        {room && roomTypeId !== room.roomTypeId ? (
+          <p className="text-[11px] text-[#756A5B]">
+            Features are shown for the saved room type until you save the new one.
+          </p>
+        ) : null}
+      </div>
+      <RoomConnectionsSection restaurantId={restaurantId} roomId={room?.id ?? null} open={open} />
       <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
         Features
         <input

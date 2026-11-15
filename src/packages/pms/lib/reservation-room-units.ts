@@ -1,3 +1,8 @@
+import {
+  roomRequirementsFromRow,
+  type RoomRequirementsInput,
+} from "./reservation-room-requirements.ts";
+
 export const RESERVATION_ROOM_DRIFT_FIELDS = [
   "roomTypeId",
   "roomId",
@@ -56,6 +61,8 @@ export type ReservationRoomUnitRow = {
   room_subtotal: number | string | null;
   priced_at: string | null;
   status?: string | null;
+  accessible_room_required?: boolean | null;
+  connecting_room_required?: boolean | null;
 };
 
 export type ReservationRoomUnit = ReservationRoomUnitValues & {
@@ -74,6 +81,9 @@ export type ReservationRoomUnit = ReservationRoomUnitValues & {
   roomNumber?: string | null;
   ratePlanName?: string | null;
   assignmentNotes?: string | null;
+  /** Hard stay requirements stored on this room unit. Explicit false when off. */
+  accessibleRoomRequired?: boolean | undefined;
+  connectingRoomRequired?: boolean | undefined;
 };
 
 export type ReservationRoomOccupant = {
@@ -192,6 +202,9 @@ export type CreateRoomUnitInput = {
   infants: number;
   ratePlanId: string | null;
   pmsGroupBlockId?: string | null;
+  /** Hard requirements for this room unit. Omitted means off. */
+  accessibleRoomRequired?: boolean | undefined;
+  connectingRoomRequired?: boolean | undefined;
 };
 
 /** One room keeps the existing rooms multiplier. Extra rooms price the master as one room. */
@@ -204,6 +217,8 @@ export function createReservationRoomUnitPayload(input: {
   roomsRequested: number;
   extraUnits: CreateRoomUnitInput[];
   pmsGroupBlockId?: string | null;
+  /** Room 1 requirements. Carried on the first unit of a multi-room payload. */
+  room1Requirements?: RoomRequirementsInput;
 }): { rooms: number; roomUnits: CreateRoomUnitInput[] | null } {
   if (input.extraUnits.length === 0) {
     return { rooms: input.roomsRequested, roomUnits: null };
@@ -218,6 +233,12 @@ export function createReservationRoomUnitPayload(input: {
     infants: input.infants,
     ratePlanId: input.ratePlanId,
     ...(includeBlock ? { pmsGroupBlockId: input.pmsGroupBlockId ?? null } : {}),
+    ...(input.room1Requirements
+      ? {
+          accessibleRoomRequired: input.room1Requirements.accessibleRoomRequired === true,
+          connectingRoomRequired: input.room1Requirements.connectingRoomRequired === true,
+        }
+      : {}),
   };
   return {
     rooms: 1,
@@ -327,6 +348,7 @@ export function projectReservationRoomUnits(
       stored,
       status: row.status ?? null,
       occupants: [],
+      ...roomRequirementsFromRow(row),
     };
   });
 }

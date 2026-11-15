@@ -251,11 +251,16 @@ export function RoomsWorkspace({
   initialTab,
   returnTo,
   returnToLabel,
+  eligibilityReservationId,
+  eligibilityReservationRoomId,
 }: {
   membership: RestaurantMembership;
   initialTab?: string | undefined;
   returnTo?: string | undefined;
   returnToLabel?: string | undefined;
+  /** Opens the Eligibility tab for one reservation room. Absent means a manual check. */
+  eligibilityReservationId?: string | undefined;
+  eligibilityReservationRoomId?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
   const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
@@ -361,7 +366,19 @@ export function RoomsWorkspace({
           />
         );
       case "assignment-eligibility":
-        return <RoomAssignmentEligibilityView restaurantId={restaurantId} />;
+        return (
+          <RoomAssignmentEligibilityView
+            restaurantId={restaurantId}
+            reservationUnit={
+              eligibilityReservationId
+                ? {
+                    reservationId: eligibilityReservationId,
+                    reservationRoomId: eligibilityReservationRoomId,
+                  }
+                : null
+            }
+          />
+        );
       case "inventory-rules":
         return <RoomInventoryRulesView restaurantId={restaurantId} />;
       case "overbooking":

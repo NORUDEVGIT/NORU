@@ -8,6 +8,11 @@
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
 import { withPmsPackage } from "./pms-package.server";
+import {
+  PAIR_WRITE_ERRORS,
+  REQUIREMENT_WRITE_ERRORS,
+  pairWriteErrorMessage,
+} from "./room-requirement-rejection";
 import { isAllowedBookingStatusTransition, RESERVATION_MANAGE_ROLES } from "./reservation-dates";
 
 /** Front Office operations: owners, managers and receptionists. */
@@ -57,6 +62,9 @@ export const RESERVATION_EVENT_TYPES = [
   "trace_updated",
   "assignment_notes_updated",
   "rate_notes_updated",
+  "room_pair_created",
+  "room_pair_changed",
+  "room_pair_removed",
 ] as const;
 export type ReservationEventType = (typeof RESERVATION_EVENT_TYPES)[number];
 
@@ -120,6 +128,8 @@ export function assertArrivalAfterOpeningDate(
 }
 
 const DB_ERROR_MESSAGES: Record<string, string> = {
+  ...REQUIREMENT_WRITE_ERRORS,
+  ...PAIR_WRITE_ERRORS,
   INVALID_DATES: "Departure must be after arrival.",
   NO_AVAILABILITY: "No rooms of that type are available for those dates.",
   OVERBOOKING_NOT_ALLOWED: "Overbooking is turned off for this property.",
@@ -219,6 +229,9 @@ export function assertBookingStatusTransition(from: string, to: string): void {
 
 /** Turn RAISE EXCEPTION codes from the reservation functions into user-facing text. */
 export function reservationError(message: string): Error {
+  // A room pair refusal may name the partner's room.
+  const pair = pairWriteErrorMessage(message);
+  if (pair) return new Error(pair);
   const limitDetail = message.split("OVERBOOKING_LIMIT_REACHED:")[1]?.trim();
   if (limitDetail) {
     const [name, date] = limitDetail.split(" for ");

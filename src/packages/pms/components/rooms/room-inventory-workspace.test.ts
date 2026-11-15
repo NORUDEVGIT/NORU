@@ -227,7 +227,8 @@ describe("Room & Inventory workspace", () => {
 
   it("evaluates assignment from the canonical inspector without a second algorithm", () => {
     expect(rules).toContain("evaluateRoomAssignment");
-    expect(rules).toContain("excludeReservationId: null");
+    // A manual check excludes nothing. A check linked to a reservation room excludes that stay.
+    expect(rules).toContain("excludeReservationId: linkedUnit?.reservationId ?? null");
     expect(rules).toContain("Room context");
     expect(rules).toContain("preferenceReasonLabel");
     expect(rules).not.toContain("count_sellable_rooms");

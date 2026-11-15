@@ -41,8 +41,9 @@ import {
   HK_AREA_ITEMS,
   resolveHkArea,
   visibleHkAreas,
-  deriveHkBoardKpis,
+  boardColumnForRoom,
   type HkAreaId,
+  type HkBoardColumn,
   type HkResolvableAreaId,
 } from "@/packages/pms/lib/housekeeping-shell";
 import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
@@ -55,6 +56,7 @@ import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reserv
 import { Button } from "@/shared/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
 
 const HK_BURGER_ICONS = {
@@ -67,14 +69,19 @@ const HK_BURGER_ICONS = {
   history: History,
 } as const;
 
-const KPI_CARDS = [
-  { id: "dirty", label: "Dirty", key: "dirty" as const, icon: Sparkles, tone: "bg-rose-50 text-rose-700" },
-  { id: "assigned", label: "Assigned", key: "assigned" as const, icon: UserRound, tone: "bg-amber-50 text-amber-800" },
-  { id: "progress", label: "In Progress", key: "inProgress" as const, icon: RefreshCw, tone: "bg-sky-50 text-sky-700" },
-  { id: "clean", label: "Clean", key: "clean" as const, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-700" },
-  { id: "inspected", label: "Inspected", key: "inspected" as const, icon: ShieldCheck, tone: "bg-violet-50 text-violet-700" },
-  { id: "ready", label: "Ready", key: "ready" as const, icon: BedDouble, tone: "bg-teal-50 text-teal-700" },
-] as const;
+const KPI_CARDS: Array<{
+  id: HkBoardColumn;
+  label: string;
+  icon: typeof Sparkles;
+  tone: string;
+}> = [
+  { id: "dirty", label: "Dirty", icon: Sparkles, tone: "bg-rose-50 text-rose-700" },
+  { id: "assigned", label: "Assigned", icon: UserRound, tone: "bg-amber-50 text-amber-800" },
+  { id: "cleaning", label: "Cleaning", icon: RefreshCw, tone: "bg-sky-50 text-sky-700" },
+  { id: "clean", label: "Clean", icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-700" },
+  { id: "inspection", label: "Inspection", icon: ShieldCheck, tone: "bg-violet-50 text-violet-700" },
+  { id: "ready", label: "Ready", icon: BedDouble, tone: "bg-teal-50 text-teal-700" },
+];
 
 export function HousekeepingWorkspace({
   membership,
@@ -110,10 +117,11 @@ export function HousekeepingWorkspace({
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
-  const rackQuery = useQuery({
-    queryKey: ["hk-rack", restaurantId, today],
-    queryFn: () => fetchRack({ data: { restaurantId, today } }),
-  });
+  const [boardDate, setBoardDate] = useState(today);
+  const [boardStatus, setBoardStatus] = useState("all");
+  useEffect(() => {
+    setBoardDate(today);
+  }, [today]);
 
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [shellSlots, setShellSlots] = useState<HousekeepingShellSlots>({
@@ -146,10 +154,29 @@ export function HousekeepingWorkspace({
   const requested = resolveHkArea(initialTab, { fromLegacy, defaultArea });
   const scope = accessQuery.data?.scope ?? "housekeeper";
   const area = accessQuery.data ? firstVisibleHkArea(scope, requested) : requested;
+  const rackDate = area === "board" ? boardDate : today;
+  const rackQuery = useQuery({
+    queryKey: ["hk-rack", restaurantId, rackDate],
+    queryFn: () => fetchRack({ data: { restaurantId, today: rackDate } }),
+  });
   const refreshing = useIsFetching({
     predicate: (query) => String(query.queryKey[0] ?? "").startsWith("hk-"),
   });
-  const kpis = useMemo(() => deriveHkBoardKpis(rackQuery.data ?? []), [rackQuery.data]);
+  const kpiCounts = useMemo(() => {
+    const counts: Record<HkBoardColumn, number> = {
+      dirty: 0,
+      assigned: 0,
+      cleaning: 0,
+      clean: 0,
+      inspection: 0,
+      ready: 0,
+    };
+    for (const room of rackQuery.data ?? []) {
+      const column = boardColumnForRoom(room);
+      if (column) counts[column] += 1;
+    }
+    return counts;
+  }, [rackQuery.data]);
 
   useEffect(() => {
     if (!accessQuery.data) return;
@@ -248,26 +275,55 @@ export function HousekeepingWorkspace({
             aria-label="Housekeeping KPIs"
             data-testid="hk-kpi-strip"
           >
-            {KPI_CARDS.map((card) => (
-              <div
-                key={card.id}
-                className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
-              >
-                <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
-                  <card.icon className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
-                  {rackQuery.isLoading ? (
-                    <Skeleton className="mt-1 h-5 w-10" />
-                  ) : (
-                    <p className="font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
-                      {kpis[card.key].toLocaleString()}
-                    </p>
+            {KPI_CARDS.map((card) => {
+              const selected = area === "board" && boardStatus === card.id;
+              const body = (
+                <>
+                  <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
+                    <card.icon className="size-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[10px] font-medium text-[#756A5B]">{card.label}</span>
+                    {rackQuery.isLoading ? (
+                      <Skeleton className="mt-1 h-5 w-10" />
+                    ) : (
+                      <span className="block font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+                        {kpiCounts[card.id].toLocaleString()}
+                      </span>
+                    )}
+                  </span>
+                </>
+              );
+              if (area !== "board") {
+                return (
+                  <div
+                    key={card.id}
+                    className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
+                  >
+                    {body}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  aria-pressed={selected}
+                  data-testid={`hk-kpi-${card.id}`}
+                  title={selected ? `Clear ${card.label} filter` : `Show ${card.label} rooms`}
+                  onClick={() => setBoardStatus(selected ? "all" : card.id)}
+                  className={cn(
+                    "flex h-[4.25rem] min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border bg-white px-2.5 py-2 text-left shadow-sm outline-none transition-colors",
+                    "hover:border-[#C89933]/70 hover:bg-[#FBF7EE] focus-visible:ring-2 focus-visible:ring-[#C89933]",
+                    selected
+                      ? "border-[#C89933] bg-[#F4E9D0] ring-1 ring-[#C89933]/40"
+                      : "border-[#DDD4C5]",
                   )}
-                </div>
-              </div>
-            ))}
+                >
+                  {body}
+                </button>
+              );
+            })}
           </section>
 
           <section
@@ -286,18 +342,37 @@ export function HousekeepingWorkspace({
             <div ref={setSearchSlot} className="min-w-0 flex-1 overflow-hidden" />
             <div className="relative z-10 flex shrink-0 items-center gap-1.5">
               <div ref={setFilterSlot} className="shrink-0 empty:hidden" />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className={SHELL_ICON_BUTTON}
-                onClick={refreshHousekeeping}
-                aria-label="Refresh"
-                title="Refresh"
-                data-testid="hk-refresh"
-              >
-                <RefreshCw className={cn("size-4", refreshing > 0 && "animate-spin")} />
-              </Button>
+              {area === "board" ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className={SHELL_ICON_BUTTON}
+                      onClick={refreshHousekeeping}
+                      aria-label="Refresh"
+                      data-testid="hk-refresh"
+                    >
+                      <RefreshCw className={cn("size-4", refreshing > 0 && "animate-spin")} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Refresh</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className={SHELL_ICON_BUTTON}
+                  onClick={refreshHousekeeping}
+                  aria-label="Refresh"
+                  title="Refresh"
+                  data-testid="hk-refresh"
+                >
+                  <RefreshCw className={cn("size-4", refreshing > 0 && "animate-spin")} />
+                </Button>
+              )}
               <div ref={setExportSlot} className="shrink-0 empty:hidden" />
               <div ref={setViewSlot} className="shrink-0 empty:hidden" />
               <div ref={setCtaSlot} className="shrink-0 empty:hidden" />
@@ -321,6 +396,11 @@ export function HousekeepingWorkspace({
               <HousekeepingBoardTab
                 {...props}
                 {...hkGrants}
+                today={boardDate}
+                businessDate={today}
+                onDateChange={setBoardDate}
+                status={boardStatus}
+                onStatusChange={setBoardStatus}
                 scope={scope}
                 membershipId={accessQuery.data.membershipId}
                 openRoomId={initialRoomId}

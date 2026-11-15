@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, Fragment, useContext, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Download, LayoutGrid, RefreshCw, Search, Table2, X } from "lucide-react";
 
@@ -8,6 +8,7 @@ import {
 } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
 
 export type HousekeepingShellSlots = {
@@ -89,11 +90,17 @@ export function HkViewSwitcher({
   value,
   onChange,
   testId = "hk-view-switcher",
+  labels,
 }: {
   value: "board" | "table";
   onChange: (value: "board" | "table") => void;
   testId?: string;
+  labels?: Partial<Record<"board" | "table", string>>;
 }) {
+  const options = [
+    ["board", labels?.board ?? "Board", LayoutGrid],
+    ["table", labels?.table ?? "Table", Table2],
+  ] as const;
   return (
     <div
       className="inline-flex items-center gap-0.5 rounded-md border border-[#DDD4C5] bg-white p-0.5"
@@ -101,29 +108,32 @@ export function HkViewSwitcher({
       aria-label="Housekeeping view"
       data-testid={testId}
     >
-      {(
-        [
-          ["board", "Board", LayoutGrid],
-          ["table", "Table", Table2],
-        ] as const
-      ).map(([id, label, Icon]) => (
-        <button
-          key={id}
-          type="button"
-          aria-label={label}
-          aria-pressed={value === id}
-          title={label}
-          onClick={() => onChange(id)}
-          className={cn(
-            "inline-flex size-8 items-center justify-center rounded-sm transition-colors",
-            value === id
-              ? "bg-[#C89933] text-[#251605]"
-              : "bg-transparent text-muted-foreground hover:bg-[#F3EEE4] hover:text-foreground",
-          )}
-        >
-          <Icon className="size-4" aria-hidden="true" />
-        </button>
-      ))}
+      {options.map(([id, label, Icon]) => {
+        const button = (
+          <button
+            type="button"
+            aria-label={label}
+            aria-pressed={value === id}
+            title={labels?.[id] ? undefined : label}
+            onClick={() => onChange(id)}
+            className={cn(
+              "inline-flex size-8 items-center justify-center rounded-sm transition-colors",
+              value === id
+                ? "bg-[#C89933] text-[#251605]"
+                : "bg-transparent text-muted-foreground hover:bg-[#F3EEE4] hover:text-foreground",
+            )}
+          >
+            <Icon className="size-4" aria-hidden="true" />
+          </button>
+        );
+        if (!labels?.[id]) return <Fragment key={id}>{button}</Fragment>;
+        return (
+          <Tooltip key={id}>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent>{label}</TooltipContent>
+          </Tooltip>
+        );
+      })}
     </div>
   );
 }
@@ -132,12 +142,14 @@ export function HkShellExportButton({
   onClick,
   disabled = false,
   testId,
+  tooltip = false,
 }: {
   onClick: () => void;
   disabled?: boolean;
   testId?: string;
+  tooltip?: boolean;
 }) {
-  return (
+  const button = (
     <Button
       type="button"
       variant="outline"
@@ -146,11 +158,20 @@ export function HkShellExportButton({
       onClick={onClick}
       disabled={disabled}
       aria-label="Export"
-      title="Export"
+      title={tooltip ? undefined : "Export"}
       data-testid={testId}
     >
       <Download className="size-4" />
     </Button>
+  );
+  if (!tooltip) return button;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent>Export</TooltipContent>
+    </Tooltip>
   );
 }
 

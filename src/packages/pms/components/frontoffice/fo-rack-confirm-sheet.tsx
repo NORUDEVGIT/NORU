@@ -127,6 +127,7 @@ export function FoRackConfirmSheet({
       roomTypeId,
       arrival,
       departure,
+      draft?.reservationRoomId ?? null,
     ],
     queryFn: () =>
       fetchAssignable({
@@ -136,6 +137,8 @@ export function FoRackConfirmSheet({
           arrival: arrival!,
           departure: departure!,
           excludeReservationId: draft!.reservationId,
+          // The dragged room's stored requirements apply at the target room.
+          ...(draft!.reservationRoomId ? { reservationRoomId: draft!.reservationRoomId } : {}),
         },
       }),
     enabled:
@@ -243,6 +246,7 @@ export function FoRackConfirmSheet({
             restaurantId,
             reservationId: draft.reservationId,
             roomId: draft.targetRoomId,
+            ...(draft.reservationRoomId ? { reservationRoomId: draft.reservationRoomId } : {}),
             reason: RACK_MOVE_REASON,
             expectedRoomId: draft.currentRoomId,
             expectedArrival: draft.arrivalDate,

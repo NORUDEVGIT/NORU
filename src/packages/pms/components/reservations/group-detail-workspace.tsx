@@ -67,6 +67,16 @@ import {
 } from "@/packages/pms/lib/pms-operational-surface";
 import { listRatePlans } from "@/packages/pms/lib/rates.functions";
 import { getRoomTypeAvailability } from "@/packages/pms/lib/reservations.functions";
+import { ConnectingPairsList } from "@/packages/pms/components/bookings/reservation-room-pair-controls";
+import {
+  CONNECTS_TO_NONE,
+  pairedWithText,
+  roomingPartnerOptions,
+} from "@/packages/pms/lib/reservation-room-pairs";
+import {
+  getGroupConnectingPairs,
+  saveGroupRoomingPair,
+} from "@/packages/pms/lib/reservation-room-pairs.functions";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -937,6 +947,61 @@ function PickupTab({
   );
 }
 
+const ROOMING_PAIRED_WITH_LABEL = "Paired with";
+const ROOMING_NOT_PAIRED = "__not_paired__";
+
+/** "Paired with" for one rooming row. The pair carries into reservations when both exist. */
+function RoomingPairCell({
+  rowId,
+  rows,
+  partnerRowId,
+  saved,
+  canWrite,
+  busy,
+  onChange,
+}: {
+  rowId: string;
+  rows: Array<{ id: string; guest_name: string; connecting_partner_row_id: string | null }>;
+  partnerRowId: string | null;
+  saved: boolean;
+  canWrite: boolean;
+  busy: boolean;
+  onChange: (partnerRowId: string | null) => void;
+}) {
+  const partner = partnerRowId ? rows.find((row) => row.id === partnerRowId) : undefined;
+  const status = partner ? (saved ? "Connecting pair saved" : "Saved when both reservations exist") : null;
+  if (!canWrite) {
+    return (
+      <span className="text-xs">
+        {partner ? pairedWithText(partner.guest_name) : "—"}
+        {status ? <span className="block text-[11px] text-muted-foreground">{status}</span> : null}
+      </span>
+    );
+  }
+  return (
+    <div className="min-w-[10rem] space-y-0.5">
+      <Select
+        value={partnerRowId ?? ROOMING_NOT_PAIRED}
+        disabled={busy}
+        onValueChange={(value) => onChange(value === ROOMING_NOT_PAIRED ? null : value)}
+      >
+        <SelectTrigger className={cn(PMS_OP_SELECT_TRIGGER, "h-8 text-xs")}>
+          <SelectValue placeholder={CONNECTS_TO_NONE} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ROOMING_NOT_PAIRED}>{CONNECTS_TO_NONE}</SelectItem>
+          {roomingPartnerOptions(rows, rowId).map((row) => (
+            <SelectItem key={row.id} value={row.id}>
+              {row.guest_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {status ? <p className="text-[11px] text-muted-foreground">{status}</p> : null}
+    </div>
+  );
+}
+
 function RoomingTab({
   restaurantId,
   canWrite,
@@ -967,12 +1032,38 @@ function RoomingTab({
     queryFn: () => loadGuests({ data: { restaurantId, search: guestName, limit: 8 } }),
     enabled: guestName.trim().length >= 2,
   });
+  const queryClient = useQueryClient();
+  const loadPairs = useServerFn(getGroupConnectingPairs);
+  const submitPair = useServerFn(saveGroupRoomingPair);
+  const pairsKey = ["pms-group-connecting-pairs", restaurantId, group.id] as const;
+  const pairsQuery = useQuery({
+    queryKey: pairsKey,
+    queryFn: () => loadPairs({ data: { restaurantId, groupId: group.id } }),
+    retry: false,
+  });
+  const pairs = pairsQuery.data;
+  const pairRows = rooming.map((row) => ({
+    id: row.id,
+    guest_name: row.guest_name,
+    connecting_partner_row_id: pairs?.partners[row.id] ?? null,
+  }));
+  const savePair = useMutation({
+    mutationFn: (input: { rowId: string; partnerRowId: string | null }) =>
+      submitPair({ data: { restaurantId, groupId: group.id, ...input } }),
+    onSuccess: async (result, input) => {
+      await queryClient.invalidateQueries({ queryKey: pairsKey });
+      if (input.partnerRowId && result.reason) toast.error(result.reason);
+      else toast.success(input.partnerRowId ? "Rooming rows paired." : "Pairing removed.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return (
     <section className={cn(PMS_OP_PANEL, "p-4")} data-testid="group-detail-rooming">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-base font-semibold text-[#251605]">Rooming list</h3>
       </div>
+      <ConnectingPairsList labels={pairs?.available ? pairs.labels : []} className="mt-3" />
       {rooming.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">{GROUP_DETAIL_EMPTY.rooming}</p>
       ) : (
@@ -986,6 +1077,7 @@ function RoomingTab({
                 <th className="px-3 py-2">Block</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Linked reservation</th>
+                {pairs?.available ? <th className="px-3 py-2">{ROOMING_PAIRED_WITH_LABEL}</th> : null}
                 <th className="px-3 py-2">Actions</th>
               </tr>
             </thead>
@@ -1004,6 +1096,19 @@ function RoomingTab({
                     </td>
                     <td className="px-3 py-2 capitalize">{row.status}</td>
                     <td className="px-3 py-2">{row.reservation_id ? "Created" : "—"}</td>
+                    {pairs?.available ? (
+                      <td className="px-3 py-2" data-testid="group-detail-rooming-pair">
+                        <RoomingPairCell
+                          rowId={row.id}
+                          rows={pairRows}
+                          partnerRowId={pairs.partners[row.id] ?? null}
+                          saved={pairs.savedRowIds.includes(row.id)}
+                          canWrite={canWrite}
+                          busy={savePair.isPending}
+                          onChange={(partnerRowId) => savePair.mutate({ rowId: row.id, partnerRowId })}
+                        />
+                      </td>
+                    ) : null}
                     <td className="px-3 py-2">
                       {row.reservation_id ? (
                         <Button
@@ -1024,8 +1129,12 @@ function RoomingTab({
                             void onConvert({
                               data: { restaurantId, groupId: group.id, rowId: row.id },
                             })
-                              .then(() => {
+                              .then((result) => {
                                 toast.success("Reservation created from rooming list.");
+                                if ("pairReason" in result && result.pairReason) {
+                                  toast.error(result.pairReason);
+                                }
+                                void queryClient.invalidateQueries({ queryKey: pairsKey });
                                 onChanged();
                               })
                               .catch((error: unknown) =>

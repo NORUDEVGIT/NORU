@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft } from "lucide-react";
@@ -21,7 +21,8 @@ import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading, NonPmsOnly } from "@/core/state/pms-context";
 
 const TABS = ["overview", "channels", "rooms", "rates", "logs", "aiosell"] as const;
-type TabKey = (typeof TABS)[number];
+export type DistributionSubTabKey = (typeof TABS)[number];
+type TabKey = DistributionSubTabKey;
 
 export function DistributionWorkspace({
   membership,
@@ -45,29 +46,6 @@ export function DistributionWorkspace({
   useEffect(() => {
     if (searchTab && (TABS as readonly string[]).includes(searchTab)) setTab(searchTab as TabKey);
   }, [searchTab]);
-
-  const fetchAccess = useServerFn(getDistributionAccess);
-  const accessQuery = useQuery({
-    queryKey: ["distribution-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
-  const overview = useDistribution(restaurantId);
-
-  if (accessQuery.isLoading)
-    return <p className="text-sm text-muted-foreground">Loading distribution…</p>;
-  if (!accessQuery.data?.canView) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h1 className="font-display text-2xl">
-          <PageHeading fallback="Distribution" />
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          You don't have permission to open Distribution for this property.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-5">
@@ -100,41 +78,101 @@ export function DistributionWorkspace({
         ) : null}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-        <TabsList className="flex w-full flex-wrap justify-start">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="channels">Channels</TabsTrigger>
-          <TabsTrigger value="rooms">Room Mapping</TabsTrigger>
-          <TabsTrigger value="rates">Rate Mapping</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="aiosell">Aiosell</TabsTrigger>
-        </TabsList>
-
-        {overview.isLoading || !overview.data ? (
-          <p className="mt-4 text-sm text-muted-foreground">Loading…</p>
-        ) : (
-          <>
-            <TabsContent value="overview" className="mt-4">
-              <DistributionOverviewTab data={overview.data} />
-            </TabsContent>
-            <TabsContent value="channels" className="mt-4">
-              <DistributionChannelsTab data={overview.data} restaurantId={restaurantId} />
-            </TabsContent>
-            <TabsContent value="rooms" className="mt-4">
-              <RoomMappingTab data={overview.data} restaurantId={restaurantId} />
-            </TabsContent>
-            <TabsContent value="rates" className="mt-4">
-              <RateMappingTab data={overview.data} restaurantId={restaurantId} />
-            </TabsContent>
-            <TabsContent value="logs" className="mt-4">
-              <DistributionLogsTab data={overview.data} />
-            </TabsContent>
-          </>
-        )}
-        <TabsContent value="aiosell" className="mt-4">
-          <AiosellWorkspacePanel restaurantId={restaurantId} />
-        </TabsContent>
-      </Tabs>
+      <DistributionSubTabs restaurantId={restaurantId} tab={tab} onTabChange={setTab} />
     </div>
+  );
+}
+
+const SUB_TAB_LABELS: Record<TabKey, string> = {
+  overview: "Overview",
+  channels: "Channels",
+  rooms: "Room Mapping",
+  rates: "Rate Mapping",
+  logs: "Logs",
+  aiosell: "Aiosell",
+};
+
+/**
+ * Overview · Channels · Room Mapping · Rate Mapping · Logs · Aiosell.
+ * Rendered in Settings → Connectivity & Distribution → Distribution.
+ */
+export function DistributionSubTabs({
+  restaurantId,
+  tab: controlledTab,
+  onTabChange,
+  channelsExtra,
+}: {
+  restaurantId: string;
+  tab?: TabKey;
+  onTabChange?: (tab: TabKey) => void;
+  channelsExtra?: ReactNode;
+}) {
+  const [localTab, setLocalTab] = useState<TabKey>("overview");
+  const tab = controlledTab ?? localTab;
+  const setTab = onTabChange ?? setLocalTab;
+
+  const fetchAccess = useServerFn(getDistributionAccess);
+  const accessQuery = useQuery({
+    queryKey: ["distribution-access", restaurantId],
+    queryFn: () => fetchAccess({ data: { restaurantId } }),
+    retry: false,
+  });
+  const overview = useDistribution(restaurantId);
+
+  if (accessQuery.isLoading)
+    return <p className="text-sm text-[#7A6A55]">Loading distribution…</p>;
+  if (!accessQuery.data?.canView) {
+    return (
+      <p className="rounded-xl border border-[#E6E1D8] bg-white p-4 text-sm text-[#7A6A55]">
+        You don't have permission to open Distribution for this property.
+      </p>
+    );
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} data-testid="distribution-sub-tabs">
+      <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-xl border border-[#E6E1D8] bg-[#FBF7EE] p-1">
+        {TABS.map((key) => (
+          <TabsTrigger
+            key={key}
+            value={key}
+            data-testid={`distribution-sub-tab-${key}`}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#7A6A55] data-[state=active]:bg-white data-[state=active]:text-[#251605] data-[state=active]:shadow-sm"
+          >
+            {SUB_TAB_LABELS[key]}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      {overview.isLoading || !overview.data ? (
+        <p className="mt-3 text-sm text-[#7A6A55]">Loading…</p>
+      ) : (
+        <>
+          <TabsContent value="overview" className="mt-3">
+            <DistributionOverviewTab data={overview.data} />
+          </TabsContent>
+          <TabsContent value="channels" className="mt-3 space-y-3">
+            <DistributionChannelsTab
+              data={overview.data}
+              restaurantId={restaurantId}
+              omitChannelList={channelsExtra != null}
+            />
+            {channelsExtra}
+          </TabsContent>
+          <TabsContent value="rooms" className="mt-3">
+            <RoomMappingTab data={overview.data} restaurantId={restaurantId} />
+          </TabsContent>
+          <TabsContent value="rates" className="mt-3">
+            <RateMappingTab data={overview.data} restaurantId={restaurantId} />
+          </TabsContent>
+          <TabsContent value="logs" className="mt-3">
+            <DistributionLogsTab data={overview.data} />
+          </TabsContent>
+        </>
+      )}
+      <TabsContent value="aiosell" className="mt-3">
+        <AiosellWorkspacePanel restaurantId={restaurantId} />
+      </TabsContent>
+    </Tabs>
   );
 }

@@ -32,6 +32,10 @@ import {
   type InventoryRulesDraft,
 } from "@/packages/pms/lib/inventory-rules-card2.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
+import { getAccessibilityReview } from "@/packages/pms/lib/room-accessibility.functions";
+import { AccessibilityReviewPanel } from "@/packages/pms/components/rooms/room-accessibility-panels";
+import { getConnectingReview } from "@/packages/pms/lib/room-connections.functions";
+import { ConnectingReviewPanel } from "@/packages/pms/components/rooms/room-connections-panels";
 import { OverbookingDateLimitsEditor } from "@/packages/pms/components/settings/overbooking-date-limits-editor";
 import { RoomTypeOverbookingEditor } from "@/packages/pms/components/settings/room-type-overbooking-editor";
 
@@ -141,6 +145,18 @@ export function PmsPropertySetupCard2Inventory({
   const readyQuery = useQuery({
     queryKey: ["pms-card2-inventory-ready", restaurantId],
     queryFn: () => fetchReady({ data: { restaurantId } }),
+  });
+
+  const fetchAccessibilityReview = useServerFn(getAccessibilityReview);
+  const accessibilityReviewQuery = useQuery({
+    queryKey: ["pms-accessibility-review", restaurantId],
+    queryFn: () => fetchAccessibilityReview({ data: { restaurantId } }),
+  });
+
+  const fetchConnectingReview = useServerFn(getConnectingReview);
+  const connectingReviewQuery = useQuery({
+    queryKey: ["pms-connecting-review", restaurantId],
+    queryFn: () => fetchConnectingReview({ data: { restaurantId } }),
   });
 
   useEffect(() => {
@@ -324,16 +340,6 @@ export function PmsPropertySetupCard2Inventory({
               patch({ maintenanceAffectsAvailability: value })
             }
           />
-
-          <PolicyToggle
-            label="Housekeeping Affects Assignment"
-            help="Housekeeping state participates in room-assignment eligibility."
-            checked={draft.housekeepingAffectsAssignment}
-            disabled={!canEdit}
-            onChange={(value) =>
-              patch({ housekeepingAffectsAssignment: value })
-            }
-          />
         </div>
       </SectionCard>
 
@@ -489,6 +495,20 @@ export function PmsPropertySetupCard2Inventory({
             />
           </RuleGroup>
 
+          <AccessibilityReviewPanel
+            review={accessibilityReviewQuery.data ?? null}
+            accessibilityRuleOn={draft.requireAccessibilityMatch}
+            loading={accessibilityReviewQuery.isLoading}
+            failed={accessibilityReviewQuery.isError}
+          />
+
+          <ConnectingReviewPanel
+            review={connectingReviewQuery.data ?? null}
+            connectingRuleOn={draft.requireConnectingRoomMatch}
+            loading={connectingReviewQuery.isLoading}
+            failed={connectingReviewQuery.isError}
+          />
+
           <RuleGroup title="Preferences">
             <PolicyToggle
               label="Floor Preference"
@@ -518,7 +538,8 @@ export function PmsPropertySetupCard2Inventory({
 
           <RuleGroup title="Operational Readiness">
             <PolicyToggle
-              label="Housekeeping Readiness"
+              label="Require housekeeping readiness"
+              help="Require rooms to be released by Housekeeping before assignment."
               checked={draft.requireHousekeepingReadiness}
               disabled={!canEdit}
               onChange={(value) =>

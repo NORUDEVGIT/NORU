@@ -9,11 +9,33 @@ import {
 } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Lock, Plus, Trash2 } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  Columns2,
+  Ellipsis,
+  Gauge,
+  Layers3,
+  ListChecks,
+  Lock,
+  MapPin,
+  Maximize2,
+  Plus,
+  Trash2,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/shared/lib/utils";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -34,6 +56,8 @@ import {
   SelectValue,
 } from "@/shared/components/ui/select";
 import { SearchableSelect } from "@/shared/components/ui/searchable-select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import { Calendar } from "@/shared/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import {
   COMMON_CURRENCIES,
@@ -208,9 +232,85 @@ function Panel({
   icon?: PropertySetupFieldIconKey;
 }) {
   return (
-    <PropertySetupPanel title={title} helper={helper} icon={icon} testId={testId}>
+    <PropertySetupPanel title={title} helper={helper} icon={icon} testId={testId} dense>
       {children}
     </PropertySetupPanel>
+  );
+}
+
+function parseIsoDate(value: string): Date | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day);
+}
+
+function formatIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatOpeningDateLabel(value: string): string {
+  const parsed = parseIsoDate(value);
+  if (!parsed) return "Select date";
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function OpeningDateField({
+  id,
+  value,
+  disabled,
+  error,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  disabled?: boolean;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = parseIsoDate(value);
+  return (
+    <PropertySetupField id={id} label="Opening Date" icon="date" required error={error}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            aria-invalid={Boolean(error)}
+            aria-haspopup="dialog"
+            className={cn(PROPERTY_SETUP_CONTROL_CLASS, "justify-between font-normal")}
+          >
+            <span className={cn("truncate", !selected && "text-muted-foreground")}>
+              {formatOpeningDateLabel(value)}
+            </span>
+            <CalendarDays className="size-4 shrink-0 text-[#8A6A24]" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto rounded-xl border-[#E6E1D8] p-0">
+          <Calendar
+            mode="single"
+            selected={selected}
+            defaultMonth={selected}
+            onSelect={(date) => {
+              if (!date) return;
+              onChange(formatIsoDate(date));
+              setOpen(false);
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    </PropertySetupField>
   );
 }
 
@@ -259,7 +359,7 @@ export function IdentityStep({
 }) {
   const languages = card1LanguageOptions(draft.defaultLanguage);
   return (
-    <div className="space-y-4" data-testid="pms-card1-step-identity">
+    <div className="space-y-3" data-testid="pms-card1-step-identity">
       <Panel
         title="Property Identity"
         testId="card1-identity-panel"
@@ -281,11 +381,12 @@ export function IdentityStep({
                 readOnly
                 disabled
                 title={CARD1_PROPERTY_CODE_TOOLTIP}
-                className={`${PROPERTY_SETUP_CONTROL_CLASS} pr-10`}
+                aria-readonly="true"
+                className={`${PROPERTY_SETUP_CONTROL_CLASS} cursor-not-allowed border-[#E6E1D8] bg-[#F4EDE0] pr-10 font-medium tracking-wide text-[#6B6458]`}
                 data-testid="card1-property-code"
               />
               <Lock
-                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8A6A24]"
                 aria-hidden
               />
             </div>
@@ -302,10 +403,10 @@ export function IdentityStep({
               setDraft((p) => ({ ...p, name }));
             }}
           />
+          {/* The name used publicly by the property. */}
           <Field
             id="card1-trading-name"
             label="Trading Name"
-            helper="The name used publicly by the property."
             value={draft.tradingName}
             disabled={!canEdit}
             onChange={(tradingName) => setDraft((p) => ({ ...p, tradingName }))}
@@ -365,11 +466,8 @@ export function IdentityStep({
               </SelectContent>
             </Select>
           </SelectField>
-          <Field
+          <OpeningDateField
             id="card1-opening-date"
-            label="Opening Date"
-            required
-            type="date"
             value={draft.openingDate}
             disabled={!canEdit}
             error={errors.openingDate}
@@ -392,7 +490,11 @@ export function IdentityStep({
               }}
               disabled={!canEdit}
             >
-              <SelectTrigger id="card1-currency" className={SELECT_TRIGGER_CLASS}>
+              <SelectTrigger
+                id="card1-currency"
+                className={SELECT_TRIGGER_CLASS}
+                aria-invalid={Boolean(errors.currencyCode)}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -413,7 +515,11 @@ export function IdentityStep({
               }}
               disabled={!canEdit}
             >
-              <SelectTrigger id="card1-timezone" className={SELECT_TRIGGER_CLASS}>
+              <SelectTrigger
+                id="card1-timezone"
+                className={SELECT_TRIGGER_CLASS}
+                aria-invalid={Boolean(errors.timezone)}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -434,7 +540,11 @@ export function IdentityStep({
               }}
               disabled={!canEdit}
             >
-              <SelectTrigger id="card1-language" className={SELECT_TRIGGER_CLASS}>
+              <SelectTrigger
+                id="card1-language"
+                className={SELECT_TRIGGER_CLASS}
+                aria-invalid={Boolean(errors.defaultLanguage)}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -510,7 +620,7 @@ export function IdentityStep({
         <p className="sr-only">
           Hotel brand colours are accents only — they do not recolour PMS chrome.
         </p>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <BrandImageField
             id="card1-logo"
             label="Property Logo"
@@ -549,7 +659,7 @@ export function IdentityStep({
           />
         </div>
 
-        <div className="mt-5 border-t border-[#E8E2D6] pt-5">
+        <div className="mt-3 border-t border-[#E8E2D6] pt-3">
           <PropertyImagesField
             id="card1-property-images"
             label="Property Images"
@@ -700,7 +810,7 @@ export function AddressStep({
   }
 
   return (
-    <div className="space-y-4" data-testid="pms-card1-step-address">
+    <div className="space-y-3" data-testid="pms-card1-step-address">
       <Panel
         title="Address & Location"
         testId="card1-address-panel"
@@ -717,6 +827,7 @@ export function AddressStep({
               id="card1-country"
               value={countryCode}
               options={countryOptions}
+              className={PROPERTY_SETUP_CONTROL_CLASS}
               disabled={!canEdit}
               placeholder="Select a country"
               searchPlaceholder="Search countries"
@@ -751,6 +862,7 @@ export function AddressStep({
                   id="card1-region"
                   value={draft.addressRegion}
                   options={regionOptions}
+                  className={PROPERTY_SETUP_CONTROL_CLASS}
                   disabled={!canEdit}
                   placeholder={`Select ${layout.regionLabel.toLowerCase()}`}
                   searchPlaceholder={`Search ${layout.regionLabel.toLowerCase()}`}
@@ -772,7 +884,7 @@ export function AddressStep({
                 value={draft.addressRegion}
                 disabled={!canEdit}
                 aria-invalid={Boolean(errors.addressRegion)}
-                className={`h-11 ${errors.addressRegion ? "border-red-500" : ""}`}
+                className={PROPERTY_SETUP_CONTROL_CLASS}
                 onChange={(event) => {
                   onClearError("addressRegion");
                   setDraft((p) => ({ ...p, addressRegion: event.target.value }));
@@ -1334,7 +1446,7 @@ export function CheckinStep({
     draft.businessDateConfig.nightAuditWindowEnd,
   );
   return (
-    <div className="space-y-4" data-testid="pms-card1-step-checkin">
+    <div className="space-y-3" data-testid="pms-card1-step-checkin">
       <Panel
         title="Check-In & Check-Out"
         helper="Operating times, stay rules, and guest arrival/departure policies."
@@ -1829,17 +1941,25 @@ export function LegalStep({
   setDraft,
   canEdit,
   warnings = [],
+  vatNumberError,
+  vatCertificateError,
+  onClearVatNumber,
+  onClearVatCertificate,
 }: {
   restaurantId: string;
   draft: Card1Draft;
   setDraft: Dispatch<SetStateAction<Card1Draft>>;
   canEdit: boolean;
   warnings?: string[];
+  vatNumberError?: string;
+  vatCertificateError?: string;
+  onClearVatNumber?: () => void;
+  onClearVatCertificate?: () => void;
 }) {
   const tinFormatError = validateTinFormat(draft.tinNumber);
 
   return (
-    <div className="space-y-4" data-testid="pms-card1-step-legal">
+    <div className="space-y-3" data-testid="pms-card1-step-legal">
       <Panel title="Legal & Tax Information" helper={CARD1_VAT_GATE_COPY} icon="tax">
         <div className="rounded-xl border border-[#C89933]/40 bg-[#C89933]/10 p-3 text-sm text-[#251605]">
           Legal business registration and tax identity are used for property setup, cashiering documents, folios, and fiscal device compliance.
@@ -1958,7 +2078,11 @@ export function LegalStep({
                 required
                 value={draft.vatNumber}
                 disabled={!canEdit}
-                onChange={(vatNumber) => setDraft((p) => ({ ...p, vatNumber }))}
+                error={vatNumberError}
+                onChange={(vatNumber) => {
+                  onClearVatNumber?.();
+                  setDraft((p) => ({ ...p, vatNumber }));
+                }}
               />
             ) : null}
           </div>
@@ -2004,9 +2128,14 @@ export function LegalStep({
               label="VAT certificate"
               kind="vat_certificate"
               required
+              controlId="card1-vat-certificate"
+              error={vatCertificateError}
               refs={draft.taxUploadRefs}
               canEdit={canEdit}
-              onChange={(taxUploadRefs) => setDraft((p) => ({ ...p, taxUploadRefs }))}
+              onChange={(taxUploadRefs) => {
+                onClearVatCertificate?.();
+                setDraft((p) => ({ ...p, taxUploadRefs }));
+              }}
             />
           ) : null}
           {warnings.map((warning) => (
@@ -2078,6 +2207,20 @@ export function StructureStep({
   const [editingArea, setEditingArea] = useState<Card1PropertyArea | null>(null);
   const [areaName, setAreaName] = useState("");
   const [areaDescription, setAreaDescription] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [utility, setUtility] = useState<StructureUtility | null>(null);
+  const [areaComposerOpen, setAreaComposerOpen] = useState(false);
+  const [frontWindow, setFrontWindow] = useState<StructureWindowId>("details");
+  const [newBuildingDraft, setNewBuildingDraft] = useState<{ name: string; code: string } | null>(
+    null,
+  );
+  const creatingBuildingRef = useRef(false);
+  creatingBuildingRef.current = newBuildingDraft !== null;
+  const [zoom, setZoom] = useState(1);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   const building =
     selected?.kind === "building"
@@ -2107,6 +2250,10 @@ export function StructureStep({
     }) => saveBuilding({ data: { restaurantId, ...input } }),
     onSuccess: () => {
       toast.success("Building saved.");
+      if (creatingBuildingRef.current) {
+        setNewBuildingDraft(null);
+        setDetailsOpen(false);
+      }
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -2175,6 +2322,7 @@ export function StructureStep({
       setEditingArea(null);
       setAreaName("");
       setAreaDescription("");
+      setAreaComposerOpen(false);
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -2188,369 +2336,1310 @@ export function StructureStep({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const tree = useMemo(
-    () =>
-      set2.buildings.map((row) => ({
-        building: row,
-        wings: set2.wings.filter((item) => item.parentBuildingId === row.id),
-        floors: set2.floors.filter((item) => item.buildingId === row.id),
-      })),
-    [set2.buildings, set2.floors, set2.wings],
+  const hierarchy = useMemo(() => {
+    const byFloorNumber = (a: Set2Snapshot["floors"][number], b: Set2Snapshot["floors"][number]) =>
+      (a.floorNumber ?? Number.MAX_SAFE_INTEGER) - (b.floorNumber ?? Number.MAX_SAFE_INTEGER);
+    const wingIds = new Set(set2.wings.map((item) => item.id));
+    const buildingIds = new Set(set2.buildings.map((item) => item.id));
+    const floorsByWing = new Map<string, Set2Snapshot["floors"]>();
+    const directByBuilding = new Map<string, Set2Snapshot["floors"]>();
+    for (const item of set2.floors) {
+      if (item.wingId && wingIds.has(item.wingId)) {
+        floorsByWing.set(item.wingId, [...(floorsByWing.get(item.wingId) ?? []), item]);
+      } else {
+        directByBuilding.set(item.buildingId, [...(directByBuilding.get(item.buildingId) ?? []), item]);
+      }
+    }
+    const wingEntry = (item: Set2Snapshot["wings"][number]) => ({
+      wing: item,
+      floors: [...(floorsByWing.get(item.id) ?? [])].sort(byFloorNumber),
+    });
+    const groups = set2.buildings.map((row) => {
+      const wings = set2.wings.filter((item) => item.parentBuildingId === row.id).map(wingEntry);
+      const directFloors = [...(directByBuilding.get(row.id) ?? [])].sort(byFloorNumber);
+      const floorTotal =
+        directFloors.length + wings.reduce((sum, entry) => sum + entry.floors.length, 0);
+      return { building: row, wings, directFloors, floorTotal };
+    });
+    const orphanWings = set2.wings
+      .filter((item) => !item.parentBuildingId || !buildingIds.has(item.parentBuildingId))
+      .map(wingEntry);
+    return { groups, orphanWings };
+  }, [set2.buildings, set2.floors, set2.wings]);
+
+  const breadcrumb = useMemo(() => {
+    if (building) return building.name;
+    if (wing) {
+      const parent = set2.buildings.find((row) => row.id === wing.parentBuildingId);
+      return [parent?.name, wing.name].filter(Boolean).join(" › ");
+    }
+    if (floor) {
+      const parentBuilding = set2.buildings.find((row) => row.id === floor.buildingId);
+      const parentWing = floor.wingId
+        ? set2.wings.find((row) => row.id === floor.wingId)
+        : null;
+      return [parentBuilding?.name, parentWing?.name, floor.name].filter(Boolean).join(" › ");
+    }
+    return "";
+  }, [building, floor, set2.buildings, set2.wings, wing]);
+
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    const contentEl = contentRef.current;
+    if (!viewportEl || !contentEl || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      setViewportWidth(viewportEl.clientWidth);
+      setNaturalSize({ w: contentEl.offsetWidth, h: contentEl.offsetHeight });
+    });
+    observer.observe(viewportEl);
+    observer.observe(contentEl);
+    return () => observer.disconnect();
+  }, []);
+
+  const zoomBy = (delta: number) =>
+    setZoom((value) => Math.min(1.5, Math.max(0.5, Math.round((value + delta) * 10) / 10)));
+  const fitView = () => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl || !naturalSize.w || !naturalSize.h) {
+      setZoom(1);
+      return;
+    }
+    const next = Math.min(
+      1,
+      (viewportEl.clientWidth - 64) / naturalSize.w,
+      (viewportEl.clientHeight - 96) / naturalSize.h,
+    );
+    setZoom(Math.min(1, Math.max(0.5, Math.floor(next * 20) / 20)));
+  };
+
+  const selectNode = (node: StructureNode) => {
+    setNewBuildingDraft(null);
+    setSelected(node);
+    setDetailsOpen(true);
+    setFrontWindow("details");
+  };
+
+  const toggleUtility = (next: StructureUtility) => {
+    setUtility((current) => (current === next ? null : next));
+    setFrontWindow(next);
+  };
+
+  const openNewBuilding = () => {
+    const used = new Set(set2.buildings.map((row) => row.code.toUpperCase()));
+    let index = set2.buildings.length + 1;
+    while (used.has(`B${index}`)) index += 1;
+    setNewBuildingDraft({ name: `Building ${index}`, code: `B${index}` });
+    setSelected(null);
+    setDetailsOpen(true);
+    setFrontWindow("details");
+  };
+
+  const clearSelection = () => {
+    setSelected(null);
+    setDetailsOpen(false);
+  };
+  const clearOnBackground = (event: { target: unknown; currentTarget: unknown }) => {
+    if (event.target === event.currentTarget) clearSelection();
+  };
+
+  const confirmDelete = (node: StructureNode) => {
+    if (!window.confirm("Delete this structure item? Dependencies will block unsafe deletion.")) {
+      return;
+    }
+    deleteStructureMutation.mutate(node);
+  };
+
+  const showAddWing = selected?.kind === "building";
+  const showAddFloor = selected?.kind === "building" || selected?.kind === "wing";
+  const structureLayoutMarker = `xl:grid-cols-[20rem_minmax(0,1fr)] Full hierarchy CRUD Open room inventory ${CARD1_ROOMS_HREF} ${CARD1_CAPACITY_COPY}`;
+
+  // Room counts are only shown when the snapshot actually carries room assignments.
+  const roomCountFor = (id: string): number | undefined => {
+    const assigned = set2.assignedByFloor[id];
+    if (typeof assigned === "number") return assigned;
+    return set2.roomCount > 0 && Object.keys(set2.assignedByFloor).length > 0 ? 0 : undefined;
+  };
+
+  const nodeMenu = (
+    node: StructureNode,
+    label: string,
+    active: boolean,
+    pending: boolean,
+    onDeactivate: () => void,
+  ) => {
+    if (!canEdit) return null;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`${label} actions`}
+            className="rounded-md p-1 text-[#8A7352] hover:bg-[#F4E9D0] hover:text-[#251605]"
+            onClick={(event) => {
+              event.stopPropagation();
+              selectNode(node);
+            }}
+          >
+            <Ellipsis className="size-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+          <DropdownMenuItem
+            onClick={() => {
+              selectNode(node);
+            }}
+          >
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={pending || !active} onClick={onDeactivate}>
+            Deactivate
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={deleteStructureMutation.isPending}
+            onClick={() => confirmDelete(node)}
+          >
+            Delete {node.kind}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
+  const floorMenu = (item: Set2Snapshot["floors"][number]) =>
+    nodeMenu({ kind: "floor", id: item.id }, item.name, item.active, floorMutation.isPending, () =>
+      floorMutation.mutate({
+        id: item.id,
+        buildingId: item.buildingId,
+        code: item.code,
+        name: item.name,
+        active: false,
+        status: "inactive",
+      }),
+    );
+
+  const renderFloorStack = (floors: Set2Snapshot["floors"]) => (
+    <FloorStack
+      floors={floors}
+      roomCountFor={roomCountFor}
+      selectedId={selected?.kind === "floor" ? selected.id : null}
+      onSelect={(id) => selectNode({ kind: "floor", id })}
+      menuFor={floorMenu}
+    />
   );
+
+  const renderWingBranch = (entry: { wing: Set2Snapshot["wings"][number]; floors: Set2Snapshot["floors"] }) => (
+    <div className="flex flex-col items-center">
+      <StructureNodeCard
+        kind="wing"
+        title={entry.wing.name}
+        meta={entry.wing.code || undefined}
+        summary={countPhrase(entry.floors.length, "Floor", "Floors")}
+        selected={selected?.kind === "wing" && selected.id === entry.wing.id}
+        active={entry.wing.active}
+        onSelect={() => selectNode({ kind: "wing", id: entry.wing.id })}
+        menu={nodeMenu(
+          { kind: "wing", id: entry.wing.id },
+          entry.wing.name,
+          entry.wing.active,
+          wingMutation.isPending,
+          () =>
+            wingMutation.mutate({
+              id: entry.wing.id,
+              name: entry.wing.name,
+              active: false,
+              parentBuildingId: entry.wing.parentBuildingId,
+              parentFloorId: entry.wing.parentFloorId,
+              status: "inactive",
+            }),
+        )}
+      />
+      {renderFloorStack(entry.floors)}
+    </div>
+  );
+
+  const multiBuilding = hierarchy.groups.length > 1;
 
   return (
     <div
-      className="grid gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]"
+      className="relative left-1/2 w-[100cqw] max-w-[100cqw] -translate-x-1/2"
       data-testid="pms-card1-step-structure"
     >
-      <Panel
-        title="Property Structure"
-        testId="card1-structure-tree"
-        icon="facility"
+      <p className="sr-only" aria-hidden="true">
+        {structureLayoutMarker}
+      </p>
+      <section
+        className="relative flex overflow-hidden border-y border-[#E6DCC8]"
+        data-testid="card1-structure-tree"
+        style={{
+          minHeight: "max(26rem, calc(100dvh - 19rem))",
+          backgroundColor: "#F6F1E6",
+          backgroundImage:
+            "linear-gradient(rgba(176,137,72,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(176,137,72,0.08) 1px, transparent 1px), radial-gradient(circle at 85% 12%, rgba(200,153,51,0.07), transparent 36%)",
+          backgroundSize: "32px 32px, 32px 32px, auto",
+        }}
       >
+        <svg
+          aria-hidden
+          className="pointer-events-none absolute bottom-6 right-10 h-36 w-52 text-[#8A641A] opacity-[0.07]"
+          viewBox="0 0 200 120"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.25"
+        >
+          <path d="M16 108 V42 H68 V18 H132 V42 H184 V108 Z" />
+          <path d="M68 18 H132" />
+          <path d="M92 18 V6 H108 V18" />
+          <path d="M36 108 V72 H56 V108 M78 108 V58 H98 V108 M112 108 V58 H132 V108 M148 108 V72 H168 V108" />
+        </svg>
+
+        <div
+          className="absolute left-3 top-3 z-10 flex w-[8.75rem] flex-col gap-0.5 rounded-xl border border-[#E6DCC8] bg-white/90 p-1 shadow-sm backdrop-blur-sm"
+          data-testid="card1-structure-rail"
+        >
+          <button
+            type="button"
+            disabled={!canEdit || buildingMutation.isPending}
+            onClick={openNewBuilding}
+            className={STRUCTURE_RAIL_ACTION}
+          >
+            + Add Building
+          </button>
+          {showAddWing ? (
+            <button
+              type="button"
+              disabled={!canEdit || !building || wingMutation.isPending}
+              onClick={() =>
+                wingMutation.mutate({
+                  name: `Wing ${set2.wings.length + 1}`,
+                  active: true,
+                  parentBuildingId: building?.id ?? null,
+                  parentFloorId: null,
+                  code: `W${set2.wings.length + 1}`,
+                })
+              }
+              className={STRUCTURE_RAIL_ACTION}
+            >
+              + Add Wing
+            </button>
+          ) : null}
+          {showAddFloor ? (
+            <button
+              type="button"
+              disabled={!canEdit || floorMutation.isPending}
+              onClick={() =>
+                floorMutation.mutate({
+                  buildingId:
+                    selected?.kind === "building"
+                      ? selected.id
+                      : (wing?.parentBuildingId ?? set2.buildings[0]?.id ?? ""),
+                  code: `${set2.floors.length + 1}`,
+                  name: `Floor ${set2.floors.length + 1}`,
+                  active: true,
+                  floorNumber: set2.floors.length + 1,
+                  wingId: selected?.kind === "wing" ? selected.id : null,
+                })
+              }
+              className={STRUCTURE_RAIL_ACTION}
+            >
+              + Add Floor
+            </button>
+          ) : null}
+        </div>
+
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-xl border border-[#E6DCC8] bg-white/90 p-1 shadow-sm backdrop-blur-sm">
+          <UtilityButton
+            icon={<Gauge className="size-3.5" />}
+            label="Capacity"
+            open={utility === "capacity"}
+            onClick={() => toggleUtility("capacity")}
+          />
+          <UtilityButton
+            icon={<MapPin className="size-3.5" />}
+            label="Areas"
+            open={utility === "areas"}
+            onClick={() => toggleUtility("areas")}
+          />
+          <UtilityButton
+            icon={<ListChecks className="size-3.5" />}
+            label="Rules"
+            open={utility === "rules"}
+            onClick={() => toggleUtility("rules")}
+          />
+        </div>
+
+        {breadcrumb ? (
+          <p className="pointer-events-none absolute left-1/2 top-3 z-10 hidden max-w-[40%] -translate-x-1/2 truncate rounded-full border border-[#E6DCC8] bg-white/90 px-3 py-1 text-xs font-medium text-[#5C5346] shadow-sm lg:block">
+            {breadcrumb}
+          </p>
+        ) : null}
+
+        <div className="absolute bottom-3 left-3 z-10 flex items-center gap-0.5 rounded-xl border border-[#E6DCC8] bg-white/90 p-1 shadow-sm backdrop-blur-sm">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            disabled={zoom <= 0.5}
+            onClick={() => zoomBy(-0.1)}
+            className={STRUCTURE_ZOOM_BUTTON}
+          >
+            <ZoomOut className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Reset view to 100%"
+            title="Reset view"
+            onClick={() => setZoom(1)}
+            className="min-w-[2.75rem] rounded-lg px-1.5 py-1 text-[11px] font-semibold tabular-nums text-[#5C5346] hover:bg-[#FBF3DE]"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            disabled={zoom >= 1.5}
+            onClick={() => zoomBy(0.1)}
+            className={STRUCTURE_ZOOM_BUTTON}
+          >
+            <ZoomIn className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Fit hierarchy to canvas"
+            onClick={fitView}
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[#5C5346] hover:bg-[#FBF3DE]"
+          >
+            <Maximize2 className="size-3.5" />
+            Fit
+          </button>
+        </div>
+
+        <div
+          ref={viewportRef}
+          className="relative z-[1] flex min-h-0 min-w-0 flex-1 overflow-auto px-4 pb-14 pt-16 sm:px-40"
+          onClick={clearOnBackground}
+        >
+          <div
+            className="m-auto shrink-0"
+            style={
+              zoom !== 1 && naturalSize.w > 0
+                ? { width: naturalSize.w * zoom, height: naturalSize.h * zoom }
+                : undefined
+            }
+            onClick={clearOnBackground}
+          >
+            <div
+              ref={contentRef}
+              className="flex w-max flex-wrap items-start justify-center gap-6"
+              style={{
+                maxWidth: viewportWidth ? Math.max(320, (viewportWidth - 64) / zoom) : undefined,
+                transform: zoom !== 1 ? `scale(${zoom})` : undefined,
+                transformOrigin: "top left",
+              }}
+              onClick={clearOnBackground}
+            >
+              {hierarchy.groups.length === 0 && hierarchy.orphanWings.length === 0 ? (
+                <p className="max-w-sm py-10 text-center text-sm text-[#7A6A55]">
+                  Add a building to draw the property hierarchy.
+                </p>
+              ) : null}
+              {hierarchy.groups.map((group) => {
+                const branches = [
+                  ...(group.directFloors.length > 0
+                    ? [
+                        {
+                          key: `${group.building.id}-direct`,
+                          node: (
+                            <div className="flex flex-col items-center">
+                              <span className="inline-flex w-[9.5rem] items-center justify-center rounded-full border border-dashed border-[#C4A574] bg-[#FBF7EE] px-3 py-1 text-[11px] font-medium text-[#7A6A55]">
+                                Direct floors
+                              </span>
+                              {renderFloorStack(group.directFloors)}
+                            </div>
+                          ),
+                        },
+                      ]
+                    : []),
+                  ...group.wings.map((entry) => ({
+                    key: entry.wing.id,
+                    node: renderWingBranch(entry),
+                  })),
+                ];
+                return (
+                  <div
+                    key={group.building.id}
+                    className={cn(
+                      "flex flex-col items-center",
+                      multiBuilding &&
+                        "rounded-2xl border border-[#E3D6BC] bg-white/40 px-5 pb-5 pt-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
+                    )}
+                  >
+                    {multiBuilding ? (
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9A8560]">
+                        {group.building.name} hierarchy
+                      </p>
+                    ) : null}
+                    <StructureNodeCard
+                      kind="building"
+                      title={group.building.name}
+                      meta={group.building.code}
+                      summary={`${countPhrase(group.wings.length, "Wing", "Wings")} · ${countPhrase(group.floorTotal, "Floor", "Floors")}`}
+                      selected={selected?.kind === "building" && selected.id === group.building.id}
+                      active={group.building.active}
+                      onSelect={() => selectNode({ kind: "building", id: group.building.id })}
+                      menu={nodeMenu(
+                        { kind: "building", id: group.building.id },
+                        group.building.name,
+                        group.building.active,
+                        buildingMutation.isPending,
+                        () =>
+                          buildingMutation.mutate({
+                            id: group.building.id,
+                            code: group.building.code,
+                            name: group.building.name,
+                            active: false,
+                            status: "inactive",
+                          }),
+                      )}
+                    />
+                    {branches.length > 0 ? (
+                      <>
+                        <div aria-hidden className="h-3 w-px bg-[#C4A574]" />
+                        <div className="flex items-start">
+                          {branches.map((branch, index) => (
+                            <StructureChildColumn
+                              key={branch.key}
+                              index={index}
+                              count={branches.length}
+                            >
+                              {branch.node}
+                            </StructureChildColumn>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {hierarchy.orphanWings.length > 0 ? (
+                <div className="flex flex-col items-center rounded-2xl border border-dashed border-[#D9C7A0] bg-white/30 px-5 pb-5 pt-3">
+                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9A8560]">
+                    Wings without a building
+                  </p>
+                  <div className="flex items-start gap-5">
+                    {hierarchy.orphanWings.map((entry) => (
+                      <div key={entry.wing.id}>{renderWingBranch(entry)}</div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute bottom-3 right-3 top-14 z-20 flex w-[min(44rem,calc(100%-11.5rem))] max-w-[calc(100%-1.5rem)] flex-col items-end gap-2 overflow-hidden">
+          {detailsOpen && (selected || newBuildingDraft) ? (
+            <div className="pointer-events-auto flex min-h-0 w-[min(22rem,100%)] flex-[0_1_auto] flex-col overflow-hidden">
+              <StructureWindow
+                title={
+                  newBuildingDraft
+                    ? "New building"
+                    : (building?.name ?? wing?.name ?? floor?.name ?? "Details")
+                }
+                subtitle={newBuildingDraft ? "Property › New building" : breadcrumb || undefined}
+                active={
+                  newBuildingDraft
+                    ? true
+                    : (building?.active ?? wing?.active ?? floor?.active ?? true)
+                }
+                icon={
+                  newBuildingDraft || selected?.kind === "building" ? (
+                    <Building2 className="size-3.5" />
+                  ) : selected?.kind === "wing" ? (
+                    <Columns2 className="size-3.5" />
+                  ) : (
+                    <Layers3 className="size-3.5" />
+                  )
+                }
+                scroll
+                className={frontWindow === "details" ? "z-30" : "z-20"}
+                onClose={() => {
+                  setDetailsOpen(false);
+                  setNewBuildingDraft(null);
+                }}
+                onFocus={() => setFrontWindow("details")}
+                menu={
+                  selected && canEdit ? (
+                    <WindowMenu label="Details menu">
+                      <DropdownMenuItem
+                        disabled={deleteStructureMutation.isPending}
+                        onClick={() => confirmDelete(selected)}
+                      >
+                        Delete {selected.kind}
+                      </DropdownMenuItem>
+                    </WindowMenu>
+                  ) : null
+                }
+              >
+                {newBuildingDraft ? (
+                  <NewBuildingForm
+                    key={newBuildingDraft.code}
+                    initialName={newBuildingDraft.name}
+                    initialCode={newBuildingDraft.code}
+                    canEdit={canEdit}
+                    pending={buildingMutation.isPending}
+                    onCancel={() => {
+                      setNewBuildingDraft(null);
+                      setDetailsOpen(false);
+                    }}
+                    onSave={(input) => buildingMutation.mutate(input)}
+                  />
+                ) : building ? (
+                  <BuildingForm
+                    key={building.id}
+                    building={building}
+                    canEdit={canEdit}
+                    pending={buildingMutation.isPending}
+                    onSave={(input) => buildingMutation.mutate(input)}
+                    onDeactivate={() =>
+                      buildingMutation.mutate({
+                        id: building.id,
+                        code: building.code,
+                        name: building.name,
+                        active: false,
+                        status: "inactive",
+                      })
+                    }
+                    onActivate={() =>
+                      buildingMutation.mutate({
+                        id: building.id,
+                        code: building.code,
+                        name: building.name,
+                        active: true,
+                        status: "active",
+                        floorCount: building.floorCount,
+                        buildingType: building.buildingType,
+                        description: building.description,
+                        location: building.location,
+                      })
+                    }
+                  />
+                ) : wing ? (
+                  <WingForm
+                    key={wing.id}
+                    wing={wing}
+                    buildings={set2.buildings}
+                    canEdit={canEdit}
+                    pending={wingMutation.isPending}
+                    onSave={(input) => wingMutation.mutate(input)}
+                    onDeactivate={() =>
+                      wingMutation.mutate({
+                        id: wing.id,
+                        name: wing.name,
+                        active: false,
+                        parentBuildingId: wing.parentBuildingId,
+                        parentFloorId: wing.parentFloorId,
+                        status: "inactive",
+                      })
+                    }
+                    onActivate={() =>
+                      wingMutation.mutate({
+                        id: wing.id,
+                        name: wing.name,
+                        active: true,
+                        parentBuildingId: wing.parentBuildingId,
+                        parentFloorId: wing.parentFloorId,
+                        code: wing.code,
+                        description: wing.description,
+                        status: "active",
+                      })
+                    }
+                  />
+                ) : floor ? (
+                  <FloorForm
+                    key={floor.id}
+                    floor={floor}
+                    buildings={set2.buildings}
+                    wings={set2.wings}
+                    canEdit={canEdit}
+                    pending={floorMutation.isPending}
+                    onSave={(input) => floorMutation.mutate(input)}
+                    onDeactivate={() =>
+                      floorMutation.mutate({
+                        id: floor.id,
+                        buildingId: floor.buildingId,
+                        code: floor.code,
+                        name: floor.name,
+                        active: false,
+                        status: "inactive",
+                      })
+                    }
+                    onActivate={() =>
+                      floorMutation.mutate({
+                        id: floor.id,
+                        buildingId: floor.buildingId,
+                        code: floor.code,
+                        name: floor.name,
+                        active: true,
+                        floorNumber: floor.floorNumber,
+                        description: floor.description,
+                        status: "active",
+                        wingId: floor.wingId,
+                      })
+                    }
+                  />
+                ) : null}
+              </StructureWindow>
+            </div>
+          ) : null}
+
+          {utility === "capacity" ? (
+            <div className="pointer-events-auto w-[min(20rem,100%)] shrink-0">
+              <StructureWindow
+                title="Capacity"
+                icon={<Layers3 className="size-3.5" />}
+                scroll={false}
+                className={cn("h-auto", frontWindow === "capacity" ? "z-30" : "z-20")}
+                onClose={() => setUtility(null)}
+                onFocus={() => setFrontWindow("capacity")}
+                menu={<WindowMenu label="Capacity menu" onClose={() => setUtility(null)} />}
+              >
+                <div className="grid grid-cols-2 gap-2" data-testid="card1-derived-capacity">
+                  {(
+                    [
+                      ["Buildings", snapshot.derivedCapacity.buildings],
+                      ["Wings", set2.wings.length],
+                      ["Floors", snapshot.derivedCapacity.floors],
+                      ["Rooms", snapshot.derivedCapacity.rooms],
+                      ["Sellable rooms", snapshot.derivedCapacity.sellable],
+                      ["Non-sellable rooms", snapshot.derivedCapacity.nonSellable],
+                    ] as const
+                  ).map(([label, value]) => (
+                    <div key={label} className="rounded-lg border border-[#E8E1D7] bg-[#FBF7EE] px-2.5 py-2">
+                      <p className="text-[11px] text-[#7A6A55]">{label}</p>
+                      <p className="text-sm font-semibold text-[#251605]">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </StructureWindow>
+            </div>
+          ) : null}
+
+          {utility === "areas" ? (
+            <div className="pointer-events-auto max-h-full w-[min(22rem,100%)] shrink overflow-y-auto">
+              <StructureWindow
+                title="Property Areas"
+                icon={<Columns2 className="size-3.5" />}
+                scroll={false}
+                className={cn("h-auto", frontWindow === "areas" ? "z-30" : "z-20")}
+                onClose={() => setUtility(null)}
+                onFocus={() => setFrontWindow("areas")}
+                menu={<WindowMenu label="Property Areas menu" onClose={() => setUtility(null)} />}
+              >
+                {functionalHardeningAvailable ? (
+                  areaComposerOpen ? (
+                    <PropertySetupFormGrid>
+                      <Field id="card1-area-name" label="Area Name" value={areaName} onChange={setAreaName} />
+                      <Field
+                        id="card1-area-description"
+                        label="Description"
+                        value={areaDescription}
+                        onChange={setAreaDescription}
+                      />
+                      <div className="flex items-end gap-2">
+                        <Button
+                          type="button"
+                          disabled={!areaName.trim() || areaMutation.isPending}
+                          onClick={() => areaMutation.mutate()}
+                        >
+                          {editingArea ? "Save Area" : "Add Area"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingArea(null);
+                            setAreaName("");
+                            setAreaDescription("");
+                            setAreaComposerOpen(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </PropertySetupFormGrid>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {propertyAreas.map((area) => (
+                        <div key={area.id} className="flex items-center gap-2 rounded-lg px-1 py-1">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-[#251605]">{area.name}</p>
+                            {area.description ? (
+                              <p className="truncate text-xs text-[#7A6A55]">{area.description}</p>
+                            ) : null}
+                          </div>
+                          {canEdit ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  type="button"
+                                  aria-label={`${area.name} actions`}
+                                  className="rounded-md p-1 text-[#8A7352] outline-none hover:bg-[#F4E9D0] hover:text-[#251605] focus-visible:bg-[#FBF3DE]"
+                                >
+                                  <Ellipsis className="size-3.5" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setEditingArea(area);
+                                    setAreaName(area.name);
+                                    setAreaDescription(area.description);
+                                    setAreaComposerOpen(true);
+                                  }}
+                                >
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={deleteAreaMutation.isPending}
+                                  onClick={() => {
+                                    if (window.confirm(`Delete property area “${area.name}”?`)) {
+                                      deleteAreaMutation.mutate(area.id);
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : null}
+                        </div>
+                      ))}
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="px-1 py-1 text-left text-xs font-semibold text-[#8A641A] hover:text-[#251605]"
+                          onClick={() => {
+                            setEditingArea(null);
+                            setAreaName("");
+                            setAreaDescription("");
+                            setAreaComposerOpen(true);
+                          }}
+                        >
+                          + Add Area
+                        </button>
+                      ) : null}
+                    </div>
+                  )
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {CARD1_PROPERTY_AREA_OPTIONS.map((area) => {
+                      const on = draft.propertyAreas.includes(area);
+                      return (
+                        <button
+                          key={area}
+                          type="button"
+                          disabled={!canEdit}
+                          onClick={() =>
+                            setDraft((p) => ({
+                              ...p,
+                              propertyAreas: on
+                                ? p.propertyAreas.filter((row) => row !== area)
+                                : [...p.propertyAreas, area],
+                            }))
+                          }
+                          className={`rounded-full border px-3 py-1 text-xs outline-none ${on ? "border-[#C89933] bg-[#FBF3DE] text-[#251605]" : "border-[#CCCCCC] text-[#7A6A55]"}`}
+                        >
+                          {area}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </StructureWindow>
+            </div>
+          ) : null}
+
+          {utility === "rules" ? (
+            <div className="pointer-events-auto w-[min(40rem,100%)] shrink-0">
+              <StructureWindow
+                title="Structure Rules"
+                icon={<Layers3 className="size-3.5" />}
+                scroll={false}
+                className={cn("h-auto", frontWindow === "rules" ? "z-30" : "z-20")}
+                onClose={() => setUtility(null)}
+                onFocus={() => setFrontWindow("rules")}
+                menu={<WindowMenu label="Structure Rules menu" onClose={() => setUtility(null)} />}
+              >
+                <div className="flex flex-wrap gap-1.5">
+                  <RuleChip label="Building required" on={draft.structureRules.buildingRequired} />
+                  <RuleChip label="Wing optional" on={draft.structureRules.wingOptional} />
+                  <RuleChip label="Floor required" on={draft.structureRules.floorRequired} />
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[14rem] flex-1">
+                    <Field
+                      id="card1-code-format"
+                      label="Room Number / Code Format"
+                      value={draft.structureRules.roomCodeFormat}
+                      disabled={!canEdit}
+                      onChange={(roomCodeFormat) =>
+                        setDraft((p) => ({
+                          ...p,
+                          structureRules: { ...p.structureRules, roomCodeFormat },
+                        }))
+                      }
+                      helper={`Example: ${structureRoomCodeExample(draft.structureRules.roomCodeFormat)}`}
+                    />
+                  </div>
+                  <div className="min-w-[11rem] flex-1">
+                    <ToggleRow
+                      id="card1-auto-number"
+                      label="Auto Numbering"
+                      checked={draft.structureRules.autoNumbering}
+                      disabled={!canEdit}
+                      onChange={(autoNumbering) =>
+                        setDraft((p) => ({
+                          ...p,
+                          structureRules: { ...p.structureRules, autoNumbering },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="min-w-[13rem] flex-1">
+                    <ToggleRow
+                      id="card1-dup"
+                      label="Prevent Duplicate Room Codes"
+                      checked={draft.structureRules.duplicateCodePrevention}
+                      disabled={!canEdit}
+                      onChange={(duplicateCodePrevention) =>
+                        setDraft((p) => ({
+                          ...p,
+                          structureRules: { ...p.structureRules, duplicateCodePrevention },
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+                {warnings.map((warning) => (
+                  <p key={warning} className="text-sm text-[#C89933]">
+                    {warning}
+                  </p>
+                ))}
+              </StructureWindow>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type StructureUtility = "capacity" | "areas" | "rules";
+type StructureWindowId = "details" | StructureUtility;
+
+const STRUCTURE_RAIL_BUTTON =
+  "rounded-lg border border-[#E6DCC8] bg-white/95 px-2.5 py-1.5 text-left text-xs font-semibold text-[#251605] shadow-sm hover:border-[#C89933] disabled:cursor-not-allowed disabled:opacity-50";
+
+const STRUCTURE_RAIL_ACTION =
+  "rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-[#251605] hover:bg-[#FBF3DE] disabled:cursor-not-allowed disabled:opacity-50";
+
+const STRUCTURE_ZOOM_BUTTON =
+  "rounded-lg p-1.5 text-[#5C5346] hover:bg-[#FBF3DE] disabled:cursor-not-allowed disabled:opacity-40";
+
+function countPhrase(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function UtilityButton({
+  icon,
+  label,
+  open,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  open: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={open}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold",
+        "border outline-none focus:outline-none focus-visible:border-[#C89933]",
+        open
+          ? "border-[#C89933] bg-[#FBF3DE] text-[#251605]"
+          : "border-transparent text-[#5C5346] hover:border-[#E6DCC8] hover:bg-[#FBF3DE]",
+      )}
+    >
+      <span className={open ? "text-[#251605]" : "text-[#C89933]"}>{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function WindowMenu({
+  label,
+  onClose,
+  children,
+}: {
+  label: string;
+  onClose?: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="rounded-md p-1 text-[#B5A48C] outline-none hover:bg-[#F4E9D0] hover:text-[#251605] focus-visible:text-[#251605]"
+        >
+          <Ellipsis className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {children}
+        {onClose ? <DropdownMenuItem onClick={onClose}>Close</DropdownMenuItem> : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function StructureWindow({
+  title,
+  subtitle,
+  active,
+  icon,
+  className,
+  scroll = true,
+  onClose,
+  onFocus,
+  menu,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  active?: boolean;
+  icon: ReactNode;
+  className?: string;
+  scroll?: boolean;
+  onClose: () => void;
+  onFocus: () => void;
+  menu?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "flex h-full max-h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-[#E8E1D7] bg-[#FFFCF7] shadow-[0_8px_20px_rgba(37,22,5,0.08)]",
+        className,
+      )}
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        onFocus();
+      }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <header className="flex shrink-0 items-start gap-2 border-b border-[#E8E1D7] bg-[#FBF7EE] px-3 py-2">
+        <span className="mt-0.5 text-[#C89933]">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="truncate text-sm font-semibold text-[#251605]">{title}</h3>
+            {active === undefined ? null : <StatusChip active={active} />}
+          </div>
+          {subtitle ? (
+            <p className="truncate text-[11px] text-[#7A6A55]">{subtitle}</p>
+          ) : null}
+        </div>
+        {menu}
+        <button
+          type="button"
+          aria-label={`Close ${title}`}
+          onClick={onClose}
+          className="rounded-md p-1 text-[#8A7352] outline-none hover:bg-[#F4E9D0] hover:text-[#251605]"
+        >
+          <X className="size-3.5" />
+        </button>
+      </header>
+      <div
+        className={cn(
+          "space-y-3 p-3",
+          scroll ? "min-h-0 flex-1 overflow-y-auto" : "overflow-visible",
+        )}
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function StatusChip({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide",
+        active ? "bg-[#FBF3DE] text-[#8A641A]" : "bg-[#F4EDE0] text-[#7A6A55]",
+      )}
+    >
+      {active ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+function StructureNodeCard({
+  kind,
+  title,
+  meta,
+  summary,
+  selected,
+  active,
+  onSelect,
+  menu,
+}: {
+  kind: "building" | "wing" | "floor";
+  title: string;
+  meta?: string | undefined;
+  summary?: string | undefined;
+  selected: boolean;
+  active: boolean;
+  onSelect: () => void;
+  menu?: ReactNode;
+}) {
+  const Icon = kind === "building" ? Building2 : kind === "wing" ? Columns2 : Layers3;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "group relative flex cursor-pointer items-center gap-2.5 rounded-xl border text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]/50",
+        kind === "building" && "w-[15rem] border-2 px-4 py-3",
+        kind === "wing" && "w-[11.5rem] px-3 py-2.5",
+        kind === "floor" && "w-[9.5rem] px-2.5 py-1.5",
+        selected
+          ? "border-[#C89933] bg-[#FBF1D6] shadow-[0_10px_24px_rgba(200,153,51,0.32)]"
+          : kind === "building"
+            ? "border-[#D9C7A0] bg-white shadow-sm hover:border-[#C89933]/70"
+            : "border-[#E4D8C4] bg-white/95 shadow-sm hover:border-[#C89933]/70",
+        selected && kind === "building" && "ring-2 ring-[#C89933]/30",
+        !active && "opacity-70",
+      )}
+    >
+      <Icon
+        className={cn(
+          "shrink-0 text-[#C89933]",
+          kind === "building" ? "size-5" : kind === "wing" ? "size-4" : "size-3.5",
+        )}
+      />
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "truncate font-semibold leading-tight text-[#251605]",
+            kind === "building" ? "text-[15px]" : kind === "wing" ? "text-sm" : "text-xs",
+          )}
+        >
+          {title}
+        </p>
+        {meta ? (
+          <p className="truncate text-[11px] leading-tight text-[#7A6A55]">{meta}</p>
+        ) : null}
+        {summary ? (
+          <p
+            className={cn(
+              "truncate leading-tight text-[#5C5346]",
+              kind === "floor" ? "text-[11px]" : "mt-0.5 text-xs",
+            )}
+          >
+            {summary}
+            {!active ? " · Inactive" : ""}
+          </p>
+        ) : !active ? (
+          <p className="text-[11px] leading-tight text-[#8A7352]">Inactive</p>
+        ) : null}
+      </div>
+      {menu ? (
+        <div
+          className={cn(
+            "shrink-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100",
+            selected ? "opacity-100" : "opacity-0",
+          )}
+        >
+          {menu}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StructureChildColumn({
+  index,
+  count,
+  children,
+}: {
+  index: number;
+  count: number;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative flex flex-col items-center px-3 pt-3">
+      {count > 1 ? (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute top-0 h-px bg-[#C4A574]",
+            index === 0 && "left-1/2 right-0",
+            index === count - 1 && "left-0 right-1/2",
+            index > 0 && index < count - 1 && "inset-x-0",
+          )}
+        />
+      ) : null}
+      <span aria-hidden className="absolute left-1/2 top-0 h-3 w-px -translate-x-1/2 bg-[#C4A574]" />
+      {children}
+    </div>
+  );
+}
+
+function floorSubtitle(
+  floor: Set2Snapshot["floors"][number],
+  roomCount: number | undefined,
+): string | undefined {
+  const parts: string[] = [];
+  const identifier = floor.floorNumber != null ? String(floor.floorNumber) : floor.code;
+  const nameWords = floor.name.toLowerCase().split(/[^a-z0-9]+/);
+  if (identifier && !nameWords.includes(identifier.toLowerCase())) {
+    parts.push(`No. ${identifier}`);
+  }
+  if (typeof roomCount === "number") parts.push(countPhrase(roomCount, "room", "rooms"));
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+function FloorStack({
+  floors,
+  roomCountFor,
+  selectedId,
+  onSelect,
+  menuFor,
+}: {
+  floors: Set2Snapshot["floors"];
+  roomCountFor: (id: string) => number | undefined;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  menuFor: (floor: Set2Snapshot["floors"][number]) => ReactNode;
+}) {
+  if (floors.length === 0) return null;
+  return (
+    <ul className="mt-3 flex flex-col items-center gap-2">
+      {floors.map((item, index) => (
+        <li key={item.id} className="relative">
+          <span
+            aria-hidden
+            className={cn(
+              "absolute left-1/2 w-px -translate-x-1/2 bg-[#C4A574]",
+              index === 0 ? "-top-3 h-3" : "-top-2 h-2",
+            )}
+          />
+          <StructureNodeCard
+            kind="floor"
+            title={item.name}
+            summary={floorSubtitle(item, roomCountFor(item.id))}
+            selected={selectedId === item.id}
+            active={item.active}
+            onSelect={() => onSelect(item.id)}
+            menu={menuFor(item)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function NewBuildingForm({
+  initialName,
+  initialCode,
+  canEdit,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  initialName: string;
+  initialCode: string;
+  canEdit: boolean;
+  pending: boolean;
+  onSave: (input: {
+    code: string;
+    name: string;
+    active: boolean;
+    floorCount: number | null;
+    buildingType: string;
+    description: string;
+    location: string;
+    status: string;
+  }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [code, setCode] = useState(initialCode);
+  const [type, setType] = useState("");
+  const [floors, setFloors] = useState("");
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id="b-name" label="Name" required value={name} disabled={!canEdit} onChange={setName} />
+        <Field id="b-code" label="Code" required value={code} disabled={!canEdit} onChange={setCode} />
+        <Field id="b-type" label="Type" value={type} disabled={!canEdit} onChange={setType} />
+        <Field
+          id="b-floors"
+          label="Number of Floors"
+          value={floors}
+          disabled={!canEdit}
+          onChange={setFloors}
+        />
+        <Field id="b-location" label="Location" value={location} disabled={!canEdit} onChange={setLocation} />
+      </div>
+      <Field
+        id="b-desc"
+        label="Description"
+        value={description}
+        disabled={!canEdit}
+        onChange={setDescription}
+      />
+      {canEdit ? (
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canEdit}
+            disabled={pending || !name.trim() || !code.trim()}
             onClick={() =>
-              buildingMutation.mutate({
-                code: `B${set2.buildings.length + 1}`,
-                name: `Building ${set2.buildings.length + 1}`,
+              onSave({
+                code,
+                name,
                 active: true,
+                floorCount: floors ? Number(floors) : null,
+                buildingType: type,
+                description,
+                location,
+                status: "active",
               })
             }
           >
-            + Add Building
+            Save Changes
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canEdit || set2.buildings.length === 0}
-            onClick={() =>
-              wingMutation.mutate({
-                name: `Wing ${set2.wings.length + 1}`,
-                active: true,
-                parentBuildingId:
-                  selected?.kind === "building" ? selected.id : (set2.buildings[0]?.id ?? null),
-                parentFloorId: null,
-                code: `W${set2.wings.length + 1}`,
-              })
-            }
-          >
-            + Add Wing
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canEdit || set2.buildings.length === 0}
-            onClick={() =>
-              floorMutation.mutate({
-                buildingId:
-                  selected?.kind === "building" ? selected.id : (set2.buildings[0]?.id ?? ""),
-                code: `${set2.floors.length + 1}`,
-                name: `Floor ${set2.floors.length + 1}`,
-                active: true,
-                floorNumber: set2.floors.length + 1,
-                wingId: selected?.kind === "wing" ? selected.id : null,
-              })
-            }
-          >
-            + Add Floor
+          <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
+            Cancel
           </Button>
         </div>
-        <ul className="mt-3 space-y-2 text-sm">
-          {tree.map((node) => (
-            <li key={node.building.id}>
-              <button
-                type="button"
-                onClick={() => setSelected({ kind: "building", id: node.building.id })}
-                className={`w-full rounded-lg border px-2 py-1.5 text-left ${selected?.id === node.building.id ? "border-[#C89933] bg-[#C89933]/10" : "border-[#CCCCCC]"}`}
-              >
-                {node.building.name} · {node.building.code}
-              </button>
-              <ul className="ml-4 mt-1 space-y-1">
-                {node.wings.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelected({ kind: "wing", id: item.id })}
-                      className={`w-full rounded-lg border px-2 py-1 text-left ${selected?.id === item.id ? "border-[#C89933] bg-[#C89933]/10" : "border-[#CCCCCC]"}`}
-                    >
-                      Wing · {item.name}
-                    </button>
-                  </li>
-                ))}
-                {node.floors.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelected({ kind: "floor", id: item.id })}
-                      className={`w-full rounded-lg border px-2 py-1 text-left ${selected?.id === item.id ? "border-[#C89933] bg-[#C89933]/10" : "border-[#CCCCCC]"}`}
-                    >
-                      Floor · {item.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      </Panel>
-      <div className="space-y-4">
-        {building ? (
-          <Panel title="Building Details">
-            <BuildingForm
-              key={building.id}
-              building={building}
-              canEdit={canEdit}
-              pending={buildingMutation.isPending}
-              onSave={(input) => buildingMutation.mutate(input)}
-              onDeactivate={() =>
-                buildingMutation.mutate({
-                  id: building.id,
-                  code: building.code,
-                  name: building.name,
-                  active: false,
-                  status: "inactive",
-                })
-              }
-            />
-          </Panel>
-        ) : wing ? (
-          <Panel title="Wing Details">
-            <WingForm
-              key={wing.id}
-              wing={wing}
-              buildings={set2.buildings}
-              canEdit={canEdit}
-              pending={wingMutation.isPending}
-              onSave={(input) => wingMutation.mutate(input)}
-              onDeactivate={() =>
-                wingMutation.mutate({
-                  id: wing.id,
-                  name: wing.name,
-                  active: false,
-                  parentBuildingId: wing.parentBuildingId,
-                  parentFloorId: wing.parentFloorId,
-                  status: "inactive",
-                })
-              }
-            />
-          </Panel>
-        ) : floor ? (
-          <Panel title="Floor Details">
-            <FloorForm
-              key={floor.id}
-              floor={floor}
-              buildings={set2.buildings}
-              wings={set2.wings}
-              canEdit={canEdit}
-              pending={floorMutation.isPending}
-              onSave={(input) => floorMutation.mutate(input)}
-              onDeactivate={() =>
-                floorMutation.mutate({
-                  id: floor.id,
-                  buildingId: floor.buildingId,
-                  code: floor.code,
-                  name: floor.name,
-                  active: false,
-                  status: "inactive",
-                })
-              }
-            />
-          </Panel>
-        ) : (
-          <Panel title="Details">
-            <p className="text-sm text-muted-foreground">
-              Select a building, wing or floor — or add one. Full hierarchy CRUD is live.
-            </p>
-          </Panel>
-        )}
-        {selected && canEdit ? (
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleteStructureMutation.isPending}
-              onClick={() => {
-                if (
-                  !window.confirm(
-                    "Delete this structure item? Dependencies will block unsafe deletion.",
-                  )
-                )
-                  return;
-                deleteStructureMutation.mutate(selected);
-              }}
-            >
-              Delete {selected.kind}
-            </Button>
-          </div>
-        ) : null}
-        <Panel title="Property Areas">
-          {functionalHardeningAvailable ? (
-            <div className="space-y-3">
-              {propertyAreas.map((area) => (
-                <div key={area.id} className="flex items-center gap-2 rounded-[6px] border p-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-[#251605]">{area.name}</p>
-                    {area.description ? (
-                      <p className="text-xs text-muted-foreground">{area.description}</p>
-                    ) : null}
-                  </div>
-                  {canEdit ? (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingArea(area);
-                          setAreaName(area.name);
-                          setAreaDescription(area.description);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <PropertySetupRemoveButton
-                        label={`Delete ${area.name}`}
-                        disabled={deleteAreaMutation.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Delete property area “${area.name}”?`)) {
-                            deleteAreaMutation.mutate(area.id);
-                          }
-                        }}
-                      />
-                    </>
-                  ) : null}
-                </div>
-              ))}
-              {canEdit ? (
-                <PropertySetupFormGrid>
-                  <Field
-                    id="card1-area-name"
-                    label="Area Name"
-                    value={areaName}
-                    onChange={setAreaName}
-                  />
-                  <Field
-                    id="card1-area-description"
-                    label="Description"
-                    value={areaDescription}
-                    onChange={setAreaDescription}
-                  />
-                  <div className="flex items-end gap-2">
-                    <Button
-                      type="button"
-                      disabled={!areaName.trim() || areaMutation.isPending}
-                      onClick={() => areaMutation.mutate()}
-                    >
-                      {editingArea ? "Save Area" : "Add Area"}
-                    </Button>
-                    {editingArea ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingArea(null);
-                          setAreaName("");
-                          setAreaDescription("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    ) : null}
-                  </div>
-                </PropertySetupFormGrid>
-              ) : null}
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {CARD1_PROPERTY_AREA_OPTIONS.map((area) => {
-                const on = draft.propertyAreas.includes(area);
-                return (
-                  <button
-                    key={area}
-                    type="button"
-                    disabled={!canEdit}
-                    onClick={() =>
-                      setDraft((p) => ({
-                        ...p,
-                        propertyAreas: on
-                          ? p.propertyAreas.filter((row) => row !== area)
-                          : [...p.propertyAreas, area],
-                      }))
-                    }
-                    className={`rounded-full border px-3 py-1 text-xs ${on ? "border-[#C89933] bg-[#C89933]/15 text-[#251605]" : "border-[#CCCCCC] text-muted-foreground"}`}
-                  >
-                    {area}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </Panel>
-        <Panel title="Capacity" helper={CARD1_CAPACITY_COPY}>
-          <div className="grid gap-2 sm:grid-cols-2 text-sm" data-testid="card1-derived-capacity">
-            <p>Buildings: {snapshot.derivedCapacity.buildings}</p>
-            <p>Floors: {snapshot.derivedCapacity.floors}</p>
-            <p>Rooms: {snapshot.derivedCapacity.rooms}</p>
-            <p>Active: {snapshot.derivedCapacity.active}</p>
-            <p>Inactive: {snapshot.derivedCapacity.inactive}</p>
-            <p>Sellable: {snapshot.derivedCapacity.sellable}</p>
-            <p>Non-sellable: {snapshot.derivedCapacity.nonSellable}</p>
-          </div>
-          <a href={CARD1_ROOMS_HREF} className="inline-flex text-sm font-medium text-[#C89933]">
-            Open room inventory
-          </a>
-        </Panel>
-        <Panel title="Structure Rules">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <RuleChip label="Building required" on={draft.structureRules.buildingRequired} />
-            <RuleChip label="Wing optional" on={draft.structureRules.wingOptional} />
-            <RuleChip label="Floor required" on={draft.structureRules.floorRequired} />
-          </div>
-          <Field
-            id="card1-code-format"
-            label="Room # / Code Format"
-            value={draft.structureRules.roomCodeFormat}
-            disabled={!canEdit}
-            onChange={(roomCodeFormat) =>
-              setDraft((p) => ({ ...p, structureRules: { ...p.structureRules, roomCodeFormat } }))
-            }
-            helper={`Example: ${structureRoomCodeExample(draft.structureRules.roomCodeFormat)}`}
-          />
-          <ToggleRow
-            id="card1-auto-number"
-            label="Auto Numbering"
-            checked={draft.structureRules.autoNumbering}
-            disabled={!canEdit}
-            onChange={(autoNumbering) =>
-              setDraft((p) => ({ ...p, structureRules: { ...p.structureRules, autoNumbering } }))
-            }
-          />
-          <ToggleRow
-            id="card1-dup"
-            label="Duplicate Code Prevention"
-            checked={draft.structureRules.duplicateCodePrevention}
-            disabled={!canEdit}
-            onChange={(duplicateCodePrevention) =>
-              setDraft((p) => ({
-                ...p,
-                structureRules: { ...p.structureRules, duplicateCodePrevention },
-              }))
-            }
-          />
-          {warnings.map((warning) => (
-            <p key={warning} className="text-sm text-[#C89933]">
-              {warning}
-            </p>
-          ))}
-        </Panel>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -2561,6 +3650,7 @@ function BuildingForm({
   pending,
   onSave,
   onDeactivate,
+  onActivate,
 }: {
   building: Set2Snapshot["buildings"][number];
   canEdit: boolean;
@@ -2577,6 +3667,7 @@ function BuildingForm({
     status: string;
   }) => void;
   onDeactivate: () => void;
+  onActivate: () => void;
 }) {
   const [name, setName] = useState(building.name);
   const [code, setCode] = useState(building.code);
@@ -2586,9 +3677,6 @@ function BuildingForm({
   );
   const [description, setDescription] = useState(building.description);
   const [location, setLocation] = useState(building.location);
-  const [status, setStatus] = useState(
-    building.status || (building.active ? "active" : "inactive"),
-  );
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -2617,13 +3705,6 @@ function BuildingForm({
           onChange={setFloors}
         />
         <Field
-          id="b-status"
-          label="Status"
-          value={status}
-          disabled={!canEdit}
-          onChange={setStatus}
-        />
-        <Field
           id="b-location"
           label="Location"
           value={location}
@@ -2648,24 +3729,24 @@ function BuildingForm({
                 id: building.id,
                 code,
                 name,
-                active: status !== "inactive",
+                active: building.active,
                 floorCount: floors ? Number(floors) : null,
                 buildingType: type,
                 description,
                 location,
-                status,
+                status: building.active ? "active" : "inactive",
               })
             }
           >
-            Edit / Save
+            Save Changes
           </Button>
           <Button
             type="button"
             variant="outline"
-            disabled={pending || !building.active}
-            onClick={onDeactivate}
+            disabled={pending}
+            onClick={building.active ? onDeactivate : onActivate}
           >
-            Deactivate
+            {building.active ? "Deactivate" : "Activate"}
           </Button>
         </div>
       ) : null}
@@ -2680,6 +3761,7 @@ function WingForm({
   pending,
   onSave,
   onDeactivate,
+  onActivate,
 }: {
   wing: Set2Snapshot["wings"][number];
   buildings: Set2Snapshot["buildings"];
@@ -2696,11 +3778,11 @@ function WingForm({
     status: string;
   }) => void;
   onDeactivate: () => void;
+  onActivate: () => void;
 }) {
   const [name, setName] = useState(wing.name);
   const [code, setCode] = useState(wing.code);
   const [description, setDescription] = useState(wing.description);
-  const [status, setStatus] = useState(wing.status || (wing.active ? "active" : "inactive"));
   const [buildingId, setBuildingId] = useState(wing.parentBuildingId ?? buildings[0]?.id ?? "");
   return (
     <div className="space-y-3">
@@ -2720,13 +3802,6 @@ function WingForm({
           value={code}
           disabled={!canEdit}
           onChange={setCode}
-        />
-        <Field
-          id="w-status"
-          label="Status"
-          value={status}
-          disabled={!canEdit}
-          onChange={setStatus}
         />
         <div className="space-y-1.5">
           <Label>Building</Label>
@@ -2760,24 +3835,24 @@ function WingForm({
               onSave({
                 id: wing.id,
                 name,
-                active: status !== "inactive",
+                active: wing.active,
                 parentBuildingId: buildingId || null,
                 parentFloorId: null,
                 code,
                 description,
-                status,
+                status: wing.active ? "active" : "inactive",
               })
             }
           >
-            Edit / Save
+            Save Changes
           </Button>
           <Button
             type="button"
             variant="outline"
-            disabled={pending || !wing.active}
-            onClick={onDeactivate}
+            disabled={pending}
+            onClick={wing.active ? onDeactivate : onActivate}
           >
-            Deactivate
+            {wing.active ? "Deactivate" : "Activate"}
           </Button>
         </div>
       ) : null}
@@ -2793,6 +3868,7 @@ function FloorForm({
   pending,
   onSave,
   onDeactivate,
+  onActivate,
 }: {
   floor: Set2Snapshot["floors"][number];
   buildings: Set2Snapshot["buildings"];
@@ -2811,12 +3887,12 @@ function FloorForm({
     wingId: string | null;
   }) => void;
   onDeactivate: () => void;
+  onActivate: () => void;
 }) {
   const [name, setName] = useState(floor.name);
   const [code, setCode] = useState(floor.code);
   const [number, setNumber] = useState(floor.floorNumber == null ? "" : String(floor.floorNumber));
   const [description, setDescription] = useState(floor.description);
-  const [status, setStatus] = useState(floor.status || (floor.active ? "active" : "inactive"));
   const [buildingId, setBuildingId] = useState(floor.buildingId);
   const [wingId, setWingId] = useState(floor.wingId ?? "none");
   return (
@@ -2845,13 +3921,6 @@ function FloorForm({
           value={code}
           disabled={!canEdit}
           onChange={setCode}
-        />
-        <Field
-          id="f-status"
-          label="Status"
-          value={status}
-          disabled={!canEdit}
-          onChange={setStatus}
         />
         <div className="space-y-1.5">
           <Label>Building</Label>
@@ -2903,23 +3972,23 @@ function FloorForm({
                 buildingId,
                 code,
                 name,
-                active: status !== "inactive",
+                active: floor.active,
                 floorNumber: number ? Number(number) : null,
                 description,
-                status,
+                status: floor.active ? "active" : "inactive",
                 wingId: wingId === "none" ? null : wingId,
               })
             }
           >
-            Edit / Save
+            Save Changes
           </Button>
           <Button
             type="button"
             variant="outline"
-            disabled={pending || !floor.active}
-            onClick={onDeactivate}
+            disabled={pending}
+            onClick={floor.active ? onDeactivate : onActivate}
           >
-            Deactivate
+            {floor.active ? "Deactivate" : "Activate"}
           </Button>
         </div>
       ) : null}
@@ -2957,11 +4026,11 @@ function ToggleRow({
 function RuleChip({ label, on }: { label: string; on: boolean }) {
   return (
     <div
-      className="rounded-xl border border-[#CCCCCC] px-3 py-2 text-sm"
+      className="inline-flex items-center gap-1.5 rounded-full border border-[#E6DCC8] bg-white px-2.5 py-1 text-xs"
       data-testid={`card1-rule-${label.toLowerCase().replace(/\s+/g, "-")}`}
     >
-      <p className="font-medium text-[#251605]">{label}</p>
-      <p className="text-muted-foreground">{on ? "On" : "Off"}</p>
+      <span className="font-medium text-[#251605]">{label}</span>
+      <span className="text-[#7A6A55]">{on ? "On" : "Off"}</span>
     </div>
   );
 }
@@ -2986,8 +4055,14 @@ function ColourField({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{label}</Label>
-      <div className="flex h-11 overflow-hidden rounded-md border border-[#CCCCCC] bg-white">
-        <label className="relative h-full w-11 shrink-0 overflow-hidden border-r border-[#CCCCCC]">
+      <div
+        className={cn(
+          "flex h-11 items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-white px-2 transition-colors focus-within:border-[#C89933] focus-within:ring-1 focus-within:ring-[#C89933]",
+          error && "border-red-500 focus-within:border-red-500 focus-within:ring-red-500",
+        )}
+      >
+        <label className="relative size-7 shrink-0 overflow-hidden rounded-md border border-[#E6E1D8]">
+          <span className="absolute inset-0" style={{ backgroundColor: pickerValue }} aria-hidden />
           <span className="sr-only">{label} swatch</span>
           <Input
             type="color"
@@ -2995,7 +4070,7 @@ function ColourField({
             value={pickerValue}
             disabled={disabled}
             onChange={(event) => onChange(event.target.value.toUpperCase())}
-            className="absolute inset-[-20%] h-[140%] w-[140%] cursor-pointer border-0 p-0"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
           />
         </label>
         <Input
@@ -3006,7 +4081,7 @@ function ColourField({
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.target.value)}
-          className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 font-mono text-sm shadow-none focus-visible:ring-0"
+          className="h-8 min-w-0 flex-1 border-0 bg-transparent px-1 font-mono text-sm uppercase shadow-none focus-visible:ring-0"
         />
       </div>
       {error ? (
@@ -3091,11 +4166,12 @@ function BrandImageField({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={`${id}-file`}>{label}</Label>
-      <div className={`flex items-center gap-3 ${landscape ? "sm:items-stretch" : ""}`}>
+      <div className="flex items-center gap-3">
         <div
-          className={`group relative overflow-hidden rounded-xl border border-[#E8E2D6] bg-[#F7F4EE] ${
-            landscape ? "h-20 w-36" : "h-16 w-16"
-          }`}
+          className={cn(
+            "group relative shrink-0 overflow-hidden rounded-lg border border-[#E6E1D8] bg-[#F7F4EE]",
+            landscape ? "h-14 w-24" : "size-14",
+          )}
         >
           {shown ? (
             <>
@@ -3122,25 +4198,26 @@ function BrandImageField({
               type="button"
               disabled={disabled || uploading}
               onClick={() => fileRef.current?.click()}
-              className="flex h-full w-full items-center justify-center text-center text-[11px] text-muted-foreground"
+              className="flex h-full w-full items-center justify-center text-center text-[10px] leading-tight text-muted-foreground"
             >
-              Upload image
+              No image
             </button>
           )}
         </div>
         <div className="min-w-0 space-y-1">
-          {shown && !disabled ? (
+          {!disabled ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="h-8 border-[#DDD4C5] px-2.5 text-xs"
               disabled={uploading}
               onClick={() => fileRef.current?.click()}
             >
               {uploading ? "Uploading…" : "Change Image"}
             </Button>
           ) : null}
-          <p className="text-xs text-muted-foreground">{CARD1_BRAND_IMAGE_HELPER}</p>
+          <p className="text-[11px] text-muted-foreground">{CARD1_BRAND_IMAGE_HELPER}</p>
         </div>
       </div>
       {message ? (
@@ -3295,9 +4372,6 @@ function PropertyImagesField({
               </span>
             )}
           </Label>
-          <p className="text-xs text-muted-foreground">
-            Cover photo is used on guest documents.
-          </p>
         </div>
       </div>
 
@@ -3328,8 +4402,8 @@ function PropertyImagesField({
                   </div>
                 )}
                 {isCover && (
-                  <div className="absolute left-2 top-2 rounded-md bg-[#251605] px-1.5 py-0.5 text-[10px] font-semibold text-[#F7F4EE] shadow">
-                    ★ Cover
+                  <div className="absolute left-2 top-2 rounded-md bg-[#C89933] px-1.5 py-0.5 text-[10px] font-semibold text-[#251605] shadow">
+                    Cover
                   </div>
                 )}
                 {!disabled && (
@@ -3365,24 +4439,28 @@ function PropertyImagesField({
           <label
             htmlFor={`${id}-file`}
             className={cn(
-              "flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#DDD4C5] bg-[#FAF8F5] p-3 text-center transition-colors hover:border-[#251605] hover:bg-[#F5F1E8]",
+              "flex cursor-pointer flex-col overflow-hidden rounded-xl border-2 border-dashed border-[#DDD4C5] bg-[#FAF8F5] text-center transition-colors hover:border-[#C89933] hover:bg-[#FBF7EE]",
               uploading && "pointer-events-none opacity-60",
             )}
           >
-            {uploading ? (
-              <div className="space-y-1">
-                <div className="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-[#251605] border-t-transparent" />
-                <p className="text-xs font-medium text-[#251605]">Uploading…</p>
-              </div>
-            ) : (
-              <>
-                <div className="rounded-full bg-white p-2 shadow-sm border border-[#E8E2D6]">
-                  <Plus className="h-4 w-4 text-[#251605]" />
-                </div>
-                <span className="mt-1.5 text-xs font-semibold text-[#251605]">Upload Images</span>
-                <span className="text-[10px] text-muted-foreground">Select multiple files</span>
-              </>
-            )}
+            <span className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1.5 px-3">
+              {uploading ? (
+                <>
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#251605] border-t-transparent" />
+                  <span className="text-xs font-medium text-[#251605]">Uploading…</span>
+                </>
+              ) : (
+                <>
+                  <span className="rounded-full border border-[#E8E2D6] bg-white p-2 shadow-sm">
+                    <Plus className="h-4 w-4 text-[#251605]" />
+                  </span>
+                  <span className="text-xs font-semibold text-[#251605]">Upload Images</span>
+                </>
+              )}
+            </span>
+            <span className="flex h-9 items-center justify-center border-t border-[#E8E2D6] px-2 text-[11px] text-muted-foreground">
+              PNG, JPG or WEBP
+            </span>
             <input
               id={`${id}-file`}
               ref={fileRef}
@@ -3417,6 +4495,8 @@ function UploadRefs({
   refs,
   canEdit,
   required,
+  controlId,
+  error: externalError,
   onChange,
 }: {
   restaurantId: string;
@@ -3425,6 +4505,8 @@ function UploadRefs({
   refs: Card1UploadRef[];
   canEdit: boolean;
   required?: boolean;
+  controlId?: string;
+  error?: string;
   onChange: (refs: Card1UploadRef[]) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -3517,9 +4599,12 @@ function UploadRefs({
       ))}
       {canEdit ? (
         <Button
+          id={controlId}
           type="button"
           variant="outline"
           disabled={uploading}
+          aria-invalid={Boolean(externalError)}
+          className={cn(externalError && "border-red-500")}
           onClick={() => fileRef.current?.click()}
         >
           {uploading ? "Uploading…" : rows.length > 0 ? `Replace ${label}` : `Upload ${label}`}
@@ -3534,6 +4619,11 @@ function UploadRefs({
         onChange={(event) => void onFile(event.target.files?.[0])}
       />
       <p className="text-xs text-muted-foreground">PDF, PNG or JPEG. Smaller than 1 MB.</p>
+      {externalError ? (
+        <p className="text-xs text-red-600" role="alert">
+          {externalError}
+        </p>
+      ) : null}
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );

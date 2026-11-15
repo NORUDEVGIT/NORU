@@ -14,6 +14,25 @@ export const CARD6_SUBTITLE =
 export const CARD6_PURPOSE = "Integrations and Distribution.";
 export const CARD6_HASH = "connectivity-distribution";
 export const CARD6_HREF = `${SET1_HUB_HREF}#${CARD6_HASH}`;
+/** Settings home of the Distribution workspace (Overview opens first). */
+export const CARD6_DISTRIBUTION_HREF = CARD6_HREF;
+const CARD6_OPEN_DISTRIBUTION_KEY = "noru-open-distribution";
+export const CARD6_OPEN_DISTRIBUTION_EVENT = "noru-open-distribution";
+
+/** Ask Card 6 to open on the Distribution tab, now if mounted or on next mount. */
+export function requestCard6DistributionTab(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(CARD6_OPEN_DISTRIBUTION_KEY, "1");
+  window.dispatchEvent(new Event(CARD6_OPEN_DISTRIBUTION_EVENT));
+}
+
+/** Reads and clears the one-time Distribution tab request. */
+export function takeCard6DistributionTabRequest(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.sessionStorage.getItem(CARD6_OPEN_DISTRIBUTION_KEY) !== "1") return false;
+  window.sessionStorage.removeItem(CARD6_OPEN_DISTRIBUTION_KEY);
+  return true;
+}
 export const CARD6_SIDEBAR_OUT =
   "Card 6 uses full-screen PMS top-nav chrome. The old Settings left sidebar is out.";
 

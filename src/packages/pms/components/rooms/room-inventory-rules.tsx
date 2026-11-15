@@ -9,7 +9,6 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
-  ExternalLink,
   Gauge,
   Layers3,
   Moon,
@@ -37,7 +36,11 @@ import {
   saveInventoryRules,
 } from "@/packages/pms/lib/inventory-rules.functions";
 import { getOverbookingBoard } from "@/packages/pms/lib/overbooking.functions";
-import { evaluateRoomAssignment } from "@/packages/pms/lib/room-inventory.functions";
+import {
+  evaluateRoomAssignment,
+  getEligibilityReservationUnit,
+} from "@/packages/pms/lib/room-inventory.functions";
+import { requirementOverrides } from "@/packages/pms/lib/reservation-room-requirements";
 import {
   getRoomsAccess,
   listRooms,
@@ -103,6 +106,12 @@ export interface AssignmentInspectionPrefill {
   roomTypeId: string;
 }
 
+/** A reservation room the Eligibility tab was opened for. Without it the tab is manual. */
+export interface AssignmentEligibilityReservationUnit {
+  reservationId: string;
+  reservationRoomId?: string | undefined;
+}
+
 const INK = "#251605";
 const PROPERTY_SETUP_HREF =
   "/restaurant/settings?returnTo=/restaurant/pms/room-inventory#rooms-inventory";
@@ -132,11 +141,35 @@ async function invalidateRuleViews(
 export function RoomAssignmentEligibilityView({
   restaurantId,
   prefill,
+  reservationUnit,
 }: {
   restaurantId: string;
   prefill?: AssignmentInspectionPrefill | null;
+  reservationUnit?: AssignmentEligibilityReservationUnit | null;
 }) {
   const loadRooms = useServerFn(listRooms);
+  const loadUnit = useServerFn(getEligibilityReservationUnit);
+  const unitQuery = useQuery({
+    queryKey: [
+      "assignment-inspection-unit",
+      restaurantId,
+      reservationUnit?.reservationId ?? null,
+      reservationUnit?.reservationRoomId ?? null,
+    ],
+    queryFn: () =>
+      loadUnit({
+        data: {
+          restaurantId,
+          reservationId: reservationUnit!.reservationId,
+          ...(reservationUnit!.reservationRoomId
+            ? { reservationRoomId: reservationUnit!.reservationRoomId }
+            : {}),
+        },
+      }),
+    enabled: Boolean(reservationUnit?.reservationId),
+    retry: false,
+  });
+  const linkedUnit = unitQuery.data ?? null;
   const loadTypes = useServerFn(listRoomTypes);
   const evaluate = useServerFn(evaluateRoomAssignment);
   const roomsQuery = useQuery({
@@ -174,6 +207,29 @@ export function RoomAssignmentEligibilityView({
   useEffect(() => {
     if (prefill) setInput((current) => ({ ...current, ...prefill }));
   }, [prefill]);
+  // Start from the linked room's stored requirement and stay. The boxes stay editable
+  // as an ad hoc override. Nothing here is saved back to the reservation.
+  const seededUnitId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!linkedUnit || seededUnitId.current === linkedUnit.reservationRoomId) return;
+    seededUnitId.current = linkedUnit.reservationRoomId;
+    setInput((current) => ({
+      ...current,
+      arrival: linkedUnit.arrival,
+      departure: linkedUnit.departure,
+      adults: String(linkedUnit.adults),
+      children: String(linkedUnit.children),
+      accessibleRequired: linkedUnit.accessibleRoomRequired,
+      connectingRequired: linkedUnit.connectingRoomRequired,
+    }));
+  }, [linkedUnit]);
+  const stored = linkedUnit
+    ? {
+        accessibleRoomRequired: linkedUnit.accessibleRoomRequired,
+        connectingRoomRequired: linkedUnit.connectingRoomRequired,
+      }
+    : null;
+  const overrides = stored ? requirementOverrides(stored, input) : null;
   useEffect(() => {
     const date = businessDateQuery.data?.businessDate;
     if (!date || seededStay.current) return;
@@ -273,7 +329,8 @@ export function RoomAssignmentEligibilityView({
           preferredFloorId: input.preferredFloorId || null,
           guestPreferenceMatched: input.guestPreferenceMatched,
           forCheckIn: input.forCheckIn,
-          excludeReservationId: null,
+          excludeReservationId: linkedUnit?.reservationId ?? null,
+          reservationRoomId: linkedUnit?.reservationRoomId ?? null,
         },
       });
       return { result, snapshot };
@@ -340,6 +397,7 @@ export function RoomAssignmentEligibilityView({
         roomTypeAligned: inspected
           ? inspected.roomTypeId !== "" && inspected.roomTypeId === inspected.actualRoomTypeId
           : true,
+        pairing: result.pairing ?? null,
       })
     : [];
   const extraPreferences = (result?.preferenceReasons ?? [])
@@ -489,16 +547,76 @@ export function RoomAssignmentEligibilityView({
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">
                 Eligibility Checks
               </p>
+              {reservationUnit ? (
+                <div
+                  className="rounded-md border border-[#E5DED4] bg-[#FAF7F1] px-3 py-2 text-xs text-[#251605]"
+                  data-testid="eligibility-stored-requirements"
+                >
+                  {unitQuery.isLoading ? (
+                    <p>Loading the reservation room…</p>
+                  ) : unitQuery.isError || !linkedUnit || !stored ? (
+                    <p role="alert" className="text-destructive">
+                      {unitQuery.error instanceof Error
+                        ? unitQuery.error.message
+                        : "The reservation room could not be loaded."}
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="font-semibold">
+                        Stored on {linkedUnit.confirmationNumber ?? "this reservation"}, room{" "}
+                        {linkedUnit.unitSequence}
+                        {linkedUnit.unitCount > 1 ? ` of ${linkedUnit.unitCount}` : ""}
+                      </p>
+                      <p>
+                        Accessible room: {stored.accessibleRoomRequired ? "Required" : "Not required"}
+                        {" · "}
+                        Connecting room: {stored.connectingRoomRequired ? "Required" : "Not required"}
+                      </p>
+                      {overrides?.any ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className="rounded bg-[#C89933]/15 px-1.5 py-0.5 font-semibold text-[#7A5A12]"
+                            data-testid="eligibility-override-badge"
+                          >
+                            Temporary override
+                          </span>
+                          <span>This check only. Not saved to the reservation.</span>
+                          <button
+                            type="button"
+                            className="font-semibold underline underline-offset-2"
+                            onClick={() =>
+                              setInput({
+                                ...input,
+                                accessibleRequired: stored.accessibleRoomRequired,
+                                connectingRequired: stored.connectingRoomRequired,
+                              })
+                            }
+                          >
+                            Restore stored
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[#756A5B]">
+                          The boxes below start from these values. Changing them is a temporary
+                          override and is not saved.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : null}
               <div className="grid gap-2 sm:grid-cols-2">
                 <CheckRow
                   label="Accessible room required"
                   checked={input.accessibleRequired}
                   onChange={(accessibleRequired) => setInput({ ...input, accessibleRequired })}
+                  hint={overrides?.accessible ? "Override" : null}
                 />
                 <CheckRow
                   label="Connecting room required"
                   checked={input.connectingRequired}
                   onChange={(connectingRequired) => setInput({ ...input, connectingRequired })}
+                  hint={overrides?.connecting ? "Override" : null}
                 />
                 <CheckRow
                   label="Match guest preferences"
@@ -945,9 +1063,6 @@ export function RoomInventoryRulesView({ restaurantId }: { restaurantId: string 
 
   return (
     <div className="space-y-3">
-      <RoomShellSlot name="actions">
-        <SettingsLink step="inventory-rules" />
-      </RoomShellSlot>
       {canConfigure ? (
         <RoomShellSlot name="cta">
           <div className="flex items-center gap-2">
@@ -1206,13 +1321,6 @@ export function RoomOverbookingView({ restaurantId }: { restaurantId: string }) 
           onChange={(event) => setNight(event.target.value)}
           className="h-9 w-40 text-xs"
           aria-label="Overbooking night"
-        />
-      </RoomShellSlot>
-      <RoomShellSlot name="actions">
-        <SettingsLink
-          label="Configure in Property Setup"
-          step="inventory-rules"
-          section="overbooking"
         />
       </RoomShellSlot>
       <RoomSummaryChips
@@ -1551,33 +1659,6 @@ function PolicySwitch({
   );
 }
 
-function SettingsLink({
-  label = "Manage in Property Setup",
-  step = "inventory-rules",
-  section,
-}: {
-  label?: string;
-  step?:
-    | "room-types"
-    | "amenities"
-    | "housekeeping"
-    | "inventory-rules"
-    | "maintenance"
-    | "rates-pricing"
-    | "meal-plans-packages";
-  section?: string;
-}) {
-  const sectionParam = section ? `&section=${encodeURIComponent(section)}` : "";
-  const href = `/restaurant/settings?card2Step=${step}${sectionParam}&returnTo=/restaurant/pms/room-inventory#rooms-inventory`;
-  return (
-    <Button asChild variant="outline" size="sm" className="h-9 px-3 text-xs font-medium">
-      <a href={href}>
-        {label} <ExternalLink className="ml-2 size-4" />
-      </a>
-    </Button>
-  );
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="grid gap-1.5 text-xs font-semibold text-[#5F554B]">
@@ -1617,10 +1698,12 @@ function CheckRow({
   label,
   checked,
   onChange,
+  hint = null,
 }: {
   label: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  hint?: string | null;
 }) {
   return (
     <label className="flex items-center gap-2.5 text-xs font-medium text-[#251605] cursor-pointer">
@@ -1631,6 +1714,11 @@ function CheckRow({
         className="size-4 rounded accent-[#C89933] cursor-pointer"
       />
       {label}
+      {hint ? (
+        <span className="rounded bg-[#C89933]/15 px-1 py-0.5 text-[10px] font-semibold text-[#7A5A12]">
+          {hint}
+        </span>
+      ) : null}
     </label>
   );
 }

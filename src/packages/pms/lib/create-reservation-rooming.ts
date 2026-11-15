@@ -1,5 +1,6 @@
 import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";
 import { occupancySoftWarn } from "@/packages/pms/lib/create-reservation-phase1-section4";
+import type { RoomRequirements } from "@/packages/pms/lib/reservation-room-requirements";
 
 /** Room 1 plus this many extra units. Matches the create payload cap of 20. */
 export const MAX_EXTRA_ROOM_UNITS = 19;
@@ -18,6 +19,8 @@ export type GroupRoomDraft = {
   ratePlanId: string | null;
   occupant: RoomOccupantRef | null;
   pmsGroupBlockId?: string | null;
+  accessibleRoomRequired?: boolean | undefined;
+  connectingRoomRequired?: boolean | undefined;
 };
 
 export type Step1RoomStay = {
@@ -27,6 +30,8 @@ export type Step1RoomStay = {
   infants: number;
   ratePlanId: string | null;
   pmsGroupBlockId?: string | null;
+  accessibleRoomRequired?: boolean | undefined;
+  connectingRoomRequired?: boolean | undefined;
 };
 
 export type Step1RoomingState = {
@@ -207,6 +212,24 @@ export function applyRoomOccupancy(
   return {
     ...state,
     activeRoomIndex: nextIndex,
+    extras: state.extras.map((unit, index) =>
+      index === nextIndex - 1 ? { ...unit, ...patch } : unit,
+    ),
+  };
+}
+
+/** Update the hard requirements of one room unit. Other units are left as they are. */
+export function applyRoomRequirements(
+  state: Step1RoomingState,
+  roomIndex: number,
+  patch: Partial<RoomRequirements>,
+): Step1RoomingState {
+  const nextIndex = Math.min(Math.max(0, roomIndex), state.extras.length);
+  if (nextIndex === 0) {
+    return { ...state, room1: { ...state.room1, ...patch } };
+  }
+  return {
+    ...state,
     extras: state.extras.map((unit, index) =>
       index === nextIndex - 1 ? { ...unit, ...patch } : unit,
     ),

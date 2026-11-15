@@ -221,6 +221,8 @@ export function FoCheckInStepper({
           arrival: targetArrival,
           departure: targetDeparture,
           excludeReservationId: stay.id,
+          // The room being checked in. Its stored requirements go to the evaluator.
+          ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       }),
     enabled: open && (!multiRoom || Boolean(reservationRoomId)),

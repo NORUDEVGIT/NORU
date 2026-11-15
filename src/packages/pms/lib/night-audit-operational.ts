@@ -132,7 +132,7 @@ const FRONT_OFFICE = "/restaurant/pms/front-office";
 const HOUSEKEEPING = "/restaurant/pms/housekeeping";
 const ROOM_INVENTORY = "/restaurant/pms/room-inventory";
 const RATES = "/restaurant/pms/rates-revenue";
-const DISTRIBUTION = "/restaurant/pms/distribution";
+const DISTRIBUTION = "/restaurant/settings#connectivity-distribution";
 const SERVICES = "/restaurant/pms/guest-services";
 
 export type NightAuditOperationalIssue = {

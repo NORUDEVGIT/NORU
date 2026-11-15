@@ -2,10 +2,10 @@
  * Guest Services → Guest Agreement configuration.
  * Check-in still reads the published version through getCheckInAgreement.
  */
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, ChevronUp, Plus, ScrollText } from "lucide-react";
+import { Ellipsis } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -56,6 +56,12 @@ import {
   AlertDialogTitle,
 } from "@/shared/components/ui/alert-dialog";
 import { Button } from "@/shared/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -70,7 +76,7 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 
-const cardClass = "rounded-2xl border border-[#DDD4C5] bg-white p-4 shadow-sm";
+const cardClass = "rounded-xl border border-[#E6E1D8] bg-white p-3";
 const goldButton = "bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 focus-visible:ring-[#C89933]";
 
 function newItemId(kind: "section" | "ack"): string {
@@ -202,21 +208,17 @@ export function GuestAgreementWorkspace({
   }
 
   return (
-    <div className="space-y-6 bg-[#FBF7F1] p-1" data-testid="guest-agreement-workspace">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#C89933]">
-            Guest Services
-          </p>
-          <h1 className="font-display text-2xl text-[#251605] sm:text-3xl">
-            {GUEST_AGREEMENT_PAGE_TITLE}
-          </h1>
-          <p className="max-w-2xl text-sm text-[#251605]/70">{GUEST_AGREEMENT_PAGE_SUBTITLE}</p>
+    <div className="space-y-3" data-testid="guest-agreement-workspace">
+      <header className="flex flex-nowrap items-center justify-between gap-3 overflow-x-auto">
+        <div className="min-w-0">
+          <h1 className="font-display text-xl text-[#251605]">{GUEST_AGREEMENT_PAGE_TITLE}</h1>
+          <p className="truncate text-xs text-[#7A6A55]">{GUEST_AGREEMENT_PAGE_SUBTITLE}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             type="button"
-            className={goldButton}
+            variant="outline"
+            size="sm"
             data-testid="guest-agreement-create"
             disabled={!actions.create || createMutation.isPending}
             onClick={() => createMutation.mutate()}
@@ -226,6 +228,7 @@ export function GuestAgreementWorkspace({
           <Button
             type="button"
             variant="outline"
+            size="sm"
             data-testid="guest-agreement-save"
             disabled={!actions.save || !local || saveMutation.isPending}
             onClick={() => saveMutation.mutate()}
@@ -235,6 +238,7 @@ export function GuestAgreementWorkspace({
           <Button
             type="button"
             className={goldButton}
+            size="sm"
             data-testid="guest-agreement-publish"
             disabled={!actions.publish || publishMutation.isPending}
             onClick={() => setPublishOpen(true)}
@@ -284,8 +288,8 @@ export function GuestAgreementWorkspace({
         </section>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-6">
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(20rem,3fr)]">
+        <div className="min-w-0 space-y-3">
           <PropertyTimes
             checkInTime={configuration?.checkInTime ?? null}
             checkOutTime={configuration?.checkOutTime ?? null}
@@ -337,11 +341,6 @@ export function GuestAgreementWorkspace({
           {configuration?.draft?.legacy ? (
             <LegacyAgreement body={configuration.draft.body} />
           ) : null}
-          <HistoryList
-            rows={configuration?.history ?? []}
-            titles={historyTitles(configuration)}
-            onView={setViewId}
-          />
         </div>
         {local && configuration?.draft && !configuration.draft.legacy ? (
           <PreviewPanel
@@ -352,6 +351,11 @@ export function GuestAgreementWorkspace({
           />
         ) : null}
       </div>
+      <HistoryList
+        rows={configuration?.history ?? []}
+        titles={historyTitles(configuration)}
+        onView={setViewId}
+      />
 
       <SectionSheet
         editor={editor?.kind === "section" ? editor.section : null}
@@ -525,40 +529,32 @@ function ActiveAgreementCard({
   const sections = enabledAgreementCount(version, "sections");
   const acknowledgements = enabledAgreementCount(version, "acknowledgements");
   return (
-    <section className={cardClass} data-testid="guest-agreement-active">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#436436]">Active</p>
-          <h2 className="font-display text-xl text-[#251605]">{title}</h2>
-          <p className="text-sm text-[#251605]/70">Version {version.label}</p>
-        </div>
-        <Button type="button" variant="outline" data-testid="guest-agreement-view" onClick={onView}>
-          View
-        </Button>
-      </div>
-      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-        <Fact label="Status" value="Active" />
-        <Fact label="Published" value={formatGuestAgreementPublishedAt(version.publishedAt)} />
-        <Fact label="Published by" value="—" />
-        <Fact label="Enabled sections" value={sections == null ? "—" : String(sections)} />
-        <Fact
-          label="Enabled acknowledgements"
-          value={acknowledgements == null ? "—" : String(acknowledgements)}
-        />
-        <Fact label="Resolved check-in" value={version.resolvedCheckInTime || "—"} />
-        <Fact label="Resolved check-out" value={version.resolvedCheckOutTime || "—"} />
-      </dl>
-      <p className="mt-3 text-sm text-[#251605]/70">{GUEST_AGREEMENT_READONLY}</p>
+    <section
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[#E6E1D8] bg-white px-3 py-2 text-sm"
+      data-testid="guest-agreement-active"
+    >
+      <p className="font-medium text-[#251605]">{title}</p>
+      <p className="text-[#7A6A55]">Version {version.label}</p>
+      <StatusChip tone="on">Active</StatusChip>
+      <span className="text-[#5C5346]">
+        {sections == null ? "—" : sections} {sections === 1 ? "section" : "sections"}
+      </span>
+      <span className="text-[#5C5346]">
+        {acknowledgements == null ? "—" : acknowledgements}{" "}
+        {acknowledgements === 1 ? "acknowledgement" : "acknowledgements"}
+      </span>
+      <span className="text-[#7A6A55]">{formatGuestAgreementPublishedAt(version.publishedAt)}</span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="ml-auto"
+        data-testid="guest-agreement-view"
+        onClick={onView}
+      >
+        View
+      </Button>
     </section>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase tracking-wide text-[#251605]/50">{label}</dt>
-      <dd className="text-[#251605]">{value}</dd>
-    </div>
   );
 }
 
@@ -572,33 +568,33 @@ function PropertyTimes({
   warning: string | null;
 }) {
   return (
-    <section className={cardClass} data-testid="guest-agreement-property-setup">
-      <h2 className="font-display text-lg text-[#251605]">Property Setup Values</h2>
-      <p className="mt-1 text-sm text-[#251605]/70">{GUEST_AGREEMENT_PROPERTY_SETUP_HELP}</p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor="guest-agreement-check-in-time">Check-in Time</Label>
-          <Input
-            id="guest-agreement-check-in-time"
-            data-testid="guest-agreement-check-in-time"
-            value={checkInTime ?? ""}
-            readOnly
-            disabled
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="guest-agreement-check-out-time">Check-out Time</Label>
-          <Input
-            id="guest-agreement-check-out-time"
-            data-testid="guest-agreement-check-out-time"
-            value={checkOutTime ?? ""}
-            readOnly
-            disabled
-          />
-        </div>
+    <section
+      className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-[#E6E1D8] bg-[#FBF7EE] px-3 py-2"
+      data-testid="guest-agreement-property-setup"
+    >
+      <p className="text-sm text-[#251605]">
+        Check-in {checkInTime || "—"} · Check-out {checkOutTime || "—"}
+      </p>
+      <p className="text-xs text-[#7A6A55]">Values come from Property & Business settings.</p>
+      <span className="sr-only">{GUEST_AGREEMENT_PROPERTY_SETUP_HELP}</span>
+      <div className="sr-only">
+        <Input
+          id="guest-agreement-check-in-time"
+          data-testid="guest-agreement-check-in-time"
+          value={checkInTime ?? ""}
+          readOnly
+          disabled
+        />
+        <Input
+          id="guest-agreement-check-out-time"
+          data-testid="guest-agreement-check-out-time"
+          value={checkOutTime ?? ""}
+          readOnly
+          disabled
+        />
       </div>
       {warning ? (
-        <p className="mt-3 text-sm text-[#8A5A12]" role="status">
+        <p className="basis-full text-xs text-[#8A5A12]" role="status">
           {warning}
         </p>
       ) : null}
@@ -628,20 +624,25 @@ function DraftEditor({
   onAddAcknowledgement: () => void;
 }) {
   return (
-    <section className={cardClass} data-testid="guest-agreement-draft">
+    <section className={cn(cardClass, "space-y-4")} data-testid="guest-agreement-draft">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg text-[#251605]">Draft</h2>
-        <span className="rounded-full bg-[#C89933]/20 px-2 py-0.5 text-xs font-semibold text-[#8A5A12]">
-          Draft
-        </span>
+        <h2 className="text-sm font-semibold text-[#251605]">Agreement content</h2>
+        <StatusChip tone="on">Draft</StatusChip>
       </div>
-      <div className="mt-4 grid gap-4">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field
           id="guest-agreement-title"
           label="Agreement Title"
           value={agreement.title}
           disabled={!canManage}
           onChange={(title) => onChange({ ...agreement, title })}
+        />
+        <Field
+          id="guest-agreement-ack-heading"
+          label="Acknowledgement Heading"
+          value={agreement.acknowledgementTitle}
+          disabled={!canManage}
+          onChange={(acknowledgementTitle) => onChange({ ...agreement, acknowledgementTitle })}
         />
         <Area
           id="guest-agreement-intro"
@@ -657,176 +658,134 @@ function DraftEditor({
           disabled={!canManage}
           onChange={(leadIn) => onChange({ ...agreement, leadIn })}
         />
-        <Field
-          id="guest-agreement-ack-heading"
-          label="Acknowledgement Heading"
-          value={agreement.acknowledgementTitle}
-          disabled={!canManage}
-          onChange={(acknowledgementTitle) => onChange({ ...agreement, acknowledgementTitle })}
-        />
-        <Area
-          id="guest-agreement-ack-intro"
-          label="Acknowledgement Intro"
-          value={agreement.acknowledgementIntro}
-          disabled={!canManage}
-          onChange={(acknowledgementIntro) => onChange({ ...agreement, acknowledgementIntro })}
-        />
+        <div className="sm:col-span-2">
+          <Area
+            id="guest-agreement-ack-intro"
+            label="Acknowledgement Intro"
+            value={agreement.acknowledgementIntro}
+            disabled={!canManage}
+            onChange={(acknowledgementIntro) => onChange({ ...agreement, acknowledgementIntro })}
+          />
+        </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-between">
-        <h3 className="font-display text-base text-[#251605]">Agreement sections</h3>
-        <Button type="button" variant="outline" disabled={!canManage} onClick={onAddSection}>
-          <Plus className="size-4" /> Add Section
-        </Button>
+      <div className="flex items-center justify-between gap-3 border-t border-[#E6E1D8] pt-3">
+        <h3 className="text-sm font-semibold text-[#251605]">Agreement Sections</h3>
+        <button
+          type="button"
+          disabled={!canManage}
+          onClick={onAddSection}
+          className="text-xs font-semibold text-[#8A641A] hover:text-[#251605] disabled:opacity-50"
+        >
+          + Add Section
+        </button>
       </div>
-      <ul className="mt-3 space-y-2">
+      <ul className="space-y-1.5">
         {sorted(agreement.sections).map((section, index, rows) => (
           <li
             key={section.id}
-            className="rounded-xl border border-[#DDD4C5] p-3"
+            className="flex items-center gap-2 rounded-lg border border-[#E6E1D8] px-2.5 py-2"
             data-testid="guest-agreement-section"
           >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-[#251605]">{section.title || "Untitled section"}</p>
-                <p className="text-sm text-[#251605]/70">
-                  {section.descriptionTemplate.slice(0, 120)}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <p className="truncate text-sm font-medium text-[#251605]">
+                  {section.title || "Untitled section"}
                 </p>
-                <p className="text-xs text-[#251605]/60">
+                <StatusChip tone={section.enabled ? "on" : "off"}>
                   {section.enabled ? "Enabled" : "Disabled"}
-                </p>
+                </StatusChip>
               </div>
-              <div className="flex flex-wrap gap-1">
-                <IconButton
-                  label={`Move ${section.title} up`}
-                  disabled={!canManage || index === 0}
-                  onClick={() =>
-                    onChange({
-                      ...agreement,
-                      sections: reorderGuestAgreementItems(agreement.sections, section.id, "up"),
-                    })
-                  }
-                >
-                  <ChevronUp className="size-4" />
-                </IconButton>
-                <IconButton
-                  label={`Move ${section.title} down`}
-                  disabled={!canManage || index === rows.length - 1}
-                  onClick={() =>
-                    onChange({
-                      ...agreement,
-                      sections: reorderGuestAgreementItems(agreement.sections, section.id, "down"),
-                    })
-                  }
-                >
-                  <ChevronDown className="size-4" />
-                </IconButton>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!canManage}
-                  onClick={() => onEditSection(section)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!canManage}
-                  onClick={() => onRemoveSection(section)}
-                >
-                  Remove
-                </Button>
-              </div>
+              <p className="truncate text-xs text-[#7A6A55]">
+                {section.descriptionTemplate.slice(0, 120)}
+              </p>
             </div>
+            <RowMenu
+              label={`${section.title || "Section"} actions`}
+              disabled={!canManage}
+              canMoveUp={index > 0}
+              canMoveDown={index < rows.length - 1}
+              moveUpLabel={`Move ${section.title} up`}
+              moveDownLabel={`Move ${section.title} down`}
+              onMoveUp={() =>
+                onChange({
+                  ...agreement,
+                  sections: reorderGuestAgreementItems(agreement.sections, section.id, "up"),
+                })
+              }
+              onMoveDown={() =>
+                onChange({
+                  ...agreement,
+                  sections: reorderGuestAgreementItems(agreement.sections, section.id, "down"),
+                })
+              }
+              onEdit={() => onEditSection(section)}
+              onRemove={() => onRemoveSection(section)}
+            />
           </li>
         ))}
       </ul>
 
-      <div className="mt-6">
-        <h3 className="font-display text-base text-[#251605]">
-          {agreement.acknowledgementTitle || "Guest Acknowledgement"}
-        </h3>
-        <p className="text-sm text-[#251605]/70">{agreement.acknowledgementIntro}</p>
-      </div>
-      <div className="mt-3 flex justify-end">
-        <Button
+      <div className="flex items-center justify-between gap-3 border-t border-[#E6E1D8] pt-3">
+        <h3 className="text-sm font-semibold text-[#251605]">Guest Acknowledgements</h3>
+        <button
           type="button"
-          variant="outline"
           disabled={!canManage}
           onClick={onAddAcknowledgement}
+          className="text-xs font-semibold text-[#8A641A] hover:text-[#251605] disabled:opacity-50"
         >
-          <Plus className="size-4" /> Add Acknowledgement
-        </Button>
+          + Add Acknowledgement
+        </button>
       </div>
-      <ul className="mt-3 space-y-2">
+      <ul className="space-y-1.5">
         {sorted(agreement.acknowledgements).map((item, index, rows) => (
           <li
             key={item.id}
-            className="rounded-xl border border-[#DDD4C5] p-3"
+            className="flex items-center gap-2 rounded-lg border border-[#E6E1D8] px-2.5 py-2"
             data-testid="guest-agreement-acknowledgement"
           >
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-medium text-[#251605]">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <p className="truncate text-sm font-medium text-[#251605]">
                   {item.title || "Untitled acknowledgement"}
                 </p>
-                <p className="text-sm text-[#251605]/70">{item.statement.slice(0, 140)}</p>
-                <p className="text-xs text-[#251605]/60">
+                {item.enabled ? <StatusChip tone="on">Enabled</StatusChip> : null}
+                <StatusChip tone={!item.enabled ? "off" : item.required ? "required" : "optional"}>
                   {!item.enabled ? "Disabled" : item.required ? "Required" : "Optional"}
-                </p>
+                </StatusChip>
               </div>
-              <div className="flex flex-wrap gap-1">
-                <IconButton
-                  label={`Move ${item.title} up`}
-                  disabled={!canManage || index === 0}
-                  onClick={() =>
-                    onChange({
-                      ...agreement,
-                      acknowledgements: reorderGuestAgreementItems(
-                        agreement.acknowledgements,
-                        item.id,
-                        "up",
-                      ),
-                    })
-                  }
-                >
-                  <ChevronUp className="size-4" />
-                </IconButton>
-                <IconButton
-                  label={`Move ${item.title} down`}
-                  disabled={!canManage || index === rows.length - 1}
-                  onClick={() =>
-                    onChange({
-                      ...agreement,
-                      acknowledgements: reorderGuestAgreementItems(
-                        agreement.acknowledgements,
-                        item.id,
-                        "down",
-                      ),
-                    })
-                  }
-                >
-                  <ChevronDown className="size-4" />
-                </IconButton>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!canManage}
-                  onClick={() => onEditAcknowledgement(item)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!canManage}
-                  onClick={() => onRemoveAcknowledgement(item)}
-                >
-                  Remove
-                </Button>
-              </div>
+              <p className="truncate text-xs text-[#7A6A55]">{item.statement.slice(0, 140)}</p>
             </div>
+            <RowMenu
+              label={`${item.title || "Acknowledgement"} actions`}
+              disabled={!canManage}
+              canMoveUp={index > 0}
+              canMoveDown={index < rows.length - 1}
+              moveUpLabel={`Move ${item.title} up`}
+              moveDownLabel={`Move ${item.title} down`}
+              onMoveUp={() =>
+                onChange({
+                  ...agreement,
+                  acknowledgements: reorderGuestAgreementItems(
+                    agreement.acknowledgements,
+                    item.id,
+                    "up",
+                  ),
+                })
+              }
+              onMoveDown={() =>
+                onChange({
+                  ...agreement,
+                  acknowledgements: reorderGuestAgreementItems(
+                    agreement.acknowledgements,
+                    item.id,
+                    "down",
+                  ),
+                })
+              }
+              onEdit={() => onEditAcknowledgement(item)}
+              onRemove={() => onRemoveAcknowledgement(item)}
+            />
           </li>
         ))}
       </ul>
@@ -880,36 +839,84 @@ function Area({
       <Textarea
         id={id}
         data-testid={id}
+        rows={2}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
+        className="min-h-0"
       />
     </div>
   );
 }
 
-function IconButton({
+function StatusChip({
+  tone,
+  children,
+}: {
+  tone: "on" | "off" | "required" | "optional";
+  children: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tracking-wide",
+        tone === "on" && "bg-[#FBF3DE] text-[#8A641A]",
+        tone === "required" && "bg-[#F4E9D0] text-[#8A641A]",
+        tone === "optional" && "bg-[#F7F4EE] text-[#5C5346]",
+        tone === "off" && "bg-[#F4EDE0] text-[#7A6A55]",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+function RowMenu({
   label,
   disabled,
-  onClick,
-  children,
+  canMoveUp,
+  canMoveDown,
+  moveUpLabel,
+  moveDownLabel,
+  onMoveUp,
+  onMoveDown,
+  onEdit,
+  onRemove,
 }: {
   label: string;
   disabled: boolean;
-  onClick: () => void;
-  children: ReactNode;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  moveUpLabel: string;
+  moveDownLabel: string;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onEdit: () => void;
+  onRemove: () => void;
 }) {
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="icon"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          disabled={disabled}
+          className="rounded-md p-1 text-[#B5A48C] outline-none hover:bg-[#F4E9D0] hover:text-[#251605] disabled:opacity-40"
+        >
+          <Ellipsis className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem aria-label={moveUpLabel} disabled={!canMoveUp} onClick={onMoveUp}>
+          Move up
+        </DropdownMenuItem>
+        <DropdownMenuItem aria-label={moveDownLabel} disabled={!canMoveDown} onClick={onMoveDown}>
+          Move down
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+        <DropdownMenuItem onClick={onRemove}>Remove</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1054,30 +1061,36 @@ function AcknowledgementSheet({
 function PreviewPanel({ agreement }: { agreement: GuestAgreementPackage }) {
   return (
     <aside
-      className={cn(cardClass, "h-fit xl:sticky xl:top-4")}
+      className="h-fit rounded-xl border border-[#E6E1D8] bg-[#FFFCF7] p-4 lg:sticky lg:top-3 lg:max-h-[calc(100dvh-7.5rem)] lg:overflow-y-auto"
       data-testid="guest-agreement-preview"
     >
-      <div className="flex items-center gap-2">
-        <ScrollText className="size-4 text-[#C89933]" />
-        <h2 className="font-display text-lg text-[#251605]">Preview</h2>
-      </div>
-      <p className="mt-1 text-xs text-[#251605]/60">{GUEST_AGREEMENT_PREVIEW_NOTE}</p>
-      <div className="mt-4 space-y-3 text-sm text-[#251605]">
-        <h3 className="font-display text-base">{agreement.title}</h3>
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8A641A]">
+        Live Preview
+      </h2>
+      <p className="mt-1 text-[11px] leading-snug text-[#7A6A55]">{GUEST_AGREEMENT_PREVIEW_NOTE}</p>
+      <article className="mt-4 space-y-3 text-sm leading-relaxed text-[#251605]">
+        <h3 className="font-display text-lg leading-tight">{agreement.title}</h3>
         <p>{agreement.intro}</p>
         <p>{agreement.leadIn}</p>
         {agreement.sections.map((section) => (
-          <div key={section.id}>
-            <p className="font-medium">{section.title}</p>
-            <p className="whitespace-pre-wrap text-[#251605]/80">{section.resolvedDescription}</p>
+          <div key={section.id} className="space-y-1">
+            <p className="font-semibold">{section.title}</p>
+            <p className="whitespace-pre-wrap text-[#3C2E1E]">{section.resolvedDescription}</p>
           </div>
         ))}
-        <h3 className="font-display text-base">{agreement.acknowledgementTitle}</h3>
+        <h3 className="font-display text-base leading-tight">{agreement.acknowledgementTitle}</h3>
         <p>{agreement.acknowledgementIntro}</p>
-        {agreement.acknowledgements.map((item) => (
-          <p key={item.id}>☐ {item.statement}</p>
-        ))}
-      </div>
+        <ul className="space-y-1.5">
+          {agreement.acknowledgements.map((item) => (
+            <li key={item.id} className="flex gap-2">
+              <span aria-hidden className="mt-0.5 text-[#C89933]">
+                ☐
+              </span>
+              <span>{item.statement}</span>
+            </li>
+          ))}
+        </ul>
+      </article>
     </aside>
   );
 }
@@ -1091,37 +1104,52 @@ function HistoryList({
   titles: Record<string, string>;
   onView: (id: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const countLabel = `${rows.length} ${rows.length === 1 ? "version" : "versions"}`;
   return (
     <section className={cardClass} data-testid="guest-agreement-history">
-      <h2 className="font-display text-lg text-[#251605]">Version history</h2>
-      <p className="mt-1 text-sm text-[#251605]/70">{GUEST_AGREEMENT_READONLY}</p>
-      {rows.length === 0 ? (
-        <p className="mt-3 text-sm text-[#251605]/70">No versions yet.</p>
-      ) : (
-        <ul className="mt-3 divide-y divide-[#DDD4C5]">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
-            >
-              <div>
-                <p className="font-medium text-[#251605]">Version {row.label}</p>
-                <p className="text-[#251605]/70">
-                  {titles[row.id] || "Title is on the version snapshot"}
-                </p>
-                <p>
-                  <span className="text-[#251605]">{guestAgreementHistoryStatus(row)}</span>
-                  {" · "}
-                  {formatGuestAgreementPublishedAt(row.publishedAt)}
-                </p>
-              </div>
-              <Button type="button" variant="outline" onClick={() => onView(row.id)}>
-                View
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 text-left"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="text-sm font-semibold text-[#251605]">
+          Version History · {countLabel}
+        </span>
+        <span className="text-xs text-[#7A6A55]">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open ? (
+        <div className="mt-2 border-t border-[#E6E1D8] pt-2">
+          <p className="text-xs text-[#7A6A55]">{GUEST_AGREEMENT_READONLY}</p>
+          {rows.length === 0 ? (
+            <p className="mt-2 text-sm text-[#7A6A55]">No versions yet.</p>
+          ) : (
+            <ul className="mt-1 divide-y divide-[#E6E1D8]">
+              {rows.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex items-center justify-between gap-2 py-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-[#251605]">Version {row.label}</p>
+                    <p className="truncate text-xs text-[#7A6A55]">
+                      {titles[row.id] || "Title is on the version snapshot"}
+                      {" · "}
+                      {guestAgreementHistoryStatus(row)}
+                      {" · "}
+                      {formatGuestAgreementPublishedAt(row.publishedAt)}
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => onView(row.id)}>
+                    View
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

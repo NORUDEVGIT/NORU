@@ -661,6 +661,7 @@ function RoomAssignmentSection({
       unit.departureDate,
       unit.adults,
       unit.children,
+      unit.reservationRoomId ?? null,
     ],
     queryFn: () =>
       fetchCandidates({
@@ -672,6 +673,8 @@ function RoomAssignmentSection({
           excludeReservationId: reservationId,
           adults: unit.adults,
           children: unit.children,
+          // This unit's stored requirements, never a sibling's.
+          ...(unit.reservationRoomId ? { reservationRoomId: unit.reservationRoomId } : {}),
         },
       }),
     enabled: Boolean(unit.roomTypeId),

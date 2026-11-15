@@ -8,6 +8,16 @@ import {
   CREATE_RESERVATION_GUEST_SEARCH_DEBOUNCE_MS,
   CREATE_RESERVATION_GUEST_SEARCH_LIMIT,
 } from "@/packages/pms/lib/create-reservation-phase1";
+import { RoomRequirementsFields } from "@/packages/pms/components/bookings/room-requirements-fields";
+import { DraftConnectsToSelect } from "@/packages/pms/components/bookings/reservation-room-pair-controls";
+import {
+  PAIRED_REQUIREMENT_LOCK_NOTE,
+  ROOM1_PAIR_REF,
+  pairUnitOptionLabel,
+  type DraftPairUnit,
+  type DraftPairs,
+} from "@/packages/pms/lib/reservation-room-pairs";
+import type { RoomRequirements } from "@/packages/pms/lib/reservation-room-requirements";
 import { MAX_EXTRA_ROOM_UNITS } from "@/packages/pms/lib/create-reservation-rooming";
 import { getGuest, guestListItems, listGuests } from "@/packages/pms/lib/guests.functions";
 import { PMS_OP_BTN_COMPACT, PMS_OP_INPUT } from "@/packages/pms/lib/pms-operational-surface";
@@ -33,6 +43,12 @@ export function CreateReservationRoomingList({
   room1Rate,
   extras,
   extraRates,
+  room1Requirements,
+  connectingPairs,
+  onRoomPartner,
+  leadGuestId,
+  onRoom1Requirements,
+  onExtraRequirements,
   activeRoomIndex,
   onActivate,
   onAdd,
@@ -50,6 +66,13 @@ export function CreateReservationRoomingList({
   room1Rate: RoomingRateLabel;
   extras: ExtraRoomDraft[];
   extraRates: Record<string, RoomingRateLabel | null>;
+  room1Requirements: RoomRequirements;
+  /** Draft "Connects to" pairs by room reference. */
+  connectingPairs: DraftPairs;
+  onRoomPartner: (ref: string, partnerRef: string | null) => void;
+  leadGuestId: string | null;
+  onRoom1Requirements: (patch: Partial<RoomRequirements>) => void;
+  onExtraRequirements: (key: string, patch: Partial<RoomRequirements>) => void;
   activeRoomIndex: number;
   onActivate: (index: number) => void;
   onAdd: () => void;
@@ -61,6 +84,43 @@ export function CreateReservationRoomingList({
   ) => void;
   onExtraOccupant: (key: string, occupant: { guestId: string; fullName: string } | null) => void;
 }) {
+  const pairUnits: DraftPairUnit[] = [
+    {
+      ref: ROOM1_PAIR_REF,
+      unitSequence: 1,
+      label: pairUnitOptionLabel({
+        unitSequence: 1,
+        roomTypeName: room1Rate.roomTypeName,
+        adults: room1Adults,
+        children: room1Children,
+      }),
+    },
+    ...extras.map((unit, index) => ({
+      ref: unit.key,
+      unitSequence: index + 2,
+      label: pairUnitOptionLabel({
+        unitSequence: index + 2,
+        roomTypeName: extraRates[unit.key]?.roomTypeName ?? null,
+        adults: unit.adults,
+        children: unit.children,
+      }),
+    })),
+  ];
+  const pairingFor = (ref: string, sequence: number) =>
+    pairUnits.length > 1
+      ? {
+          pairing: (
+            <DraftConnectsToSelect
+              idPrefix={`room-${sequence}`}
+              unitRef={ref}
+              units={pairUnits}
+              pairs={connectingPairs}
+              onChange={(partner) => onRoomPartner(ref, partner)}
+            />
+          ),
+          connectingLockedNote: connectingPairs[ref] ? PAIRED_REQUIREMENT_LOCK_NOTE : null,
+        }
+      : {};
   return (
     <section
       className="space-y-2 rounded-lg border border-[#DDD4C5] bg-white p-3"
@@ -96,6 +156,17 @@ export function CreateReservationRoomingList({
         rate={room1Rate}
         onActivate={() => onActivate(0)}
         onOccupancy={onRoom1Occupancy}
+        requirements={
+          <RoomRequirementsFields
+            idPrefix="room-1"
+            restaurantId={restaurantId}
+            guestId={leadGuestId}
+            value={room1Requirements}
+            onChange={onRoom1Requirements}
+            showSoftRequestNote
+            {...pairingFor(ROOM1_PAIR_REF, 1)}
+          />
+        }
       />
       {extras.map((unit, index) => (
         <RoomingCard
@@ -117,6 +188,19 @@ export function CreateReservationRoomingList({
           onActivate={() => onActivate(index + 1)}
           onOccupancy={(patch) => onExtraOccupancy(unit.key, patch)}
           onRemove={() => onRemove(unit.key)}
+          requirements={
+            <RoomRequirementsFields
+              idPrefix={`room-${index + 2}`}
+              restaurantId={restaurantId}
+              guestId={unit.occupant?.guestId ?? null}
+              value={{
+                accessibleRoomRequired: unit.accessibleRoomRequired === true,
+                connectingRoomRequired: unit.connectingRoomRequired === true,
+              }}
+              onChange={(patch) => onExtraRequirements(unit.key, patch)}
+              {...pairingFor(unit.key, index + 2)}
+            />
+          }
           occupantSearch={
             <RoomOccupantSearch
               restaurantId={restaurantId}
@@ -145,6 +229,7 @@ function RoomingCard({
   onOccupancy,
   onRemove,
   occupantSearch,
+  requirements,
 }: {
   sequence: number;
   active: boolean;
@@ -159,6 +244,7 @@ function RoomingCard({
   onOccupancy: (patch: { adults?: number; children?: number; infants?: number }) => void;
   onRemove?: () => void;
   occupantSearch?: ReactNode;
+  requirements?: ReactNode;
 }) {
   return (
     <article
@@ -261,6 +347,7 @@ function RoomingCard({
           </Button>
         ) : null}
       </div>
+      {requirements ? <div className="lg:col-span-full">{requirements}</div> : null}
     </article>
   );
 }

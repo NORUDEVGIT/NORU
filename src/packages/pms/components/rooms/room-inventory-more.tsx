@@ -60,6 +60,7 @@ import {
   InventoryStatusBadge,
   PmsSelect,
 } from "./room-inventory-shared";
+import { roomAuditRow } from "./room-detail-format";
 import { dateLabel } from "./room-inventory-utils";
 
 export function RoomFloorPlanView({ restaurantId }: { restaurantId: string }) {
@@ -540,16 +541,6 @@ export function RoomMaintenanceView({ restaurantId }: { restaurantId: string }) 
           onClick={() => void maintenance.refetch()}
           testId="maintenance-refresh"
         />
-        <Button
-          asChild
-          variant="outline"
-          size="sm"
-          className="h-9 border-[#DDD4C5] px-2.5 text-xs"
-        >
-          <a href="/restaurant/pms/maintenance?tab=maintenance&returnTo=/restaurant/pms/room-inventory%3Ftab%3Dmaintenance">
-            Open Maintenance
-          </a>
-        </Button>
       </RoomShellSlot>
       <RoomShellSlot name="cta">
         <Button type="button" className={ROOM_SHELL_PRIMARY_BUTTON} onClick={() => setCreateOpen(true)}>
@@ -1227,17 +1218,17 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
 
-  const rows = (query.data ?? []).filter((event) =>
-    [
-      event.eventType,
-      event.roomNumber,
-      event.notes,
-      event.actorName,
-      event.actorMembershipId,
-    ].some((value) =>
+  const presented = (query.data ?? []).map((event) => ({
+    id: event.id,
+    roomNumber: event.roomNumber,
+    ...roomAuditRow(event),
+  }));
+  const needle = search.trim().toLowerCase();
+  const rows = presented.filter((row) =>
+    [row.roomNumber, row.event, row.previous, row.next, row.actor, row.context].some((value) =>
       String(value ?? "")
         .toLowerCase()
-        .includes(search.toLowerCase()),
+        .includes(needle),
     ),
   );
 
@@ -1262,8 +1253,8 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
       "Date / Time",
       "Room",
       "Event",
-      "Previous Values",
-      "New Values",
+      "Previous",
+      "New",
       "Actor",
       "Reason / Context",
     ];
@@ -1280,13 +1271,13 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
       headers.join(","),
       ...rows.map((event) =>
         [
-          escapeCsv(new Date(event.createdAt).toLocaleString()),
+          escapeCsv(event.when),
           escapeCsv(event.roomNumber ?? "—"),
-          escapeCsv(event.eventType.replaceAll("_", " ")),
-          escapeCsv(event.previousValues ?? "—"),
-          escapeCsv(event.newValues ?? "—"),
-          escapeCsv(event.actorName || "Staff"),
-          escapeCsv(event.notes ?? "—"),
+          escapeCsv(event.event),
+          escapeCsv(event.previous),
+          escapeCsv(event.next),
+          escapeCsv(event.actor),
+          escapeCsv(event.context),
         ].join(","),
       ),
     ];
@@ -1342,7 +1333,7 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
         <InventoryState
           state="empty"
           title="No operational events found"
-          description="Events written by the canonical inventory lifecycle will appear here."
+          description="Room changes, restrictions, and blocks will appear here."
         />
       ) : (
         <div className="space-y-3">
@@ -1372,20 +1363,14 @@ export function RoomHistoryAuditView({ restaurantId }: { restaurantId: string })
                 {paginatedRows.map((event) => (
                   <tr key={event.id} className="border-b border-border/70 last:border-0 hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(event.createdAt).toLocaleString()}
+                      {event.when}
                     </td>
                     <td className="px-4 py-3 font-semibold text-[#251605]">{event.roomNumber ?? "—"}</td>
-                    <td className="px-4 py-3 font-medium">{event.eventType.replaceAll("_", " ")}</td>
-                    <td className="max-w-48 truncate px-4 py-3 text-xs text-muted-foreground">
-                      {event.previousValues ?? "—"}
-                    </td>
-                    <td className="max-w-48 truncate px-4 py-3 text-xs text-muted-foreground">
-                      {event.newValues ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-xs font-medium text-[#251605]">
-                      {event.actorName || (event.actorMembershipId ? `${event.actorMembershipId.slice(0, 8)}…` : "Staff")}
-                    </td>
-                    <td className="max-w-56 px-4 py-3 text-xs text-muted-foreground">{event.notes ?? "—"}</td>
+                    <td className="px-4 py-3 font-medium">{event.event}</td>
+                    <td className="max-w-48 px-4 py-3 text-xs text-muted-foreground">{event.previous}</td>
+                    <td className="max-w-48 px-4 py-3 text-xs text-muted-foreground">{event.next}</td>
+                    <td className="px-4 py-3 text-xs font-medium text-[#251605]">{event.actor}</td>
+                    <td className="max-w-56 px-4 py-3 text-xs text-muted-foreground">{event.context}</td>
                   </tr>
                 ))}
               </tbody>

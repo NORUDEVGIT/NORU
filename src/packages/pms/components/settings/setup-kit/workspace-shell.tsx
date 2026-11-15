@@ -43,6 +43,7 @@ export function PropertySetupWorkspaceShell({
   footerTestId,
   hideTitle,
   wide,
+  fill,
 }: {
   cardNumber: PropertySetupCardNumber;
   title?: string;
@@ -74,19 +75,27 @@ export function PropertySetupWorkspaceShell({
   footerTestId?: string;
   hideTitle?: boolean;
   wide?: boolean;
+  /** Fill the parent and keep the action footer pinned under a scrolling form. */
+  fill?: boolean;
 }) {
   return (
     <div
-      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col overflow-hidden overflow-x-hidden bg-[#F7F4EE]"
+      className={cn(
+        "flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden bg-[#F7F4EE]",
+        fill ? "h-full min-h-0 w-full" : "min-h-[calc(100dvh-3.75rem)] overflow-hidden",
+      )}
       data-testid="property-setup-workspace-shell"
     >
-      <div className="@container min-h-0 min-w-0 w-full flex-1 overflow-y-auto">
+      <div className="@container min-h-0 min-w-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto">
         <div
           className={cn(
-            "min-h-0 w-full px-4 pb-6 sm:px-6",
+            "min-h-0 w-full max-w-full px-4 sm:px-6",
+            fill ? "pb-14" : "pb-6",
             wide
               ? "mx-auto max-w-[90rem] space-y-3 pt-3 lg:px-8"
-              : "mx-auto max-w-5xl space-y-4 pt-4",
+              : fill
+                ? "mx-auto max-w-5xl space-y-3 pt-2"
+                : "mx-auto max-w-5xl space-y-4 pt-4",
           )}
         >
             {settingsReturnTo() ? (
@@ -133,6 +142,7 @@ export function PropertySetupWorkspaceShell({
               continueLabel={continueLabel}
               extra={extraFooter}
               testId={footerTestId}
+              elevated={fill}
             />
           ))}
     </div>

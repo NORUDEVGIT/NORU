@@ -314,6 +314,7 @@ export function FoCheckInWorkspaceSheet({
       stay.roomTypeId,
       stay.arrivalDate,
       stay.departureDate,
+      stay.reservationRoomId ?? null,
     ],
     queryFn: () =>
       fetchAssignable({
@@ -323,6 +324,7 @@ export function FoCheckInWorkspaceSheet({
           arrival: stay.arrivalDate,
           departure: stay.departureDate,
           excludeReservationId: stay.id,
+          ...(stay.reservationRoomId ? { reservationRoomId: stay.reservationRoomId } : {}),
         },
       }),
     enabled: open && Boolean(stay.roomTypeId),
