@@ -122,6 +122,26 @@ import {
   type ReservationRoomUnit,
   type ReservationRoomUnitRow,
 } from "./reservation-room-units";
+import {
+  persistUnitRoomRequirements,
+  resolveCreateUnitRequirements,
+  roomRequirementColumns,
+  roomRequirementsEqual,
+  loadEvaluationRequirements,
+  requirementRejectionFromBlockers,
+  requirementRejectionFromError,
+  roomRequirementsFromRow,
+  saveRoomRequirementsAtomic,
+  type RoomRequirementReadDb,
+  type RoomRequirementRpcDb,
+  type RoomRequirementWriteDb,
+} from "./reservation-room-requirements";
+import {
+  assertValidPairSequences,
+  roomPairErrorMessage,
+  saveRoomPairsBySequence,
+  type RoomPairDb,
+} from "./reservation-room-pairs";
 import type { Json } from "@/integrations/supabase/types";
 import {
   getAssignmentEligibilityCompat,
@@ -131,6 +151,7 @@ import {
 import { signRoomImages } from "./rooms.server";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 import { assignmentIneligibilityReason } from "./fo-checkin-v2-model";
+import { createPairAwareEvaluator, type PairEligibilityDb } from "./room-pair-eligibility";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
@@ -620,12 +641,39 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
         arrival: dateSchema,
         departure: dateSchema,
         excludeReservationId: idSchema.optional(),
+        /** The room unit the list is for. Its stored requirements go to the evaluator. */
+        reservationRoomId: idSchema.optional(),
+        /**
+         * Current in-memory requirement values, for screens that evaluate before a unit
+         * exists (Create) or before an edit is saved (Edit). They never persist.
+         */
+        accessibleRoomRequired: z.boolean().optional(),
+        connectingRoomRequired: z.boolean().optional(),
+        /**
+         * Leave the unit's room pair out of the list. Only for a caller that judges the
+         * pair itself against rooms that are about to change (group swap). The database
+         * enforces the pair on every write either way.
+         */
+        skipPairCheck: z.boolean().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<AssignableRoom[]> => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     const { arrival, departure } = assertStayDates(data.arrival, data.departure);
+    const { supabaseAdmin: requirementDb } = await import("@/integrations/supabase/client.server");
+    const requirements = await loadEvaluationRequirements(
+      requirementDb as unknown as RoomRequirementReadDb,
+      {
+        restaurantId: data.restaurantId,
+        reservationId: data.excludeReservationId,
+        reservationRoomId: data.reservationRoomId,
+        draft: {
+          accessibleRoomRequired: data.accessibleRoomRequired,
+          connectingRoomRequired: data.connectingRoomRequired,
+        },
+      },
+    );
 
     const { data: propRow } = await context.supabase
       .from("restaurants")
@@ -669,6 +717,11 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
 
     const output: AssignableRoom[] = [];
     let canonicalSupported = true;
+    // A paired unit only sees rooms that satisfy its pair. Unpaired units are unchanged.
+    const pairAware = await createPairAwareEvaluator(requirementDb as unknown as PairEligibilityDb, {
+      restaurantId: data.restaurantId,
+      reservationRoomId: data.skipPairCheck ? null : requirements.reservationRoomId,
+    });
     for (const room of candidates) {
       const legacyResult = (): AssignmentEligibilityResult => ({
         source: "legacy",
@@ -678,7 +731,7 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
         preferenceScore: 0,
         preferenceReasons: [],
       });
-      const eligibility = canonicalSupported
+      const baseEligibility = canonicalSupported
         ? await getAssignmentEligibilityCompat(
             context.supabase,
             {
@@ -688,11 +741,14 @@ export const listAssignableRooms = createServerFn({ method: "POST" })
               arrival,
               departure,
               excludeReservationId: data.excludeReservationId ?? null,
+              accessibleRequired: requirements.accessibleRoomRequired,
+              connectingRequired: requirements.connectingRoomRequired,
             },
             legacyResult,
           )
         : legacyResult();
-      if (eligibility.source === "legacy") canonicalSupported = false;
+      if (baseEligibility.source === "legacy") canonicalSupported = false;
+      const eligibility = await pairAware(room.id, baseEligibility);
       if (eligibility.eligible) {
         output.push({
           id: room.id,
@@ -734,6 +790,8 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
         arrival: dateSchema,
         departure: dateSchema,
         excludeReservationId: idSchema.optional(),
+        /** The room unit being checked in. Its stored requirements go to the evaluator. */
+        reservationRoomId: idSchema.optional(),
         adults: z.number().int().min(0).max(20).optional(),
         children: z.number().int().min(0).max(20).optional(),
       })
@@ -761,9 +819,22 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const housekeeping = await loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId);
+    // Check-in uses what is stored on the unit. There is no draft here.
+    const requirements = await loadEvaluationRequirements(
+      supabaseAdmin as unknown as RoomRequirementReadDb,
+      {
+        restaurantId: data.restaurantId,
+        reservationId: data.excludeReservationId,
+        reservationRoomId: data.reservationRoomId,
+      },
+    );
     const output: CheckInRoomCandidate[] = [];
+    const pairAware = await createPairAwareEvaluator(supabaseAdmin as unknown as PairEligibilityDb, {
+      restaurantId: data.restaurantId,
+      reservationRoomId: requirements.reservationRoomId,
+    });
     for (const room of rooms ?? []) {
-      const eligibility = await getAssignmentEligibilityCompat(
+      const baseEligibility = await getAssignmentEligibilityCompat(
         supabaseAdmin,
         {
           restaurantId: data.restaurantId,
@@ -774,6 +845,8 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
           excludeReservationId: data.excludeReservationId ?? null,
           adults: data.adults,
           children: data.children,
+          accessibleRequired: requirements.accessibleRoomRequired,
+          connectingRequired: requirements.connectingRoomRequired,
         },
         () => ({
           source: "legacy" as const,
@@ -784,6 +857,7 @@ export const listCheckInRoomCandidates = createServerFn({ method: "POST" })
           preferenceReasons: [],
         }),
       );
+      const eligibility = await pairAware(room.id, baseEligibility);
       const ready = isRoomReady(
         {
           status: room.status,
@@ -1124,12 +1198,24 @@ export const getReservation = createServerFn({ method: "POST" })
       const reservation = toDetail(row as unknown as ReservationRow);
       const unitColumns =
         "id, unit_sequence, room_type_id, room_id, arrival_date, departure_date, adults, children, infants, rate_plan_id, currency, nightly_rate_snapshot, room_subtotal, priced_at";
-      let unitsQuery = await context.supabase
-        .from("hotel_reservation_rooms")
-        .select(`${unitColumns}, status, assignment_notes`)
-        .eq("restaurant_id", data.restaurantId)
-        .eq("reservation_id", data.reservationId)
-        .order("unit_sequence", { ascending: true });
+      let unitsQuery: { data: unknown[] | null; error: { message: string; code?: string } | null } =
+        await context.supabase
+          .from("hotel_reservation_rooms")
+          .select(
+            `${unitColumns}, status, assignment_notes, accessible_room_required, connecting_room_required`,
+          )
+          .eq("restaurant_id", data.restaurantId)
+          .eq("reservation_id", data.reservationId)
+          .order("unit_sequence", { ascending: true });
+      if (unitsQuery.error && isMissingSchemaError(unitsQuery.error)) {
+        // Older schema without the requirement columns. They read as off.
+        unitsQuery = await context.supabase
+          .from("hotel_reservation_rooms")
+          .select(`${unitColumns}, status, assignment_notes`)
+          .eq("restaurant_id", data.restaurantId)
+          .eq("reservation_id", data.reservationId)
+          .order("unit_sequence", { ascending: true });
+      }
       if (unitsQuery.error && isMissingSchemaError(unitsQuery.error)) {
         unitsQuery = await context.supabase
           .from("hotel_reservation_rooms")
@@ -1576,9 +1662,24 @@ const stayInputSchema = z.object({
         infants: z.number().int().min(0).max(20),
         ratePlanId: idSchema.nullable().optional(),
         pmsGroupBlockId: idSchema.nullable().optional(),
+        accessibleRoomRequired: z.boolean().optional(),
+        connectingRoomRequired: z.boolean().optional(),
       }),
     )
     .max(20)
+    .optional(),
+  /** Hard requirements for Room 1 (unit 1). Extra rooms carry their own on roomUnits. */
+  accessibleRoomRequired: z.boolean().optional(),
+  connectingRoomRequired: z.boolean().optional(),
+  /** Connecting pairs between room units, by unit sequence. Saved after the reservation exists. */
+  roomPairs: z
+    .array(
+      z.object({
+        unitSequenceA: z.number().int().min(1).max(20),
+        unitSequenceB: z.number().int().min(1).max(20),
+      }),
+    )
+    .max(10)
     .optional(),
   overbookingRequested: z.boolean().optional(),
   overbookingReason: z.string().trim().max(500).nullable().optional(),
@@ -1751,6 +1852,10 @@ export const createReservation = createServerFn({ method: "POST" })
       paymentError: string | null;
       guestDepositPosted: boolean;
       guestDepositError: string | null;
+      /** Not complete means the reservation exists but some units still need their requirements saved. */
+      roomRequirements: { complete: boolean; reason: string | null };
+      /** Not complete means the reservation exists but its connecting pairs are not saved yet. */
+      roomPairs: { complete: boolean; reason: string | null };
       folioOpened: boolean;
     }> => {
       const postsPayment =
@@ -1998,6 +2103,31 @@ export const createReservation = createServerFn({ method: "POST" })
             }
           : {}),
       };
+      const unitRequirements = resolveCreateUnitRequirements({
+        unitCount: roomUnitPayload.roomUnits?.length ?? roomUnitPayload.rooms,
+        room1: {
+          accessibleRoomRequired: data.accessibleRoomRequired,
+          connectingRoomRequired: data.connectingRoomRequired,
+        },
+        roomUnits: data.roomUnits ?? null,
+      });
+      const roomPairs = data.roomPairs ?? [];
+      assertValidPairSequences(roomPairs, unitRequirements.length);
+      // A preassigned room is held by room 1. Its draft requirements are checked
+      // before the reservation exists, so a refused room creates nothing.
+      const room1 = roomUnitPayload.roomUnits?.[0];
+      await assertDraftRoomRequirementsMet(context.supabase, {
+        restaurantId: data.restaurantId,
+        roomId: data.roomId ?? null,
+        roomTypeId: room1?.roomTypeId ?? data.roomTypeId,
+        arrival,
+        departure,
+        excludeReservationId: null,
+        adults: room1?.adults ?? data.adults,
+        children: room1?.children ?? data.children,
+        accessibleRequired: unitRequirements[0]?.accessibleRoomRequired ?? false,
+        connectingRequired: unitRequirements[0]?.connectingRoomRequired ?? false,
+      });
       const hasCommercialSelection =
         Boolean(data.promotionActivationId) || (data.packageActivationIds?.length ?? 0) > 0;
       if (data.overbookingRequested) {
@@ -2037,6 +2167,44 @@ export const createReservation = createServerFn({ method: "POST" })
         currency: string | null;
         nightly_rate_snapshot: unknown;
       };
+      // The create RPCs do not carry the room requirements. Save them on the new
+      // reservation's units in one atomic call. The reservation is never created
+      // again if this fails; the caller retries this step alone. The database
+      // refuses a requirement that the assigned room does not meet, so the
+      // reservation never stores a hard requirement next to an incompatible room.
+      const roomRequirements = await saveRoomRequirementsAtomic(
+        supabaseAdmin as unknown as RoomRequirementRpcDb,
+        {
+          restaurantId: data.restaurantId,
+          reservationId: row.id,
+          units: unitRequirements.map((requirements, index) => ({
+            unitSequence: index + 1,
+            requirements,
+          })),
+        },
+      );
+      if (!roomRequirements.complete) {
+        console.error("create_reservation_room_requirements_failed", {
+          reservationId: row.id,
+          message: roomRequirements.errorMessage,
+        });
+      }
+      // Pairs follow the requirements, so a retry always saves requirements first.
+      // Like the requirements, a failure here never creates the reservation again.
+      const pairSave = !roomRequirements.complete
+        ? { complete: false, errorMessage: null }
+        : await saveRoomPairsBySequence(supabaseAdmin as unknown as RoomPairDb, {
+            restaurantId: data.restaurantId,
+            reservationId: row.id,
+            actorMembershipId: me.id,
+            pairs: roomPairs,
+          });
+      if (!pairSave.complete && pairSave.errorMessage) {
+        console.error("create_reservation_room_pairs_failed", {
+          reservationId: row.id,
+          message: pairSave.errorMessage,
+        });
+      }
       if (groupLink) {
         const { attachReservationToGroup } = await import("./groups.functions");
         await attachReservationToGroup(supabaseAdmin, me.id, {
@@ -2139,10 +2307,79 @@ export const createReservation = createServerFn({ method: "POST" })
         paymentError: money.paymentError,
         guestDepositPosted: money.guestDepositPosted,
         guestDepositError: money.guestDepositError,
+        roomRequirements: {
+          complete: roomRequirements.complete,
+          reason: requirementRejectionFromError(roomRequirements.errorMessage),
+        },
+        roomPairs: {
+          complete: roomPairs.length === 0 || pairSave.complete,
+          reason:
+            roomPairs.length === 0 || pairSave.complete || !pairSave.errorMessage
+              ? null
+              : roomPairErrorMessage(pairSave.errorMessage),
+        },
         folioOpened: money.folioOpened,
       };
     },
   );
+
+/**
+ * Retry for the create flow. Saves requirements onto a reservation that already
+ * exists and never creates one. Every unit is saved or none is. Safe to call
+ * repeatedly with the same values.
+ */
+export const saveReservationRoomRequirements = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        units: z
+          .array(
+            z.object({
+              unitSequence: z.number().int().min(1).max(20),
+              accessibleRoomRequired: z.boolean(),
+              connectingRoomRequired: z.boolean(),
+            }),
+          )
+          .min(1)
+          .max(20)
+          .refine(
+            (units) => new Set(units.map((unit) => unit.unitSequence)).size === units.length,
+            "Each room can be listed once.",
+          ),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<{ complete: boolean; reason: string | null }> => {
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.RESERVATION_CREATE,
+      PMS_PERMISSIONS.FRONT_OFFICE_WALK_IN,
+    ]);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const saved = await saveRoomRequirementsAtomic(
+      supabaseAdmin as unknown as RoomRequirementRpcDb,
+      {
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        units: data.units.map((unit) => ({
+          unitSequence: unit.unitSequence,
+          requirements: {
+            accessibleRoomRequired: unit.accessibleRoomRequired,
+            connectingRoomRequired: unit.connectingRoomRequired,
+          },
+        })),
+      },
+    );
+    if (!saved.complete) {
+      console.error("save_reservation_room_requirements_failed", {
+        reservationId: data.reservationId,
+        message: saved.errorMessage,
+      });
+    }
+    return { complete: saved.complete, reason: requirementRejectionFromError(saved.errorMessage) };
+  });
 
 export const copyReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -2226,6 +2463,9 @@ async function applyUnitScopedReservationEdit(input: {
   marketSegment: string | null | undefined;
   externalReference: string | null | undefined;
   guaranteeMethod: string | null | undefined;
+  /** Hard requirements for the selected room unit. Undefined leaves the stored value alone. */
+  accessibleRoomRequired?: boolean | undefined;
+  connectingRoomRequired?: boolean | undefined;
 }): Promise<{ id: string; amendment: StayAmendmentResult | null }> {
   const db = input.supabaseAdmin;
   const { arrival, departure } = assertStayDates(input.arrival, input.departure);
@@ -2263,7 +2503,7 @@ async function applyUnitScopedReservationEdit(input: {
   const unitsRead = await db
     .from("hotel_reservation_rooms")
     .select(
-      "id, unit_sequence, room_type_id, room_id, arrival_date, departure_date, adults, children, rate_plan_id, status, room_subtotal",
+      "id, unit_sequence, room_type_id, room_id, arrival_date, departure_date, adults, children, rate_plan_id, status, room_subtotal, accessible_room_required, connecting_room_required",
     )
     .eq("restaurant_id", input.restaurantId)
     .eq("reservation_id", input.reservationId)
@@ -2281,6 +2521,8 @@ async function applyUnitScopedReservationEdit(input: {
     rate_plan_id: string | null;
     status: string | null;
     room_subtotal: number | string | null;
+    accessible_room_required: boolean | null;
+    connecting_room_required: boolean | null;
   }>;
   const multi = units.length > 1;
   const unit = input.reservationRoomId
@@ -2383,6 +2625,59 @@ async function applyUnitScopedReservationEdit(input: {
     });
   }
 
+  // Room requirements belong to the selected room unit only. Other units are never touched.
+  const storedRequirements = roomRequirementsFromRow(unit);
+  const nextRequirements = {
+    accessibleRoomRequired:
+      input.accessibleRoomRequired ?? storedRequirements.accessibleRoomRequired,
+    connectingRoomRequired:
+      input.connectingRoomRequired ?? storedRequirements.connectingRoomRequired,
+  };
+  const requirementsChanging = !roomRequirementsEqual(storedRequirements, nextRequirements);
+  if (requirementsChanging && !unit) {
+    throw new Error("Room requirements are saved on a room unit. Select a room unit first.");
+  }
+  // The room this unit will hold after the save is judged against the new
+  // requirement values before anything is written. A new room is held to every
+  // requirement; the current room only to the ones being turned on now.
+  const roomWillChange = assignmentChanged || roomTypeChanged;
+  if (["pending", "confirmed", "checked_in"].includes(String(scope.status ?? master.status))) {
+    await assertDraftRoomRequirementsMet(input.supabaseAdmin, {
+      restaurantId: input.restaurantId,
+      roomId: input.roomId,
+      roomTypeId: input.roomTypeId,
+      arrival,
+      departure,
+      excludeReservationId: input.reservationId,
+      adults: input.adults,
+      children: input.children,
+      accessibleRequired:
+        nextRequirements.accessibleRoomRequired &&
+        (roomWillChange || !storedRequirements.accessibleRoomRequired),
+      connectingRequired:
+        nextRequirements.connectingRoomRequired &&
+        (roomWillChange || !storedRequirements.connectingRoomRequired),
+    });
+  }
+  // Turned-off requirements are saved before the room write so the database
+  // judges a new room by the values staff chose. Turned-on ones are saved after
+  // it and are re-checked against the room the unit then holds.
+  const relaxedRequirements = {
+    accessibleRoomRequired:
+      storedRequirements.accessibleRoomRequired && nextRequirements.accessibleRoomRequired,
+    connectingRoomRequired:
+      storedRequirements.connectingRoomRequired && nextRequirements.connectingRoomRequired,
+  };
+  if (unit && !roomRequirementsEqual(storedRequirements, relaxedRequirements)) {
+    await persistUnitRoomRequirements(db as unknown as RoomRequirementWriteDb, {
+      restaurantId: input.restaurantId,
+      reservationId: input.reservationId,
+      unitId: unit.id,
+      stored: storedRequirements,
+      next: relaxedRequirements,
+    });
+  }
+
   const commercialMoneyChange = stayChanged || roomTypeChanged || rateChanged;
   const unitId = unit?.id ?? null;
   if (commercialMoneyChange && unitId) {
@@ -2456,6 +2751,35 @@ async function applyUnitScopedReservationEdit(input: {
       _membership_id: input.membershipId,
     });
     if (reconciled.error) throw reservationError(reconciled.error.message);
+  }
+
+  if (requirementsChanging && unit) {
+    try {
+      await persistUnitRoomRequirements(db as unknown as RoomRequirementWriteDb, {
+        restaurantId: input.restaurantId,
+        reservationId: input.reservationId,
+        unitId: unit.id,
+        stored: relaxedRequirements,
+        next: nextRequirements,
+      });
+    } catch (error) {
+      const requirementMessage = requirementRejectionFromError(error);
+      throw requirementMessage ? new Error(requirementMessage) : error;
+    }
+    await recordReservationEvent({
+      restaurantId: input.restaurantId,
+      reservationId: input.reservationId,
+      eventType: "amended",
+      previousValues: {
+        unit_sequence: unit.unit_sequence,
+        ...roomRequirementColumns(storedRequirements),
+      },
+      newValues: {
+        unit_sequence: unit.unit_sequence,
+        ...roomRequirementColumns(nextRequirements),
+      },
+      actorMembershipId: input.membershipId,
+    });
   }
 
   const commercialPatch: Record<string, string | null> = {};
@@ -2568,6 +2892,9 @@ export const amendReservation = createServerFn({ method: "POST" })
         arrivalTransport: z.string().max(200).nullable().optional(),
         pickupNote: z.string().max(200).nullable().optional(),
         specialOccasion: z.string().max(80).nullable().optional(),
+        /** Hard requirements for the room unit named by reservationRoomId. */
+        accessibleRoomRequired: z.boolean().optional(),
+        connectingRoomRequired: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -2607,6 +2934,8 @@ export const amendReservation = createServerFn({ method: "POST" })
             data.externalReference !== undefined ? blankToNull(data.externalReference) : undefined,
           guaranteeMethod:
             data.guaranteeMethod !== undefined ? blankToNull(data.guaranteeMethod) : undefined,
+          accessibleRoomRequired: data.accessibleRoomRequired,
+          connectingRoomRequired: data.connectingRoomRequired,
         });
       }
       const { arrival, departure } = assertStayDates(data.arrival, data.departure);
@@ -3169,11 +3498,63 @@ export const ROOM_ASSIGNMENT_UNAVAILABLE =
 export const ROOM_ASSIGNMENT_STALE =
   "This room assignment changed. Refresh room availability and try again.";
 
+/**
+ * Refuse a room that fails requirement values the caller is about to store
+ * (Create draft, Edit new values). Only the requirement verdict is read here;
+ * every other rule stays with the write RPC. The database re-checks the stored
+ * values when they are saved (migration 0210).
+ */
+async function assertDraftRoomRequirementsMet(
+  client: unknown,
+  input: {
+    restaurantId: string;
+    roomId: string | null | undefined;
+    roomTypeId: string;
+    arrival: string;
+    departure: string;
+    excludeReservationId: string | null;
+    adults: number | null;
+    children: number | null;
+    accessibleRequired: boolean;
+    connectingRequired: boolean;
+  },
+): Promise<void> {
+  if (!input.roomId || (!input.accessibleRequired && !input.connectingRequired)) return;
+  const eligibility = await getAssignmentEligibilityCompat(
+    client,
+    {
+      restaurantId: input.restaurantId,
+      roomId: input.roomId,
+      roomTypeId: input.roomTypeId,
+      arrival: input.arrival,
+      departure: input.departure,
+      excludeReservationId: input.excludeReservationId,
+      adults: input.adults,
+      children: input.children,
+      accessibleRequired: input.accessibleRequired,
+      connectingRequired: input.connectingRequired,
+    },
+    () => ({
+      source: "legacy" as const,
+      eligible: true,
+      blockers: [],
+      warnings: [],
+      preferenceScore: 0,
+      preferenceReasons: [],
+    }),
+  );
+  const requirementMessage = requirementRejectionFromBlockers(eligibility.blockers);
+  if (requirementMessage) throw new Error(requirementMessage);
+}
+
 function assignmentWriteError(error: { message: string }): Error {
   const mapped = reservationError(error.message);
   if (/ASSIGNMENT_STALE/i.test(`${error.message} ${mapped.message}`)) {
     return new Error(ROOM_ASSIGNMENT_STALE);
   }
+  // A refused stay requirement keeps its own sentence; it is never "no longer available".
+  const requirementMessage = requirementRejectionFromError(error.message);
+  if (requirementMessage) return new Error(requirementMessage);
   if (
     /ROOM_NOT_ASSIGNABLE|ROOM_ALREADY_BOOKED|NO_AVAILABILITY|eligible|available|booked|occupied|blocked/i.test(
       `${error.message} ${mapped.message}`,
@@ -3245,7 +3626,17 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
     }
     if (data.roomId) {
       const { getAssignmentEligibilityCompat } = await import("./room-inventory-compat");
-      const eligibility = await getAssignmentEligibilityCompat(
+      // The stored requirements of the unit being assigned. A reservation with no
+      // unit rows has none, and the evaluator then runs with both off.
+      const requirements = await loadEvaluationRequirements(
+        supabaseAdmin as unknown as RoomRequirementReadDb,
+        {
+          restaurantId: data.restaurantId,
+          reservationId: data.reservationId,
+          reservationRoomId: targetUnit?.id,
+        },
+      );
+      const baseEligibility = await getAssignmentEligibilityCompat(
         context.supabase,
         {
           restaurantId: data.restaurantId,
@@ -3256,6 +3647,8 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
           excludeReservationId: data.reservationId,
           adults: targetUnit?.adults ?? existing.adults,
           children: targetUnit?.children ?? existing.children,
+          accessibleRequired: requirements.accessibleRoomRequired,
+          connectingRequired: requirements.connectingRoomRequired,
         },
         () => ({
           source: "legacy" as const,
@@ -3266,7 +3659,18 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
           preferenceReasons: [],
         }),
       );
-      if (!eligibility.eligible) throw new Error(ROOM_ASSIGNMENT_UNAVAILABLE);
+      // A paired unit must also satisfy its pair. The database enforces it again on write.
+      const pairAware = await createPairAwareEvaluator(
+        supabaseAdmin as unknown as PairEligibilityDb,
+        { restaurantId: data.restaurantId, reservationRoomId: targetUnit?.id },
+      );
+      const eligibility = await pairAware(data.roomId, baseEligibility);
+      if (!eligibility.eligible) {
+        // A stay requirement reads as its own sentence. Anything else is "no longer available".
+        const requirementMessage = requirementRejectionFromBlockers(eligibility.blockers);
+        if (requirementMessage) throw new Error(requirementMessage);
+        throw new Error(ROOM_ASSIGNMENT_UNAVAILABLE);
+      }
     }
     if (targetUnit) {
       const { error: assignError } = await supabaseAdmin.rpc("assign_hotel_reservation_room_unit", {

@@ -275,6 +275,7 @@ export function FoAmendUpgradeSheet({
       roomTypeId,
       stay.arrivalDate,
       stay.departureDate,
+      stay.reservationRoomId ?? null,
     ],
     queryFn: () =>
       fetchRooms({
@@ -284,6 +285,7 @@ export function FoAmendUpgradeSheet({
           arrival: stay.arrivalDate,
           departure: stay.departureDate,
           excludeReservationId: stay.id,
+          ...(stay.reservationRoomId ? { reservationRoomId: stay.reservationRoomId } : {}),
         },
       }),
     enabled: open && !!roomTypeId,

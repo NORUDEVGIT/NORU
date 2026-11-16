@@ -1,19 +1,23 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import {
+  CARD6_HASH,
+  requestCard6DistributionTab,
+} from "@/packages/pms/lib/pms-property-setup-card6";
 
 /**
  * Legacy URL kept for backward compatibility.
- * The canonical address is /restaurant/pms/distribution; any query string is preserved.
+ * Distribution lives in Settings → Connectivity & Distribution.
  */
 export const Route = createFileRoute("/restaurant/bookings/distribution")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>) => search as { tab?: string },
-  beforeLoad: ({ search }) => {
-    throw redirect({ to: "/restaurant/pms/distribution", search, replace: true });
+  beforeLoad: () => {
+    requestCard6DistributionTab();
+    throw redirect({ to: "/restaurant/settings", hash: CARD6_HASH, replace: true });
   },
   head: () => ({
     meta: [
       { title: "Redirecting — NORU PMS" },
-      { name: "description", content: "This page has moved into the NORU PMS workspace." },
+      { name: "description", content: "This page has moved into NORU Settings." },
       { name: "robots", content: "noindex" },
     ],
   }),

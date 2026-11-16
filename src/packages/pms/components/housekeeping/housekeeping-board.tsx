@@ -5,10 +5,13 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   BedDouble,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   RefreshCw,
   ShieldCheck,
   Sparkles,
   UserRound,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,20 +19,20 @@ import { toast } from "sonner";
 import { Button } from "@/shared/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
-  SheetHeader,
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import {
-  HkBusinessDate,
   HkShellExportButton,
   HkShellSlot,
   HkToolbarSearch,
   HkViewSwitcher,
   downloadCsv,
+  HK_SHELL_ICON_BUTTON,
   HK_SHELL_PRIMARY_BUTTON,
 } from "@/packages/pms/components/housekeeping/housekeeping-shell-slots";
 import {
@@ -60,22 +63,41 @@ import {
   occupancyCaption,
   type HkBoardColumn,
 } from "@/packages/pms/lib/housekeeping-shell";
-import { hkDemandLabels, sortRoomsByHkDemand } from "@/packages/pms/lib/housekeeping-ops";
+import { sortRoomsByHkDemand } from "@/packages/pms/lib/housekeeping-ops";
 import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
-import { HK_HREF, INVENTORY_HREF, MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
-import { HkStatusBadge, PriorityBadge, formatWhen, labelTaskType } from "./housekeeping-bits";
+import { addDays } from "@/packages/pms/components/rooms/room-inventory-utils";
+import { HK_HREF, MAINTENANCE_HREF } from "@/packages/pms/lib/front-office-room-operations";
+import { PriorityBadge, formatWhen, labelTaskType } from "./housekeeping-bits";
 import { NewTaskDialog } from "./housekeeping-tabs";
 import type { HousekeepingScope } from "@/core/lib/module-access";
 
 type Props = {
   restaurantId: string;
   today: string;
+  businessDate: string;
+  onDateChange: (value: string) => void;
+  status: string;
+  onStatusChange: (value: string) => void;
   scope: HousekeepingScope;
   membershipId: string;
   openRoomId?: string;
   canCreateTask: boolean;
   canEditTask: boolean;
 };
+
+const BOARD_STATUS_OPTIONS = [
+  ["all", "All statuses"],
+  ["dirty", "Dirty"],
+  ["assigned", "Assigned"],
+  ["cleaning", "Cleaning"],
+  ["clean", "Clean"],
+  ["inspection", "Inspection"],
+  ["ready", "Ready"],
+  ["pickup", "Pickup"],
+  ["out_of_order", "Out of order"],
+] as const;
+
+const COLUMN_STATUS_IDS = new Set<string>(HK_BOARD_COLUMNS);
 
 const LANE_VISUAL: Record<
   HkBoardColumn,
@@ -120,9 +142,72 @@ const LANE_VISUAL: Record<
 };
 
 function displayFloorLabel(floorName: string): string {
-  if (floorName.toLowerCase() === "unassigned floor") return "Unassigned Floor";
+  const normalized = floorName.trim().toLowerCase();
+  if (normalized === "unassigned floor" || normalized === "no floor assigned" || normalized === "") {
+    return "No floor assigned";
+  }
   if (/^floor\b/i.test(floorName)) return floorName;
   return `Floor ${floorName}`;
+}
+
+function formatBoardDate(value: string): string {
+  const day = value.slice(0, 10);
+  const date = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(date.valueOf())) return value;
+  const weekday = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "UTC" }).format(date);
+  const month = new Intl.DateTimeFormat("en-GB", { month: "short", timeZone: "UTC" }).format(date);
+  return `${weekday} ${date.getUTCDate()} ${month}`;
+}
+
+function roomMatchesStatus(room: RackRoom, status: string): boolean {
+  if (status === "all") return true;
+  if (status === "pickup") return room.housekeepingStatus === "pickup";
+  if (status === "out_of_order") return room.restriction === "out_of_order";
+  if (COLUMN_STATUS_IDS.has(status)) return boardColumnForRoom(room) === status;
+  return room.housekeepingStatus === status || room.restriction === status;
+}
+
+function housekeepingStatusLabel(room: RackRoom): string {
+  const column = boardColumnForRoom(room);
+  if (column) return HK_BOARD_COLUMN_META[column].label;
+  if (room.restriction === "out_of_order") return "Out of order";
+  if (room.restriction === "out_of_service") return "Out of service";
+  return "Dirty";
+}
+
+function frontOfficeReadinessLabel(room: RackRoom): string {
+  if (room.occupancy === "occupied") return "In house";
+  if (room.checkInReady) return "Ready";
+  if (room.readyReason?.trim()) return room.readyReason.trim();
+  return "Not ready";
+}
+
+function occupancyLabel(room: RackRoom): string {
+  if (room.restriction === "out_of_order") return "Out of order";
+  if (room.restriction === "out_of_service") return "Out of service";
+  return room.occupancy === "occupied" ? "Occupied" : "Vacant";
+}
+
+function openTaskLabel(status: string | null): string {
+  if (!status) return "No open task";
+  if (status === "assigned") return "Assigned";
+  if (status === "in_progress") return "Cleaning";
+  if (status === "pending") return "Pending";
+  if (status === "completed") return "Completed";
+  return status.replaceAll("_", " ");
+}
+
+function roomContextChips(room: RackRoom): string[] {
+  const chips: string[] = [];
+  if (room.demand.arrival) chips.push("Arrival");
+  if (room.demand.departure) chips.push("Departure");
+  if (room.demand.stayover) chips.push("Stayover");
+  if (room.demand.roomChange) chips.push("Room move");
+  if (room.openTaskPriority === "high" || room.openTaskPriority === "urgent") chips.push("Priority");
+  if (/\b(dnd|do not disturb)\b/i.test(room.openTaskNotes ?? "")) chips.push("DND");
+  if (room.demand.vip) chips.push("VIP");
+  if (room.housekeepingStatus === "pickup") chips.push("Pickup");
+  return chips;
 }
 
 function invalidateHk(qc: ReturnType<typeof useQueryClient>, restaurantId: string) {
@@ -135,6 +220,10 @@ function invalidateHk(qc: ReturnType<typeof useQueryClient>, restaurantId: strin
 export function HousekeepingBoardTab({
   restaurantId,
   today,
+  businessDate,
+  onDateChange,
+  status,
+  onStatusChange,
   scope,
   membershipId,
   openRoomId,
@@ -165,7 +254,6 @@ export function HousekeepingBoardTab({
 
   const [floor, setFloor] = useState("all");
   const [attendant, setAttendant] = useState("all");
-  const [status, setStatus] = useState("all");
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"board" | "table">("board");
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
@@ -188,22 +276,9 @@ export function HousekeepingBoardTab({
   const filtered = rooms.filter((r) => {
     if (floor !== "all" && r.floor !== floor) return false;
     if (attendant !== "all" && r.assignedAttendant !== attendant) return false;
-    if (status !== "all") {
-      if (status === "ready" && !r.ready) return false;
-      if (status === "assigned" && r.openTaskStatus !== "assigned") return false;
-      if (status === "cleaning" && r.openTaskStatus !== "in_progress") return false;
-      if (
-        status !== "ready" &&
-        status !== "assigned" &&
-        status !== "cleaning" &&
-        r.housekeepingStatus !== status &&
-        r.restriction !== status
-      ) {
-        return false;
-      }
-    }
+    if (!roomMatchesStatus(r, status)) return false;
     if (query.trim()) {
-      const hay = `${r.roomNumber} ${r.roomTypeName} ${r.guestName ?? ""} ${r.assignedAttendant ?? ""} ${hkDemandLabels(r.demand).join(" ")} ${r.readyReason ?? ""} ${r.openTaskNotes ?? ""}`.toLowerCase();
+      const hay = `${r.roomNumber} ${r.roomTypeName} ${r.guestName ?? ""} ${r.assignedAttendant ?? ""} ${roomContextChips(r).join(" ")} ${r.readyReason ?? ""} ${r.openTaskNotes ?? ""}`.toLowerCase();
       if (!hay.includes(query.trim().toLowerCase())) return false;
     }
     return true;
@@ -212,7 +287,7 @@ export function HousekeepingBoardTab({
   const byFloor = useMemo(() => {
     const map = new Map<string, RackRoom[]>();
     for (const room of filtered) {
-      const key = room.floor?.trim() || "Unassigned floor";
+      const key = room.floor?.trim() || "No floor assigned";
       const list = map.get(key) ?? [];
       list.push(room);
       map.set(key, list);
@@ -225,24 +300,9 @@ export function HousekeepingBoardTab({
   const qvRoom = rooms.find((r) => r.id === qvRoomId) ?? null;
   const openMaint = (maintenance.data ?? []).filter((m) => m.status !== "resolved");
   const pendingInspect = (inspections.data ?? []).filter((i) => i.status === "pending");
-  const statusLabel =
-    status === "dirty"
-      ? "Dirty"
-      : status === "assigned"
-        ? "Assigned"
-        : status === "cleaning"
-          ? "Cleaning"
-          : status === "clean"
-            ? "Clean"
-            : status === "inspected"
-              ? "Inspected"
-              : status === "pickup"
-                ? "Pickup"
-                : status === "ready"
-                  ? "Ready"
-                  : status === "out_of_order"
-                    ? "Out of order"
-                    : "";
+  const statusLabel = BOARD_STATUS_OPTIONS.find(([id]) => id === status)?.[1] ?? "";
+  const narrowed =
+    floor !== "all" || attendant !== "all" || status !== "all" || query.trim().length > 0;
   const filterCount = (floor !== "all" ? 1 : 0) + (attendant !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0);
 
   function exportBoard() {
@@ -265,7 +325,7 @@ export function HousekeepingBoardTab({
   return (
     <div className="space-y-3" data-testid="hk-board">
       <HkShellSlot name="date">
-        <HkBusinessDate today={today} />
+        <HkBoardDateControl value={today} businessDate={businessDate} onChange={onDateChange} />
       </HkShellSlot>
       <HkShellSlot name="search">
         <HkToolbarSearch
@@ -281,16 +341,20 @@ export function HousekeepingBoardTab({
           onClear={() => {
             setFloor("all");
             setAttendant("all");
-            setStatus("all");
+            onStatusChange("all");
           }}
           buttonTestId="hk-board-filters-button"
           menuTestId="hk-board-filters-menu"
+          tooltip="Filters"
         >
           <PmsFilterChoiceRow
             label="Floor"
             value={floor}
-            current={floor === "all" ? "" : floor}
-            options={[["all", "All floors"], ...floors.map((item) => [item, item] as const)]}
+            current={floor === "all" ? "" : displayFloorLabel(floor)}
+            options={[
+              ["all", "All floors"],
+              ...floors.map((item) => [item, displayFloorLabel(item)] as const),
+            ]}
             onChange={setFloor}
           />
           <PmsFilterChoiceRow
@@ -304,26 +368,26 @@ export function HousekeepingBoardTab({
             label="Status"
             value={status}
             current={statusLabel}
-            options={[
-              ["all", "All statuses"],
-              ["dirty", "Dirty"],
-              ["assigned", "Assigned"],
-              ["cleaning", "Cleaning"],
-              ["clean", "Clean"],
-              ["inspected", "Inspected"],
-              ["pickup", "Pickup"],
-              ["ready", "Ready"],
-              ["out_of_order", "Out of order"],
-            ]}
-            onChange={setStatus}
+            options={BOARD_STATUS_OPTIONS}
+            onChange={onStatusChange}
           />
         </PmsFilterMenu>
       </HkShellSlot>
       <HkShellSlot name="export">
-        <HkShellExportButton onClick={exportBoard} disabled={filtered.length === 0} testId="hk-board-export" />
+        <HkShellExportButton
+          onClick={exportBoard}
+          disabled={filtered.length === 0}
+          testId="hk-board-export"
+          tooltip
+        />
       </HkShellSlot>
       <HkShellSlot name="view">
-        <HkViewSwitcher value={viewMode} onChange={setViewMode} testId="hk-board-view-switcher" />
+        <HkViewSwitcher
+          value={viewMode}
+          onChange={setViewMode}
+          testId="hk-board-view-switcher"
+          labels={{ board: "Board view", table: "List view" }}
+        />
       </HkShellSlot>
       {scope === "supervisor" && canCreateTask ? (
         <HkShellSlot name="cta">
@@ -341,17 +405,22 @@ export function HousekeepingBoardTab({
         </HkShellSlot>
       ) : null}
 
+      <BoardSummary
+        total={rooms.length}
+        visible={filtered.length}
+        narrowed={narrowed}
+        statusLabel={status !== "all" ? statusLabel : ""}
+        onClearStatus={() => onStatusChange("all")}
+      />
+
       {viewMode === "board" ? (
         <>
           <div className={HK_BOARD_LANES_DESKTOP_CLASS}>
-            <p className="border-b border-[#E6DDD0] bg-background px-3 py-2 text-sm font-medium">
-              Rooms ({filtered.length})
-            </p>
             <div
-              className="grid min-w-[1100px] grid-cols-[128px_repeat(6,minmax(168px,1fr))]"
+              className="grid min-w-[1040px] grid-cols-[5.75rem_repeat(6,minmax(160px,1fr))]"
               data-testid="hk-board-lanes"
             >
-              <div className="border-r border-[#E6DDD0] bg-[#EFEAE2] px-3 py-2.5">
+              <div className="border-r border-[#E6DDD0] bg-[#EFEAE2] px-2 py-2.5">
                 <p className="text-xs font-semibold text-muted-foreground">Floor</p>
               </div>
               {HK_BOARD_COLUMNS.map((col) => {
@@ -442,19 +511,30 @@ export function HousekeepingBoardTab({
                 filtered.map((room) => (
                   <tr
                     key={room.id}
-                    className={cn(ROOM_TABLE_ROW, "cursor-pointer", qvRoomId === room.id && "bg-[#F4E9D0]/70")}
+                    tabIndex={0}
+                    className={cn(
+                      ROOM_TABLE_ROW,
+                      "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C89933]",
+                      qvRoomId === room.id && "bg-[#F4E9D0]/70",
+                    )}
                     onClick={() => setQvRoomId(room.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setQvRoomId(room.id);
+                      }
+                    }}
                   >
                     <td className={`${ROOM_TABLE_TD} font-medium`}>{room.roomNumber}</td>
                     <td className={ROOM_TABLE_TD}>{room.roomTypeName}</td>
-                    <td className={ROOM_TABLE_TD}>{room.floor ?? "—"}</td>
                     <td className={ROOM_TABLE_TD}>
-                      <HkStatusBadge status={room.housekeepingStatus} />
+                      {room.floor ? displayFloorLabel(room.floor) : "No floor assigned"}
                     </td>
+                    <td className={ROOM_TABLE_TD}>{housekeepingStatusLabel(room)}</td>
                     <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>{occupancyCaption(room)}</td>
                     <td className={ROOM_TABLE_TD}>{room.assignedAttendant ?? "—"}</td>
-                    <td className={`${ROOM_TABLE_TD} capitalize text-muted-foreground`}>
-                      {room.openTaskStatus?.replace("_", " ") ?? "—"}
+                    <td className={`${ROOM_TABLE_TD} text-muted-foreground`}>
+                      {room.openTaskStatus ? openTaskLabel(room.openTaskStatus) : "—"}
                     </td>
                   </tr>
                 ))
@@ -483,14 +563,6 @@ export function HousekeepingBoardTab({
         membershipId={membershipId}
         pendingInspection={pendingInspect.find((i) => i.roomId === qvRoom?.id) ?? null}
         openMaint={openMaint.filter((m) => m.roomId === qvRoom?.id)}
-        {...(scope === "supervisor" && canCreateTask
-          ? {
-              onCreateTask: (room: RackRoom) => {
-                setLockedTaskRoom(room);
-                setCreateTaskOpen(true);
-              },
-            }
-          : {})}
         canEditTask={canEditTask}
         onClose={() => {
           setQvRoomId(null);
@@ -536,9 +608,11 @@ function FloorRow({
   }
   return (
     <>
-      <div className="border-r border-b border-[#E6DDD0] bg-[#EFEAE2] px-3 py-3">
-        <p className="text-xs font-semibold text-foreground">{displayFloorLabel(floorName)}</p>
-        <p className="text-[11px] text-muted-foreground">{rooms.length} rooms</p>
+      <div className="border-r border-b border-[#E6DDD0] bg-[#EFEAE2] px-2 py-3">
+        <p className="text-[11px] font-semibold leading-snug text-[#251605]">{displayFloorLabel(floorName)}</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">
+          {rooms.length} {rooms.length === 1 ? "room" : "rooms"}
+        </p>
       </div>
       {HK_BOARD_COLUMNS.map((col) => (
         <div
@@ -558,32 +632,31 @@ function FloorRow({
 }
 
 function RoomCard({ room, onOpen, field = false }: { room: RackRoom; onOpen: () => void; field?: boolean }) {
+  const chips = roomContextChips(room);
   return (
     <button
       type="button"
       onClick={onOpen}
       data-testid={`hk-room-card-${room.roomNumber}`}
+      aria-label={`Open room ${room.roomNumber}`}
       className={cn(
-        "w-full rounded-xl border border-[#E8E0D4] bg-white p-2.5 text-left shadow-[0_1px_2px_rgba(37,22,5,0.06)] hover:border-[#C89933]",
+        "w-full cursor-pointer rounded-xl border border-[#E8E0D4] bg-white p-2.5 text-left shadow-[0_1px_2px_rgba(37,22,5,0.06)] outline-none transition-colors",
+        "hover:border-[#C89933] hover:bg-[#FBF7EE] hover:shadow-[0_2px_8px_rgba(37,22,5,0.08)]",
+        "focus-visible:border-[#C89933] focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-1",
         field && "min-h-11 py-3",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold leading-tight text-foreground">{room.roomNumber}</p>
-        {room.openTaskStatus === "assigned" || room.openTaskStatus === "in_progress" ? (
-          <HkStatusBadge status={room.housekeepingStatus} />
-        ) : room.housekeepingStatus === "pickup" ? (
-          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-800">Pickup</span>
-        ) : null}
-      </div>
-      <p className="text-[11px] text-muted-foreground">{room.roomTypeName}</p>
-      <p className="mt-1 text-[11px] text-muted-foreground">{occupancyCaption(room)}</p>
-      {hkDemandLabels(room.demand).length > 0 ? (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {hkDemandLabels(room.demand).map((label) => (
+      <p className="font-display text-base font-semibold leading-none tracking-tight text-[#251605]">
+        {room.roomNumber}
+      </p>
+      <p className="mt-1 text-xs text-[#5C5346]">{room.roomTypeName}</p>
+      <p className="mt-1 text-[11px] leading-4 text-[#756A5B]">{occupancyCaption(room)}</p>
+      {chips.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {chips.map((label) => (
             <span
               key={label}
-              className="rounded-full bg-[#F3E6C8] px-1.5 py-0.5 text-[10px] font-medium text-[#251605]"
+              className="rounded-full border border-[#EADBBD] bg-[#FBF7EE] px-1.5 py-0.5 text-[10px] font-medium text-[#5F492D]"
             >
               {label}
             </span>
@@ -591,7 +664,7 @@ function RoomCard({ room, onOpen, field = false }: { room: RackRoom; onOpen: () 
         </div>
       ) : null}
       {room.assignedAttendant ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">{room.assignedAttendant}</p>
+        <p className="mt-1.5 text-[11px] text-[#756A5B]">{room.assignedAttendant}</p>
       ) : null}
     </button>
   );
@@ -605,7 +678,6 @@ function HousekeepingRoomQuickView({
   membershipId,
   pendingInspection,
   openMaint,
-  onCreateTask,
   canEditTask,
   onClose,
 }: {
@@ -616,7 +688,6 @@ function HousekeepingRoomQuickView({
   membershipId: string;
   pendingInspection: { id: string; status: string } | null;
   openMaint: Array<{ id: string; description: string; status: string }>;
-  onCreateTask?: (room: RackRoom) => void;
   canEditTask: boolean;
   onClose: () => void;
 }) {
@@ -665,8 +736,6 @@ function HousekeepingRoomQuickView({
     onError: (e) => toast.error(e instanceof Error ? e.message : "Something went wrong."),
   });
 
-  const canOperateField =
-    canEditTask && (scope === "supervisor" || scope === "housekeeper");
   const ownTask = Boolean(room?.assignedMembershipId && room.assignedMembershipId === membershipId);
   const canStart =
     canEditTask &&
@@ -678,205 +747,284 @@ function HousekeepingRoomQuickView({
     Boolean(room?.openTaskId) &&
     (room?.openTaskStatus === "assigned" || room?.openTaskStatus === "in_progress") &&
     (scope === "supervisor" || ownTask);
-  const checkInLabel = room?.checkInReady ? "Ready for check-in" : "Not ready for check-in";
-  const demand = room ? hkDemandLabels(room.demand) : [];
+  const chips = room ? roomContextChips(room) : [];
+  const stayChips = chips.filter((chip) => chip !== "Pickup" && chip !== "Priority");
 
   return (
     <Sheet open={room !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col overflow-y-auto sm:max-w-[420px]">
+      <SheetContent
+        side="right"
+        className="w-full max-w-[360px] gap-0 overflow-y-auto border-l border-[#DDD4C5] bg-white p-0 shadow-xl sm:max-w-[360px] [&>button]:hidden"
+      >
         {room ? (
-          <>
-            <SheetHeader className="text-left">
-              <SheetTitle className="font-display text-2xl">{room.roomNumber}</SheetTitle>
-              <SheetDescription>
-                {room.roomTypeName}
-                {room.floor ? ` · Floor ${room.floor}` : ""}
-              </SheetDescription>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                <HkStatusBadge status={room.housekeepingStatus} />
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px]">{occupancyCaption(room)}</span>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                    room.checkInReady ? "bg-teal-50 text-teal-800" : "bg-rose-50 text-rose-800",
-                  )}
-                >
-                  {checkInLabel}
-                </span>
-                {room.housekeepingStatus === "pickup" ? (
-                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-800">
-                    Pickup — extra HK state, not Ready
-                  </span>
-                ) : null}
-              </div>
-            </SheetHeader>
-
-            <div className="mt-4 space-y-3 text-sm">
-              <QvBlock title="Check-in readiness">
-                <p>{checkInLabel}</p>
-                {room.readyReason ? (
-                  <p className="text-muted-foreground">{room.readyReason}</p>
-                ) : (
-                  <p className="text-muted-foreground">Same policy as Front Office arrivals.</p>
-                )}
-                {room.occupancy === "occupied" && room.checkInReady ? (
-                  <p className="text-muted-foreground">Occupied — the Board Ready lane still requires vacant.</p>
-                ) : null}
-              </QvBlock>
-              <QvBlock title="Demand today">
-                {demand.length === 0 ? (
-                  <p className="text-muted-foreground">No arrival, departure, stayover, VIP, or room-move flags.</p>
-                ) : (
-                  <p>{demand.join(" · ")}</p>
-                )}
-              </QvBlock>
-              <QvBlock title="Current stay">
-                <p className="text-muted-foreground">
-                  {room.occupancy === "occupied"
-                    ? room.guestName ?? "In-house guest"
-                    : "None — vacant"}
-                </p>
-                {room.stayId ? (
-                  <Link
-                    to="/restaurant/pms/reservations/$reservationId"
-                    params={{ reservationId: room.stayId }}
-                    className="text-xs text-[#C89933]"
-                  >
-                    Open stay
-                  </Link>
-                ) : null}
-              </QvBlock>
-              <QvBlock title="Assigned attendant">
-                <p>{room.assignedAttendant ?? "None"}</p>
-              </QvBlock>
-              <QvBlock title="Cleaning task">
-                <p className="capitalize">{room.openTaskStatus?.replace("_", " ") ?? "No open task"}</p>
-                {room.openTaskType ? (
-                  <p className="text-muted-foreground">{labelTaskType(room.openTaskType)}</p>
-                ) : null}
-                {room.openTaskPriority ? <PriorityBadge priority={room.openTaskPriority} /> : null}
-                {room.openTaskNotes ? <p className="text-muted-foreground">{room.openTaskNotes}</p> : null}
-              </QvBlock>
-              <QvBlock title="Inspection">
-                <p>
-                  {room.awaitingInspection
-                    ? "Awaiting inspection"
-                    : pendingInspection
-                      ? "Pending"
-                      : room.housekeepingStatus === "inspected"
-                        ? "Passed"
-                        : "Not in the inspection queue"}
-                </p>
-                <p className={cn("text-xs", room.checkInReady ? "text-teal-800" : "text-rose-800")}>
-                  {room.checkInReady ? "Ready for check-in" : "Not ready for check-in"}
-                </p>
-                {room.readyReason ? <p className="text-muted-foreground">{room.readyReason}</p> : null}
-                {scope === "supervisor" ? (
-                  <Link to={HK_HREF} search={{ tab: "inspections" }} className="text-xs text-[#C89933]">
-                    Open inspections
-                  </Link>
-                ) : null}
-              </QvBlock>
-              <QvBlock title="Maintenance">
-                {openMaint.length === 0 ? (
-                  <p className="text-muted-foreground">No issue</p>
-                ) : (
-                  openMaint.map((m) => (
-                    <p key={m.id} className="text-muted-foreground">
-                      {m.description}
-                    </p>
-                  ))
-                )}
-                <Link to={MAINTENANCE_HREF} search={{ tab: "maintenance" }} className="text-xs text-[#C89933]">
-                  Open maintenance
-                </Link>
-              </QvBlock>
-              <QvBlock title="Links">
-                <div className="flex flex-col gap-1">
-                  <Link to={INVENTORY_HREF} className="text-xs text-[#C89933]">
-                    Room inventory
-                  </Link>
-                  <Link to={HK_HREF} search={{ tab: "cleaning" }} className="text-xs text-[#C89933]">
-                    Cleaning worklist
-                  </Link>
+          <div className="min-h-full bg-white" data-testid="hk-room-drawer">
+            <header className="border-b border-[#E8E1D7] px-4 py-3">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <SheetTitle className="font-display text-lg font-bold leading-tight text-[#251605]">
+                    {room.roomNumber}
+                  </SheetTitle>
+                  <SheetDescription className="mt-1 text-xs leading-4 text-[#5C5346]">
+                    {room.roomTypeName}
+                    {" · "}
+                    {room.floor ? displayFloorLabel(room.floor) : "No floor assigned"}
+                    {" · "}
+                    {formatBoardDate(today)}
+                  </SheetDescription>
                 </div>
-              </QvBlock>
-              <QvBlock title="Guest requests">
-                {scope === "maintenance" ? (
-                  <p className="text-muted-foreground">Guest requests are handled in Housekeeping Requests.</p>
-                ) : openRequests.length === 0 ? (
-                  <p className="text-muted-foreground">No open guest requests for this room.</p>
-                ) : (
-                  openRequests.map((row) => (
-                    <p key={row.id} className="text-muted-foreground">
-                      {row.serviceName}
-                      {row.priority !== "normal" ? ` · ${row.priority}` : ""}
-                    </p>
-                  ))
-                )}
-                {scope !== "maintenance" ? (
-                  <Link to={HK_HREF} search={{ tab: "requests" }} className="text-xs text-[#C89933]">
-                    Open requests
+                <SheetClose className="grid size-8 shrink-0 place-items-center rounded-md text-[#251605] hover:bg-[#F3EEE4]">
+                  <X className="size-4" />
+                  <span className="sr-only">Close</span>
+                </SheetClose>
+              </div>
+              <dl className="mt-3">
+                <DrawerFact label="Housekeeping status" value={housekeepingStatusLabel(room)} />
+                <DrawerFact label="Front Office readiness" value={frontOfficeReadinessLabel(room)} />
+                <DrawerFact label="Occupancy" value={occupancyLabel(room)} />
+              </dl>
+            </header>
+
+            <DrawerSection title="Stay & demand">
+              <p>
+                {room.occupancy === "occupied" ? room.guestName ?? "In-house guest" : "Vacant"}
+              </p>
+              {room.demand.earlyArrival ? <p className="text-[#5C5346]">Early arrival</p> : null}
+              {stayChips.length > 0 ? (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {stayChips.map((label) => (
+                    <span
+                      key={label}
+                      className="rounded-full border border-[#EADBBD] bg-[#FBF7EE] px-1.5 py-0.5 text-[10px] font-medium text-[#5F492D]"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[#756A5B]">No arrival, departure, stayover, or room move.</p>
+              )}
+              {room.stayId ? (
+                <Link
+                  to="/restaurant/pms/reservations/$reservationId"
+                  params={{ reservationId: room.stayId }}
+                  className="inline-block text-xs font-medium text-[#8A641A]"
+                >
+                  Open stay
+                </Link>
+              ) : null}
+            </DrawerSection>
+
+            <DrawerSection title="Housekeeping">
+              <p>Attendant · {room.assignedAttendant ?? "None"}</p>
+              <p>Task · {openTaskLabel(room.openTaskStatus)}</p>
+              {room.openTaskType ? <p className="text-[#5C5346]">{labelTaskType(room.openTaskType)}</p> : null}
+              {room.openTaskPriority && room.openTaskPriority !== "normal" ? (
+                <PriorityBadge priority={room.openTaskPriority} />
+              ) : null}
+              {room.openTaskNotes ? <p className="text-[#5C5346]">{room.openTaskNotes}</p> : null}
+              {room.housekeepingStatus === "pickup" ? (
+                <p className="text-[#5C5346]">Marked for pickup.</p>
+              ) : null}
+              {canStart || canComplete ? (
+                <div className="flex flex-col gap-2 pt-1">
+                  {canStart ? (
+                    <Button
+                      className={HK_FIELD_ACTION_CLASS}
+                      variant="outline"
+                      onClick={() => act.mutate({ taskId: room.openTaskId!, action: "start" })}
+                    >
+                      Start cleaning
+                    </Button>
+                  ) : null}
+                  {canComplete ? (
+                    <Button
+                      className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c]")}
+                      onClick={() => complete.mutate(room.openTaskId!)}
+                    >
+                      Complete cleaning
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+              <Link to={HK_HREF} search={{ tab: "cleaning" }} className="inline-block text-xs font-medium text-[#8A641A]">
+                Cleaning Tasks
+              </Link>
+            </DrawerSection>
+
+            <DrawerSection title="Issues">
+              <p>
+                Inspection ·{" "}
+                {room.awaitingInspection
+                  ? "Awaiting inspection"
+                  : pendingInspection
+                    ? "Pending"
+                    : room.housekeepingStatus === "inspected"
+                      ? "Passed"
+                      : "Not in the inspection queue"}
+              </p>
+              {openMaint.length === 0 ? (
+                <p className="text-[#756A5B]">No maintenance issue</p>
+              ) : (
+                openMaint.map((item) => (
+                  <p key={item.id} className="text-[#5C5346]">
+                    {item.description}
+                  </p>
+                ))
+              )}
+              {scope === "maintenance" ? (
+                <p className="text-[#756A5B]">Guest requests are handled in Housekeeping Requests.</p>
+              ) : openRequests.length === 0 ? (
+                <p className="text-[#756A5B]">No open guest requests for this room.</p>
+              ) : (
+                openRequests.map((row) => (
+                  <p key={row.id} className="text-[#5C5346]">
+                    {row.serviceName}
+                    {row.priority !== "normal" ? ` · ${row.priority}` : ""}
+                  </p>
+                ))
+              )}
+              <div className="flex flex-col gap-1 pt-0.5">
+                {scope === "supervisor" ? (
+                  <Link to={HK_HREF} search={{ tab: "inspections" }} className="text-xs font-medium text-[#8A641A]">
+                    Inspections
                   </Link>
                 ) : null}
-              </QvBlock>
-              {scope === "supervisor" ? (
-                <QvBlock title="Recent history">
-                  {roomHistory.length === 0 ? (
-                    <p className="text-muted-foreground">No history for this room.</p>
-                  ) : (
-                    roomHistory.map((row) => (
-                      <p key={row.id} className="text-xs text-muted-foreground">
-                        {row.eventType.replaceAll("_", " ")} · {formatWhen(row.createdAt)}
-                      </p>
-                    ))
-                  )}
-                </QvBlock>
-              ) : null}
-            </div>
-
-            {(canOperateField || onCreateTask) && (room.openTaskId || onCreateTask) ? (
-              <div className="mt-auto grid grid-cols-1 gap-2 pt-6 sm:grid-cols-2">
-                {onCreateTask ? (
-                  <Button className={HK_FIELD_ACTION_CLASS} variant="outline" onClick={() => onCreateTask(room)}>
-                    Create task
-                  </Button>
-                ) : null}
-                {canStart ? (
-                  <Button
-                    className={HK_FIELD_ACTION_CLASS}
-                    variant="outline"
-                    onClick={() => act.mutate({ taskId: room.openTaskId!, action: "start" })}
-                  >
-                    Start cleaning
-                  </Button>
-                ) : null}
-                {canComplete ? (
-                  <Button
-                    className={cn(HK_FIELD_ACTION_CLASS, "bg-[#C89933] text-[#251605] hover:bg-[#b8892c]")}
-                    onClick={() => complete.mutate(room.openTaskId!)}
-                  >
-                    Complete cleaning
-                  </Button>
+                <Link to={MAINTENANCE_HREF} search={{ tab: "maintenance" }} className="text-xs font-medium text-[#8A641A]">
+                  Maintenance
+                </Link>
+                {scope !== "maintenance" ? (
+                  <Link to={HK_HREF} search={{ tab: "requests" }} className="text-xs font-medium text-[#8A641A]">
+                    Requests
+                  </Link>
                 ) : null}
               </div>
-            ) : (
-              <p className="mt-6 text-xs text-muted-foreground">
-                Business date {today}. Room Quick View does not change Front Office stay or inventory writers.
-              </p>
-            )}
-          </>
+            </DrawerSection>
+
+            <DrawerSection title="Recent activity">
+              {scope === "supervisor" ? (
+                roomHistory.length === 0 ? (
+                  <p className="text-[#756A5B]">No history for this room.</p>
+                ) : (
+                  roomHistory.map((row) => (
+                    <p key={row.id} className="text-[#5C5346]">
+                      {row.eventType.replaceAll("_", " ")} · {formatWhen(row.createdAt)}
+                    </p>
+                  ))
+                )
+              ) : (
+                <p className="text-[#756A5B]">Recent activity is available to supervisors.</p>
+              )}
+            </DrawerSection>
+          </div>
         ) : null}
       </SheetContent>
     </Sheet>
   );
 }
 
-function QvBlock({ title, children }: { title: string; children: React.ReactNode }) {
+function DrawerFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
-      <div className="mt-1 space-y-1">{children}</div>
+    <div className="grid grid-cols-[9.25rem_minmax(0,1fr)] gap-2 py-1 text-xs">
+      <dt className="text-[#756A5B]">{label}</dt>
+      <dd className="font-semibold text-[#251605]">{value}</dd>
+    </div>
+  );
+}
+
+function DrawerSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-b border-[#E8E1D7] px-4 py-3 last:border-b-0">
+      <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#756A5B]">{title}</h3>
+      <div className="mt-2 space-y-1.5 text-xs leading-5 text-[#251605]">{children}</div>
+    </section>
+  );
+}
+
+function HkBoardDateControl({
+  value,
+  businessDate,
+  onChange,
+}: {
+  value: string;
+  businessDate: string;
+  onChange: (value: string) => void;
+}) {
+  const onToday = value === businessDate;
+  return (
+    <div className="flex items-center gap-1.5" data-testid="hk-board-date">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={HK_SHELL_ICON_BUTTON}
+        aria-label="Previous day"
+        onClick={() => onChange(addDays(value, -1))}
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+      <span className="inline-flex h-9 min-w-[6.75rem] items-center justify-center rounded-md border border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605]">
+        {formatBoardDate(value)}
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={HK_SHELL_ICON_BUTTON}
+        aria-label="Next day"
+        onClick={() => onChange(addDays(value, 1))}
+      >
+        <ChevronRight className="size-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn(
+          "h-9 px-2.5 text-xs",
+          onToday
+            ? "border-[#C89933] bg-[#F4E9D0] font-semibold text-[#251605] hover:bg-[#F4E9D0]"
+            : "border-[#DDD4C5]",
+        )}
+        onClick={() => onChange(businessDate)}
+      >
+        Today
+      </Button>
+    </div>
+  );
+}
+
+function BoardSummary({
+  total,
+  visible,
+  narrowed,
+  statusLabel,
+  onClearStatus,
+}: {
+  total: number;
+  visible: number;
+  narrowed: boolean;
+  statusLabel: string;
+  onClearStatus: () => void;
+}) {
+  const roomWord = (count: number) => (count === 1 ? "room" : "rooms");
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="hk-board-summary">
+      <h2 className="text-sm font-semibold text-[#251605]">Room Status Board</h2>
+      <p className="text-sm text-[#5C5346]" data-testid="hk-board-room-count">
+        {narrowed ? `${visible} of ${total} ${roomWord(total)}` : `${total} ${roomWord(total)}`}
+      </p>
+      {statusLabel ? (
+        <button
+          type="button"
+          onClick={onClearStatus}
+          data-testid="hk-board-status-chip"
+          className="inline-flex items-center gap-1 rounded-full border border-[#EADBBD] bg-[#FBF7EE] px-2 py-0.5 text-xs font-medium text-[#251605] hover:border-[#C89933]"
+        >
+          Status: {statusLabel}
+          <X className="size-3" />
+          <span className="sr-only">Clear status filter</span>
+        </button>
+      ) : null}
     </div>
   );
 }

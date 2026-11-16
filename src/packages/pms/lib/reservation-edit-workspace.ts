@@ -14,6 +14,11 @@ import {
   snapshotDisplayName,
   storedRatePerNight,
 } from "@/packages/pms/lib/reservation-detail-overview";
+import {
+  roomRequirementChanges,
+  roomRequirementsFromRow,
+  type RoomRequirements,
+} from "@/packages/pms/lib/reservation-room-requirements";
 import type {
   ReservationDetail,
   ReservationHistoryEntry,
@@ -64,6 +69,9 @@ export type ReservationEditDraft = {
   unitSequence: number | null;
   unitCount: number;
   unitStatus: string | null;
+  /** Hard requirements stored on the selected room unit. Off when no unit is selected. */
+  accessibleRoomRequired: boolean;
+  connectingRoomRequired: boolean;
 };
 
 export type ReservationEditUnitSlice = {
@@ -80,6 +88,8 @@ export type ReservationEditUnitSlice = {
   roomTypeName?: string | null;
   roomNumber?: string | null;
   ratePlanName?: string | null;
+  accessibleRoomRequired?: boolean | undefined;
+  connectingRoomRequired?: boolean | undefined;
 };
 
 export type EditChangeRow = {
@@ -225,7 +235,21 @@ export function draftFromReservation(
     unitSequence: chosen?.unitSequence ?? null,
     unitCount: rooms.length > 0 ? rooms.length : 1,
     unitStatus: chosen?.status ?? reservation.status,
+    accessibleRoomRequired: chosen?.accessibleRoomRequired === true,
+    connectingRoomRequired: chosen?.connectingRoomRequired === true,
   };
+}
+
+export function editDraftRequirements(draft: ReservationEditDraft): RoomRequirements {
+  return roomRequirementsFromRow({
+    accessible_room_required: draft.accessibleRoomRequired,
+    connecting_room_required: draft.connectingRoomRequired,
+  });
+}
+
+/** Requirements are stored per room unit, so a multi-room stay needs a unit selected first. */
+export function roomRequirementsEditLocked(draft: ReservationEditDraft): boolean {
+  return draft.reservationRoomId == null;
 }
 
 export function editDraftDirty(before: ReservationEditDraft, after: ReservationEditDraft): boolean {
@@ -446,6 +470,10 @@ export function buildEditChangeRows(input: {
     ),
     row("Special Requests", dash(before.specialRequests), dash(after.specialRequests), true),
     row("Reservation Internal Notes", dash(before.notes), dash(after.notes), true),
+    // Only changed requirements are listed. An unchanged one adds nothing to the review.
+    ...roomRequirementChanges(editDraftRequirements(before), editDraftRequirements(after)).map(
+      (change) => row(change.item, change.before, change.after, true),
+    ),
   ];
 }
 

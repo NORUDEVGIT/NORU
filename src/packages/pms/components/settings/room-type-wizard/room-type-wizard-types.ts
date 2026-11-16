@@ -67,6 +67,8 @@ export type StagedRoom = {
   accessible: boolean;
   roomFeatures: string[];
   persisted: boolean;
+  /** Saved rooms only; physical connections are edited in Room Configuration. */
+  hasConnectingLink?: boolean;
 };
 
 export function emptyWizardType(): WizardTypeForm {

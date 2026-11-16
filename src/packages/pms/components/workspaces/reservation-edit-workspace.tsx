@@ -49,6 +49,7 @@ import {
   EDIT_RESERVATION_STEPS,
   editCommercialLabel,
   editDraftDirty,
+  editDraftRequirements,
   guestContactIssue,
   guestProfileAmendPayload,
   folioReconciliationNotice,
@@ -57,6 +58,7 @@ import {
   pickLatestAmendHistory,
   rateEditLocked,
   ratePerNightLabel,
+  roomRequirementsEditLocked,
   roomTotalImpact,
   roomTypeEditLocked,
   stayEditLocked,
@@ -65,6 +67,14 @@ import {
   type ReservationEditUnitSlice,
 } from "@/packages/pms/lib/reservation-edit-workspace";
 import type { AmendmentPrintData } from "@/packages/pms/lib/reservation-amendment-print";
+import { RoomRequirementsFields } from "@/packages/pms/components/bookings/room-requirements-fields";
+import {
+  ConnectingPairsSummary,
+  SavedConnectsToSection,
+  useSavedUnitPaired,
+} from "@/packages/pms/components/bookings/reservation-room-pair-controls";
+import { PAIRED_REQUIREMENT_LOCK_NOTE } from "@/packages/pms/lib/reservation-room-pairs";
+import { assignedRoomRequirementWarning } from "@/packages/pms/lib/reservation-room-requirements";
 import { listRatePlans, quoteStay } from "@/packages/pms/lib/rates.functions";
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
@@ -254,6 +264,8 @@ function unitSlice(
     children: room.children,
     ratePlanId: room.ratePlanId,
     status: room.status,
+    accessibleRoomRequired: room.accessibleRoomRequired,
+    connectingRoomRequired: room.connectingRoomRequired,
     roomTypeName:
       room.roomTypeName ??
       (room.roomTypeId === reservation.roomTypeId ? reservation.roomTypeName : null),
@@ -409,7 +421,13 @@ export function ReservationEditWorkspace({
       draft?.departure,
       reservationId,
       "edit",
+      draft?.reservationRoomId ?? null,
+      draft?.accessibleRoomRequired,
+      draft?.connectingRoomRequired,
     ],
+    // The selected room's requirements drive the list. The Edit form's current values
+    // replace the stored ones, so changing a requirement re-checks the candidates
+    // before it is saved. Nothing here persists them.
     queryFn: () =>
       fetchRooms({
         data: {
@@ -418,9 +436,17 @@ export function ReservationEditWorkspace({
           arrival: draft!.arrival,
           departure: draft!.departure,
           excludeReservationId: reservationId,
+          ...(draft!.reservationRoomId ? { reservationRoomId: draft!.reservationRoomId } : {}),
+          accessibleRoomRequired: draft!.accessibleRoomRequired,
+          connectingRoomRequired: draft!.connectingRoomRequired,
         },
       }),
-    enabled: canManage && Boolean(draft?.roomTypeId) && datesValid,
+    // A stay with several rooms needs one chosen room before any list is meaningful.
+    enabled:
+      canManage &&
+      Boolean(draft?.roomTypeId) &&
+      datesValid &&
+      !(draft!.unitCount > 1 && draft!.reservationRoomId == null),
     retry: false,
   });
 
@@ -514,6 +540,17 @@ export function ReservationEditWorkspace({
   }
 
   const liveDraft = draft;
+  const selectedUnitPaired = useSavedUnitPaired(
+    restaurantId,
+    reservationId,
+    draft?.reservationRoomId ?? null,
+  );
+
+  /** A pair change is saved at once. The stored connecting value becomes the new baseline. */
+  function syncSavedConnecting(connectingRoomRequired: boolean) {
+    setDraft((current) => (current ? { ...current, connectingRoomRequired } : current));
+    setBaseline((current) => (current ? { ...current, connectingRoomRequired } : current));
+  }
 
   const moneyFmt = (value: number) => money(value, reservation?.currency);
   const signedDelta = (delta: number) => {
@@ -705,6 +742,13 @@ export function ReservationEditWorkspace({
           externalReference: liveDraft.externalReference || null,
           guaranteeMethod: liveDraft.guaranteeMethod || null,
           reservationRoomId: liveDraft.reservationRoomId,
+          // Hard requirements of the selected room unit. The server updates only that unit.
+          ...(liveDraft.reservationRoomId
+            ? {
+                accessibleRoomRequired: liveDraft.accessibleRoomRequired,
+                connectingRoomRequired: liveDraft.connectingRoomRequired,
+              }
+            : {}),
         },
       });
     },
@@ -885,7 +929,9 @@ export function ReservationEditWorkspace({
       draft.children !== baseline.children ||
       draft.roomTypeId !== baseline.roomTypeId ||
       (draft.roomId ?? null) !== (baseline.roomId ?? null) ||
-      (draft.ratePlanId ?? null) !== (baseline.ratePlanId ?? null);
+      (draft.ratePlanId ?? null) !== (baseline.ratePlanId ?? null) ||
+      draft.accessibleRoomRequired !== baseline.accessibleRoomRequired ||
+      draft.connectingRoomRequired !== baseline.connectingRoomRequired;
     if (roomDirty && !window.confirm("Discard unsaved room changes for the current room?")) {
       return;
     }
@@ -1450,6 +1496,41 @@ export function ReservationEditWorkspace({
                     </div>
                   </Field>
                 </div>
+                <RoomRequirementsFields
+                  idPrefix="edit-room"
+                  className="mt-3"
+                  restaurantId={restaurantId}
+                  guestId={liveDraft.guestId}
+                  value={editDraftRequirements(liveDraft)}
+                  onChange={(next) => patch(next)}
+                  disabled={roomRequirementsEditLocked(liveDraft)}
+                  disabledNote={
+                    liveDraft.unitCount > 1
+                      ? "Choose a room above to set its requirements."
+                      : "This reservation has no room unit record, so requirements cannot be saved."
+                  }
+                  assignedRoomWarning={assignedRoomRequirementWarning({
+                    hasAssignedRoom: liveDraft.roomId != null,
+                    before: editDraftRequirements(baseline),
+                    after: editDraftRequirements(liveDraft),
+                  })}
+                  showSoftRequestNote
+                  connectingLockedNote={selectedUnitPaired ? PAIRED_REQUIREMENT_LOCK_NOTE : null}
+                  pairing={
+                    <SavedConnectsToSection
+                      restaurantId={restaurantId}
+                      reservationId={reservationId}
+                      unitId={liveDraft.reservationRoomId ?? null}
+                      disabled={save.isPending}
+                      onSaved={syncSavedConnecting}
+                    />
+                  }
+                />
+                <ConnectingPairsSummary
+                  restaurantId={restaurantId}
+                  reservationId={reservationId}
+                  className="mt-3"
+                />
               </SectionCard>
 
               <SectionCard

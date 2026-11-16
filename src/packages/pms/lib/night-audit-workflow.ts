@@ -195,7 +195,7 @@ export function exceptionDefaultSource(
     case "overbooking":
       return { route: "/restaurant/pms/room-inventory", search: { tab: "overbooking" } };
     case "distribution":
-      return { route: "/restaurant/pms/distribution" };
+      return { route: "/restaurant/settings#connectivity-distribution" };
     case "revenue":
       return { route: "/restaurant/pms/rates-revenue", search: { view: "approvals" } };
     case "services":

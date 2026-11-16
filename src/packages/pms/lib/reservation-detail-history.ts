@@ -50,6 +50,9 @@ const EVENT_LABELS: Record<string, string> = {
   trace_updated: "Trace Updated",
   assignment_notes_updated: "Assignment Notes Updated",
   rate_notes_updated: "Rate Notes Updated",
+  room_pair_created: "Connecting Pair Created",
+  room_pair_changed: "Connecting Pair Changed",
+  room_pair_removed: "Connecting Pair Removed",
 };
 
 const AMEND_CLUSTER: ReadonlySet<string> = new Set([

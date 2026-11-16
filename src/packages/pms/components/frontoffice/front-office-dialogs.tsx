@@ -109,12 +109,17 @@ function RoomSelect({
   value,
   onChange,
   label = "Room",
+  reservationRoomId,
+  enabled = true,
 }: {
   restaurantId: string;
   stay: FrontOfficeStay;
   value: string;
   onChange: (v: string) => void;
   label?: string;
+  /** The room unit the list is for. Its stored requirements go to the evaluator. */
+  reservationRoomId?: string;
+  enabled?: boolean;
 }) {
   const fetchRooms = useServerFn(listAssignableRooms);
   const roomsQuery = useQuery({
@@ -126,6 +131,7 @@ function RoomSelect({
       stay.roomTypeId,
       stay.arrivalDate,
       stay.departureDate,
+      reservationRoomId ?? stay.reservationRoomId ?? null,
     ],
     queryFn: () =>
       fetchRooms({
@@ -135,8 +141,12 @@ function RoomSelect({
           arrival: stay.arrivalDate,
           departure: stay.departureDate,
           excludeReservationId: stay.id,
+          ...(reservationRoomId || stay.reservationRoomId
+            ? { reservationRoomId: reservationRoomId || stay.reservationRoomId! }
+            : {}),
         },
       }),
+    enabled,
     retry: false,
   });
   const rooms = roomsQuery.data ?? [];
@@ -284,6 +294,8 @@ export function AssignRoomDialog({
           stay={targetStay}
           value={roomId}
           onChange={setRoomId}
+          reservationRoomId={reservationRoomId}
+          enabled={!multiRoom || Boolean(reservationRoomId)}
         />
         <DialogFooter>
           <Button
@@ -410,6 +422,7 @@ export function RoomMoveDialog({
       targetStay.roomTypeId,
       targetStay.arrivalDate,
       targetStay.departureDate,
+      reservationRoomId,
     ],
     queryFn: () =>
       fetchRooms({
@@ -419,9 +432,11 @@ export function RoomMoveDialog({
           arrival: targetStay.arrivalDate,
           departure: targetStay.departureDate,
           excludeReservationId: targetStay.id,
+          // The moved room's stored requirements apply at the new room too.
+          ...(reservationRoomId ? { reservationRoomId } : {}),
         },
       }),
-    enabled: open,
+    enabled: open && (!multiRoom || Boolean(reservationRoomId)),
     retry: false,
   });
   const selectedRoom = (roomsQuery.data ?? []).find((room) => room.id === roomId) ?? null;
@@ -516,6 +531,8 @@ export function RoomMoveDialog({
             value={roomId}
             onChange={setRoomId}
             label="New Room"
+            reservationRoomId={reservationRoomId}
+            enabled={!multiRoom || Boolean(reservationRoomId)}
           />
           {nextLine ? (
             <p className="text-sm text-[#251605]">{nextLine}</p>

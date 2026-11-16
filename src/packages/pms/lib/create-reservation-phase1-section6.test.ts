@@ -94,7 +94,11 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     const functions = readRel("./reservations.functions.ts");
     assert.match(page, /createFileRoute\("\/restaurant\/bookings\/new"\)/);
     assert.match(page, /listAssignableRooms/);
-    assert.match(page, /\["assignable-rooms", restaurantId, roomTypeId, arrival, departure\]/);
+    // The key also carries the in-memory room requirements, so the list re-evaluates when they change.
+    assert.match(
+      page,
+      /"assignable-rooms",\s*restaurantId,\s*roomTypeId,\s*arrival,\s*departure,\s*room1Requirements\.accessibleRoomRequired,\s*room1Requirements\.connectingRoomRequired,?\s*\]/,
+    );
     assert.match(page, /CreateReservationRoomAssignment/);
     assert.match(assignment, /data-testid="create-reservation-room-assignment"/);
     assert.match(assignment, /data-testid="room-assignment-list"/);
@@ -211,7 +215,11 @@ describe("Create Reservation Phase 1 Section 6 lock — AC-CR6-1…22", () => {
     assert.match(page, /shouldClearStaleAssignedRoom/);
     assert.match(page, /toast\.warning\(CREATE_RESERVATION_ROOM_STALE_DATE_WARN\)/);
     assert.match(page, /handleArrivalChange/);
-    assert.match(page, /\["assignable-rooms", restaurantId, roomTypeId, arrival, departure\]/);
+    // The key also carries the in-memory room requirements, so the list re-evaluates when they change.
+    assert.match(
+      page,
+      /"assignable-rooms",\s*restaurantId,\s*roomTypeId,\s*arrival,\s*departure,\s*room1Requirements\.accessibleRoomRequired,\s*room1Requirements\.connectingRoomRequired,?\s*\]/,
+    );
     assert.match(CREATE_RESERVATION_ROOM_TYPE_CHANGE_WARN, /Unassigned/);
     assert.match(CREATE_RESERVATION_ROOM_STALE_DATE_WARN, /Unassigned/);
     assert.equal(

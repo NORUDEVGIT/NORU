@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
+import { ConnectingPairsSummary } from "@/packages/pms/components/bookings/reservation-room-pair-controls";
 import type { ReservationRoomUnit } from "@/packages/pms/lib/reservation-room-units";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -203,6 +204,8 @@ export function ReservationDetailRoomsTab({
           arrival: unitArrival,
           departure: unitDeparture,
           excludeReservationId: reservation.id,
+          // This room's stored requirements, not a sibling's.
+          ...(activeUnit?.id ? { reservationRoomId: activeUnit.id } : {}),
         },
       }),
     enabled: Boolean(activeRoomTypeId),
@@ -451,6 +454,7 @@ export function ReservationDetailRoomsTab({
                   : "Room actions are available only for upcoming stays that have not yet been checked in. After check-in, room assignment, unassignment, and room type changes will no longer be available."}
             </span>
           </p>
+          <ConnectingPairsSummary restaurantId={restaurantId} reservationId={reservation.id} />
           <ReservationRoomOccupants
             restaurantId={restaurantId}
             reservation={reservation}
@@ -889,6 +893,7 @@ function AvailableRoomsCard({
                         occupiedUntil: row.occupiedUntil,
                         statusLabel: row.statusLabel,
                         blockerCode: row.blockerCode,
+                        partnerRoomNumber: row.partnerRoomNumber ?? null,
                       })}
                     </td>
                   </tr>

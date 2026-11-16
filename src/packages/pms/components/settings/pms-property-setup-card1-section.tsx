@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { Loader2 } from "lucide-react";
+
 import { Button } from "@/shared/components/ui/button";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
@@ -10,7 +12,6 @@ import type { Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { savePmsPropertySetupCard1 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   CARD1_AGREEMENT_OUT,
-  CARD1_FINISH_COPY,
   CARD1_SIDEBAR_OUT,
   CARD1_STEPS,
   clearCard1SessionDraft,
@@ -96,6 +97,8 @@ export function PmsPropertySetupCard1Section({
   );
   const [identityErrors, setIdentityErrors] = useState<Card1IdentityFieldErrors>({});
   const [addressErrors, setAddressErrors] = useState<Card1AddressFieldErrors>({});
+  const [legalErrors, setLegalErrors] = useState<{ vatNumber?: string; vatCertificate?: string }>({});
+  const [saveIntent, setSaveIntent] = useState<"draft" | "continue" | "extra" | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState(snapshot.logoPreviewUrl);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState(snapshot.coverPreviewUrl);
   const [propertyImagePreviews, setPropertyImagePreviews] = useState<Record<string, string>>(
@@ -172,7 +175,9 @@ export function PmsPropertySetupCard1Section({
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-audit", restaurantId] });
       clearCard1SessionDraft(restaurantId);
       setRestoredFromSession(false);
-      toast.success(mode === "finish" ? "Property & Business saved." : "Draft saved.");
+      toast.success(
+        mode === "finish" ? "Property & Business saved." : mode === "draft" ? "Draft saved." : "Saved.",
+      );
       if (mode === "continue") {
         const next = nextCard1Step(step);
         if (next) setStep(next);
@@ -193,6 +198,7 @@ export function PmsPropertySetupCard1Section({
     onError: (error: Error) => {
       toast.error(error.message);
     },
+    onSettled: () => setSaveIntent(null),
   });
 
   const taxWarnings = card1TaxWarnings(draft);
@@ -235,44 +241,71 @@ export function PmsPropertySetupCard1Section({
     performExit();
   }
 
-  function saveMode(mode: "draft" | "continue" | "finish") {
+  function focusFirstInvalidField() {
+    window.setTimeout(() => {
+      const root = document.querySelector("[data-testid='pms-card1-workspace']");
+      const target = root?.querySelector<HTMLElement>("[aria-invalid='true']");
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+    }, 0);
+  }
+
+  function saveMode(
+    mode: "draft" | "continue" | "finish",
+    intent: "draft" | "continue" | "extra" = mode === "draft" ? "draft" : "continue",
+  ) {
     if (isShortDescriptionOverLimit(draft.shortDescription)) {
-      toast.error("Short description must be 2,000 characters or fewer.");
+      focusFirstInvalidField();
       return;
     }
     if (mode === "continue" && step === "identity") {
       const nextErrors = validateIdentityFields(draft);
       setIdentityErrors(nextErrors);
-      if (Object.keys(nextErrors).length > 0) return;
+      if (Object.keys(nextErrors).length > 0) {
+        focusFirstInvalidField();
+        return;
+      }
     }
     if (mode === "continue" && step === "address") {
       const nextErrors = validateAddressFields(draft);
       setAddressErrors(nextErrors);
-      if (Object.keys(nextErrors).length > 0) return;
+      if (Object.keys(nextErrors).length > 0) {
+        focusFirstInvalidField();
+        return;
+      }
     }
     if ((mode === "continue" || mode === "finish") && step === "legal" && draft.vatRegistered) {
+      const nextLegal: { vatNumber?: string; vatCertificate?: string } = {};
       if (!draft.vatNumber.trim()) {
+        nextLegal.vatNumber = "VAT number is required while VAT Registered is On.";
         toast.error("VAT number is required while VAT Registered is On.");
-        return;
       }
       if (!hasVatCertificate(draft.taxUploadRefs)) {
+        nextLegal.vatCertificate = "VAT certificate is required while VAT Registered is On.";
         toast.error("VAT certificate is required while VAT Registered is On.");
+      }
+      setLegalErrors(nextLegal);
+      if (Object.keys(nextLegal).length > 0) {
+        focusFirstInvalidField();
         return;
       }
     }
+    setSaveIntent(intent);
     mutation.mutate(mode);
   }
 
   return (
     <section
-      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#F7F4EE]"
       data-testid="pms-card1-workspace"
       data-card1-fullscreen="true"
     >
       <div className="sr-only">{CARD1_SIDEBAR_OUT}</div>
-      <div className="min-w-0 flex-1" data-testid="pms-card1-fullscreen">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="pms-card1-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={1}
+          fill
           status={cardStatus}
           percent={percent}
           sections={railSections}
@@ -282,12 +315,12 @@ export function PmsPropertySetupCard1Section({
           blockers={blockers}
           warnings={warnings}
           onBack={goBack}
-          onSaveDraft={canEdit ? () => saveMode("draft") : undefined}
-          onContinue={() => saveMode(step === "structure" ? "finish" : "continue")}
+          onSaveDraft={canEdit ? () => saveMode("draft", "draft") : undefined}
+          onContinue={() => saveMode(step === "structure" ? "finish" : "continue", "continue")}
           saveDraftDisabled={mutation.isPending || !canEdit}
           continueDisabled={mutation.isPending || !canEdit}
-          continuePending={mutation.isPending}
-          saveDraftPending={mutation.isPending}
+          continuePending={mutation.isPending && saveIntent === "continue"}
+          saveDraftPending={mutation.isPending && saveIntent === "draft"}
           dirty={dirty}
           continueLabel={step === "structure" ? "Complete" : continueLabel(step)}
           footerTestId="pms-card1-chrome"
@@ -298,8 +331,11 @@ export function PmsPropertySetupCard1Section({
                 type="button"
                 variant="outline"
                 disabled={mutation.isPending}
-                onClick={() => saveMode("finish")}
+                onClick={() => saveMode("finish", "extra")}
               >
+                {mutation.isPending && saveIntent === "extra" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : null}
                 {finishLabel(step)}
               </Button>
             ) : null
@@ -320,6 +356,7 @@ export function PmsPropertySetupCard1Section({
           stepNav={
             <div data-testid="pms-card1-steps">
               <PropertySetupStepNav
+                marked
                 activeId={step}
                 onSelect={(id) => setStep(id as Card1StepId)}
                 steps={CARD1_STEPS.map((row) => ({
@@ -421,6 +458,12 @@ export function PmsPropertySetupCard1Section({
               setDraft={setDraft}
               canEdit={canEdit}
               warnings={taxWarnings}
+              vatNumberError={legalErrors.vatNumber}
+              vatCertificateError={legalErrors.vatCertificate}
+              onClearVatNumber={() => setLegalErrors((prev) => ({ ...prev, vatNumber: undefined }))}
+              onClearVatCertificate={() =>
+                setLegalErrors((prev) => ({ ...prev, vatCertificate: undefined }))
+              }
             />
           ) : null}
           {step === "structure" ? (
@@ -437,7 +480,6 @@ export function PmsPropertySetupCard1Section({
             />
           ) : null}
 
-          <p className="mt-3 text-xs text-muted-foreground">{CARD1_FINISH_COPY}</p>
           <p className="sr-only">{CARD1_AGREEMENT_OUT}</p>
           {dirty ? <p className="sr-only">Unsaved Card 1 changes</p> : null}
         </PropertySetupWorkspaceShell>

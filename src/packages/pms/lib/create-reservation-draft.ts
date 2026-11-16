@@ -1,6 +1,7 @@
 import type { AvailabilitySearchCriteria } from "@/packages/pms/lib/create-reservation-phase1-section4";
 import type { ReservationTypeMode } from "@/packages/pms/lib/create-reservation-phase1";
 import type { ReservationMode } from "@/packages/pms/lib/reservation-mode";
+import type { RoomRequirements } from "@/packages/pms/lib/reservation-room-requirements";
 
 export const CREATE_RESERVATION_DRAFT_VERSION = 1;
 const CREATE_RESERVATION_DRAFT_PREFIX = "reservation-create-draft";
@@ -49,6 +50,8 @@ export type CreateReservationDraftRoomUnit = {
   ratePlanId: string | null;
   occupant: { guestId: string; fullName: string } | null;
   pmsGroupBlockId?: string | null;
+  accessibleRoomRequired?: boolean | undefined;
+  connectingRoomRequired?: boolean | undefined;
 };
 
 export type CreateReservationDraft = {
@@ -65,6 +68,8 @@ export type CreateReservationDraft = {
   infants: number;
   roomsRequested: number;
   extraRoomUnits: CreateReservationDraftRoomUnit[];
+  /** Hard room requirements for Room 1. Extra rooms carry their own on each unit. */
+  room1Requirements?: RoomRequirements;
   roomTypeId: string;
   selectedRoomType: {
     roomTypeId: string;
@@ -149,6 +154,12 @@ export function createReservationDraftIsMeaningful(
     return true;
   }
   if (draft.extraRoomUnits.length > 0) return true;
+  if (
+    draft.room1Requirements?.accessibleRoomRequired ||
+    draft.room1Requirements?.connectingRoomRequired
+  ) {
+    return true;
+  }
   if (draft.availabilitySearchCommitted) return true;
   if (
     draft.adults !== 1 ||
@@ -207,6 +218,7 @@ export function parseCreateReservationDraft(payload: unknown): CreateReservation
     infants: clampInt(record.infants, 0, 20, 0),
     roomsRequested: clampInt(record.roomsRequested, 1, 20, 1),
     extraRoomUnits: parseExtraRoomUnits(record.extraRoomUnits),
+    room1Requirements: parseRoomRequirements(record.room1Requirements),
     roomTypeId: text(record.roomTypeId),
     selectedRoomType: parseRoomType(record.selectedRoomType),
     roomId: text(record.roomId) || "unassigned",
@@ -364,9 +376,19 @@ function parseExtraRoomUnits(value: unknown): CreateReservationDraftRoomUnit[] {
           occupantRow.fullName
             ? { guestId: occupantRow.guestId, fullName: occupantRow.fullName }
             : null,
+        accessibleRoomRequired: row.accessibleRoomRequired === true,
+        connectingRoomRequired: row.connectingRoomRequired === true,
       },
     ];
   });
+}
+
+function parseRoomRequirements(value: unknown): RoomRequirements {
+  const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return {
+    accessibleRoomRequired: row.accessibleRoomRequired === true,
+    connectingRoomRequired: row.connectingRoomRequired === true,
+  };
 }
 
 function parseGuest(value: unknown): CreateReservationDraftGuest | null {

@@ -11,6 +11,8 @@ import {
   inventoryRulesErrors,
   isInventoryBlockType,
   isInventoryImpact,
+  canonicalHousekeepingReadiness,
+  housekeepingAssignmentColumns,
   mergeBlockTypeRules,
   mergeCard2InventoryStatus,
   card2InventoryStepStatus,
@@ -79,10 +81,14 @@ function mapBlockRow(row: {
 }
 
 function mapParent(row: ParentRow, blockTypes: InventoryBlockTypeRule[]): InventoryRulesDraft {
+  const housekeepingReadiness = canonicalHousekeepingReadiness(
+    Boolean(row.require_housekeeping_readiness),
+    Boolean(row.housekeeping_affects_assignment),
+  );
   return {
     sellableStatusRequired: Boolean(row.sellable_status_required),
     maintenanceAffectsAvailability: Boolean(row.maintenance_affects_availability),
-    housekeepingAffectsAssignment: Boolean(row.housekeeping_affects_assignment),
+    housekeepingAffectsAssignment: housekeepingReadiness,
     requireRoomTypeMatch: Boolean(row.require_room_type_match),
     requireOccupancyMatch: Boolean(row.require_occupancy_match),
     requireBedTypeMatch: Boolean(row.require_bed_type_match),
@@ -91,7 +97,7 @@ function mapParent(row: ParentRow, blockTypes: InventoryBlockTypeRule[]): Invent
     useFloorPreference: Boolean(row.use_floor_preference),
     useBuildingPreference: Boolean(row.use_building_preference),
     useGuestPreference: Boolean(row.use_guest_preference),
-    requireHousekeepingReadiness: Boolean(row.require_housekeeping_readiness),
+    requireHousekeepingReadiness: housekeepingReadiness,
     requireMaintenanceAvailability: Boolean(row.require_maintenance_availability),
     overbookingAllowed: Boolean(row.overbooking_allowed),
     maximumOverbooking: row.maximum_overbooking == null ? null : Number(row.maximum_overbooking),
@@ -106,11 +112,12 @@ function mapParent(row: ParentRow, blockTypes: InventoryBlockTypeRule[]): Invent
 }
 
 function parentPayload(restaurantId: string, rules: InventoryRulesDraft) {
+  const housekeeping = housekeepingAssignmentColumns(rules.requireHousekeepingReadiness);
   return {
     restaurant_id: restaurantId,
     sellable_status_required: rules.sellableStatusRequired,
     maintenance_affects_availability: rules.maintenanceAffectsAvailability,
-    housekeeping_affects_assignment: rules.housekeepingAffectsAssignment,
+    housekeeping_affects_assignment: housekeeping.housekeeping_affects_assignment,
     require_room_type_match: rules.requireRoomTypeMatch,
     require_occupancy_match: rules.requireOccupancyMatch,
     require_bed_type_match: rules.requireBedTypeMatch,
@@ -119,7 +126,7 @@ function parentPayload(restaurantId: string, rules: InventoryRulesDraft) {
     use_floor_preference: rules.useFloorPreference,
     use_building_preference: rules.useBuildingPreference,
     use_guest_preference: rules.useGuestPreference,
-    require_housekeeping_readiness: rules.requireHousekeepingReadiness,
+    require_housekeeping_readiness: housekeeping.require_housekeeping_readiness,
     require_maintenance_availability: rules.requireMaintenanceAvailability,
     overbooking_allowed: rules.overbookingAllowed,
     maximum_overbooking: rules.maximumOverbooking,

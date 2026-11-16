@@ -10,6 +10,7 @@ import { Switch } from "@/shared/components/ui/switch";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/components/ui/dialog";
 import { ReadinessChip } from "@/packages/pms/components/settings/pms-set1-section";
 import { CARD7_HREF } from "@/packages/pms/lib/pms-property-setup-card7";
+import { requestCard6DistributionTab } from "@/packages/pms/lib/pms-property-setup-card6";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
 import {
   DISTRIBUTION_CHANNEL_LABELS,
@@ -616,7 +617,11 @@ export function Set6DistributionSection({
       )}
 
       <Button variant="outline" asChild>
-        <a href={SET6_DISTRIBUTION_HREF} data-testid="set6-open-distribution">
+        <a
+          href={SET6_DISTRIBUTION_HREF}
+          data-testid="set6-open-distribution"
+          onClick={requestCard6DistributionTab}
+        >
           Open distribution
         </a>
       </Button>

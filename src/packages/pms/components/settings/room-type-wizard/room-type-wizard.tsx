@@ -49,6 +49,7 @@ function roomsToStaged(rooms: HotelRoom[]): StagedRoom[] {
     accessible: room.accessible,
     roomFeatures: room.roomFeatures ?? [],
     persisted: true,
+    hasConnectingLink: room.links.some((link) => link.kind === "connecting"),
   }));
 }
 

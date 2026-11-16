@@ -31,6 +31,10 @@ import {
 import { FISCAL_OVERRIDE_REASON_CATEGORIES } from "@/packages/pms/lib/night-audit-workflow";
 import { EndOfDayCloseShiftDialog } from "@/packages/pms/components/nightaudit/end-of-day-close-shift";
 import { PMS_PERMISSIONS, type PmsPermissionCode } from "@/packages/pms/lib/pms-permissions";
+import {
+  CARD6_DISTRIBUTION_HREF,
+  requestCard6DistributionTab,
+} from "@/packages/pms/lib/pms-property-setup-card6";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -437,9 +441,17 @@ function ConditionActionMenu({
               </DropdownMenuItem>
             );
           }
+          const [routePath, routeHash] = action.route.split("#");
           return (
             <DropdownMenuItem key={`${action.label}:${action.route}`} asChild>
-              <Link to={action.route as never} search={(action.search ?? {}) as never}>
+              <Link
+                to={routePath as never}
+                search={(action.search ?? {}) as never}
+                {...(routeHash ? { hash: routeHash } : {})}
+                onClick={
+                  action.route === CARD6_DISTRIBUTION_HREF ? requestCard6DistributionTab : undefined
+                }
+              >
                 <ExternalLink className="size-4" aria-hidden />
                 {action.label}
               </Link>

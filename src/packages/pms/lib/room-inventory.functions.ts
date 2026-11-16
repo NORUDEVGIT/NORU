@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requirePmsActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { resolveEvaluationRequirements } from "./reservation-room-requirements";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -9,6 +10,7 @@ import {
   getRoomTypeAvailabilityCompat,
   type AssignmentEligibilityResult,
 } from "./room-inventory-compat";
+import { createPairAwareEvaluator, type PairEligibilityDb } from "./room-pair-eligibility";
 
 const idSchema = z.string().uuid();
 
@@ -934,6 +936,95 @@ export const cancelOperationalBlock = createServerFn({ method: "POST" })
 
 /* ----------------------------------------------------- assignment eligibility */
 
+/** The reservation room unit an Eligibility check was opened for. */
+export interface EligibilityReservationUnit {
+  reservationId: string;
+  reservationRoomId: string;
+  confirmationNumber: string | null;
+  unitSequence: number;
+  unitCount: number;
+  roomTypeId: string;
+  roomId: string | null;
+  arrival: string;
+  departure: string;
+  adults: number;
+  children: number;
+  /** Stored `hotel_reservation_rooms.accessible_room_required`. */
+  accessibleRoomRequired: boolean;
+  /** Stored `hotel_reservation_rooms.connecting_room_required`. */
+  connectingRoomRequired: boolean;
+}
+
+const getEligibilityReservationUnitSchema = z.object({
+  restaurantId: idSchema,
+  reservationId: idSchema,
+  reservationRoomId: idSchema.optional(),
+});
+
+/**
+ * Reads one reservation room unit with its stored requirements, so the Eligibility
+ * tab can start from them. Read only. The tab never writes an override back.
+ */
+export const getEligibilityReservationUnit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => getEligibilityReservationUnitSchema.parse(input))
+  .handler(async ({ data, context }): Promise<EligibilityReservationUnit> => {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await (supabaseAdmin as unknown as { from: (t: string) => any })
+      .from("hotel_reservation_rooms")
+      .select(
+        "id, unit_sequence, room_type_id, room_id, arrival_date, departure_date, adults, children, accessible_room_required, connecting_room_required",
+      )
+      .eq("restaurant_id", data.restaurantId)
+      .eq("reservation_id", data.reservationId)
+      .order("unit_sequence", { ascending: true });
+    if (error) throw new Error("Reservation room could not be loaded.");
+    const units = (rows ?? []) as Array<{
+      id: string;
+      unit_sequence: number;
+      room_type_id: string;
+      room_id: string | null;
+      arrival_date: string;
+      departure_date: string;
+      adults: number;
+      children: number;
+      accessible_room_required: unknown;
+      connecting_room_required: unknown;
+    }>;
+    if (units.length === 0) throw new Error("Reservation room was not found.");
+    // Same rule as every candidate list: a unit is named, or the reservation has exactly one.
+    const resolved = resolveEvaluationRequirements({
+      units,
+      reservationRoomId: data.reservationRoomId ?? null,
+    });
+    const unit = data.reservationRoomId
+      ? units.find((row) => row.id === data.reservationRoomId)!
+      : units[0]!;
+    const { data: reservation } = await (supabaseAdmin as unknown as { from: (t: string) => any })
+      .from("hotel_reservations")
+      .select("confirmation_number")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.reservationId)
+      .maybeSingle();
+    return {
+      reservationId: data.reservationId,
+      reservationRoomId: unit.id,
+      confirmationNumber:
+        (reservation as { confirmation_number?: string | null } | null)?.confirmation_number ?? null,
+      unitSequence: unit.unit_sequence,
+      unitCount: units.length,
+      roomTypeId: unit.room_type_id,
+      roomId: unit.room_id,
+      arrival: unit.arrival_date,
+      departure: unit.departure_date,
+      adults: unit.adults,
+      children: unit.children,
+      accessibleRoomRequired: resolved.accessibleRoomRequired,
+      connectingRoomRequired: resolved.connectingRoomRequired,
+    };
+  });
+
 const evaluateRoomAssignmentSchema = z
   .object({
     restaurantId: idSchema,
@@ -942,6 +1033,8 @@ const evaluateRoomAssignmentSchema = z
     arrival: dateSchema,
     departure: dateSchema,
     excludeReservationId: idSchema.nullable().optional(),
+    /** The reservation room being checked. A paired unit also gets its pair verdict. */
+    reservationRoomId: idSchema.nullable().optional(),
     adults: z.number().int().min(0).max(99).nullable().optional(),
     children: z.number().int().min(0).max(99).nullable().optional(),
     requiredBedType: z.string().trim().max(80).nullable().optional(),
@@ -1001,7 +1094,7 @@ export const evaluateRoomAssignment = createServerFn({ method: "POST" })
       };
     };
 
-    return getAssignmentEligibilityCompat(
+    const base = await getAssignmentEligibilityCompat(
       context.supabase,
       {
         restaurantId: data.restaurantId,
@@ -1022,4 +1115,12 @@ export const evaluateRoomAssignment = createServerFn({ method: "POST" })
       },
       legacyFallback,
     );
+    if (!data.reservationRoomId) return base;
+    // The pair verdict is advisory here. The database enforces it on every room write.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const pairAware = await createPairAwareEvaluator(supabaseAdmin as unknown as PairEligibilityDb, {
+      restaurantId: data.restaurantId,
+      reservationRoomId: data.reservationRoomId,
+    });
+    return pairAware(data.roomId, base);
   });

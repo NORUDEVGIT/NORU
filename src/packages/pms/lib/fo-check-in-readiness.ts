@@ -93,6 +93,8 @@ export type CheckInReadinessFacts = {
   verificationWarnings: string[];
   verificationBlockers: string[];
   roomEligible: boolean | null;
+  /** Staff wording for why the assigned room is not eligible, when a requirement or pair says so. */
+  roomIneligibleReason?: string | null;
   roomReady: boolean | null;
   roomReadyReason: string | null;
   deposit: {
@@ -355,7 +357,7 @@ export function evaluateCheckInReadiness(facts: CheckInReadinessFacts): CheckInR
     blockers.push(blocker("ROOM_REQUIRED"));
   } else if (facts.roomEligible === false) {
     eligible = false;
-    blockers.push(blocker("ROOM_NOT_ELIGIBLE"));
+    blockers.push(blocker("ROOM_NOT_ELIGIBLE", facts.roomIneligibleReason ?? undefined));
   } else {
     eligible = facts.roomEligible;
     ready = facts.roomReady;

@@ -198,7 +198,7 @@ describe("PMS-SET6 single Activate and checklist expand", () => {
 describe("PMS-SET6 hub unmute and Coming soon cleared", () => {
   it("promotes four Live cards and clears Coming soon entirely", () => {
     assert.equal(SET6_SALES_HREF, "/restaurant/pms/sales-events");
-    assert.equal(SET6_DISTRIBUTION_HREF, "/restaurant/pms/distribution");
+    assert.equal(SET6_DISTRIBUTION_HREF, "/restaurant/settings#connectivity-distribution");
     assert.equal(SET6_REPORTS_HREF, "/restaurant/pms/reports");
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "sales-events" && card.title === "Sales & events"));
     assert.ok(SET1_LIVE_CARDS.some((card) => card.id === "distribution" && card.title === "Distribution"));

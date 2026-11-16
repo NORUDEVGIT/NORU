@@ -6091,10 +6091,12 @@ export type Database = {
       }
       hotel_reservation_rooms: {
         Row: {
+          accessible_room_required: boolean
           adults: number
           arrival_date: string
           assignment_notes: string | null
           children: number
+          connecting_room_required: boolean
           created_at: string
           currency: string | null
           departure_date: string
@@ -6114,10 +6116,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accessible_room_required?: boolean
           adults: number
           arrival_date: string
           assignment_notes?: string | null
           children?: number
+          connecting_room_required?: boolean
           created_at?: string
           currency?: string | null
           departure_date: string
@@ -6137,10 +6141,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accessible_room_required?: boolean
           adults?: number
           arrival_date?: string
           assignment_notes?: string | null
           children?: number
+          connecting_room_required?: boolean
           created_at?: string
           currency?: string | null
           departure_date?: string

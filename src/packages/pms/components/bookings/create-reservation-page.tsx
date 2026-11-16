@@ -22,6 +22,39 @@ import {
   type RoomingRateLabel,
 } from "@/packages/pms/components/bookings/create-reservation-rooming-list";
 import { CreateReservationPackages } from "@/packages/pms/components/bookings/create-reservation-packages";
+import { RoomRequirementsFields } from "@/packages/pms/components/bookings/room-requirements-fields";
+import {
+  NO_ROOM_REQUIREMENTS,
+  REQUIREMENTS_INCOMPLETE_BODY,
+  REQUIREMENTS_INCOMPLETE_TITLE,
+  REQUIREMENTS_CONTINUE_LABEL,
+  REQUIREMENTS_LEAVE_LABEL,
+  REQUIREMENTS_LEAVE_TITLE,
+  REQUIREMENTS_LEAVE_WARNING,
+  REQUIREMENTS_RETRY_FAILED,
+  REQUIREMENTS_RETRY_LABEL,
+  assertCreateAllowed,
+  pendingRequirementSave,
+  retryPendingRequirementSave,
+  type PendingRequirementSave,
+  type RoomRequirements,
+} from "@/packages/pms/lib/reservation-room-requirements";
+import {
+  PAIRS_INCOMPLETE_BODY,
+  PAIRS_INCOMPLETE_TITLE,
+  PAIRS_LEAVE_LABEL,
+  PAIRS_LEAVE_WARNING,
+  PAIRS_RETRY_LABEL,
+  ROOM1_PAIR_REF,
+  draftPairsToSequences,
+  pendingPairSave,
+  pruneDraftPairs,
+  retryPendingPairSave,
+  setDraftPartner,
+  type DraftPairs,
+  type PendingPairSave,
+} from "@/packages/pms/lib/reservation-room-pairs";
+import { saveReservationRoomPairsAfterCreate } from "@/packages/pms/lib/reservation-room-pairs.functions";
 import {
   effectiveServiceQuantity,
   packageChargeFigures,
@@ -103,6 +136,7 @@ import { resolveIndividualProfileType } from "@/packages/pms/lib/guest-field-rul
 import { savedPreferencesForProfileType } from "@/packages/pms/lib/guest-preferences-workspace";
 import {
   createReservation,
+  saveReservationRoomRequirements,
   getBookingsAccess,
   getRoomTypeAvailability,
   listAssignableRooms,
@@ -207,6 +241,7 @@ import {
   applyActiveRoomSelection,
   applyRoomOccupancy,
   assignExtraOccupant,
+  applyRoomRequirements,
   removeGroupRoom,
   buildGroupRoomGuestAssignments,
   applyRoomQuantity,
@@ -337,6 +372,8 @@ export function CreateReservationPage({
   const fetchRooms = useServerFn(listAssignableRooms);
   const submitReservation = useServerFn(createReservation);
   const startWalkIn = useServerFn(startWalkInCheckIn);
+  const submitRequirementRetry = useServerFn(saveReservationRoomRequirements);
+  const submitPairRetry = useServerFn(saveReservationRoomPairsAfterCreate);
   const fetchQuotes = useServerFn(quoteStay);
   const fetchRoomTypes = useServerFn(listRoomTypes);
   const fetchCurrencies = useServerFn(getCurrencyCard3);
@@ -363,6 +400,8 @@ export function CreateReservationPage({
   const [infants, setInfants] = useState(0);
   const [roomsRequested, setRoomsRequested] = useState(1);
   const [extraRoomUnits, setExtraRoomUnits] = useState<ExtraRoomDraft[]>([]);
+  const [room1Requirements, setRoom1Requirements] =
+    useState<RoomRequirements>(NO_ROOM_REQUIREMENTS);
   const [extraRoomQuotes, setExtraRoomQuotes] = useState<Record<string, ExtraRoomQuote | null>>({});
   const [roomTypeId, setRoomTypeId] = useState("");
   const [overbookingReason, setOverbookingReason] = useState("");
@@ -381,6 +420,20 @@ export function CreateReservationPage({
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // Set when the reservation exists but its room requirements are not saved.
+  // The ref guards the create call; the state drives the notice.
+  const [pendingRequirements, setPendingRequirements] = useState<PendingRequirementSave | null>(
+    null,
+  );
+  const pendingRequirementsRef = useRef<PendingRequirementSave | null>(null);
+  const [retryingRequirements, setRetryingRequirements] = useState(false);
+  const [leaveRequirementsOpen, setLeaveRequirementsOpen] = useState(false);
+  // "Connects to" between rooms of this draft. Kept in memory and saved once the
+  // reservation exists. A failed save holds the intended pairs for a retry.
+  const [connectingPairs, setConnectingPairs] = useState<DraftPairs>({});
+  const [pendingPairs, setPendingPairs] = useState<PendingPairSave | null>(null);
+  const pendingPairsRef = useRef<PendingPairSave | null>(null);
+  const [retryingPairs, setRetryingPairs] = useState(false);
   const navigate = useNavigate();
   const [holdCommercialDefaults, setHoldCommercialDefaults] = useState(false);
   const draftClosed = useRef(false);
@@ -767,9 +820,29 @@ export function CreateReservationPage({
     enabled: canManage && datesValid && availabilitySearchActive,
   });
 
+  // Room 1 has no reservation room row yet, so its in-memory requirements drive this
+  // list. Once the reservation exists, its stored values are used everywhere else.
   const roomsQuery = useQuery({
-    queryKey: ["assignable-rooms", restaurantId, roomTypeId, arrival, departure],
-    queryFn: () => fetchRooms({ data: { restaurantId, roomTypeId, arrival, departure } }),
+    queryKey: [
+      "assignable-rooms",
+      restaurantId,
+      roomTypeId,
+      arrival,
+      departure,
+      room1Requirements.accessibleRoomRequired,
+      room1Requirements.connectingRoomRequired,
+    ],
+    queryFn: () =>
+      fetchRooms({
+        data: {
+          restaurantId,
+          roomTypeId,
+          arrival,
+          departure,
+          accessibleRoomRequired: room1Requirements.accessibleRoomRequired,
+          connectingRoomRequired: room1Requirements.connectingRoomRequired,
+        },
+      }),
     enabled: canManage && datesValid && !!roomTypeId,
   });
 
@@ -1137,14 +1210,18 @@ export function CreateReservationPage({
                 infants: unit.infants,
                 ratePlanId: unit.ratePlanId,
                 pmsGroupBlockId: unit.pmsGroupBlockId ?? null,
+                accessibleRoomRequired: unit.accessibleRoomRequired === true,
+                connectingRoomRequired: unit.connectingRoomRequired === true,
               }))
             : [],
         pmsGroupBlockId: linkedBlockId,
+        room1Requirements,
       }),
     [
       adults,
       children,
       extraRoomUnits,
+      room1Requirements,
       infants,
       linkedBlockId,
       ratePlanId,
@@ -1153,6 +1230,43 @@ export function CreateReservationPage({
       roomsRequested,
     ],
   );
+
+  // Pairs only exist between rooms of a multi-room draft. Room 1 is unit 1, extra rooms follow in order.
+  const pairDraftUnits = useMemo(
+    () =>
+      reservationMode === "group" && extraRoomUnits.length > 0
+        ? [
+            { ref: ROOM1_PAIR_REF, unitSequence: 1, label: "Room 1" },
+            ...extraRoomUnits.map((unit, index) => ({
+              ref: unit.key,
+              unitSequence: index + 2,
+              label: `Room ${index + 2}`,
+            })),
+          ]
+        : [],
+    [extraRoomUnits, reservationMode],
+  );
+  const activeConnectingPairs = useMemo(
+    () => pruneDraftPairs(connectingPairs, pairDraftUnits.map((unit) => unit.ref)),
+    [connectingPairs, pairDraftUnits],
+  );
+  const intendedRoomPairs = useMemo(
+    () => draftPairsToSequences(pairDraftUnits, activeConnectingPairs),
+    [activeConnectingPairs, pairDraftUnits],
+  );
+
+  /** Pair two draft rooms, or unpair one. Pairing turns on both rooms' connecting requirement. */
+  function setRoomPartner(ref: string, partnerRef: string | null) {
+    setConnectingPairs(setDraftPartner(activeConnectingPairs, ref, partnerRef));
+    if (!partnerRef) return;
+    const turnOn = new Set([ref, partnerRef]);
+    if (turnOn.has(ROOM1_PAIR_REF)) {
+      setRoom1Requirements((current) => ({ ...current, connectingRoomRequired: true }));
+    }
+    setExtraRoomUnits((current) =>
+      current.map((unit) => (turnOn.has(unit.key) ? { ...unit, connectingRoomRequired: true } : unit)),
+    );
+  }
   const rememberExtraRoomQuote = useCallback((key: string, quote: ExtraRoomQuote | null) => {
     setExtraRoomQuotes((current) => {
       const previous = current[key] ?? null;
@@ -1268,6 +1382,7 @@ export function CreateReservationPage({
         infants,
         ratePlanId: ratePlanId || null,
         pmsGroupBlockId: linkedBlockId,
+        ...room1Requirements,
       },
       extras: extraRoomUnits.map((unit) => ({
         key: unit.key,
@@ -1278,6 +1393,8 @@ export function CreateReservationPage({
         ratePlanId: unit.ratePlanId,
         occupant: unit.occupant ?? null,
         pmsGroupBlockId: unit.pmsGroupBlockId ?? null,
+        accessibleRoomRequired: unit.accessibleRoomRequired === true,
+        connectingRoomRequired: unit.connectingRoomRequired === true,
       })),
     };
   }
@@ -1291,6 +1408,10 @@ export function CreateReservationPage({
     setRoomTypeId(next.room1.roomTypeId);
     setRatePlanId(next.room1.ratePlanId ?? "");
     setLinkedBlockId(next.room1.pmsGroupBlockId ?? null);
+    setRoom1Requirements({
+      accessibleRoomRequired: next.room1.accessibleRoomRequired === true,
+      connectingRoomRequired: next.room1.connectingRoomRequired === true,
+    });
     setExtraRoomUnits(next.extras);
     setRoomsRequested(1);
   }
@@ -1344,6 +1465,11 @@ export function CreateReservationPage({
 
   const create = useMutation({
     mutationFn: (nextStatus: "pending" | "confirmed") => {
+      // Never create a second reservation while an earlier one waits on its requirements.
+      assertCreateAllowed(pendingRequirementsRef.current);
+      if (pendingPairsRef.current) {
+        throw new Error("This reservation was already created. Retry saving its connecting pair.");
+      }
       if (!channelForm?.accepted) {
         throw new Error(channelForm?.message ?? "Source is required to continue.");
       }
@@ -1372,6 +1498,11 @@ export function CreateReservationPage({
           infants,
           rooms: roomUnitPayload.rooms,
           roomUnits: roomUnitPayload.roomUnits ?? undefined,
+          // Hard requirements per room unit. Room 1 is sent here, extra rooms on roomUnits.
+          // Off is sent as an explicit false.
+          accessibleRoomRequired: room1Requirements.accessibleRoomRequired,
+          connectingRoomRequired: room1Requirements.connectingRoomRequired,
+          ...(intendedRoomPairs.length > 0 ? { roomPairs: intendedRoomPairs } : {}),
           quoteCurrency: null,
           specialRequests: specialRequests.trim() || null,
           notes: notes.trim() || null,
@@ -1434,52 +1565,167 @@ export function CreateReservationPage({
     onSuccess: async (result) => {
       if (result.paymentError) toast.error(result.paymentError);
       if (result.guestDepositError) toast.error(result.guestDepositError);
+      // The reservation exists now, so the draft is closed whatever happens next.
       draftClosed.current = true;
-      if (walkInMode) {
-        try {
-          await startWalkIn({ data: { restaurantId, reservationId: result.id } });
-        } catch (error) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Could not mark this walk-in for check-in.",
-          );
-        }
-      }
       if (!walkInMode && accessQuery.data?.membershipId) {
         clearCreateReservationDraft(restaurantId, accessQuery.data.membershipId);
       }
-      if (guest?.id) {
-        for (const row of selectedServiceRequests) {
-          const created = await submitServiceRequest({
-            data: {
-              restaurantId,
-              guestId: guest.id,
-              serviceTypeId: row.serviceTypeId,
-              priority: "normal",
-              description: row.description.trim() || row.name,
-              reservationId: result.id,
-              quantity: effectiveServiceQuantity(row.pricingUnit ?? null, row.quantity ?? 1),
-            },
-          });
-          if (!created.ok) toast.error(created.message);
-        }
-      }
-      onCreated?.(result.id);
-      toast.success(`Reservation ${result.confirmationNumber} created`);
-      if (walkInMode && onContinueToCheckIn) {
-        onContinueToCheckIn({
-          id: result.id,
-          confirmationNumber: result.confirmationNumber,
-          guestName: guest?.fullName ?? "Guest",
-        });
+      // Pairs are saved after the requirements, so both pending states may be held at once.
+      const pairsPending = pendingPairSave(result, intendedRoomPairs);
+      pendingPairsRef.current = pairsPending;
+      const pending = pendingRequirementSave(result, intendedRoomRequirements());
+      if (pending) {
+        // Hold here. The chosen values stay in memory until every room is saved.
+        pendingRequirementsRef.current = pending;
+        setPendingRequirements(pending);
         return;
       }
-      if (onReturnToDesk) onReturnToDesk();
-      else leaveWizard();
+      if (pairsPending) {
+        setPendingPairs(pairsPending);
+        return;
+      }
+      await finishCreate({ id: result.id, confirmationNumber: result.confirmationNumber });
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  /** Requirements for every room unit, index 0 is Room 1. Matches the create payload. */
+  function intendedRoomRequirements(): RoomRequirements[] {
+    if (reservationMode === "group" && extraRoomUnits.length > 0) {
+      return [
+        room1Requirements,
+        ...extraRoomUnits.map((unit) => ({
+          accessibleRoomRequired: unit.accessibleRoomRequired === true,
+          connectingRoomRequired: unit.connectingRoomRequired === true,
+        })),
+      ];
+    }
+    return [room1Requirements];
+  }
+
+  /** Everything that follows a complete create: walk-in start, service requests, hand-off. */
+  async function finishCreate(result: { id: string; confirmationNumber: string }) {
+    if (walkInMode) {
+      try {
+        await startWalkIn({ data: { restaurantId, reservationId: result.id } });
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Could not mark this walk-in for check-in.",
+        );
+      }
+    }
+    if (guest?.id) {
+      for (const row of selectedServiceRequests) {
+        const request = await submitServiceRequest({
+          data: {
+            restaurantId,
+            guestId: guest.id,
+            serviceTypeId: row.serviceTypeId,
+            priority: "normal",
+            description: row.description.trim() || row.name,
+            reservationId: result.id,
+            quantity: effectiveServiceQuantity(row.pricingUnit ?? null, row.quantity ?? 1),
+          },
+        });
+        if (!request.ok) toast.error(request.message);
+      }
+    }
+    onCreated?.(result.id);
+    toast.success(`Reservation ${result.confirmationNumber} created`);
+    if (walkInMode && onContinueToCheckIn) {
+      onContinueToCheckIn({
+        id: result.id,
+        confirmationNumber: result.confirmationNumber,
+        guestName: guest?.fullName ?? "Guest",
+      });
+      return;
+    }
+    if (onReturnToDesk) onReturnToDesk();
+    else leaveWizard();
+  }
+
+  /** Retry the requirement save for every room, on the reservation that already exists. */
+  async function retryRequirements() {
+    const current = pendingRequirementsRef.current;
+    if (!current || retryingRequirements) return;
+    setRetryingRequirements(true);
+    const next = await retryPendingRequirementSave(current, (input) =>
+      submitRequirementRetry({ data: { restaurantId, ...input } }),
+    );
+    setRetryingRequirements(false);
+    if (next) {
+      pendingRequirementsRef.current = next;
+      setPendingRequirements(next);
+      toast.error(next.reason ?? REQUIREMENTS_RETRY_FAILED);
+      return;
+    }
+    pendingRequirementsRef.current = null;
+    setPendingRequirements(null);
+    toast.success("Room requirements saved.");
+    if (pendingPairsRef.current) {
+      await retryPairs();
+      return;
+    }
+    await finishCreate({
+      id: current.reservationId,
+      confirmationNumber: current.confirmationNumber,
+    });
+  }
+
+  /** Retry the connecting pairs on the reservation that already exists. Never creates one. */
+  async function retryPairs() {
+    const current = pendingPairsRef.current;
+    if (!current || retryingPairs) return;
+    setRetryingPairs(true);
+    const next = await retryPendingPairSave(current, (input) =>
+      submitPairRetry({ data: { restaurantId, ...input } }),
+    );
+    setRetryingPairs(false);
+    pendingPairsRef.current = next;
+    setPendingPairs(next);
+    if (next) {
+      if (next.reason) toast.error(next.reason);
+      return;
+    }
+    toast.success("Connecting pair saved.");
+    await finishCreate({
+      id: current.reservationId,
+      confirmationNumber: current.confirmationNumber,
+    });
+  }
+
+  async function leaveWithoutPairs() {
+    const current = pendingPairsRef.current;
+    if (!current) return;
+    pendingPairsRef.current = null;
+    setPendingPairs(null);
+    toast.warning(PAIRS_LEAVE_WARNING);
+    await finishCreate({
+      id: current.reservationId,
+      confirmationNumber: current.confirmationNumber,
+    });
+  }
+
+  function leaveWithoutRequirements() {
+    if (pendingRequirementsRef.current) setLeaveRequirementsOpen(true);
+  }
+
+  async function confirmLeaveWithoutRequirements() {
+    const current = pendingRequirementsRef.current;
+    setLeaveRequirementsOpen(false);
+    if (!current) return;
+    pendingRequirementsRef.current = null;
+    setPendingRequirements(null);
+    pendingPairsRef.current = null;
+    setPendingPairs(null);
+    toast.warning(
+      "Room requirements are not saved on this reservation. Set them from Edit Reservation.",
+    );
+    await finishCreate({
+      id: current.reservationId,
+      confirmationNumber: current.confirmationNumber,
+    });
+  }
 
   const membershipScope = accessQuery.data?.membershipId ?? "";
   const draftSnapshot = useMemo<CreateReservationDraft>(
@@ -1504,7 +1750,10 @@ export function CreateReservationPage({
         infants: unit.infants,
         ratePlanId: unit.ratePlanId,
         occupant: unit.occupant ?? null,
+        accessibleRoomRequired: unit.accessibleRoomRequired === true,
+        connectingRoomRequired: unit.connectingRoomRequired === true,
       })),
+      room1Requirements,
       roomTypeId,
       selectedRoomType,
       roomId,
@@ -1558,6 +1807,7 @@ export function CreateReservationPage({
       companyOverride,
       departure,
       extraRoomUnits,
+      room1Requirements,
       externalReference,
       groupMaster,
       groupOverride,
@@ -1639,6 +1889,7 @@ export function CreateReservationPage({
       setRoomsRequested(1);
       setReservationMode(stored.extraRoomUnits.length > 0 ? "group" : "single");
       setExtraRoomUnits(stored.extraRoomUnits.length > 0 ? stored.extraRoomUnits : []);
+      setRoom1Requirements(stored.room1Requirements ?? NO_ROOM_REQUIREMENTS);
       setActiveRoomIndex(
         stored.extraRoomUnits.length > 0
           ? Math.min(stored.activeRoomIndex, stored.extraRoomUnits.length)
@@ -2143,6 +2394,14 @@ export function CreateReservationPage({
   }
 
   function requestCancel() {
+    if (pendingRequirementsRef.current) {
+      leaveWithoutRequirements();
+      return;
+    }
+    if (pendingPairsRef.current) {
+      void leaveWithoutPairs();
+      return;
+    }
     if (draftMeaningful) setDiscardOpen(true);
     else leaveWizard();
   }
@@ -2164,7 +2423,9 @@ export function CreateReservationPage({
       <div className="flex flex-wrap items-center justify-end gap-2" data-testid="create-as-status">
         <Button
           className={cn(SHELL_PRIMARY_BUTTON, "disabled:text-[#251605] disabled:opacity-70")}
-          disabled={!canSubmitConfirm || create.isPending}
+          disabled={
+            !canSubmitConfirm || create.isPending || pendingRequirements != null || pendingPairs != null
+          }
           data-testid="confirm-guarantee"
           onClick={() => {
             setStatus("confirmed");
@@ -3106,6 +3367,16 @@ export function CreateReservationPage({
           <CreateReservationGuestSelected />
           <div className="h-full min-w-0 md:col-span-2 lg:col-span-1">{staySection}</div>
         </div>
+        {reservationMode !== "group" ? (
+          <RoomRequirementsFields
+            idPrefix="room-1"
+            restaurantId={restaurantId}
+            guestId={guest?.id ?? null}
+            value={room1Requirements}
+            onChange={(patch) => setRoom1Requirements((current) => ({ ...current, ...patch }))}
+            showSoftRequestNote
+          />
+        ) : null}
         {reservationMode === "group" ? (
           <CreateReservationRoomingList
             restaurantId={restaurantId}
@@ -3116,6 +3387,17 @@ export function CreateReservationPage({
             room1Infants={infants}
             room1Rate={roomRateLabel(roomTypeId, selectedMeta?.name ?? null, selectedQuote, null)}
             extras={extraRoomUnits}
+            room1Requirements={room1Requirements}
+            connectingPairs={activeConnectingPairs}
+            onRoomPartner={setRoomPartner}
+            leadGuestId={guest?.id ?? null}
+            onRoom1Requirements={(patch) =>
+              commitRooming(applyRoomRequirements(currentRooming(), 0, patch))
+            }
+            onExtraRequirements={(key, patch) => {
+              const index = extraRoomUnits.findIndex((unit) => unit.key === key) + 1;
+              commitRooming(applyRoomRequirements(currentRooming(), index, patch));
+            }}
             extraRates={Object.fromEntries(
               extraRoomUnits.map((unit) => [
                 unit.key,
@@ -3438,6 +3720,103 @@ export function CreateReservationPage({
     </AlertDialog>
   );
 
+  const requirementsIncomplete = (
+    <AlertDialog open={pendingRequirements !== null} onOpenChange={() => undefined}>
+      <AlertDialogContent className="z-[70]" data-testid="room-requirements-incomplete">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{REQUIREMENTS_INCOMPLETE_TITLE}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {pendingRequirements ? `Reservation ${pendingRequirements.confirmationNumber}. ` : ""}
+            {REQUIREMENTS_INCOMPLETE_BODY}
+            {pendingRequirements?.reason ? ` ${pendingRequirements.reason}` : ""}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="leave-without-requirements"
+            disabled={retryingRequirements}
+            onClick={leaveWithoutRequirements}
+          >
+            {REQUIREMENTS_LEAVE_LABEL}
+          </Button>
+          <Button
+            type="button"
+            data-testid="retry-room-requirements"
+            disabled={retryingRequirements}
+            onClick={() => void retryRequirements()}
+          >
+            {retryingRequirements ? "Saving…" : REQUIREMENTS_RETRY_LABEL}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const pairsIncomplete = (
+    <AlertDialog open={pendingPairs !== null} onOpenChange={() => undefined}>
+      <AlertDialogContent className="z-[70]" data-testid="room-pairs-incomplete">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{PAIRS_INCOMPLETE_TITLE}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {pendingPairs ? `Reservation ${pendingPairs.confirmationNumber}. ` : ""}
+            {PAIRS_INCOMPLETE_BODY}
+            {pendingPairs?.reason ? ` ${pendingPairs.reason}` : ""}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="leave-without-pairs"
+            disabled={retryingPairs}
+            onClick={() => void leaveWithoutPairs()}
+          >
+            {PAIRS_LEAVE_LABEL}
+          </Button>
+          <Button
+            type="button"
+            data-testid="retry-room-pairs"
+            disabled={retryingPairs}
+            onClick={() => void retryPairs()}
+          >
+            {retryingPairs ? "Saving…" : PAIRS_RETRY_LABEL}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const leaveRequirementsWarn = (
+    <AlertDialog open={leaveRequirementsOpen} onOpenChange={setLeaveRequirementsOpen}>
+      <AlertDialogContent className="z-[80]" data-testid="leave-without-requirements-confirm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{REQUIREMENTS_LEAVE_TITLE}</AlertDialogTitle>
+          <AlertDialogDescription>{REQUIREMENTS_LEAVE_WARNING}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="continue-editing-requirements"
+            onClick={() => setLeaveRequirementsOpen(false)}
+          >
+            {REQUIREMENTS_CONTINUE_LABEL}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            data-testid="confirm-leave-without-requirements"
+            onClick={() => void confirmLeaveWithoutRequirements()}
+          >
+            {REQUIREMENTS_LEAVE_LABEL}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   const discardWarn = (
     <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
       <AlertDialogContent className="z-[70]" data-testid="discard-reservation-draft">
@@ -3565,6 +3944,9 @@ export function CreateReservationPage({
       </footer>
       {typeWarn}
       {discardWarn}
+      {requirementsIncomplete}
+      {pairsIncomplete}
+      {leaveRequirementsWarn}
     </div>
   );
 }

@@ -14,6 +14,10 @@ export const Route = createFileRoute("/restaurant/pms/room-inventory")({
     ...(typeof search["tab"] === "string" ? { tab: search["tab"] as string } : {}),
     ...(typeof search["returnTo"] === "string" ? { returnTo: search["returnTo"] as string } : {}),
     ...(typeof search["returnToLabel"] === "string" ? { returnToLabel: search["returnToLabel"] as string } : {}),
+    ...(typeof search["reservationId"] === "string" ? { reservationId: search["reservationId"] as string } : {}),
+    ...(typeof search["reservationRoomId"] === "string"
+      ? { reservationRoomId: search["reservationRoomId"] as string }
+      : {}),
   }),
 
   beforeLoad: async () => {
@@ -54,7 +58,13 @@ export const Route = createFileRoute("/restaurant/pms/room-inventory")({
 });
 
 function RoomInventoryPmsRoute() {
-  const search = Route.useSearch() as { tab?: string; returnTo?: string; returnToLabel?: string };
+  const search = Route.useSearch() as {
+    tab?: string;
+    returnTo?: string;
+    returnToLabel?: string;
+    reservationId?: string;
+    reservationRoomId?: string;
+  };
 
   return (
     <RestaurantShell
@@ -72,6 +82,8 @@ function RoomInventoryPmsRoute() {
           initialTab={search.tab ?? "room-board"}
           returnTo={search.returnTo}
           returnToLabel={search.returnToLabel}
+          eligibilityReservationId={search.reservationId}
+          eligibilityReservationRoomId={search.reservationRoomId}
         />
         </PmsRouteGate>
       )}

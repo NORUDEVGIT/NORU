@@ -86,6 +86,8 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
     ratesSnapshot,
     { loadMealsCard3Snapshot },
     { evaluateMealsCard3Readiness },
+    accessibilityWarnings,
+    connectingWarnings,
   ] = await Promise.all([
     loadCard2RoomTypesReadiness(db, restaurantId),
     loadAmenitiesReadinessInput(db, restaurantId),
@@ -95,6 +97,8 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
     loadRatesCard2Snapshot(db, restaurantId),
     import("./meals-card3.functions"),
     import("./meals-card3.server"),
+    loadAccessibilityValidationWarnings(db, restaurantId),
+    loadConnectingValidationWarnings(db, restaurantId),
   ]);
   const amenities = evaluateAmenitiesReadiness(amenitiesInput);
   const housekeeping = evaluateCard2HousekeepingReadiness(housekeepingSnapshot);
@@ -112,8 +116,31 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
       warnings: housekeeping.warnings,
     },
     { id: "inventory-rules", label: "Inventory Rules", blockers: inventory.blockers },
+    { id: "accessibility", label: "Accessibility", warnings: accessibilityWarnings },
+    { id: "connecting-rooms", label: "Connecting rooms", warnings: connectingWarnings },
     { id: "maintenance", label: "Maintenance", blockers: maintenance.blockers },
   ]);
+}
+
+/** Warnings only: accessibility configuration never blocks readiness. */
+async function loadAccessibilityValidationWarnings(
+  db: DbClient,
+  restaurantId: string,
+): Promise<string[]> {
+  const [{ loadAccessibilityReview }, { accessibilityValidationWarnings }] = await Promise.all([
+    import("./room-accessibility.functions"),
+    import("./room-accessibility"),
+  ]);
+  return accessibilityValidationWarnings(await loadAccessibilityReview(db, restaurantId));
+}
+
+/** Warnings only: connecting room configuration never blocks readiness. */
+async function loadConnectingValidationWarnings(db: DbClient, restaurantId: string): Promise<string[]> {
+  const [{ loadConnectingReview }, { connectingValidationWarnings }] = await Promise.all([
+    import("./room-connections.functions"),
+    import("./room-connections"),
+  ]);
+  return connectingValidationWarnings(await loadConnectingReview(db, restaurantId));
 }
 
 async function runCard3(db: DbClient, restaurantId: string): Promise<Card8AdapterResult> {
