@@ -50,12 +50,14 @@ import { listGuestAccounts } from "@/packages/pms/lib/guest-accounts.functions";
 import type { GuestAccountStatus } from "@/packages/pms/lib/guest-profile-wave4";
 import { getGuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
 import { getGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { pmsPropertyOwnerRole } from "@/packages/pms/lib/pms-client-access";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { Button } from "@/shared/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/lib/utils";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
-import { pmsPropertyOwnerRole } from "@/packages/pms/lib/pms-client-access";
 
 export function GuestListingWorkspace({
   membership,
@@ -108,16 +110,26 @@ export function GuestListingWorkspace({
     setShellSlots((current) => (current.export === node ? current : { ...current, export: node }));
   }, []);
 
+  const permissions = usePmsPermissions(restaurantId);
   const accessQuery = useQuery({
-    queryKey: ["guests-access", restaurantId],
+    queryKey: ["guest-workspace-access", restaurantId],
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
+    staleTime: 60_000,
   });
   const ownerBypass =
-    pmsPropertyOwnerRole(membership.role) || Boolean(accessQuery.data?.isOwner);
-  const canView = ownerBypass || (accessQuery.data?.canView ?? false);
-  const canViewProfiles = ownerBypass || (accessQuery.data?.canViewProfiles ?? false);
-  const canViewAccounts = ownerBypass || (accessQuery.data?.canViewAccounts ?? false);
+    pmsPropertyOwnerRole(membership.role) ||
+    Boolean(accessQuery.data?.isOwner) ||
+    permissions.isOwner;
+  const canViewProfiles =
+    ownerBypass ||
+    permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_VIEW) ||
+    accessQuery.data?.canViewProfiles === true;
+  const canViewAccounts =
+    ownerBypass ||
+    permissions.can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW) ||
+    accessQuery.data?.canViewAccounts === true;
+  const canView = canViewProfiles || canViewAccounts || accessQuery.data?.canView === true;
   const commercialSection = Boolean(accountType);
   const canViewSection = commercialSection ? canViewAccounts : canViewProfiles;
   const navSections = GUEST_WORKSPACE_SECTIONS.filter((item) =>
@@ -209,9 +221,12 @@ export function GuestListingWorkspace({
     });
   }
 
-  if (accessQuery.isLoading && !ownerBypass)
+  const accessStillLoading =
+    !canView &&
+    ((accessQuery.isLoading && !accessQuery.data) || permissions.isLoading);
+  if (accessStillLoading && !ownerBypass)
     return <p className="text-sm text-muted-foreground">Loading guests…</p>;
-  if (accessQuery.isError && !ownerBypass) {
+  if (accessQuery.isError && permissions.isError && !ownerBypass) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6" data-testid="guest-profile-shell">
         <h2 className="font-display text-xl">Access could not be checked</h2>

@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { listFinancialAccountOutstandingInvoices } from "@/packages/pms/lib/cashiering-account-allocation.functions";
 import { settlementStateLabel } from "@/packages/pms/lib/cashiering-account-allocation";
 import { AccountInvoiceModal } from "@/packages/pms/components/cashiering/account-invoice-modal";
+import { useAccountToolbarSearch } from "@/packages/pms/components/cashiering/financial-account-chrome";
 import { FiscalInvoiceStatusBadge } from "@/packages/pms/components/cashiering/fiscal-invoice-status-badge";
 import { listInvoiceFiscalStatuses } from "@/packages/pms/lib/fiscal/fiscal.functions";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
@@ -110,6 +111,7 @@ export function AccountInvoiceWorkspace({
   dateTime: propDateTime,
   initialInvoiceId,
   initialModalTab,
+  toolbarActive = true,
 }: {
   restaurantId: string;
   accountId: string;
@@ -117,6 +119,7 @@ export function AccountInvoiceWorkspace({
   dateTime?: ((iso: string | null | undefined) => string) | undefined;
   initialInvoiceId?: string | undefined;
   initialModalTab?: string | undefined;
+  toolbarActive?: boolean;
 }) {
   const { dateTime: contextDateTime } = useRestaurantTime();
   const dateTime = propDateTime ?? contextDateTime;
@@ -190,6 +193,17 @@ export function AccountInvoiceWorkspace({
   const [origin, setOrigin] = useState("all");
   const [stateFilter, setStateFilter] = useState("uninvoiced");
   const [printInvoice, setPrintInvoice] = useState<IssuedAccountInvoice | null>(null);
+
+  useAccountToolbarSearch(
+    toolbarActive && editing
+      ? {
+          value: search,
+          placeholder: "Search charge, guest, folio",
+          testId: "account-invoice-search",
+          onChange: setSearch,
+        }
+      : null,
+  );
 
   React.useEffect(() => {
     if (!board?.draft || !editing) return;
@@ -446,12 +460,6 @@ export function AccountInvoiceWorkspace({
               </p>
             </div>
             <div className="flex flex-wrap gap-2 border-b border-[#E8E1D7] px-4 py-2">
-              <input
-                className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] placeholder:text-muted-foreground focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
-                placeholder="Search charge, guest, folio"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
               <select
                 className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-xs hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
                 value={department}

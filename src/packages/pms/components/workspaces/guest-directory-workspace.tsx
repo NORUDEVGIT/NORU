@@ -69,6 +69,8 @@ import {
 } from "@/packages/pms/lib/guests.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { pmsPropertyOwnerRole } from "@/packages/pms/lib/pms-client-access";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { useRestaurantTime } from "@/core/state/property-format";
 import { cn } from "@/shared/lib/utils";
 import { toast } from "sonner";
@@ -191,6 +193,7 @@ export function GuestDirectoryWorkspace({
     });
   }
 
+  const permissions = usePmsPermissions(restaurantId);
   const accessQuery = useQuery({
     queryKey: ["guests-access", restaurantId],
     queryFn: () => fetchAccess({ data: { restaurantId } }),
@@ -198,8 +201,13 @@ export function GuestDirectoryWorkspace({
   });
 
   const ownerBypass =
-    pmsPropertyOwnerRole(membership.role) || Boolean(accessQuery.data?.isOwner);
-  const canManage = ownerBypass || (accessQuery.data?.canManage ?? false);
+    pmsPropertyOwnerRole(membership.role) ||
+    Boolean(accessQuery.data?.isOwner) ||
+    permissions.isOwner;
+  const canManage =
+    ownerBypass ||
+    accessQuery.data?.canManage === true ||
+    permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
   const canEdit = ownerBypass || (accessQuery.data?.canEdit ?? false);
   const canActivate = ownerBypass || (accessQuery.data?.canActivate ?? false);
   const canPrintExport = ownerBypass || (accessQuery.data?.canPrintExport ?? false);
@@ -292,7 +300,7 @@ export function GuestDirectoryWorkspace({
     return [...values].sort();
   }, [pageData?.items]);
 
-  if (accessQuery.isLoading && !ownerBypass) {
+  if ((accessQuery.isLoading || permissions.isLoading) && !canManage && !ownerBypass) {
     return (
       <div className="space-y-4" data-testid="guest-profile-directory">
         <Skeleton className="h-16 w-full rounded-xl" />
