@@ -447,6 +447,7 @@ export function PmsPropertySetupCard1Section({
                   restaurantId={restaurantId}
                   role={role}
                   currentBusinessDate={snapshot.currentState.businessDate}
+                  pmsSet1Live={snapshot.pmsSet1Live}
                 />
               }
             />

@@ -1,4 +1,4 @@
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -286,7 +286,7 @@ export const getRatesCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
@@ -299,7 +299,7 @@ export const saveRateCategoryCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => categorySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const payload = {
       restaurant_id: data.restaurantId,
@@ -327,7 +327,7 @@ export const saveRatePlanCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => planSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const [category, roomType, restaurant] = await Promise.all([
       db.from("hotel_rate_categories").select("id").eq("id", data.categoryId).eq("restaurant_id", data.restaurantId).maybeSingle(),
@@ -400,7 +400,7 @@ export const saveRateOverrideCard3 = createServerFn({ method: "POST" })
   .validator((input: unknown) => overrideSchema.parse(input))
   .handler(async ({ data, context }) => {
     // Duplicate calendar writer vs rates.functions saveRateOverride. Keep until Settings adapter.
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CALENDAR_OVERRIDE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const plan = await db
       .from("hotel_rate_plans")
@@ -442,7 +442,7 @@ export const saveRateRefundabilityCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => refundabilitySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const payload = {
       restaurant_id: data.restaurantId,

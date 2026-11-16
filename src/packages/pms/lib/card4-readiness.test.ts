@@ -90,10 +90,9 @@ describe("Card 4 Programme Status & Readiness", () => {
     assert.equal(notStarted, "not_started");
   });
 
-  it("integrates with hub dashboard statuses and section persistence", () => {
-    assert.match(hubSrc, /getPmsCard4Status/);
-    assert.match(hubSrc, /card4StatusQuery/);
-    assert.match(hubSrc, /card\.number === 4/);
+  it("hub reads live setup progress; section still persists on save", () => {
+    assert.match(hubSrc, /getPmsSetupProgress/);
+    assert.doesNotMatch(hubSrc, /getPmsCard4Status/);
     assert.match(sectionSrc, /persistPmsCard4Status/);
     assert.match(sectionSrc, /evaluateCard4OverallStatus/);
   });

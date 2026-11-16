@@ -36,6 +36,8 @@ import { Switch } from "@/shared/components/ui/switch";
 
 import { Textarea } from "@/shared/components/ui/textarea";
 
+import { cn } from "@/shared/lib/utils";
+
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 
 import {
@@ -624,7 +626,7 @@ const mealRulesMutation = useMutation({
 
             onAdd={() => setMealDraft("new")}
 
-            columns={["Code", "Name", "Type", "Description", "Meals", "Tax posture", "Status"]}
+            columns={["Code", "Name", "Type", "Description", "Meals", "Tax treatment", "Status"]}
 
             empty="No meal plans saved yet."
 
@@ -987,7 +989,9 @@ export function MealPlanSheet({
 
         <div className="space-y-1">
 
-          <Label htmlFor="meal-code">Code</Label>
+          <Label htmlFor="meal-code">
+            Code <span className="text-destructive">*</span>
+          </Label>
 
           <Input
 
@@ -1009,7 +1013,9 @@ export function MealPlanSheet({
 
         <div className="space-y-1">
 
-          <Label htmlFor="meal-name">Name</Label>
+          <Label htmlFor="meal-name">
+            Name <span className="text-destructive">*</span>
+          </Label>
 
           <Input
 
@@ -1085,7 +1091,7 @@ export function MealPlanSheet({
 
         </div>
 
-        <fieldset className="space-y-2 rounded-xl border px-3 py-2">
+        <fieldset className="space-y-1.5 rounded-xl border px-3 py-2">
 
           <legend className="px-1 text-sm font-medium text-[#251605]">Included meals</legend>
 
@@ -1099,25 +1105,29 @@ export function MealPlanSheet({
 
           ].map(([id, label, checked, setter]) => (
 
-            <div key={String(id)} className="flex items-center gap-2">
+            <label
+              key={String(id)}
+              htmlFor={String(id)}
+              className={cn(
+                "flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-sm transition-colors",
+                checked
+                  ? "border-[#C89933] bg-[#FBF3E0] text-[#251605]"
+                  : "border-[#E6E1D8] bg-white text-[#5C5346]",
+                !canEdit && "cursor-not-allowed opacity-60",
+              )}
+            >
 
               <Checkbox
-
                 id={String(id)}
-
                 checked={Boolean(checked)}
-
                 disabled={!canEdit}
-
                 className={goldFocus}
-
                 onCheckedChange={(next) => (setter as (value: boolean) => void)(next === true)}
-
               />
 
-              <Label htmlFor={String(id)}>{String(label)}</Label>
+              <span>{String(label)}</span>
 
-            </div>
+            </label>
 
           ))}
 
@@ -1125,7 +1135,7 @@ export function MealPlanSheet({
 
         <div className="space-y-1">
 
-          <Label htmlFor="meal-tax">Tax posture</Label>
+          <Label htmlFor="meal-tax">Tax treatment</Label>
 
           <Select
 

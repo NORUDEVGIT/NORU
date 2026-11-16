@@ -19,15 +19,14 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
-import { withPmsPackage } from "./pms-package.server";
+import { withPmsLive } from "./pms-package.server";
 import { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope } from "@/core/lib/module-access";
 import { loadCard2HousekeepingSnapshot } from "./housekeeping-card2.functions";
 import { nextMaintenanceStatusFromOpenTickets, type TicketMaintenanceStatus } from "./housekeeping-ops";
 import {
   emptyHousekeepingCard2Settings,
   evaluateRoomReadinessWithPolicy,
-  type HousekeepingCard2Settings,
-} from "./housekeeping-card2.server";
+  type HousekeepingCard2Settings } from "./housekeeping-card2.server";
 
 export { HOUSEKEEPING_SUPERVISOR_ROLES, housekeepingScope };
 export type { HousekeepingScope } from "@/core/lib/module-access";
@@ -128,7 +127,7 @@ export async function requireHousekeepingAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  const membership = await withPmsPackage(
+  const membership = await withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -147,7 +146,7 @@ export async function requireHousekeepingSupervisor(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  const membership = await withPmsPackage(
+  const membership = await withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -166,7 +165,7 @@ export async function requireHousekeepingOperator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  const membership = await withPmsPackage(
+  const membership = await withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -185,7 +184,7 @@ export async function requireMaintenanceAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  const membership = await withPmsPackage(
+  const membership = await withPmsLive(
     restaurantId,
     requireModuleRole(context, restaurantId, "housekeeping", MAINTENANCE_ROLES, NO_HK_PERMISSION),
   );
@@ -210,8 +209,7 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   INVALID_ROOM_STATUS: "Invalid room restriction.",
   REASON_REQUIRED: "A reason is required when restricting a room.",
   MAINTENANCE_TICKET_REQUIRED:
-    "A maintenance request is required before this room can be placed Out of Order.",
-};
+    "A maintenance request is required before this room can be placed Out of Order." };
 
 export function housekeepingError(message: string): Error {
   for (const [code, text] of Object.entries(DB_ERROR_MESSAGES)) {
@@ -257,8 +255,7 @@ export async function recordHousekeepingEvent(params: {
     previous_values: (params.previousValues ?? null) as never,
     new_values: (params.newValues ?? null) as never,
     notes: params.notes ?? null,
-    actor_membership_id: params.actorMembershipId,
-  });
+    actor_membership_id: params.actorMembershipId });
 }
 
 /** HK rack readiness: policy + vacant/active. Occupied rooms are never "ready" on the rack. */
@@ -276,14 +273,12 @@ export function isRoomReady(params: {
     emptyHousekeepingCard2Settings({
       enabled: true,
       inspectionRequired: true,
-      maintenanceClearRequired: false,
-    });
+      maintenanceClearRequired: false });
   return evaluateRoomReadinessWithPolicy(
     {
       status: params.status,
       housekeepingStatus: params.housekeepingStatus,
-      maintenanceStatus: params.maintenanceStatus ?? null,
-    },
+      maintenanceStatus: params.maintenanceStatus ?? null },
     settings,
   ).ready;
 }
@@ -349,7 +344,6 @@ export async function syncRoomMaintenanceFromTickets(params: {
     admin: params.admin,
     restaurantId: params.restaurantId,
     roomId: params.roomId,
-    nextStatus: next,
-  });
+    nextStatus: next });
   return next;
 }

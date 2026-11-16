@@ -5,10 +5,8 @@ import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { RoomInventoryChrome } from "@/packages/pms/components/rooms/room-inventory-chrome";
 import { propertySetupCardIcon } from "@/packages/pms/lib/pms-property-setup-card-identity";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
-import {
-  evaluateSettingsDashboardProgress,
-  settingsDashboardStatusLabel,
-} from "@/packages/pms/lib/pms-settings-dashboard";
+import { settingsDashboardStatusLabel } from "@/packages/pms/lib/pms-settings-dashboard";
+import type { SetupProgressReport } from "@/packages/pms/lib/pms-setup-progress";
 import {
   PROPERTY_SETUP_CARDS,
   type PropertySetupCardStatus,
@@ -38,25 +36,30 @@ export function SettingsDashboardChrome({
   );
 }
 
+/** Required checks passed over total required checks; optional areas never count. */
 export function SettingsSetupProgressPanel({
-  statuses,
+  progress,
 }: {
-  statuses: readonly PropertySetupCardStatus[];
+  progress: SetupProgressReport | undefined;
 }) {
-  const progress = evaluateSettingsDashboardProgress(statuses);
+  const percent = progress?.percent ?? 0;
 
   return (
     <span
       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-[#6B6458]"
       data-testid="settings-setup-progress"
-      aria-label={`Setup ${progress.overallPercent}%`}
-      title={`${progress.complete} complete · ${progress.inProgress} need attention · ${progress.notStarted} not started`}
+      aria-label={`Setup ${percent}%`}
+      title={
+        progress
+          ? `${progress.requiredPassed} of ${progress.requiredTotal} required checks complete`
+          : "Checking setup…"
+      }
     >
-      <span className="font-medium text-[#251605]">Setup {progress.overallPercent}%</span>
+      <span className="font-medium text-[#251605]">Setup {percent}%</span>
       <span className="h-1 w-10 overflow-hidden rounded-full bg-[#E6E1D8]">
         <span
           className="block h-full rounded-full bg-[#C89933]"
-          style={{ width: `${progress.overallPercent}%` }}
+          style={{ width: `${percent}%` }}
         />
       </span>
     </span>

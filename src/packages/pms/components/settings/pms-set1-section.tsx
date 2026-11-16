@@ -517,6 +517,7 @@ export function Set1GoLiveSection({ restaurantId, snapshot, checklist, canEdit, 
       setExplicitConfirmation(false);
       toast.success("Foundation settings are live.");
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });

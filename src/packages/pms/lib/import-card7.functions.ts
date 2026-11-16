@@ -41,7 +41,7 @@ import {
 } from "./import-card7.server";
 import { withPmsPackage } from "./pms-package.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasPmsPermission, requirePmsSetupActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -312,7 +312,7 @@ export async function loadCard7ImportSnapshot(
 }
 
 async function requireEditor(restaurantId: string, context: unknown) {
-  return requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+  return requirePmsSetupActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 }
 
 function assertSupportedTypes(snapshot: Card7ImportSnapshot, importTypeIds: string[]) {

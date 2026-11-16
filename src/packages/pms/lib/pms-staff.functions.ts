@@ -19,9 +19,9 @@ import {
   assignMembershipRole,
   listMembershipRoles,
   removeMembershipRole,
-  requirePmsActor,
-  requirePmsActorAny,
   resolveEffectivePermissions,
+  requirePmsSetupActor,
+  requirePmsSetupActorAny,
 } from "./pms-permissions.server";
 import { passwordColumnUnavailable } from "@/core/lib/password-lifecycle";
 import { PMS_STAFF_MEMBERSHIP_CATEGORY, assertActivePmsStaffHasRole } from "./pms-staff-rules";
@@ -120,7 +120,7 @@ export const listPmsStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_VIEW);
+    const me = await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("restaurant_users")
@@ -178,7 +178,7 @@ export const createPmsStaff = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const actor = await requirePmsActor(
+    const actor = await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.STAFF_CREATE,
@@ -325,7 +325,7 @@ export const updatePmsStaffProfile = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_EDIT);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const membership = await loadMembership(staffDb(supabaseAdmin), data.restaurantId, data.membershipId);
     assertOwnerMembershipUntouched(resolved.isOwner, membership.role);
@@ -355,7 +355,7 @@ export const setPmsStaffActive = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_ACTIVATE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_ACTIVATE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const membership = await loadMembership(staffDb(supabaseAdmin), data.restaurantId, data.membershipId);
     if (membership.role === "owner") {
@@ -403,7 +403,7 @@ export const assignPmsStaffRoles = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const actor = await requirePmsActor(
+    const actor = await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.STAFF_ASSIGN_ROLES,
@@ -468,7 +468,7 @@ export const resetPmsStaffAccess = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, membershipId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_RESET_ACCESS);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.STAFF_RESET_ACCESS);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const membership = await loadMembership(staffDb(supabaseAdmin), data.restaurantId, data.membershipId);
     if (membership.role === "owner") throw new Error(PMS_PERMISSION_DENIED);
@@ -489,7 +489,7 @@ export const listPmsAssignableRoles = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActorAny(context as never, data.restaurantId, [
+    await requirePmsSetupActorAny(context as never, data.restaurantId, [
       PMS_PERMISSIONS.STAFF_ASSIGN_ROLES,
       PMS_PERMISSIONS.ROLES_VIEW,
     ]);
@@ -535,7 +535,7 @@ export const listPmsRoleUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: links, error } = await supabaseAdmin
       .from("pms_membership_roles")
@@ -573,7 +573,7 @@ export const listPmsAccessAudit = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActorAny(context as never, data.restaurantId, [
+    await requirePmsSetupActorAny(context as never, data.restaurantId, [
       data.kind === "staff" ? PMS_PERMISSIONS.STAFF_VIEW : PMS_PERMISSIONS.ROLES_VIEW,
     ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

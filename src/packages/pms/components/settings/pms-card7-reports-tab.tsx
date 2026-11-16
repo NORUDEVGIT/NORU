@@ -383,9 +383,9 @@ export function Card7ReportsTab({
                 ? `${snapshot.fiscalReference.startMonth}/${snapshot.fiscalReference.startDay}`
                 : "not saved"}
             </p>
-            <a className="mt-3 inline-block text-[#9A6B16] underline-offset-2 hover:underline" href="/restaurant/pms/reports">
-              Open live Reports & Analytics
-            </a>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Live Reports & Analytics open after this property is activated.
+            </p>
           </div>
         </TabsContent>
 

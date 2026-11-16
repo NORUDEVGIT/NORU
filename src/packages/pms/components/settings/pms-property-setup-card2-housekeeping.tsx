@@ -1472,15 +1472,9 @@ export function PmsPropertySetupCard2Housekeeping({
       </SectionCard>
 
       <div className="rounded-xl border border-[#E5DED1] bg-white px-4 py-3 text-sm text-muted-foreground">
-        Daily cleaning tasks, inspections, assignments and room
-        actions remain in{" "}
-        <a
-          className="font-medium text-[#7A5511] underline"
-          href="/restaurant/pms/housekeeping"
-        >
-          Housekeeping Operations
-        </a>
-        .
+        This screen configures housekeeping rules and statuses. Daily cleaning
+        tasks, inspections and assignments open in Housekeeping Operations after
+        the property is activated.
       </div>
 
       <Dialog

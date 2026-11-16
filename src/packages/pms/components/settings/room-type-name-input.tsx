@@ -5,22 +5,36 @@ import { Input } from "@/shared/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/shared/components/ui/popover";
 import { cn } from "@/shared/lib/utils";
 
+/** Default Room Type Name catalogue — grouped Standard → Accessible, not A–Z. */
 export const PREDEFINED_ROOM_TYPE_NAMES = [
+  // Standard
   "Standard Single Room",
   "Standard Double Room",
+  "Standard King Room",
   "Standard Twin Room",
+  // Superior
   "Superior Room",
+  "Superior King Room",
+  // Deluxe
   "Deluxe Room",
   "Deluxe King Room",
   "Deluxe Twin Room",
+  // Executive
   "Executive Room",
+  "Executive King Room",
+  // Suites
   "Junior Suite",
   "Executive Suite",
+  "Presidential Suite",
+  // Family
   "Family Room",
   "Family Suite",
-  "Presidential Suite",
-  "Apartment Villa",
+  // Apartment / Villa
+  "Apartment / Villa",
+  // Accessible
   "Accessible Room",
+  "Accessible King Room",
+  "Accessible Twin Room",
 ] as const;
 
 export type PredefinedRoomTypeName = (typeof PREDEFINED_ROOM_TYPE_NAMES)[number];

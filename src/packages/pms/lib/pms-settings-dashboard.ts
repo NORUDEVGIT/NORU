@@ -7,22 +7,19 @@ import {
   CARD1_PMS_NAV,
   PROPERTY_SETUP_CARDS,
   propertySetupStatusLabel,
-  type PropertySetupCardStatus,
-} from "./pms-property-setup-card1.ts";
+  type PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
 import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";
 
 export const SETTINGS_DASHBOARD_STATUS_WEIGHTS = {
   complete: 1,
   in_progress: 0.5,
-  not_started: 0,
-} as const;
+  not_started: 0 } as const;
 
 /** Hub bar. Card workspaces do not render this list. */
 export const SETTINGS_DASHBOARD_NAV = PMS_MODULE_NAV.map((item) => ({
   id: item.id,
   label: item.label,
-  href: item.to,
-}));
+  href: item.to }));
 
 export type SettingsDashboardProgress = {
   overallPercent: number;
@@ -63,8 +60,7 @@ export function evaluateSettingsDashboardProgress(
     blocked: 0,
     readyShare: complete / total,
     attentionShare: inProgress / total,
-    notStartedShare: notStarted / total,
-  };
+    notStartedShare: notStarted / total };
 }
 
 export function settingsDashboardNavHrefs(): string[] {
@@ -79,6 +75,6 @@ export function settingsDashboardUsesModuleNav(): boolean {
   return (
     SETTINGS_DASHBOARD_NAV.length === PMS_MODULE_NAV.length &&
     SETTINGS_DASHBOARD_NAV.every((item, index) => item.href === PMS_MODULE_NAV[index]?.to) &&
-    SETTINGS_DASHBOARD_NAV.some((item) => item.href === SET1_HUB_HREF)
+    !SETTINGS_DASHBOARD_NAV.some((item) => item.href === SET1_HUB_HREF)
   );
 }

@@ -2,18 +2,14 @@
  * Card 4 overall readiness & status evaluation.
  *
  * Evaluates live configuration across Profile Rules, Service Types, and Notifications.
- * Persists status into restaurants.pms_property_setup_status.
+ * Status is computed on read; writes happen only from explicit saves via persistCard4Status.
  */
 import type { Json } from "@/integrations/supabase/types";
 import {
-  CARD4_PROGRAMME_CARD_ID,
   evaluateCard4OverallStatus,
   mergeCard4Status,
 } from "./pms-property-setup-card4.ts";
-import {
-  parsePropertySetupStatus,
-  type PropertySetupCardStatus,
-} from "./pms-property-setup-card1.ts";
+import { type PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type DbClient = any;
@@ -116,7 +112,6 @@ export async function loadCard4StatusReport(
   ]);
 
   const [
-    currentRest,
     profile,
     required,
     identity,
@@ -137,11 +132,6 @@ export async function loadCard4StatusReport(
     sender,
     defaults,
   ] = await Promise.all([
-    db
-      .from("restaurants")
-      .select("pms_property_setup_status")
-      .eq("id", restaurantId)
-      .maybeSingle(),
     loadOrEmpty(
       () => profileFns.loadProfileTypesCard4Snapshot(db, restaurantId, userId, false, false),
       { types: [] },
@@ -285,7 +275,7 @@ export async function loadCard4StatusReport(
     defaults.senders,
   );
 
-  let computedStatus = evaluateCard4OverallStatus({
+  const computedStatus = evaluateCard4OverallStatus({
     profileTypesConfigured,
     requiredFieldsConfigured,
     identityDocumentsConfigured,
@@ -306,27 +296,6 @@ export async function loadCard4StatusReport(
     senderSettingsConfigured,
     communicationDefaultsConfigured,
   });
-
-  const storedStatus = parsePropertySetupStatus(currentRest?.data?.pms_property_setup_status);
-  const storedCardStatus = storedStatus.cards[CARD4_PROGRAMME_CARD_ID];
-
-  // If stored says complete, trust it; if computed says complete, promote it.
-  if (storedCardStatus === "complete") {
-    computedStatus = "complete";
-  } else if (computedStatus === "not_started" && storedCardStatus === "in_progress") {
-    computedStatus = "in_progress";
-  }
-
-  // Self-heal stored status in restaurants table if it diverged
-  if (storedCardStatus !== computedStatus && computedStatus !== "not_started") {
-    const next = mergeCard4Status(currentRest?.data?.pms_property_setup_status, computedStatus);
-    await db
-      .from("restaurants")
-      .update({ pms_property_setup_status: next as unknown as Json })
-      .eq("id", restaurantId)
-      .then(() => {})
-      .catch(() => {});
-  }
 
   return {
     status: computedStatus,

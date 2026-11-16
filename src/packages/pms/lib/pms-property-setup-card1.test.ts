@@ -446,7 +446,7 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.match(hub, /PmsPropertySetupCard3Section/);
     assert.match(
       hub,
-      /Complete \/ In Progress \/ Not Started|propertySetupStatusLabel|settingsDashboardStatusLabel/,
+      /Complete \/ In Progress \/ Not Started|propertySetupStatusLabel|setupProgressStatusLabel/,
     );
     assert.doesNotMatch(hub, /FO-CHROME1/);
     assert.doesNotMatch(hub, /overbooking/i);

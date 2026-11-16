@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { RestaurantShell } from "@/core/components/restaurant-shell";
-import { SettingsWorkspace } from "@/core/components/workspaces/settings-workspace";
+import { PropertySetupUnavailable } from "@/core/components/workspaces/property-setup-unavailable";
 import { PmsSet1Hub } from "@/packages/pms/components/settings/pms-set1-hub";
 import { PmsRouteGate } from "@/packages/pms/components/pms/pms-route-gate";
 import { PMS_SETTINGS_HUB_PERMISSIONS } from "@/packages/pms/lib/pms-client-access";
@@ -75,5 +75,5 @@ function PropertySettingsPage({ membership }: { membership: RestaurantMembership
       </PmsRouteGate>
     );
   }
-  return <SettingsWorkspace membership={membership} />;
+  return <PropertySetupUnavailable membership={membership} />;
 }

@@ -7,8 +7,16 @@ import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PmsAccountMenu } from "@/packages/pms/components/pms-account-menu";
 import { PmsCommandChrome } from "@/packages/pms/components/pms-command-chrome";
 import { PmsHelpPanel } from "@/packages/pms/components/pms-help-panel";
-import { getFirstAccessiblePmsRoute, pmsModuleVisible } from "@/packages/pms/lib/pms-client-access";
-import { PMS_MODULE_NAV, type PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
+import {
+  getFirstAccessiblePmsRoute,
+  pmsModuleVisible,
+  pmsSettingsHubVisible,
+} from "@/packages/pms/lib/pms-client-access";
+import {
+  PMS_MODULE_NAV,
+  PMS_SETTINGS_HREF,
+  type PmsChromeModuleLabel,
+} from "@/packages/pms/lib/pms-module-nav";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
@@ -28,7 +36,6 @@ export const PMS_MODULE_NAV_ITEMS = [
   { label: "Guest Profiles", to: "/restaurant/pms/guests" },
   { label: "Housekeeping", to: "/restaurant/pms/housekeeping" },
   { label: "Reports", to: "/restaurant/pms/reports" },
-  { label: "Settings", to: "/restaurant/settings" },
 ] as const;
 
 export type PmsModuleName = (typeof PMS_MODULE_NAV_ITEMS)[number]["label"];
@@ -40,7 +47,6 @@ const PMS_NAV_MORE_IDS = new Set<PmsModuleNavItemId>([
   "rates-revenue",
   "night-audit",
   "reports",
-  "settings",
 ]);
 
 function moduleNavItemClass(active: boolean): string {
@@ -71,7 +77,7 @@ export function RoomInventoryChrome({
   onRoomSearch?: (value: string) => void;
   onSearchChange?: (value: string) => void;
   /** Null leaves every module unselected. Omitted keeps the Rooms & Inventory default. */
-  activeModule?: PmsModuleNavLabel | null;
+  activeModule?: PmsChromeModuleLabel | null;
   searchPlaceholder?: string;
   searchTestId?: string;
   initialSearch?: string;
@@ -89,12 +95,21 @@ export function RoomInventoryChrome({
   const permissions = usePmsPermissions(membership.restaurantId);
   const access = { isOwner: permissions.isOwner, codes: permissions.permissions };
   const navReady = !permissions.isLoading && !permissions.isError;
-  const NAV_ITEMS = navReady
-    ? PMS_MODULE_NAV.filter((item) => pmsModuleVisible(access, item.catalogueKey))
-    : [];
+  // Operational modules do not exist until Activate sets pms_set1_live.
+  const live = membership.restaurant.pmsSet1Live === true;
+  const NAV_ITEMS =
+    navReady && live
+      ? PMS_MODULE_NAV.filter((item) => pmsModuleVisible(access, item.catalogueKey))
+      : [];
   const primaryNav = NAV_ITEMS.filter((item) => !PMS_NAV_MORE_IDS.has(item.id));
   const moreNav = NAV_ITEMS.filter((item) => PMS_NAV_MORE_IDS.has(item.id));
-  const homePath = (navReady ? getFirstAccessiblePmsRoute(access) : "/restaurant/pms") ?? "/restaurant/home";
+  const homePath = live
+    ? ((navReady ? getFirstAccessiblePmsRoute(access) : "/restaurant/pms") ?? "/restaurant/home")
+    : "/restaurant/home";
+  const settingsHref =
+    membership.restaurant.status === "approved" && navReady && pmsSettingsHubVisible(access)
+      ? PMS_SETTINGS_HREF
+      : undefined;
   const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
     returnTo,
     returnToLabel,
@@ -144,6 +159,17 @@ export function RoomInventoryChrome({
           <Link to={homePath as never} className="shrink-0">
             <NoruLogo size="sm" wordmarkClassName="text-white" />
           </Link>
+          {live ? null : (
+            <>
+              <span className="hidden h-6 w-px shrink-0 bg-white/20 sm:block" aria-hidden />
+              <p
+                className="min-w-0 truncate text-sm font-medium text-white/95"
+                data-testid="pms-setup-property-name"
+              >
+                {membership.restaurant.name}
+              </p>
+            </>
+          )}
           {showReturnButton ? (
             <button
               type="button"
@@ -155,6 +181,7 @@ export function RoomInventoryChrome({
               <span>{computedLabel}</span>
             </button>
           ) : null}
+          {live ? (
           <nav
             className="hidden min-w-0 items-center gap-0.5 lg:flex"
             aria-label="PMS modules"
@@ -214,9 +241,11 @@ export function RoomInventoryChrome({
               </>
             ) : null}
           </nav>
+          ) : null}
         </div>
       }
       mobile={
+        live || showReturnButton ? (
         <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 lg:hidden">
           {showReturnButton ? (
             <button
@@ -229,21 +258,26 @@ export function RoomInventoryChrome({
               <span>{computedLabel}</span>
             </button>
           ) : null}
-          <PmsSelect
-            aria-label="PMS module"
-            disabled={!navReady}
-            value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
-            onChange={(val) => window.location.assign(val)}
-            className="h-9 w-full rounded-lg border-input bg-background px-3 text-sm"
-            options={NAV_ITEMS.map((item) => [item.to, item.label])}
-          />
+          {live ? (
+            <PmsSelect
+              aria-label="PMS module"
+              disabled={!navReady}
+              value={NAV_ITEMS.find((item) => item.label === activeModule)?.to ?? ""}
+              onChange={(val) => window.location.assign(val)}
+              className="h-9 w-full rounded-lg border-input bg-background px-3 text-sm"
+              options={NAV_ITEMS.map((item) => [item.to, item.label])}
+            />
+          ) : null}
         </div>
+        ) : null
       }
       rightControls={
         <>
-          <div className="hidden max-w-[11rem] items-center gap-1.5 border-l border-white/15 pl-3 text-xs text-white/85 lg:flex">
-            <span className="truncate">{membership.restaurant.name}</span>
-          </div>
+          {live ? (
+            <div className="hidden max-w-[11rem] items-center gap-1.5 border-l border-white/15 pl-3 text-xs text-white/85 lg:flex">
+              <span className="truncate">{membership.restaurant.name}</span>
+            </div>
+          ) : null}
           <div className="hidden items-center gap-1.5 text-xs text-white/75 md:flex">
             <CalendarDays className="size-3.5 shrink-0" />
             <span className="whitespace-nowrap">{businessDateLabel}</span>
@@ -283,6 +317,7 @@ export function RoomInventoryChrome({
           <PmsAccountMenu
             membership={membership}
             businessDateLabel={businessDateLabel}
+            settingsHref={settingsHref}
             open={accountOpen}
             onOpenChange={(next) => {
               if (next) setHelpOpen(false);

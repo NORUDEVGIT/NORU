@@ -95,6 +95,56 @@ export function timezoneForCountry(country: string | null | undefined): string {
   return COUNTRY_TIMEZONES[key] ?? DEFAULT_TIMEZONE;
 }
 
+const COUNTRY_CURRENCIES: Record<string, string> = {
+  ethiopia: "ETB",
+  et: "ETB",
+  eth: "ETB",
+  kenya: "KES",
+  ke: "KES",
+  nigeria: "NGN",
+  ng: "NGN",
+  "south africa": "ZAR",
+  za: "ZAR",
+  "united kingdom": "GBP",
+  uk: "GBP",
+  gb: "GBP",
+  ireland: "EUR",
+  ie: "EUR",
+  "united arab emirates": "AED",
+  uae: "AED",
+  ae: "AED",
+  india: "INR",
+  in: "INR",
+};
+
+/** Initial currency for a newly registered property, from its country. */
+export function currencyForCountry(country: string | null | undefined): string {
+  const key = (country ?? "").trim().toLowerCase();
+  return COUNTRY_CURRENCIES[key] ?? DEFAULT_CURRENCY;
+}
+
+/**
+ * Locale suggestion for a property whose setup has never been saved.
+ * Stored values win unless they are still the column defaults; the
+ * country-derived value then replaces the default, otherwise the default stays.
+ */
+export function suggestedPropertyLocale(input: {
+  country: string | null | undefined;
+  timezone: string | null | undefined;
+  currencyCode: string | null | undefined;
+}): { timezone: string; currencyCode: string } {
+  const timezone = (input.timezone ?? "").trim();
+  const currencyCode = (input.currencyCode ?? "").trim().toUpperCase();
+  return {
+    timezone:
+      timezone && timezone !== DEFAULT_TIMEZONE ? timezone : timezoneForCountry(input.country),
+    currencyCode:
+      currencyCode && currencyCode !== DEFAULT_CURRENCY
+        ? currencyCode
+        : currencyForCountry(input.country),
+  };
+}
+
 function safeZone(timeZone: string | null | undefined): string {
   if (!timeZone) return DEFAULT_TIMEZONE;
   return isValidTimeZone(timeZone) ? timeZone : DEFAULT_TIMEZONE;

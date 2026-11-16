@@ -81,8 +81,8 @@ describe("FO-FS0 single left nav", () => {
     assert.equal(shouldSuppressRestaurantPmsRail(undefined), false);
   });
 
-  it("exposes exactly eight PMS escape destinations and never Front Office or Room Moves", () => {
-    assert.equal(FO_ESCAPE_MODULES.length, 8);
+  it("exposes exactly seven PMS escape destinations and never Front Office, Room Moves or Settings", () => {
+    assert.equal(FO_ESCAPE_MODULES.length, 7);
     assert.deepEqual(
       FO_ESCAPE_MODULES.map((item) => [item.label, item.to]),
       [
@@ -93,7 +93,6 @@ describe("FO-FS0 single left nav", () => {
         ["Night Audit", "/restaurant/pms/night-audit"],
         ["Rates", "/restaurant/pms/rates-revenue"],
         ["Reports", "/restaurant/pms/reports"],
-        ["Settings", "/restaurant/settings"],
       ],
     );
     assert.equal(

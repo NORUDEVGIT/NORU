@@ -320,7 +320,7 @@ describe("Card 2 Phase 1 API wiring", () => {
     assert.match(functions, /maintenance_status/);
     assert.match(functions, /room_features/);
     assert.match(functions, /createdCount: 0/);
-    assert.match(card1Fns, /persistCard2RoomTypesReadiness/);
+    assert.doesNotMatch(card1Fns, /persistCard2RoomTypesReadiness/);
     assert.doesNotMatch(functions, /complete=true/);
     assert.match(functions, /sequential, fail-closed on beds/);
     assert.match(ROOM_TYPE_BEDS_SEQUENTIAL_LIMITATION, /two statements/);

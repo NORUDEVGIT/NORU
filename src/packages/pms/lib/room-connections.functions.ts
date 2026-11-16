@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import {
   addRoomConnectionWith,
   buildConnectingReview,
@@ -167,7 +167,7 @@ export const listRoomConnections = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomConnectionsResult> => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW,
@@ -217,7 +217,7 @@ export const addRoomConnection = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomConnectionWriteResult> => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE,
@@ -238,7 +238,7 @@ export const removeRoomConnection = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, roomId: idSchema, linkId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<RoomConnectionWriteResult> => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE,
@@ -297,7 +297,7 @@ export const getConnectingReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW,

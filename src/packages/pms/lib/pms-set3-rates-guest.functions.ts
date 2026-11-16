@@ -11,7 +11,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasPmsPermission, requirePmsSetupActor } from "./pms-permissions.server";
 import type { Json } from "@/integrations/supabase/types";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
@@ -247,7 +247,7 @@ export const savePmsMealPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.mealPlansAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);
@@ -301,7 +301,7 @@ export const savePmsPackage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.packagesAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);
@@ -352,7 +352,7 @@ export const savePmsGuestProfileRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => guestRulesSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const rules: GuestProfileRules = {
       requiredFields: { ...data.requiredFields, firstName: true },
       consentDefaults: data.consentDefaults,
@@ -396,7 +396,7 @@ export const savePmsGuestIdType = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.idVipAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);
@@ -430,7 +430,7 @@ export const savePmsGuestVipLevel = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => catalogueItemSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const before = await loadSet3Snapshot(supabaseAdmin, data.restaurantId);
     if (!before.idVipAvailable) throw new Error(SET3_UNAVAILABLE_CATALOGUE);

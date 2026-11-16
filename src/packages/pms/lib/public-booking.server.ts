@@ -53,6 +53,19 @@ export async function resolveStayPropertyPublic(
   return { status: "ok", property };
 }
 
+/** Guest-facing: property is not accepting new direct bookings yet. */
+export const PUBLIC_BOOKING_NOT_ACCEPTING =
+  "This property isn't taking direct bookings right now.";
+
+/**
+ * New public reservations require Activate (`pms_set1_live`). Profile reads may
+ * stay open; search and submit must call this after the property is resolved.
+ */
+export async function publicBookingAcceptingReservations(restaurantId: string): Promise<boolean> {
+  const { pmsPropertyLive } = await import("./pms-package.server");
+  return pmsPropertyLive(restaurantId);
+}
+
 /**
  * Every public booking server function resolves the property through here, so
  * deep links and direct posts cannot bypass the package gate.
@@ -84,8 +97,7 @@ async function loadStayProperty(slug: string): Promise<StayProperty | null> {
     contactEmail: row.booking_contact_email ?? null,
     contactPhone: row.booking_contact_phone ?? null,
     bookingMessage: row.booking_message ?? null,
-    openingDate: row.opening_date ?? null,
-  };
+    openingDate: row.opening_date ?? null };
 }
 
 export const BOOKING_UNAVAILABLE = "This room is no longer available for those dates.";
@@ -139,8 +151,7 @@ export async function matchOrCreateGuest(
       last_name: guest.lastName,
       email: guest.email,
       phone: guest.phone,
-      nationality: guest.nationality,
-    })
+      nationality: guest.nationality })
     .select("id")
     .single();
   if (error || !created) throw new Error("We couldn't save your details. Please try again.");
@@ -151,8 +162,7 @@ export async function matchOrCreateGuest(
     event_type: "created",
     new_values: { source: "direct_booking" } as never,
     notes: "Created from a direct booking.",
-    actor_membership_id: null,
-  });
+    actor_membership_id: null });
 
   return created.id;
 }
@@ -177,8 +187,7 @@ export async function logDistribution(entry: {
     message: entry.message ?? null,
     reference_type: entry.referenceType ?? null,
     reference_id: entry.referenceId ?? null,
-    payload_summary: (entry.summary ?? null) as never,
-  });
+    payload_summary: (entry.summary ?? null) as never });
 }
 
 /** The property's DIRECT channel id, if it exists. */

@@ -1,4 +1,4 @@
-import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
+import { hasEffectivePermission, resolveEffectivePermissions, requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -82,7 +82,7 @@ export const getDistributionOverview = createServerFn({ method: "POST" })
       ratePlans: { id: string; name: string }[];
       directBookings: number;
     }> => {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
+      await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
       const db = context.supabase;
 
       const [channels, rooms, rates, logs, property, roomTypes, ratePlans, direct] = await Promise.all([
@@ -182,7 +182,7 @@ export const saveDirectBookingSettings = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase
       .from("restaurants")
       .update({
@@ -203,7 +203,7 @@ export const setChannelStatus = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase
       .from("distribution_channels")
       .update({ status: data.status })
@@ -226,7 +226,7 @@ export const saveRoomMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase.from("distribution_room_mappings").upsert(
       {
         restaurant_id: data.restaurantId,
@@ -253,7 +253,7 @@ export const saveRateMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; message: string }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const { error } = await context.supabase.from("distribution_rate_mappings").upsert(
       {
         restaurant_id: data.restaurantId,

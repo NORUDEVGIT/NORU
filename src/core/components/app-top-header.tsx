@@ -373,7 +373,7 @@ function NotificationsMenu({ items }: { items: HeaderNotification[] }) {
 /* Profile                                                             */
 /* ------------------------------------------------------------------ */
 
-function ProfileMenu({
+export function ProfileMenu({
   email,
   role,
   settingsHref,

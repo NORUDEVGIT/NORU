@@ -1,4 +1,4 @@
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -543,7 +543,7 @@ export const getRatesCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
     return {
@@ -556,7 +556,7 @@ export const saveRateCategoryCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => categorySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
 
     if (data.isCustom) {
@@ -612,7 +612,7 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => planSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const lookups = await Promise.all([
       db
@@ -793,7 +793,7 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancellationSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const cutoffTime = parseCutoffTime(data.cutoffTime);
     const windowValue = data.policyKind === "non_refundable" ? null : (data.windowValue ?? null);
@@ -840,11 +840,12 @@ export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" }
     return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
   });
 
+/** @deprecated Standalone Refundability catalogue removed from Rate & Pricing UI. Kept for legacy data/API compatibility. */
 export const saveRateRefundabilityCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => refundabilitySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const payload = {
       restaurant_id: data.restaurantId,
@@ -871,7 +872,7 @@ export const saveRateNoShowPolicyCard2 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => noShowPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
 
     // Default policy rule: If setting isDefault to true, unset any existing default first
@@ -920,7 +921,7 @@ export const saveRateEarlyDeparturePolicyCard2 = createServerFn({ method: "POST"
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => earlyDeparturePolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const resolved = resolvedEarlyDeparturePenaltyValue(data.penaltyType, data.penaltyValue);
     if (!resolved.ok) throw new Error(resolved.message);
@@ -960,7 +961,7 @@ export const setRateEarlyDeparturePolicyActiveCard2 = createServerFn({ method: "
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_ACTIVATE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.RATES_ACTIVATE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const result = await db
       .from("pms_early_departure_policies")
