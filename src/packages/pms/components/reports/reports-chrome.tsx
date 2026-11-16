@@ -103,12 +103,13 @@ export function ReportsChrome({
   children: ReactNode;
 }) {
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
+  const [datesSlot, setDatesSlot] = useState<HTMLElement | null>(null);
   const [searchSlot, setSearchSlot] = useState<HTMLElement | null>(null);
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null);
   const [exportSlot, setExportSlot] = useState<HTMLElement | null>(null);
   const slots = useMemo<ReportsShellSlots>(
-    () => ({ search: searchSlot, filter: filterSlot, export: exportSlot }),
-    [exportSlot, filterSlot, searchSlot],
+    () => ({ dates: datesSlot, search: searchSlot, filter: filterSlot, export: exportSlot }),
+    [datesSlot, exportSlot, filterSlot, searchSlot],
   );
   const activeCode: ReportId =
     currentReportId ??
@@ -141,6 +142,7 @@ export function ReportsChrome({
               toolbarSlot={toolbarSlot}
               onSelect={(id) => onSelectReport?.(id)}
             />
+            <div ref={setDatesSlot} className="shrink-0 empty:hidden" />
             <div ref={setSearchSlot} className="min-w-0 flex-1 overflow-hidden" />
             <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1.5">
               <div ref={setFilterSlot} className="shrink-0 empty:hidden" />

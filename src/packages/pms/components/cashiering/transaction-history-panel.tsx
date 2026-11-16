@@ -280,6 +280,11 @@ export function TransactionHistoryPanel({
             setTo(value);
             setPage(1);
           }}
+          onRange={(nextFrom, nextTo) => {
+            setFrom(nextFrom);
+            setTo(nextTo);
+            setPage(1);
+          }}
           fromTestId="folio-history-from"
           toTestId="folio-history-to"
         />

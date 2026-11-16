@@ -85,11 +85,15 @@ export function CashieringWorkspace({
   );
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [shellSlots, setShellSlots] = useState<CashieringShellSlots>({
+    dates: null,
     search: null,
     filter: null,
     export: null,
     cta: null,
   });
+  const setDatesSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.dates === node ? current : { ...current, dates: node }));
+  }, []);
   const setSearchSlot = useCallback((node: HTMLDivElement | null) => {
     setShellSlots((current) => (current.search === node ? current : { ...current, search: node }));
   }, []);
@@ -294,11 +298,15 @@ export function CashieringWorkspace({
               <div className="relative size-8 shrink-0">
                 <CashieringBurger active={tab} toolbarSlot={null} onSelect={(id) => go(id, null)} />
               </div>
-              <CashieringWeekControl
-                weekStart={weekStart}
-                onShiftWeek={shiftCashieringWeek}
-                onPickDate={pickCashieringWeek}
-              />
+              {tab === "reports" ? (
+                <div ref={setDatesSlot} className="shrink-0 empty:hidden" />
+              ) : (
+                <CashieringWeekControl
+                  weekStart={weekStart}
+                  onShiftWeek={shiftCashieringWeek}
+                  onPickDate={pickCashieringWeek}
+                />
+              )}
               <div ref={setSearchSlot} className="min-w-0 flex-1 overflow-hidden" />
               <div className="relative z-10 flex shrink-0 items-center gap-1.5">
                 <div ref={setFilterSlot} className="shrink-0 empty:hidden" />

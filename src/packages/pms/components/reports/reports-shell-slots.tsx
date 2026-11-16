@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
  * (its filters, its export action), so every report keeps one toolbar.
  */
 export type ReportsShellSlots = {
+  dates: HTMLElement | null;
   search: HTMLElement | null;
   filter: HTMLElement | null;
   export: HTMLElement | null;

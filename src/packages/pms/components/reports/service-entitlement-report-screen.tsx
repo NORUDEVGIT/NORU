@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { PmsFilterChoiceRow, PmsFilterMenu, PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
 import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
@@ -336,12 +337,24 @@ export function ServiceEntitlementReportScreen({
           onCommit={(room) => writeFilters({ room, resetPage: true })}
         />
       }
+      dates={
+        <FolioDateRange
+          from={search.from ?? serviceDate}
+          to={search.to ?? serviceDate}
+          fromTestId="service-from"
+          toTestId="service-to"
+          allowClear={Boolean(search.from || search.to)}
+          onFrom={(next) => writeFilters({ from: next || null, resetPage: true })}
+          onTo={(next) => writeFilters({ to: next || null, resetPage: true })}
+          onRange={(nextFrom, nextTo) =>
+            writeFilters({ from: nextFrom || null, to: nextTo || null, resetPage: true })
+          }
+        />
+      }
       filters={
         <PmsFilterMenu
           activeCount={
             (serviceDate !== businessDate ? 1 : 0) +
-            (search.from ? 1 : 0) +
-            (search.to ? 1 : 0) +
             (category === "MEAL" ? (meal !== "BREAKFAST" ? 1 : 0) : search.department ? 1 : 0) +
             (status !== "OPEN" ? 1 : 0) +
             (stay !== "ALL" ? 1 : 0)
@@ -360,18 +373,6 @@ export function ServiceEntitlementReportScreen({
             testId="service-date"
             value={serviceDate}
             onChange={(next) => writeFilters({ serviceDate: next, resetPage: true })}
-          />
-          <ReportFilterDate
-            label="From"
-            testId="service-from"
-            value={search.from ?? ""}
-            onChange={(next) => writeFilters({ from: next || null, resetPage: true })}
-          />
-          <ReportFilterDate
-            label="To"
-            testId="service-to"
-            value={search.to ?? ""}
-            onChange={(next) => writeFilters({ to: next || null, resetPage: true })}
           />
           {category === "MEAL" ? (
             <PmsFilterChoiceRow

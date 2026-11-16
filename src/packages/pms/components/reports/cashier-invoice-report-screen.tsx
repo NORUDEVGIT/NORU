@@ -3,8 +3,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
-import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
+import { ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
 import {
   ReportTableHeaderCell,
@@ -281,6 +282,24 @@ export function CashierInvoiceReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
+      dates={
+        <FolioDateRange
+          from={from}
+          to={to}
+          fromTestId="cashier-from"
+          toTestId="cashier-to"
+          allowClear={false}
+          onFrom={(next) => {
+            if (next) writeFilters({ from: next, resetPage: true });
+          }}
+          onTo={(next) => {
+            if (next) writeFilters({ to: next, resetPage: true });
+          }}
+          onRange={(nextFrom, nextTo) => {
+            if (nextFrom && nextTo) writeFilters({ from: nextFrom, to: nextTo, resetPage: true });
+          }}
+        />
+      }
       search={
         <ReportToolbarSearch
           value={search.query ?? ""}
@@ -292,8 +311,6 @@ export function CashierInvoiceReportScreen({
       filters={
         <PmsFilterMenu
           activeCount={
-            (from !== businessDate ? 1 : 0) +
-            (to !== businessDate ? 1 : 0) +
             (documentType !== "INV" ? 1 : 0) +
             (grain !== "summary" ? 1 : 0) +
             (search.issuer ? 1 : 0)
@@ -307,18 +324,6 @@ export function CashierInvoiceReportScreen({
           buttonTestId="cashier-filters-button"
           menuTestId="cashier-filters-menu"
         >
-          <ReportFilterDate
-            label="From"
-            testId="cashier-from"
-            value={from}
-            onChange={(next) => writeFilters({ from: next, resetPage: true })}
-          />
-          <ReportFilterDate
-            label="To"
-            testId="cashier-to"
-            value={to}
-            onChange={(next) => writeFilters({ to: next, resetPage: true })}
-          />
           <PmsFilterChoiceRow
             label="Document Type"
             value={documentType}

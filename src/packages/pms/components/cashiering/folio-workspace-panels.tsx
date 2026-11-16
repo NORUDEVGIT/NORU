@@ -1073,6 +1073,10 @@ export function PaymentsDepositsTab({
           to={to}
           onFrom={setFrom}
           onTo={setTo}
+          onRange={(nextFrom, nextTo) => {
+            setFrom(nextFrom);
+            setTo(nextTo);
+          }}
           fromTestId="tender-from"
           toTestId="tender-to"
         />

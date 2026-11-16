@@ -19,6 +19,7 @@ import {
   hasEffectivePermission,
   requireCashierShiftActor,
   requirePmsActor,
+  requirePmsActorAny,
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
@@ -2024,7 +2025,11 @@ export const listCashierShifts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .validator((d: { restaurantId: string }) => z.object({ restaurantId: idSchema }).parse(d))
   .handler(async ({ data, context }): Promise<CashierShiftRow[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW);
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW,
+      PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT,
+      PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: rows, error } = await supabaseAdmin.rpc("list_hotel_drawers", {

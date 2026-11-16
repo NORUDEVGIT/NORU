@@ -11,6 +11,7 @@ import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 
 export type CashieringShellSlots = {
+  dates: HTMLElement | null;
   search: HTMLElement | null;
   filter: HTMLElement | null;
   export: HTMLElement | null;

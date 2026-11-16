@@ -79,6 +79,8 @@ export function FolioDateRange({
   onTo,
   fromTestId,
   toTestId,
+  allowClear = true,
+  onRange,
 }: {
   from: string;
   to: string;
@@ -86,15 +88,25 @@ export function FolioDateRange({
   onTo: (value: string) => void;
   fromTestId: string;
   toTestId: string;
+  allowClear?: boolean;
+  onRange?: (from: string, to: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const canShift = Boolean(from || to);
 
+  function applyRange(nextFrom: string, nextTo: string) {
+    if (onRange) {
+      onRange(nextFrom, nextTo);
+      return;
+    }
+    onFrom(nextFrom);
+    onTo(nextTo);
+  }
+
   function shift(direction: -1 | 1) {
     const next = shiftRange(from, to, direction);
     if (!next) return;
-    onFrom(next.from);
-    onTo(next.to);
+    applyRange(next.from, next.to);
   }
 
   return (
@@ -146,16 +158,13 @@ export function FolioDateRange({
               onChange={(event) => onTo(event.target.value)}
             />
           </label>
-          {from || to ? (
+          {allowClear && (from || to) ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               className="h-8 w-full"
-              onClick={() => {
-                onFrom("");
-                onTo("");
-              }}
+              onClick={() => applyRange("", "")}
             >
               All dates
             </Button>

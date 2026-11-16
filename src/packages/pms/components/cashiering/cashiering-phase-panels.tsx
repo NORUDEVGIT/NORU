@@ -76,6 +76,7 @@ import {
 import type { FolioDetail } from "@/packages/pms/lib/cashiering.functions";
 import { BILLING_ROUTING_EXECUTABLE } from "@/packages/pms/lib/cashiering-transfer-model";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { addDays } from "@/packages/pms/lib/reservation-dates";
 import { chargeGroupRemainder, isParentTransferCharge } from "@/packages/pms/lib/folio-workspace";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
@@ -1257,6 +1258,22 @@ export function ReportsPanel({
   const report = query.data;
   const totals = report?.totals;
 
+  function setReportRange(nextFrom: string, nextTo: string) {
+    if (nextFrom && nextTo) {
+      const start = nextFrom <= nextTo ? nextFrom : nextTo;
+      const end = nextFrom <= nextTo ? nextTo : nextFrom;
+      const span =
+        (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000;
+      if (span > 31) {
+        toast.error("Choose a report range of 31 days or less.");
+        return;
+      }
+    }
+    setFromDate(nextFrom);
+    setToDate(nextTo);
+    setPage(1);
+  }
+
   function openReportLine(line: CashieringReportLine) {
     void navigate({
       to: "/restaurant/pms/cashiering/folios/$folioId",
@@ -1348,6 +1365,18 @@ export function ReportsPanel({
 
   return (
     <div className="space-y-3" data-testid="cashiering-reports-panel">
+      <CashieringShellSlot name="dates">
+        <FolioDateRange
+          from={fromDate}
+          to={toDate}
+          fromTestId="cashiering-report-from"
+          toTestId="cashiering-report-to"
+          allowClear={false}
+          onFrom={(value) => setReportRange(value, toDate)}
+          onTo={(value) => setReportRange(fromDate, value)}
+          onRange={setReportRange}
+        />
+      </CashieringShellSlot>
       <CashieringShellSlot name="search">
         <CashieringToolbarSearch
           value={search}
@@ -1651,11 +1680,6 @@ export function ReportsPanel({
           </div>
         </div>
       ) : null}
-      <p className="text-xs text-muted-foreground">
-        Totals use the property timezone, from local midnight on the start date through the end of
-        the finish date. This is the guest folio ledger, not a general-ledger trial balance.
-      </p>
-
       {/* Print / Save as PDF layer */}
       <CashieringPrintLayer active={printing && Boolean(totals)} singlePage={false}>
         {totals ? (

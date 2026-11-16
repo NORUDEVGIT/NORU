@@ -29,6 +29,7 @@ export function ReportPageShell({
   restaurantId,
   definition,
   phase,
+  dates,
   search,
   filters,
   page,
@@ -47,6 +48,7 @@ export function ReportPageShell({
   restaurantId?: string;
   definition: ReportDefinition;
   phase: ReportPhase;
+  dates?: ReactNode;
   search?: ReactNode;
   filters?: ReactNode;
   page: number;
@@ -89,6 +91,7 @@ export function ReportPageShell({
 
   return (
     <section className="report-print-root space-y-3" data-testid={`reports-row-${definition.id}`}>
+      <ReportsShellSlot name="dates">{dates}</ReportsShellSlot>
       <ReportsShellSlot name="search">{search}</ReportsShellSlot>
       <ReportsShellSlot name="filter">{filters}</ReportsShellSlot>
       <ReportsShellSlot name="export">{exportMenu}</ReportsShellSlot>
