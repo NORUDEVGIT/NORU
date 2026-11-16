@@ -1,4 +1,4 @@
-import type { PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
+import type { PmsChromeModuleLabel } from "@/packages/pms/lib/pms-module-nav";
 
 export type PmsHelpTopic = {
   title: string;
@@ -336,7 +336,7 @@ const PMS_HOME: PmsHelpGuide = {
   ],
 };
 
-const BY_MODULE: Record<PmsModuleNavLabel, PmsHelpGuide> = {
+const BY_MODULE: Record<PmsChromeModuleLabel, PmsHelpGuide> = {
   "Front Office": FRONT_OFFICE,
   Reservations: RESERVATIONS,
   "Guest Profile": GUEST_PROFILE,
@@ -349,7 +349,7 @@ const BY_MODULE: Record<PmsModuleNavLabel, PmsHelpGuide> = {
   Settings: SETTINGS,
 };
 
-export function pmsHelpGuide(module: PmsModuleNavLabel | null | undefined): PmsHelpGuide {
+export function pmsHelpGuide(module: PmsChromeModuleLabel | null | undefined): PmsHelpGuide {
   if (module && BY_MODULE[module]) return BY_MODULE[module];
   return PMS_HOME;
 }

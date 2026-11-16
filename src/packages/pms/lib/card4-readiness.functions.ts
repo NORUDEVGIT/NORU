@@ -1,7 +1,7 @@
 /**
  * Server functions for Card 4 status loading and persistence.
  */
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -20,7 +20,7 @@ export const getPmsCard4Status = createServerFn({ method: "POST" })
       restaurantId: z.string().uuid() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return loadCard4StatusReport(supabaseAdmin, data.restaurantId, context.userId);
   });
@@ -33,7 +33,7 @@ export const persistPmsCard4Status = createServerFn({ method: "POST" })
       status: z.enum(["not_started", "in_progress", "complete"]) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return persistCard4Status(supabaseAdmin, data.restaurantId, data.status);
   });

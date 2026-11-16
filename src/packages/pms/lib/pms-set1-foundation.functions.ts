@@ -9,7 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasPmsPermission, requirePmsSetupActor } from "./pms-permissions.server";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { FO_FEE_DEFAULTS_AUDIT_ACTION, normalizeFoFeeDefaults, validateFoFeeDefaults, type FoFeeDefaults } from "./fo-fee-defaults";
@@ -140,7 +140,7 @@ export const getPmsSet1Foundation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
+    const me = await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
     const actorCanActivate = await hasPmsPermission(
       context as never,
       data.restaurantId,
@@ -291,7 +291,7 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    const me = await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
@@ -426,7 +426,7 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(
+    const me = await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_PROPERTY_ACTIVATE,
@@ -515,7 +515,7 @@ export const listPmsSet1Audit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<Set1AuditRow[]> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("restaurant_staff_audit_log")

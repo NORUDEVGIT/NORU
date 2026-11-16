@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import {
   buildAccessibilityReview,
   isAccessibilityAmenity,
@@ -95,6 +95,6 @@ export const getAccessibilityReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     return loadAccessibilityReview(context.supabase as unknown as DbClient, data.restaurantId);
   });

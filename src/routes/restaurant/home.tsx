@@ -5,12 +5,10 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   Boxes,
   Users,
-  Settings,
   Wallet,
   BarChart3,
   Hotel,
   Truck,
-  SlidersHorizontal,
   PackageOpen,
   UserCheck,
   BedDouble,
@@ -30,7 +28,6 @@ import { getMyModuleAccess } from "@/core/lib/module-access.functions";
 import type { ModuleKey } from "@/core/lib/module-access";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { sharedCoreLinkVisible } from "@/core/lib/shared-core-access";
-import { pmsSettingsHubVisible } from "@/packages/pms/lib/pms-client-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { cn } from "@/shared/lib/utils";
 
@@ -148,17 +145,6 @@ const SHARED_CORE_LINKS: {
   },
 ];
 
-/** Core property links — never gated by a package. */
-const SETUP_LINKS: { title: string; moduleKey: ModuleKey; to: string; icon: LucideIcon }[] = [
-  { title: "Configuration", moduleKey: "configuration", to: "/restaurant/configuration", icon: SlidersHorizontal },
-  {
-    title: "Settings",
-    moduleKey: "property_settings",
-    to: "/restaurant/settings",
-    icon: Settings,
-  },
-];
-
 const PMS_SUBMODULES = [
   "Front Office",
   "Reservations",
@@ -185,7 +171,6 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const allowed = moduleAccess.data?.modules ?? [];
   const packages = usePackageEntitlements(restaurantId);
   const pmsAccess = usePmsPermissions(packages.has("pms") ? restaurantId : undefined);
-  const pmsSnapshot = { isOwner: pmsAccess.isOwner, codes: pmsAccess.permissions };
 
   const canManageStaff = allowed.includes("front_office");
   const canSeeStock = allowed.includes("inventory");
@@ -231,13 +216,6 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
   const sharedCoreLinks = SHARED_CORE_LINKS.filter((l) =>
     sharedCoreLinkVisible(l.moduleKey, allowed, (key) => packages.has(key)),
   );
-  const setupLinks = SETUP_LINKS.filter((l) => {
-    if (!allowed.includes(l.moduleKey)) return false;
-    if (l.to === "/restaurant/settings" && packages.has("pms")) {
-      return !pmsAccess.isLoading && !pmsAccess.isError && pmsSettingsHubVisible(pmsSnapshot);
-    }
-    return true;
-  });
   const nothingVisible =
     !showPms &&
     sharedCoreLinks.length === 0 &&
@@ -343,23 +321,6 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
               Ask the property owner to give you access, or get in touch with NORU about adding a
               package to this property.
             </p>
-          </div>
-        ) : null}
-
-        {setupLinks.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Property setup
-            </span>
-            {setupLinks.map((l) => (
-              <Link
-                key={l.title}
-                to={l.to}
-                className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <l.icon className="size-4" /> {l.title}
-              </Link>
-            ))}
           </div>
         ) : null}
       </section>

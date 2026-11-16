@@ -134,8 +134,7 @@ export const PMS_PERMISSIONS = {
   ROLES_CREATE: "administration.roles.create",
   ROLES_EDIT: "administration.roles.edit",
   ROLES_ACTIVATE: "administration.roles.activate",
-  ROLES_ASSIGN_PERMISSIONS: "administration.roles.assign_permissions",
-} as const;
+  ROLES_ASSIGN_PERMISSIONS: "administration.roles.assign_permissions" } as const;
 
 export type PmsPermissionCode = (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS];
 

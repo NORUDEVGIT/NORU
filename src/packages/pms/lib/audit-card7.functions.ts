@@ -10,7 +10,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasPmsPermission, requirePmsSetupActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard7Overall } from "./card7-readiness.functions";
 import { emptyAuditRetention } from "./pms-set5-depts-guestsvc";
@@ -571,7 +571,7 @@ export const saveCard7AuditPolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => policySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     if (!retentionDaysValid(data.retentionDays)) {
       throw new Error("Retention days must be between 1 and 3650.");
     }
@@ -618,7 +618,7 @@ export const saveCard7AuditCategorySettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => categoriesSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7AuditSnapshot(db, data.restaurantId);
@@ -653,7 +653,7 @@ export const saveCard7AuditSensitiveCoverage = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => coverageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7AuditSnapshot(db, data.restaurantId);

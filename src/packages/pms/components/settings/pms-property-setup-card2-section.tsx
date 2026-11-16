@@ -351,7 +351,7 @@ export function PmsPropertySetupCard2Section({
       <div className="min-w-0 flex-1" data-testid="pms-card2-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={2}
-          status={cardStatus === "complete" ? "in_progress" : cardStatus}
+          status={cardStatus}
           description={CARD2_SUBTITLE}
           sections={railSections}
           complete={counts.complete}

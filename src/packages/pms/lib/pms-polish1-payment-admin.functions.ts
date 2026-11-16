@@ -10,7 +10,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { callerMembership } from "@/core/lib/workforce.server";
 import { withPmsPackage } from "./pms-package.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasPmsPermission, requirePmsSetupActor } from "./pms-permissions.server";
 import type { Json } from "@/integrations/supabase/types";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import {
@@ -160,7 +160,7 @@ export const getPmsPolish1Snapshot = createServerFn({ method: "POST" })
   });
 
 async function requireEditor(restaurantId: string, context: { userId: string }) {
-  return requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+  return requirePmsSetupActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
 }
 
 export const savePmsPaymentMethod = createServerFn({ method: "POST" })

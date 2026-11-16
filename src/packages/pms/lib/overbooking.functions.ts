@@ -3,7 +3,10 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { addDays } from "./reservation-dates";
-import { requirePmsActor, requirePmsActorAny } from "./pms-permissions.server";
+import {
+  requirePmsActorAny,
+  requirePmsSetupActor,
+} from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 
 const idSchema = z.string().uuid();
@@ -151,7 +154,7 @@ export const listRoomTypeOverbookingRules = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as never as {
       from: (table: string) => {
@@ -233,7 +236,7 @@ export const saveRoomTypeOverbookingRule = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(
+    const me = await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE,
@@ -282,7 +285,7 @@ export const getOverbookingControls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<OverbookingControls> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as never as {
       from: (table: string) => {
@@ -327,7 +330,7 @@ export const listOverbookingDateLimits = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ROOMS_OPS_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as never as {
       from: (table: string) => {
@@ -381,7 +384,7 @@ export const saveOverbookingDateLimit = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(
+    const me = await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE,
@@ -422,7 +425,7 @@ export const deleteOverbookingDateLimit = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_ROOMS_OPS_CONFIGURE,

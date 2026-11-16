@@ -7,12 +7,11 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
-import { withPmsPackage } from "./pms-package.server";
+import { withPmsLive } from "./pms-package.server";
 import {
   PAIR_WRITE_ERRORS,
   REQUIREMENT_WRITE_ERRORS,
-  pairWriteErrorMessage,
-} from "./room-requirement-rejection";
+  pairWriteErrorMessage } from "./room-requirement-rejection";
 import { isAllowedBookingStatusTransition, RESERVATION_MANAGE_ROLES } from "./reservation-dates";
 
 /** Front Office operations: owners, managers and receptionists. */
@@ -24,8 +23,7 @@ export {
   canManageReservations,
   isAllowedBookingStatusTransition,
   nightsBetween,
-  propertyToday,
-} from "./reservation-dates";
+  propertyToday } from "./reservation-dates";
 export type { ReservationStatus, ManualReservationStatus } from "./reservation-dates";
 
 export const RESERVATION_EVENT_TYPES = [
@@ -76,7 +74,7 @@ export async function requireReservationManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -218,8 +216,7 @@ const DB_ERROR_MESSAGES: Record<string, string> = {
   RATE_PLAN_REQUIRED: "This room has no rate plan, so the stay cannot be repriced.",
   FOLIO_CLOSED: "This folio is closed. Nothing more can be posted to it.",
   CORRECTION_INVOICED: "This charge is already on an issued invoice, so it cannot be corrected.",
-  PACKAGE_CURRENCY_MISMATCH: "The reservation currency does not match the guest folio.",
-};
+  PACKAGE_CURRENCY_MISMATCH: "The reservation currency does not match the guest folio." };
 
 /** Generic Reservation status writer — booking-side allowlist only (DB03-B01). */
 export function assertBookingStatusTransition(from: string, to: string): void {
@@ -263,6 +260,5 @@ export async function recordReservationEvent(params: {
     previous_values: (params.previousValues ?? null) as never,
     new_values: (params.newValues ?? null) as never,
     notes: params.notes ?? null,
-    actor_membership_id: params.actorMembershipId,
-  });
+    actor_membership_id: params.actorMembershipId });
 }

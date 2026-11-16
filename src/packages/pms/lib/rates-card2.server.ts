@@ -20,6 +20,24 @@ export {
   type PredefinedRateCategory,
 } from "./rates-categories-catalogue";
 
+export {
+  PREDEFINED_CANCELLATION_POLICIES,
+  isPredefinedCancellationConfigured,
+  findMatchingPredefinedCancellation,
+  normalizeCancellationPolicyKey,
+  cancellationPresetDetailLine,
+  type CancellationCatalogueKindLabel,
+  type PredefinedCancellationPolicy,
+} from "./rates-cancellation-catalogue";
+
+export {
+  PREDEFINED_EARLY_DEPARTURE_POLICIES,
+  isPredefinedEarlyDepartureConfigured,
+  findMatchingPredefinedEarlyDeparture,
+  normalizeEarlyDeparturePolicyKey,
+  type PredefinedEarlyDeparturePolicy,
+} from "./rates-early-departure-catalogue";
+
 export const CARD2_RATES_AUDIT_SECTION = "card2-rates";
 export const CARD2_RATES_UNAVAILABLE =
   "Rates & Pricing are unavailable until hotel rates are applied.";

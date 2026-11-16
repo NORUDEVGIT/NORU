@@ -99,8 +99,7 @@ const SETTINGS_SECTION_CARD: Record<string, number> = {
   distribution: 6,
   reports: 7,
   security: 7,
-  "offline-sync": 1,
-};
+  "offline-sync": 1 };
 
 export function pmsSettingsSectionCard(sectionId: string): number | null {
   return SETTINGS_SECTION_CARD[sectionId] ?? null;
@@ -183,8 +182,7 @@ export const PMS_MODULE_VIEW_PERMISSION = {
   "night-audit": PMS_PERMISSIONS.NIGHT_AUDIT_VIEW,
   reports: PMS_PERMISSIONS.REPORTS_VIEW,
   distribution: PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW,
-  maintenance: PMS_PERMISSIONS.MAINTENANCE_VIEW,
-} as const satisfies Record<string, PmsPermissionCode>;
+  maintenance: PMS_PERMISSIONS.MAINTENANCE_VIEW } as const satisfies Record<string, PmsPermissionCode>;
 
 export function pmsModuleVisible(access: PmsAccessSnapshot, moduleKey: string): boolean {
   if (moduleKey === "property-setup") return pmsSettingsHubVisible(access);
@@ -200,23 +198,21 @@ export const PMS_QUICK_ACTIONS = {
   walkIn: PMS_PERMISSIONS.FRONT_OFFICE_WALK_IN,
   checkIn: PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
   checkOut: PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
-  postPayment: PMS_PERMISSIONS.CASHIERING_PAYMENT_POST,
-} as const;
+  postPayment: PMS_PERMISSIONS.CASHIERING_PAYMENT_POST } as const;
 
 const PMS_ROUTE_ORDER: { path: string; visible: (access: PmsAccessSnapshot) => boolean }[] = [
   { path: "/restaurant/pms", visible: (access) => pmsCan(access, PMS_PERMISSIONS.DASHBOARD_VIEW) },
   ...PMS_MODULE_NAV.map((item) => ({
     path: item.to,
-    visible: (access: PmsAccessSnapshot) => pmsModuleVisible(access, item.catalogueKey),
-  })),
+    visible: (access: PmsAccessSnapshot) => pmsModuleVisible(access, item.catalogueKey) })),
   {
     path: "/restaurant/pms/maintenance",
-    visible: (access: PmsAccessSnapshot) => pmsModuleVisible(access, "maintenance"),
-  },
+    visible: (access: PmsAccessSnapshot) => pmsModuleVisible(access, "maintenance") },
   {
     path: "/restaurant/pms/distribution",
-    visible: (access: PmsAccessSnapshot) => pmsModuleVisible(access, "distribution"),
-  },
+    visible: (access: PmsAccessSnapshot) => pmsModuleVisible(access, "distribution") },
+  // Last resort for Settings-only staff. Settings is not a module-bar item.
+  { path: "/restaurant/settings", visible: pmsSettingsHubVisible },
 ];
 
 /** First module the caller may open, in PMS nav order. Dashboard is first when granted. */

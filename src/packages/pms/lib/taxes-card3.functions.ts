@@ -1,4 +1,4 @@
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
@@ -472,7 +472,7 @@ export const getTaxesCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
@@ -485,7 +485,7 @@ export const saveTaxCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => taxSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!amountIsValid(data.chargeType, data.amount)) {
       throw new Error("Percentage amounts must be greater than 0 and at most 100.");
     }
@@ -534,7 +534,7 @@ export const saveTaxGroupCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => groupSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const uniqueTaxIds = [...new Set(data.taxIds)];
     if (uniqueTaxIds.length > 0) {
@@ -600,7 +600,7 @@ export const saveServiceChargeCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => serviceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!amountIsValid(data.chargeType, data.amount)) {
       throw new Error("Percentage amounts must be greater than 0 and at most 100.");
     }
@@ -652,7 +652,7 @@ export const saveFeeCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => feeSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!amountIsValid(data.chargeType, data.amount)) {
       throw new Error("Percentage amounts must be greater than 0 and at most 100.");
     }
@@ -687,7 +687,7 @@ export const saveExemptionRuleCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => exemptionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const isOther = data.reasonCategory === "other";
     const customReasonVal = isOther && data.customReason?.trim() ? data.customReason.trim() : null;
@@ -756,7 +756,7 @@ export const saveDefaultRoomTaxGroupCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => defaultRoomTaxGroupSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
 
     if (data.taxGroupId) {

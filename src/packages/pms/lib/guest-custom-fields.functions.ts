@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -238,7 +238,7 @@ export const hasOperationalFieldValues = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, fieldId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<{ hasValues: boolean }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const res = await supabaseAdmin

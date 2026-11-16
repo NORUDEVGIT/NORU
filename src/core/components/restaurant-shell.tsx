@@ -37,6 +37,11 @@ import {
   Clock,
 } from "lucide-react";
 import { NoruLogo } from "@/core/components/noru-logo";
+import { ProfileMenu } from "@/core/components/app-top-header";
+import {
+  PendingApprovalDashboard,
+  PendingPortalHeader,
+} from "@/core/components/pending-approval-dashboard";
 import { Button } from "@/shared/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants, type RestaurantMembership } from "@/core/lib/restaurant.functions";
@@ -481,7 +486,7 @@ export function RestaurantShell({
   }, [navigate, passwordGate.data?.mustChangePassword]);
   const search = useSearch({ strict: false }) as { tab?: string };
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ["my-restaurants", user?.id],
     queryFn: () => fetchRestaurants(),
     enabled: Boolean(session && user?.id && passwordGate.isSuccess && !passwordGate.data?.mustChangePassword),
@@ -499,6 +504,20 @@ export function RestaurantShell({
   const membership = data?.[0];
   const restaurant = membership?.restaurant;
   const operational = restaurant?.status === "approved";
+  const pendingReview = restaurant?.status === "pending";
+  // Go-live is the owner Activate flag. Setup-card completion does not gate the shell.
+  const pmsLive = restaurant?.pmsSet1Live === true;
+  const setupHome = operational && !pmsLive;
+  const onboardingPortal = pendingReview || (setupHome && active !== "Settings");
+  useEffect(() => {
+    if (pendingReview && active !== "Home") {
+      void navigate({ to: "/restaurant/home", replace: true });
+      return;
+    }
+    if (setupHome && active !== "Home" && active !== "Settings") {
+      void navigate({ to: "/restaurant/home", replace: true });
+    }
+  }, [active, navigate, pendingReview, setupHome]);
   const pmsMod = pmsModule ? getPmsModule(pmsModule) : undefined;
   const hidePackageRail = Boolean(hidePackageRailProp) || shouldSuppressRestaurantPmsRail(pmsModule);
 
@@ -518,6 +537,8 @@ export function RestaurantShell({
   const showSettingsNav =
     !pmsPackage ||
     (!pmsAccess.isLoading && !pmsAccess.isError && pmsSettingsHubVisible(pmsSnapshot));
+  // Settings lives only in the profile menu, and only once the property is approved.
+  const settingsHref = operational && showSettingsNav ? "/restaurant/settings" : undefined;
 
   const workspace = module ?? LABEL_MODULE[active];
   const items = MODULE_NAV[workspace].filter((item) => {
@@ -591,15 +612,6 @@ export function RestaurantShell({
         </ul>
       </nav>
       <div className="space-y-1">
-        {showSettingsNav ? (
-          <Link
-            to="/restaurant/settings"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <Settings className="size-4 shrink-0" /> Settings
-          </Link>
-        ) : null}
         <Button
           variant="ghost"
           size="sm"
@@ -612,7 +624,7 @@ export function RestaurantShell({
     </div>
   );
 
-  const sidebar = !operational && membership ? restrictedSidebar : (
+  const sidebar = !membership || pendingReview || setupHome ? null : !operational ? restrictedSidebar : (
     <div className="flex h-full flex-col gap-5 p-4">
       <Link
         to="/restaurant/home"
@@ -697,15 +709,6 @@ export function RestaurantShell({
       </nav>
 
       <div className="space-y-1">
-        {showSettingsNav ? (
-          <Link
-            to="/restaurant/settings"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <Settings className="size-4 shrink-0" /> Settings
-          </Link>
-        ) : null}
         <Button
           variant="ghost"
           size="sm"
@@ -742,12 +745,37 @@ export function RestaurantShell({
       </p>
     );
   }
+  // Approval and pms_set1_live both come from this query. Until it settles,
+  // neither portal nor the operational shell may mount.
+  if (
+    session &&
+    user?.id &&
+    passwordGate.isSuccess &&
+    !passwordGate.data?.mustChangePassword &&
+    data === undefined
+  ) {
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center bg-[#F7F4EE] px-6 text-[#251605]"
+        data-testid="shell-membership-resolving"
+      >
+        {isError ? (
+          <p className="text-sm text-destructive">We couldn't load your restaurant. Please try again.</p>
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <NoruLogo size="md" wordmarkClassName="text-[#251605]" />
+            <p className="text-sm text-[#6B6458]">Loading…</p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className={cn("min-h-dvh", hidePackageRail ? "bg-background" : "bg-muted/30")}>
-      <div className={cn("mx-auto flex w-full", hidePackageRail ? "max-w-none" : "max-w-[1600px]")}>
-        {/* Desktop sidebar — FO-FS0: omit the package rail and its w-60 width on Front Office. */}
-        {hidePackageRail || sidebarCollapsed ? null : (
+    <div className={cn("min-h-dvh", onboardingPortal ? "bg-[#F7F4EE]" : hidePackageRail ? "bg-background" : "bg-muted/30")}>
+      <div className={cn("mx-auto flex w-full", onboardingPortal || pendingReview || setupHome || hidePackageRail ? "max-w-none" : "max-w-[1600px]")}>
+        {/* Desktop sidebar — omitted during onboarding and on Front Office. */}
+        {!membership || pendingReview || setupHome || hidePackageRail || sidebarCollapsed ? null : (
           <aside
             className="sticky top-0 hidden h-dvh w-60 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block"
             data-testid="app-sidebar-rail"
@@ -757,7 +785,7 @@ export function RestaurantShell({
         )}
 
         {/* Mobile drawer — never open the package drawer on Front Office. */}
-        {!hidePackageRail && navOpen ? (
+        {membership && !pendingReview && !setupHome && !hidePackageRail && navOpen ? (
           <div className="fixed inset-0 z-50 lg:hidden">
             <div className="absolute inset-0 bg-foreground/40" onClick={() => setNavOpen(false)} />
             <aside className="absolute inset-y-0 left-0 w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
@@ -775,7 +803,16 @@ export function RestaurantShell({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {hideTopHeader ? null : (
+          {onboardingPortal ? (
+          <PendingPortalHeader
+            propertyName={restaurant?.name ?? "Your property"}
+            email={user?.email ?? ""}
+            role={membership?.role ?? ""}
+            statusLabel={pendingReview ? "Pending approval" : "Approved"}
+            settingsHref={pendingReview ? undefined : settingsHref}
+            onSignOut={() => void signOut()}
+          />
+          ) : hideTopHeader ? null : (
           <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
             <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
               {hidePackageRail ? null : (
@@ -836,19 +873,19 @@ export function RestaurantShell({
                     {membership?.role ?? ""}
                   </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => void signOut()}>
-                  <LogOut className="size-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Log out</span>
-                </Button>
+                <ProfileMenu
+                  email={user?.email ?? ""}
+                  role={membership?.role ?? ""}
+                  settingsHref={settingsHref}
+                  onSignOut={() => void signOut()}
+                />
               </div>
             </div>
           </header>
           )}
 
-          <main className={cn("min-w-0 flex-1", hidePackageRail ? "flex flex-col p-0" : "px-4 py-6 sm:px-6")}>
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading your restaurant…</p>
-            ) : isError ? (
+          <main className={cn("min-w-0 flex-1", onboardingPortal || hidePackageRail ? "flex flex-col p-0" : "px-4 py-6 sm:px-6")}>
+            {isError ? (
               <p className="text-sm text-destructive">
                 We couldn't load your restaurant. Please try again.
               </p>
@@ -868,7 +905,17 @@ export function RestaurantShell({
                   </Button>
                 </div>
               </div>
-            ) : !operational && active !== "Settings" ? (
+            ) : onboardingPortal ? (
+              active === "Home" ? (
+                <PendingApprovalDashboard
+                  membership={membership}
+                  phase={pendingReview ? "review" : "setup"}
+                  packagePending={!pendingReview && !packages.loading && !pmsPackage}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Returning to Property Home…</p>
+              )
+            ) : !operational ? (
               <UnavailableRestaurantScreen membership={membership} />
             ) : (
               <RestaurantSettingsProvider
@@ -921,20 +968,15 @@ export function RestaurantShell({
 function UnavailableRestaurantScreen({ membership }: { membership: RestaurantMembership }) {
   const status = membership.restaurant.status;
   const copy =
-    status === "pending"
+    status === "suspended"
       ? {
-          title: "Pending approval",
-          body: "Your restaurant is registered and waiting for NORU to review it. Operational dashboards stay unavailable until we approve the property. Packages are assigned separately after approval.",
+          title: "Restaurant unavailable",
+          body: "This restaurant is suspended. Operational dashboards and packages are unavailable until a platform administrator reactivates it.",
         }
-      : status === "suspended"
-        ? {
-            title: "Restaurant unavailable",
-            body: "This restaurant is suspended. Operational dashboards and packages are unavailable until a platform administrator reactivates it.",
-          }
-        : {
-            title: "Restaurant unavailable",
-            body: "This restaurant is not active. Contact NORU if you believe this is a mistake.",
-          };
+      : {
+          title: "Restaurant unavailable",
+          body: "This restaurant is not active. Contact NORU if you believe this is a mistake.",
+        };
 
   return (
     <div className="mx-auto max-w-lg space-y-4 rounded-2xl border border-border bg-card p-6">

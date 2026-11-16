@@ -2,7 +2,7 @@
  * Group Type catalogue. Values live on pms_group_types — never hardcoded in Group UI.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import {
   requireGuestAccountActivateActor,
   requireGuestAccountCreateActor,
@@ -138,7 +138,7 @@ export const saveGroupType = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE);
     const payload = {
       restaurant_id: data.restaurantId,
       code: data.code.trim().toUpperCase(),

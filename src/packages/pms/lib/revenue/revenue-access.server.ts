@@ -4,13 +4,12 @@
  */
 
 import { type AuthedCtx, callerMembership } from "@/core/lib/workforce.server";
-import { requirePmsPackage } from "../pms-package.server";
+import { requirePmsLive } from "../pms-package.server";
 import { hasEffectivePermission, resolveEffectivePermissions } from "../pms-permissions.server";
 import { PMS_PERMISSIONS } from "../pms-permissions";
 import {
   deniedRevenueAccess,
-  type RevenueAccessResolution,
-} from "./revenue-access";
+  type RevenueAccessResolution } from "./revenue-access";
 
 export async function loadRevenueAccess(
   context: AuthedCtx,
@@ -18,7 +17,7 @@ export async function loadRevenueAccess(
 ): Promise<RevenueAccessResolution> {
   const me = await callerMembership(context, restaurantId);
   try {
-    await requirePmsPackage(restaurantId);
+    await requirePmsLive(restaurantId);
   } catch {
     return { role: me.role, packageEnabled: false, membershipId: me.id, ...deniedRevenueAccess() };
   }
@@ -42,6 +41,5 @@ export async function loadRevenueAccess(
     canApprove: has(PMS_PERMISSIONS.RATES_ACTIVATE),
     canViewAnalytics: canView || has(PMS_PERMISSIONS.REPORTS_VIEW),
     canViewAudit: canView,
-    canExport: has(PMS_PERMISSIONS.REPORTS_EXPORT),
-  };
+    canExport: has(PMS_PERMISSIONS.REPORTS_EXPORT) };
 }

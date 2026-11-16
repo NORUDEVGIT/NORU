@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { HelpCircle, LogOut, Sun } from "lucide-react";
+import { HelpCircle, LogOut, Settings, Sun } from "lucide-react";
 
 import { ensureLightAppearance } from "@/core/lib/appearance";
 import { clearRoutePackageCache } from "@/core/lib/route-package-guard";
@@ -40,12 +40,15 @@ function formatRole(role: string | undefined) {
 export function PmsAccountMenu({
   membership,
   businessDateLabel,
+  settingsHref,
   open,
   onOpenChange,
   onOpenHelp,
 }: {
   membership: RestaurantMembership;
   businessDateLabel: string;
+  /** Omitted when the property is not approved or the caller cannot open Settings. */
+  settingsHref?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenHelp: () => void;
@@ -108,6 +111,17 @@ export function PmsAccountMenu({
           </p>
         </div>
         <DropdownMenuSeparator />
+        {settingsHref ? (
+          <>
+            <DropdownMenuItem asChild>
+              <Link to={settingsHref} className="gap-2" data-testid="pms-account-menu-settings">
+                <Settings className="size-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuLabel className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Preferences
         </DropdownMenuLabel>

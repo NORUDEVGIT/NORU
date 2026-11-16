@@ -13,7 +13,7 @@ import {
 } from "@/shared/components/ui/sheet";
 import { X } from "lucide-react";
 import { pmsHelpGuide } from "@/packages/pms/lib/pms-help-content";
-import type { PmsModuleNavLabel } from "@/packages/pms/lib/pms-module-nav";
+import type { PmsChromeModuleLabel } from "@/packages/pms/lib/pms-module-nav";
 import { cn } from "@/shared/lib/utils";
 
 export function PmsHelpPanel({
@@ -23,7 +23,7 @@ export function PmsHelpPanel({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  activeModule: PmsModuleNavLabel | null;
+  activeModule: PmsChromeModuleLabel | null;
 }) {
   const guide = pmsHelpGuide(activeModule);
   const defaultOpen = guide.sections.slice(0, 2).map((section) => section.id);

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -68,7 +68,7 @@ export const savePurposeOfStay = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE,

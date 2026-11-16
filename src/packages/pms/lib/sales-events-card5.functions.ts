@@ -10,7 +10,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { withPmsPackage } from "./pms-package.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasPmsPermission, requirePmsSetupActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard5Overall } from "./card5-readiness.functions";
 import {
@@ -521,7 +521,7 @@ export const saveCard5SalesCatalogue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => catalogueSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5SalesSnapshot(db, data.restaurantId);
@@ -571,7 +571,7 @@ export const saveCard5SalesOrdered = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => orderedSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5SalesSnapshot(db, data.restaurantId);
@@ -656,7 +656,7 @@ export const saveCard5FunctionSpace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => functionSpaceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5SalesSnapshot(db, data.restaurantId);
@@ -710,7 +710,7 @@ export const saveCard5PackageTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5SalesSnapshot(db, data.restaurantId);
@@ -786,7 +786,7 @@ export const saveCard5ContractDefault = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => contractSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_ORGANIZATION_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard5SalesSnapshot(db, data.restaurantId);

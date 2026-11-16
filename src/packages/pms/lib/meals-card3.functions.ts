@@ -1,4 +1,4 @@
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -501,7 +501,7 @@ export const getMealsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
@@ -514,7 +514,7 @@ export const saveMealPlanCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealPlanSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(
@@ -554,7 +554,7 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const roomTypeIds = [...new Set(data.roomTypeIds)];
     const ratePlanIds = [...new Set(data.ratePlanIds)];
@@ -668,7 +668,7 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => componentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const source =
       data.kind === "meal_plan"
@@ -750,7 +750,7 @@ export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedRecord(
       db,
@@ -810,7 +810,7 @@ export const createPackageCoverUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageCoverUploadSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedRecord(
       db,
@@ -835,7 +835,7 @@ export const setPackageCoverImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageCoverPathSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!isOwnedPackageCoverPath(data.restaurantId, data.packageId, data.storagePath)) {
       throw new Error("Invalid image reference.");
     }
@@ -859,7 +859,7 @@ export const removePackageCoverImage = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, packageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const current = await loadPackageCover(db, data.restaurantId, data.packageId);
     if (!current.cover_image_path) return { ok: true as const };
@@ -917,7 +917,7 @@ export const getMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" }
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { policy: snapshot.mealPolicy, departments: snapshot.departments };
@@ -927,7 +927,7 @@ export const saveMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await Promise.all([
       assertActiveDepartment(db, data.restaurantId, data.breakfast.departmentId),
@@ -969,7 +969,7 @@ export const saveFoServiceCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => foServiceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(

@@ -51,6 +51,7 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
         queryKey: ["pms-card8-readiness", restaurantId],
       });
       void queryClient.invalidateQueries({ queryKey: ["pms-card1", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });

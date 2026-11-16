@@ -2192,8 +2192,25 @@ export function StructureStep({
   const [newBuildingDraft, setNewBuildingDraft] = useState<{ name: string; code: string } | null>(
     null,
   );
+  const [newWingDraft, setNewWingDraft] = useState<{
+    parentBuildingId: string;
+    name: string;
+    code: string;
+  } | null>(null);
+  const [newFloorDraft, setNewFloorDraft] = useState<{
+    buildingId: string;
+    wingId: string | null;
+    name: string;
+    code: string;
+    floorNumber: number;
+  } | null>(null);
   const creatingBuildingRef = useRef(false);
   creatingBuildingRef.current = newBuildingDraft !== null;
+  const creatingWingRef = useRef(false);
+  creatingWingRef.current = newWingDraft !== null;
+  const creatingFloorRef = useRef(false);
+  creatingFloorRef.current = newFloorDraft !== null;
+  const pendingFitRef = useRef(false);
   const [zoom, setZoom] = useState(1);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
@@ -2231,6 +2248,7 @@ export function StructureStep({
       if (creatingBuildingRef.current) {
         setNewBuildingDraft(null);
         setDetailsOpen(false);
+        pendingFitRef.current = true;
       }
       refresh();
     },
@@ -2250,6 +2268,11 @@ export function StructureStep({
     }) => saveFloor({ data: { restaurantId, ...input } }),
     onSuccess: () => {
       toast.success("Floor saved.");
+      if (creatingFloorRef.current) {
+        setNewFloorDraft(null);
+        setDetailsOpen(true);
+        setFrontWindow("details");
+      }
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -2267,6 +2290,11 @@ export function StructureStep({
     }) => saveWing({ data: { restaurantId, ...input } }),
     onSuccess: () => {
       toast.success("Wing saved.");
+      if (creatingWingRef.current) {
+        setNewWingDraft(null);
+        setDetailsOpen(true);
+        setFrontWindow("details");
+      }
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -2346,20 +2374,47 @@ export function StructureStep({
   }, [set2.buildings, set2.floors, set2.wings]);
 
   const breadcrumb = useMemo(() => {
-    if (building) return building.name;
+    if (building) return ["Property", building.name].join(" › ");
     if (wing) {
       const parent = set2.buildings.find((row) => row.id === wing.parentBuildingId);
-      return [parent?.name, wing.name].filter(Boolean).join(" › ");
+      return ["Property", parent?.name, wing.name].filter(Boolean).join(" › ");
     }
     if (floor) {
       const parentBuilding = set2.buildings.find((row) => row.id === floor.buildingId);
       const parentWing = floor.wingId
         ? set2.wings.find((row) => row.id === floor.wingId)
         : null;
-      return [parentBuilding?.name, parentWing?.name, floor.name].filter(Boolean).join(" › ");
+      return ["Property", parentBuilding?.name, parentWing?.name, floor.name]
+        .filter(Boolean)
+        .join(" › ");
     }
     return "";
   }, [building, floor, set2.buildings, set2.wings, wing]);
+
+  const parentPathForBuilding = (buildingId: string) => {
+    const row = set2.buildings.find((item) => item.id === buildingId);
+    return row?.name ?? "Building";
+  };
+  const parentPathForWing = (buildingId: string, wingId: string | null) => {
+    const buildingName = parentPathForBuilding(buildingId);
+    if (!wingId) return buildingName;
+    const wingName = set2.wings.find((item) => item.id === wingId)?.name;
+    return wingName ? `${buildingName} › ${wingName}` : buildingName;
+  };
+  const createParentLabel = newBuildingDraft
+    ? "Property"
+    : newWingDraft
+      ? parentPathForBuilding(newWingDraft.parentBuildingId)
+      : newFloorDraft
+        ? parentPathForWing(newFloorDraft.buildingId, newFloorDraft.wingId)
+        : null;
+  const detailsSubtitle = newBuildingDraft
+    ? "Property › New building"
+    : newWingDraft
+      ? `Property › ${parentPathForBuilding(newWingDraft.parentBuildingId)} › New wing`
+      : newFloorDraft
+        ? `Property › ${parentPathForWing(newFloorDraft.buildingId, newFloorDraft.wingId)} › New floor`
+        : breadcrumb || undefined;
 
   useEffect(() => {
     const viewportEl = viewportRef.current;
@@ -2388,10 +2443,46 @@ export function StructureStep({
       (viewportEl.clientHeight - 96) / naturalSize.h,
     );
     setZoom(Math.min(1, Math.max(0.5, Math.floor(next * 20) / 20)));
+    viewportEl.scrollTo({
+      left: Math.max(0, (naturalSize.w * Math.min(1, Math.max(0.5, next)) - viewportEl.clientWidth) / 2),
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  useEffect(() => {
+    if (!pendingFitRef.current || naturalSize.w <= 0) return;
+    pendingFitRef.current = false;
+    const frame = window.requestAnimationFrame(() => {
+      const viewportEl = viewportRef.current;
+      if (!viewportEl || !naturalSize.w || !naturalSize.h) {
+        setZoom(1);
+        return;
+      }
+      const next = Math.min(
+        1,
+        (viewportEl.clientWidth - 64) / naturalSize.w,
+        (viewportEl.clientHeight - 96) / naturalSize.h,
+      );
+      const zoomValue = Math.min(1, Math.max(0.5, Math.floor(next * 20) / 20));
+      setZoom(zoomValue);
+      viewportEl.scrollTo({
+        left: Math.max(0, (naturalSize.w * zoomValue - viewportEl.clientWidth) / 2),
+        top: 0,
+        behavior: "smooth",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [set2.buildings.length, naturalSize.w, naturalSize.h]);
+
+  const clearCreateDrafts = () => {
+    setNewBuildingDraft(null);
+    setNewWingDraft(null);
+    setNewFloorDraft(null);
   };
 
   const selectNode = (node: StructureNode) => {
-    setNewBuildingDraft(null);
+    clearCreateDrafts();
     setSelected(node);
     setDetailsOpen(true);
     setFrontWindow("details");
@@ -2406,13 +2497,53 @@ export function StructureStep({
     const used = new Set(set2.buildings.map((row) => row.code.toUpperCase()));
     let index = set2.buildings.length + 1;
     while (used.has(`B${index}`)) index += 1;
-    setNewBuildingDraft({ name: `Building ${index}`, code: `B${index}` });
+    clearCreateDrafts();
+    // Always property-root — never a child of the current selection.
     setSelected(null);
+    setNewBuildingDraft({ name: `Building ${index}`, code: `B${index}` });
+    setDetailsOpen(true);
+    setFrontWindow("details");
+  };
+
+  const openNewWing = (parentBuildingId: string) => {
+    if (!parentBuildingId) return;
+    const used = new Set(set2.wings.map((row) => row.code.toUpperCase()));
+    let index = set2.wings.filter((row) => row.parentBuildingId === parentBuildingId).length + 1;
+    while (used.has(`W${index}`)) index += 1;
+    clearCreateDrafts();
+    setSelected({ kind: "building", id: parentBuildingId });
+    setNewWingDraft({
+      parentBuildingId,
+      name: `Wing ${index}`,
+      code: `W${index}`,
+    });
+    setDetailsOpen(true);
+    setFrontWindow("details");
+  };
+
+  const openNewFloor = (buildingId: string, wingId: string | null) => {
+    if (!buildingId) return;
+    const siblings = set2.floors.filter((row) =>
+      wingId ? row.wingId === wingId : row.buildingId === buildingId && !row.wingId,
+    );
+    let floorNumber = siblings.length + 1;
+    const usedCodes = new Set(set2.floors.map((row) => row.code.toUpperCase()));
+    while (usedCodes.has(String(floorNumber))) floorNumber += 1;
+    clearCreateDrafts();
+    setSelected(wingId ? { kind: "wing", id: wingId } : { kind: "building", id: buildingId });
+    setNewFloorDraft({
+      buildingId,
+      wingId,
+      name: `Floor ${floorNumber}`,
+      code: String(floorNumber),
+      floorNumber,
+    });
     setDetailsOpen(true);
     setFrontWindow("details");
   };
 
   const clearSelection = () => {
+    clearCreateDrafts();
     setSelected(null);
     setDetailsOpen(false);
   };
@@ -2427,8 +2558,12 @@ export function StructureStep({
     deleteStructureMutation.mutate(node);
   };
 
-  const showAddWing = selected?.kind === "building";
-  const showAddFloor = selected?.kind === "building" || selected?.kind === "wing";
+  const showAddWing = selected?.kind === "building" && !newBuildingDraft && !newWingDraft && !newFloorDraft;
+  const showAddFloor =
+    (selected?.kind === "building" || selected?.kind === "wing") &&
+    !newBuildingDraft &&
+    !newWingDraft &&
+    !newFloorDraft;
   const structureLayoutMarker = `xl:grid-cols-[20rem_minmax(0,1fr)] Full hierarchy CRUD Open room inventory ${CARD1_ROOMS_HREF} ${CARD1_CAPACITY_COPY}`;
 
   // Room counts are only shown when the snapshot actually carries room assignments.
@@ -2452,7 +2587,7 @@ export function StructureStep({
           <button
             type="button"
             aria-label={`${label} actions`}
-            className="rounded-md p-1 text-[#8A7352] hover:bg-[#F4E9D0] hover:text-[#251605]"
+            className="rounded-md p-1 text-[#8A7352] outline-none hover:bg-[#F4E9D0] hover:text-[#251605] focus-visible:bg-[#FBF3DE]"
             onClick={(event) => {
               event.stopPropagation();
               selectNode(node);
@@ -2462,6 +2597,23 @@ export function StructureStep({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+          {node.kind === "building" ? (
+            <>
+              <DropdownMenuItem onClick={() => openNewWing(node.id)}>Add Wing</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openNewFloor(node.id, null)}>Add Floor</DropdownMenuItem>
+            </>
+          ) : null}
+          {node.kind === "wing" ? (
+            <DropdownMenuItem
+              onClick={() => {
+                const parentBuildingId =
+                  set2.wings.find((row) => row.id === node.id)?.parentBuildingId ?? "";
+                openNewFloor(parentBuildingId, node.id);
+              }}
+            >
+              Add Floor
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             onClick={() => {
               selectNode(node);
@@ -2471,12 +2623,6 @@ export function StructureStep({
           </DropdownMenuItem>
           <DropdownMenuItem disabled={pending || !active} onClick={onDeactivate}>
             Deactivate
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={deleteStructureMutation.isPending}
-            onClick={() => confirmDelete(node)}
-          >
-            Delete {node.kind}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -2586,15 +2732,9 @@ export function StructureStep({
             <button
               type="button"
               disabled={!canEdit || !building || wingMutation.isPending}
-              onClick={() =>
-                wingMutation.mutate({
-                  name: `Wing ${set2.wings.length + 1}`,
-                  active: true,
-                  parentBuildingId: building?.id ?? null,
-                  parentFloorId: null,
-                  code: `W${set2.wings.length + 1}`,
-                })
-              }
+              onClick={() => {
+                if (building) openNewWing(building.id);
+              }}
               className={STRUCTURE_RAIL_ACTION}
             >
               + Add Wing
@@ -2604,19 +2744,12 @@ export function StructureStep({
             <button
               type="button"
               disabled={!canEdit || floorMutation.isPending}
-              onClick={() =>
-                floorMutation.mutate({
-                  buildingId:
-                    selected?.kind === "building"
-                      ? selected.id
-                      : (wing?.parentBuildingId ?? set2.buildings[0]?.id ?? ""),
-                  code: `${set2.floors.length + 1}`,
-                  name: `Floor ${set2.floors.length + 1}`,
-                  active: true,
-                  floorNumber: set2.floors.length + 1,
-                  wingId: selected?.kind === "wing" ? selected.id : null,
-                })
-              }
+              onClick={() => {
+                if (selected?.kind === "building") openNewFloor(selected.id, null);
+                else if (selected?.kind === "wing" && wing?.parentBuildingId) {
+                  openNewFloor(wing.parentBuildingId, wing.id);
+                }
+              }}
               className={STRUCTURE_RAIL_ACTION}
             >
               + Add Floor
@@ -2759,7 +2892,7 @@ export function StructureStep({
                       kind="building"
                       title={group.building.name}
                       meta={group.building.code}
-                      summary={`${countPhrase(group.wings.length, "Wing", "Wings")} · ${countPhrase(group.floorTotal, "Floor", "Floors")}`}
+                      summary={buildingHierarchySummary(group.wings.length, group.floorTotal)}
                       selected={selected?.kind === "building" && selected.id === group.building.id}
                       active={group.building.active}
                       onSelect={() => selectNode({ kind: "building", id: group.building.id })}
@@ -2814,24 +2947,28 @@ export function StructureStep({
         </div>
 
         <div className="pointer-events-none absolute bottom-3 right-3 top-14 z-20 flex w-[min(44rem,calc(100%-11.5rem))] max-w-[calc(100%-1.5rem)] flex-col items-end gap-2 overflow-hidden">
-          {detailsOpen && (selected || newBuildingDraft) ? (
-            <div className="pointer-events-auto flex min-h-0 w-[min(22rem,100%)] flex-[0_1_auto] flex-col overflow-hidden">
+          {detailsOpen && (selected || newBuildingDraft || newWingDraft || newFloorDraft) ? (
+            <div className="pointer-events-auto flex min-h-0 w-[min(22rem,100%)] flex-[0_1_auto] flex-col overflow-hidden self-end">
               <StructureWindow
                 title={
                   newBuildingDraft
                     ? "New building"
-                    : (building?.name ?? wing?.name ?? floor?.name ?? "Details")
+                    : newWingDraft
+                      ? "New wing"
+                      : newFloorDraft
+                        ? "New floor"
+                        : (building?.name ?? wing?.name ?? floor?.name ?? "Details")
                 }
-                subtitle={newBuildingDraft ? "Property › New building" : breadcrumb || undefined}
+                subtitle={detailsSubtitle}
                 active={
-                  newBuildingDraft
+                  newBuildingDraft || newWingDraft || newFloorDraft
                     ? true
                     : (building?.active ?? wing?.active ?? floor?.active ?? true)
                 }
                 icon={
                   newBuildingDraft || selected?.kind === "building" ? (
                     <Building2 className="size-3.5" />
-                  ) : selected?.kind === "wing" ? (
+                  ) : newWingDraft || selected?.kind === "wing" ? (
                     <Columns2 className="size-3.5" />
                   ) : (
                     <Layers3 className="size-3.5" />
@@ -2841,12 +2978,35 @@ export function StructureStep({
                 className={frontWindow === "details" ? "z-30" : "z-20"}
                 onClose={() => {
                   setDetailsOpen(false);
-                  setNewBuildingDraft(null);
+                  clearCreateDrafts();
                 }}
                 onFocus={() => setFrontWindow("details")}
                 menu={
-                  selected && canEdit ? (
+                  selected && canEdit && !newBuildingDraft && !newWingDraft && !newFloorDraft ? (
                     <WindowMenu label="Details menu">
+                      {selected.kind === "building" ? (
+                        <>
+                          <DropdownMenuItem onClick={() => openNewWing(selected.id)}>
+                            Add Wing
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openNewFloor(selected.id, null)}>
+                            Add Floor
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
+                      {selected.kind === "wing" ? (
+                        <DropdownMenuItem
+                          onClick={() =>
+                            openNewFloor(
+                              set2.wings.find((row) => row.id === selected.id)?.parentBuildingId ??
+                                "",
+                              selected.id,
+                            )
+                          }
+                        >
+                          Add Floor
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuItem
                         disabled={deleteStructureMutation.isPending}
                         onClick={() => confirmDelete(selected)}
@@ -2862,13 +3022,57 @@ export function StructureStep({
                     key={newBuildingDraft.code}
                     initialName={newBuildingDraft.name}
                     initialCode={newBuildingDraft.code}
+                    parentLabel={createParentLabel ?? "Property"}
                     canEdit={canEdit}
                     pending={buildingMutation.isPending}
                     onCancel={() => {
-                      setNewBuildingDraft(null);
+                      clearCreateDrafts();
                       setDetailsOpen(false);
                     }}
                     onSave={(input) => buildingMutation.mutate(input)}
+                  />
+                ) : newWingDraft ? (
+                  <NewWingForm
+                    key={`${newWingDraft.parentBuildingId}-${newWingDraft.code}`}
+                    initialName={newWingDraft.name}
+                    initialCode={newWingDraft.code}
+                    parentLabel={createParentLabel ?? "Building"}
+                    canEdit={canEdit}
+                    pending={wingMutation.isPending}
+                    onCancel={() => {
+                      setNewWingDraft(null);
+                    }}
+                    onSave={(input) =>
+                      wingMutation.mutate({
+                        ...input,
+                        parentBuildingId: newWingDraft.parentBuildingId,
+                        parentFloorId: null,
+                        active: true,
+                        status: "active",
+                      })
+                    }
+                  />
+                ) : newFloorDraft ? (
+                  <NewFloorForm
+                    key={`${newFloorDraft.buildingId}-${newFloorDraft.wingId ?? "direct"}-${newFloorDraft.code}`}
+                    initialName={newFloorDraft.name}
+                    initialCode={newFloorDraft.code}
+                    initialFloorNumber={newFloorDraft.floorNumber}
+                    parentLabel={createParentLabel ?? "Building"}
+                    canEdit={canEdit}
+                    pending={floorMutation.isPending}
+                    onCancel={() => {
+                      setNewFloorDraft(null);
+                    }}
+                    onSave={(input) =>
+                      floorMutation.mutate({
+                        ...input,
+                        buildingId: newFloorDraft.buildingId,
+                        wingId: newFloorDraft.wingId,
+                        active: true,
+                        status: "active",
+                      })
+                    }
                   />
                 ) : building ? (
                   <BuildingForm
@@ -2970,7 +3174,7 @@ export function StructureStep({
           ) : null}
 
           {utility === "capacity" ? (
-            <div className="pointer-events-auto w-[min(20rem,100%)] shrink-0">
+            <div className="pointer-events-auto w-[min(20rem,100%)] shrink-0 self-end">
               <StructureWindow
                 title="Capacity"
                 icon={<Layers3 className="size-3.5" />}
@@ -3002,111 +3206,134 @@ export function StructureStep({
           ) : null}
 
           {utility === "areas" ? (
-            <div className="pointer-events-auto max-h-full w-[min(22rem,100%)] shrink overflow-y-auto">
+            <div className="pointer-events-auto max-h-[min(28rem,calc(100%-0.5rem))] w-[min(24rem,100%)] shrink-0 self-end overflow-hidden">
               <StructureWindow
                 title="Property Areas"
                 icon={<Columns2 className="size-3.5" />}
-                scroll={false}
-                className={cn("h-auto", frontWindow === "areas" ? "z-30" : "z-20")}
+                scroll
+                className={cn("h-auto max-h-full", frontWindow === "areas" ? "z-30" : "z-20")}
                 onClose={() => setUtility(null)}
                 onFocus={() => setFrontWindow("areas")}
                 menu={<WindowMenu label="Property Areas menu" onClose={() => setUtility(null)} />}
               >
                 {functionalHardeningAvailable ? (
-                  areaComposerOpen ? (
-                    <PropertySetupFormGrid>
-                      <Field id="card1-area-name" label="Area Name" value={areaName} onChange={setAreaName} />
-                      <Field
-                        id="card1-area-description"
-                        label="Description"
-                        value={areaDescription}
-                        onChange={setAreaDescription}
-                      />
-                      <div className="flex items-end gap-2">
-                        <Button
-                          type="button"
-                          disabled={!areaName.trim() || areaMutation.isPending}
-                          onClick={() => areaMutation.mutate()}
-                        >
-                          {editingArea ? "Save Area" : "Add Area"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingArea(null);
-                            setAreaName("");
-                            setAreaDescription("");
-                            setAreaComposerOpen(false);
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </PropertySetupFormGrid>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {propertyAreas.map((area) => (
-                        <div key={area.id} className="flex items-center gap-2 rounded-lg px-1 py-1">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-[#251605]">{area.name}</p>
-                            {area.description ? (
-                              <p className="truncate text-xs text-[#7A6A55]">{area.description}</p>
-                            ) : null}
-                          </div>
-                          {canEdit ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  type="button"
-                                  aria-label={`${area.name} actions`}
-                                  className="rounded-md p-1 text-[#8A7352] outline-none hover:bg-[#F4E9D0] hover:text-[#251605] focus-visible:bg-[#FBF3DE]"
-                                >
-                                  <Ellipsis className="size-3.5" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setEditingArea(area);
-                                    setAreaName(area.name);
-                                    setAreaDescription(area.description);
-                                    setAreaComposerOpen(true);
-                                  }}
-                                >
-                                  Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  disabled={deleteAreaMutation.isPending}
-                                  onClick={() => {
-                                    if (window.confirm(`Delete property area “${area.name}”?`)) {
-                                      deleteAreaMutation.mutate(area.id);
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : null}
+                  <div className="space-y-3">
+                    {areaComposerOpen ? (
+                      <PropertySetupFormGrid>
+                        <Field id="card1-area-name" label="Area Name" value={areaName} onChange={setAreaName} />
+                        <Field
+                          id="card1-area-description"
+                          label="Description"
+                          value={areaDescription}
+                          onChange={setAreaDescription}
+                        />
+                        <div className="flex items-end gap-2">
+                          <Button
+                            type="button"
+                            disabled={!areaName.trim() || areaMutation.isPending}
+                            onClick={() => areaMutation.mutate()}
+                          >
+                            {editingArea ? "Save Area" : "Add Area"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingArea(null);
+                              setAreaName("");
+                              setAreaDescription("");
+                              setAreaComposerOpen(false);
+                            }}
+                          >
+                            Cancel
+                          </Button>
                         </div>
-                      ))}
-                      {canEdit ? (
-                        <button
-                          type="button"
-                          className="px-1 py-1 text-left text-xs font-semibold text-[#8A641A] hover:text-[#251605]"
-                          onClick={() => {
-                            setEditingArea(null);
-                            setAreaName("");
-                            setAreaDescription("");
-                            setAreaComposerOpen(true);
-                          }}
-                        >
-                          + Add Area
-                        </button>
-                      ) : null}
-                    </div>
-                  )
+                      </PropertySetupFormGrid>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {propertyAreas.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-[#E6DCC8] bg-[#FBF7EE] px-3 py-4 text-center text-xs text-[#7A6A55]">
+                              No property areas yet. Add lobby, pool, parking, or other shared spaces.
+                            </p>
+                          ) : (
+                            propertyAreas.map((area) => (
+                              <div
+                                key={area.id}
+                                className="flex items-start gap-2 rounded-xl border border-[#E8E1D7] bg-white px-3 py-2.5"
+                              >
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                    <p className="truncate text-sm font-semibold text-[#251605]">
+                                      {area.name}
+                                    </p>
+                                    <StatusChip active={area.active} />
+                                  </div>
+                                  {area.description ? (
+                                    <p className="line-clamp-2 text-xs text-[#7A6A55]">
+                                      {area.description}
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-[#B5A48C]">No description</p>
+                                  )}
+                                </div>
+                                {canEdit ? (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        type="button"
+                                        aria-label={`${area.name} actions`}
+                                        className="rounded-md p-1 text-[#8A7352] outline-none hover:bg-[#F4E9D0] hover:text-[#251605] focus-visible:bg-[#FBF3DE]"
+                                      >
+                                        <Ellipsis className="size-3.5" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setEditingArea(area);
+                                          setAreaName(area.name);
+                                          setAreaDescription(area.description);
+                                          setAreaComposerOpen(true);
+                                        }}
+                                      >
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        disabled={deleteAreaMutation.isPending}
+                                        onClick={() => {
+                                          if (window.confirm(`Delete property area “${area.name}”?`)) {
+                                            deleteAreaMutation.mutate(area.id);
+                                          }
+                                        }}
+                                      >
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                ) : null}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-lg border border-[#E6DCC8] bg-[#FBF3DE] px-3 py-2 text-xs font-semibold text-[#251605] hover:border-[#C89933]"
+                            onClick={() => {
+                              setEditingArea(null);
+                              setAreaName("");
+                              setAreaDescription("");
+                              setAreaComposerOpen(true);
+                            }}
+                          >
+                            <Plus className="size-3.5" />
+                            Add Area
+                          </button>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {CARD1_PROPERTY_AREA_OPTIONS.map((area) => {
@@ -3124,7 +3351,7 @@ export function StructureStep({
                                 : [...p.propertyAreas, area],
                             }))
                           }
-                          className={`rounded-full border px-3 py-1 text-xs outline-none ${on ? "border-[#C89933] bg-[#FBF3DE] text-[#251605]" : "border-[#CCCCCC] text-[#7A6A55]"}`}
+                          className={`rounded-full border px-3 py-1 text-xs outline-none focus-visible:border-[#C89933] ${on ? "border-[#C89933] bg-[#FBF3DE] text-[#251605]" : "border-[#CCCCCC] text-[#7A6A55]"}`}
                         >
                           {area}
                         </button>
@@ -3137,7 +3364,7 @@ export function StructureStep({
           ) : null}
 
           {utility === "rules" ? (
-            <div className="pointer-events-auto w-[min(40rem,100%)] shrink-0">
+            <div className="pointer-events-auto w-[min(24rem,100%)] shrink-0 self-end">
               <StructureWindow
                 title="Structure Rules"
                 icon={<Layers3 className="size-3.5" />}
@@ -3147,13 +3374,52 @@ export function StructureStep({
                 onFocus={() => setFrontWindow("rules")}
                 menu={<WindowMenu label="Structure Rules menu" onClose={() => setUtility(null)} />}
               >
-                <div className="flex flex-wrap gap-1.5">
-                  <RuleChip label="Building required" on={draft.structureRules.buildingRequired} />
-                  <RuleChip label="Wing optional" on={draft.structureRules.wingOptional} />
-                  <RuleChip label="Floor required" on={draft.structureRules.floorRequired} />
+                <div className="space-y-2 rounded-xl border border-[#E8E1D7] bg-[#FBF7EE] p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9A8560]">
+                    Hierarchy requirements
+                  </p>
+                  <ToggleRow
+                    id="card1-rule-building"
+                    label="Building required"
+                    helper="Every property needs at least one building."
+                    checked={draft.structureRules.buildingRequired}
+                    disabled={!canEdit}
+                    onChange={(buildingRequired) =>
+                      setDraft((p) => ({
+                        ...p,
+                        structureRules: { ...p.structureRules, buildingRequired },
+                      }))
+                    }
+                  />
+                  <ToggleRow
+                    id="card1-rule-wing"
+                    label="Wing optional"
+                    helper="Wings are allowed, but rooms do not require one."
+                    checked={draft.structureRules.wingOptional}
+                    disabled={!canEdit}
+                    onChange={(wingOptional) =>
+                      setDraft((p) => ({
+                        ...p,
+                        structureRules: { ...p.structureRules, wingOptional },
+                      }))
+                    }
+                  />
+                  <ToggleRow
+                    id="card1-rule-floor"
+                    label="Floor required"
+                    helper="Rooms must sit on a floor under a building."
+                    checked={draft.structureRules.floorRequired}
+                    disabled={!canEdit}
+                    onChange={(floorRequired) =>
+                      setDraft((p) => ({
+                        ...p,
+                        structureRules: { ...p.structureRules, floorRequired },
+                      }))
+                    }
+                  />
                 </div>
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="min-w-[14rem] flex-1">
+                <div className="space-y-3">
+                  <div>
                     <Field
                       id="card1-code-format"
                       label="Room Number / Code Format"
@@ -3165,37 +3431,41 @@ export function StructureStep({
                           structureRules: { ...p.structureRules, roomCodeFormat },
                         }))
                       }
-                      helper={`Example: ${structureRoomCodeExample(draft.structureRules.roomCodeFormat)}`}
                     />
+                    <p className="mt-1.5 text-xs text-[#7A6A55]">
+                      Example:{" "}
+                      <span className="font-medium text-[#251605]">
+                        {structureRoomCodeLiveExample(
+                          draft.structureRules.roomCodeFormat,
+                          draft.structureRules.wingOptional,
+                        )}
+                      </span>
+                    </p>
                   </div>
-                  <div className="min-w-[11rem] flex-1">
-                    <ToggleRow
-                      id="card1-auto-number"
-                      label="Auto Numbering"
-                      checked={draft.structureRules.autoNumbering}
-                      disabled={!canEdit}
-                      onChange={(autoNumbering) =>
-                        setDraft((p) => ({
-                          ...p,
-                          structureRules: { ...p.structureRules, autoNumbering },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="min-w-[13rem] flex-1">
-                    <ToggleRow
-                      id="card1-dup"
-                      label="Prevent Duplicate Room Codes"
-                      checked={draft.structureRules.duplicateCodePrevention}
-                      disabled={!canEdit}
-                      onChange={(duplicateCodePrevention) =>
-                        setDraft((p) => ({
-                          ...p,
-                          structureRules: { ...p.structureRules, duplicateCodePrevention },
-                        }))
-                      }
-                    />
-                  </div>
+                  <ToggleRow
+                    id="card1-auto-number"
+                    label="Auto Numbering"
+                    checked={draft.structureRules.autoNumbering}
+                    disabled={!canEdit}
+                    onChange={(autoNumbering) =>
+                      setDraft((p) => ({
+                        ...p,
+                        structureRules: { ...p.structureRules, autoNumbering },
+                      }))
+                    }
+                  />
+                  <ToggleRow
+                    id="card1-dup"
+                    label="Prevent Duplicate Room Codes"
+                    checked={draft.structureRules.duplicateCodePrevention}
+                    disabled={!canEdit}
+                    onChange={(duplicateCodePrevention) =>
+                      setDraft((p) => ({
+                        ...p,
+                        structureRules: { ...p.structureRules, duplicateCodePrevention },
+                      }))
+                    }
+                  />
                 </div>
                 {warnings.map((warning) => (
                   <p key={warning} className="text-sm text-[#C89933]">
@@ -3227,6 +3497,39 @@ function countPhrase(count: number, singular: string, plural: string) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function buildingHierarchySummary(wingCount: number, floorCount: number) {
+  if (wingCount > 0) {
+    return `${countPhrase(wingCount, "Wing", "Wings")} • ${countPhrase(floorCount, "Floor", "Floors")}`;
+  }
+  return countPhrase(floorCount, "Floor", "Floors");
+}
+
+/** Live room-code preview. When wings are optional, do not imply a wing segment. */
+function structureRoomCodeLiveExample(format: string, wingOptional: boolean) {
+  const normalized = wingOptional
+    ? format
+        .replace(/-?WNG-?/gi, (match) => (match.startsWith("-") && match.endsWith("-") ? "-" : ""))
+        .replace(/--+/g, "-")
+        .replace(/^-|-$/g, "")
+    : format;
+  const example = structureRoomCodeExample(normalized || format)
+    .replace(/\bMAIN\b/g, "MB")
+    .replace(/\bEAST\b/g, "EW")
+    .replace(/\b101\b/g, "201");
+  return example || "MB-02-201";
+}
+
+function ParentContext({ label }: { label: string }) {
+  return (
+    <p
+      className="rounded-lg border border-[#E6DCC8] bg-[#FBF7EE] px-3 py-2 text-xs text-[#5C5346]"
+      data-testid="card1-structure-parent-context"
+    >
+      <span className="font-semibold text-[#251605]">Parent:</span> {label}
+    </p>
+  );
+}
+
 function UtilityButton({
   icon,
   label,
@@ -3245,13 +3548,13 @@ function UtilityButton({
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold",
-        "border outline-none focus:outline-none focus-visible:border-[#C89933]",
+        "border outline-none focus:outline-none focus-visible:border-[#C89933] focus-visible:ring-0",
         open
-          ? "border-[#C89933] bg-[#FBF3DE] text-[#251605]"
+          ? "border-[#C89933] bg-[#FBF3DE] text-[#251605] shadow-[inset_0_0_0_1px_rgba(200,153,51,0.35)]"
           : "border-transparent text-[#5C5346] hover:border-[#E6DCC8] hover:bg-[#FBF3DE]",
       )}
     >
-      <span className={open ? "text-[#251605]" : "text-[#C89933]"}>{icon}</span>
+      <span className={open ? "text-[#8A641A]" : "text-[#C89933]"}>{icon}</span>
       {label}
     </button>
   );
@@ -3544,6 +3847,7 @@ function FloorStack({
 function NewBuildingForm({
   initialName,
   initialCode,
+  parentLabel,
   canEdit,
   pending,
   onSave,
@@ -3551,6 +3855,7 @@ function NewBuildingForm({
 }: {
   initialName: string;
   initialCode: string;
+  parentLabel: string;
   canEdit: boolean;
   pending: boolean;
   onSave: (input: {
@@ -3573,6 +3878,7 @@ function NewBuildingForm({
   const [location, setLocation] = useState("");
   return (
     <div className="space-y-3">
+      <ParentContext label={parentLabel} />
       <div className="grid gap-3 sm:grid-cols-2">
         <Field id="b-name" label="Name" required value={name} disabled={!canEdit} onChange={setName} />
         <Field id="b-code" label="Code" required value={code} disabled={!canEdit} onChange={setCode} />
@@ -3608,6 +3914,126 @@ function NewBuildingForm({
                 description,
                 location,
                 status: "active",
+              })
+            }
+          >
+            Save Changes
+          </Button>
+          <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NewWingForm({
+  initialName,
+  initialCode,
+  parentLabel,
+  canEdit,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  initialName: string;
+  initialCode: string;
+  parentLabel: string;
+  canEdit: boolean;
+  pending: boolean;
+  onSave: (input: { name: string; code: string; description: string }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [code, setCode] = useState(initialCode);
+  const [description, setDescription] = useState("");
+  return (
+    <div className="space-y-3">
+      <ParentContext label={parentLabel} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id="nw-name" label="Name" required value={name} disabled={!canEdit} onChange={setName} />
+        <Field id="nw-code" label="Code" required value={code} disabled={!canEdit} onChange={setCode} />
+      </div>
+      <Field
+        id="nw-desc"
+        label="Description"
+        value={description}
+        disabled={!canEdit}
+        onChange={setDescription}
+      />
+      {canEdit ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            disabled={pending || !name.trim() || !code.trim()}
+            onClick={() => onSave({ name, code, description })}
+          >
+            Save Changes
+          </Button>
+          <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function NewFloorForm({
+  initialName,
+  initialCode,
+  initialFloorNumber,
+  parentLabel,
+  canEdit,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  initialName: string;
+  initialCode: string;
+  initialFloorNumber: number;
+  parentLabel: string;
+  canEdit: boolean;
+  pending: boolean;
+  onSave: (input: {
+    name: string;
+    code: string;
+    floorNumber: number | null;
+    description: string;
+  }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [code, setCode] = useState(initialCode);
+  const [number, setNumber] = useState(String(initialFloorNumber));
+  const [description, setDescription] = useState("");
+  return (
+    <div className="space-y-3">
+      <ParentContext label={parentLabel} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field id="nf-name" label="Name" required value={name} disabled={!canEdit} onChange={setName} />
+        <Field id="nf-number" label="Number" required value={number} disabled={!canEdit} onChange={setNumber} />
+        <Field id="nf-code" label="Code" required value={code} disabled={!canEdit} onChange={setCode} />
+      </div>
+      <Field
+        id="nf-desc"
+        label="Description"
+        value={description}
+        disabled={!canEdit}
+        onChange={setDescription}
+      />
+      {canEdit ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            disabled={pending || !name.trim() || !code.trim()}
+            onClick={() =>
+              onSave({
+                name,
+                code,
+                floorNumber: number ? Number(number) : null,
+                description,
               })
             }
           >
@@ -3998,18 +4424,6 @@ function ToggleRow({
       disabled={disabled}
       onChange={onChange}
     />
-  );
-}
-
-function RuleChip({ label, on }: { label: string; on: boolean }) {
-  return (
-    <div
-      className="inline-flex items-center gap-1.5 rounded-full border border-[#E6DCC8] bg-white px-2.5 py-1 text-xs"
-      data-testid={`card1-rule-${label.toLowerCase().replace(/\s+/g, "-")}`}
-    >
-      <span className="font-medium text-[#251605]">{label}</span>
-      <span className="text-[#7A6A55]">{on ? "On" : "Off"}</span>
-    </div>
   );
 }
 

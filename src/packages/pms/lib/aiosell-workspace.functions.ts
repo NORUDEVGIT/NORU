@@ -2,7 +2,7 @@
  * AIOS-07 Aiosell operator actions.
  * Owner and manager only, same gate as Distribution.
  */
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -34,7 +34,7 @@ export const getAiosellWorkspace = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => scope.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     return loadAiosellWorkspace(data);
   });
 
@@ -48,7 +48,7 @@ export const saveAiosellConnection = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     await upsertAiosellConnectionRecord({
       restaurantId: data.restaurantId,
       provider: "aiosell",
@@ -62,7 +62,7 @@ export const validateAiosellConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => scope.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const result = await syncAiosellPropertyMetadata(data);
     const error = aiosellValidationMessage({
       ready: result.ready,
@@ -90,7 +90,7 @@ export const saveAiosellRoomMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     await upsertAiosellRoomMappingRecord(data);
     return loadAiosellWorkspace(data);
   });
@@ -101,7 +101,7 @@ export const setAiosellRoomMappingState = createServerFn({ method: "POST" })
     scope.extend({ roomTypeId: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     await setAiosellRoomMappingActive(data);
     return loadAiosellWorkspace(data);
   });
@@ -117,7 +117,7 @@ export const saveAiosellRateMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     await upsertAiosellRateMappingRecord(data);
     return loadAiosellWorkspace(data);
   });
@@ -128,7 +128,7 @@ export const setAiosellRateMappingState = createServerFn({ method: "POST" })
     scope.extend({ ratePlanId: idSchema, active: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     await setAiosellRateMappingActive(data);
     return loadAiosellWorkspace(data);
   });
@@ -143,7 +143,7 @@ export const runAiosellReconciliation = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const summary = await reconcileAiosellPropertyReservations(data);
     return aiosellReconcileDisplay(summary);
   });
@@ -152,7 +152,7 @@ export const activateAiosellBookingComChannel = createServerFn({ method: "POST" 
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => scope.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     await activateAiosellBookingChannel(data);
     return loadAiosellWorkspace(data);
   });

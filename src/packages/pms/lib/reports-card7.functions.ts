@@ -10,7 +10,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { withPmsPackage } from "./pms-package.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasPmsPermission, requirePmsSetupActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard7Overall } from "./card7-readiness.functions";
 import {
@@ -424,7 +424,7 @@ const policySchema = z.object({
 });
 
 async function requireEditor(restaurantId: string, context: unknown) {
-  return requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+  return requirePmsSetupActor(context as never, restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 }
 
 export const getCard7Reports = createServerFn({ method: "POST" })
