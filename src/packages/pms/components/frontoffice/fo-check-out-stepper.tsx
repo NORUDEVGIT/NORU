@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
-import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
-import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
-import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -102,7 +99,7 @@ export function FoCheckOutStepper({
   initialReservationRoomId?: string;
 }) {
   const queryClient = useQueryClient();
-  const permissions = usePmsPermissions(restaurantId);
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const money = useMoney();
   const [step, setStep] = useState<CheckOutStepId>("stay");
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -354,7 +351,7 @@ export function FoCheckOutStepper({
   const canPostPay =
     paymentAmountAllowed(payValue, remaining) &&
     Boolean(payMethod) &&
-    permissions.can(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST);
+    desk.canPayment;
   const overrideKind = overrideKindForBalance(balance);
   const continueDisabled =
     (step === "stay" && (!stayOk || (multiRoom && !reservationRoomId))) ||
@@ -704,7 +701,7 @@ export function FoCheckOutStepper({
                         <Button
                           type="button"
                           className="bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90"
-                          disabled={!isFolioSettled(balance) || closeMut.isPending}
+                          disabled={!isFolioSettled(balance) || closeMut.isPending || !desk.canCloseFolio}
                           onClick={() => closeMut.mutate()}
                         >
                           {closeMut.isPending ? "Closing…" : "Close folio"}

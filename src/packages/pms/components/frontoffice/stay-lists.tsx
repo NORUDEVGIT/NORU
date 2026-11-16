@@ -17,6 +17,7 @@ import { CheckOutDialog } from "@/packages/pms/components/frontoffice/front-offi
 import { StayMoneyStrip } from "@/packages/pms/components/frontoffice/fo-stay-money-cells";
 import { listFoStaySignals } from "@/packages/pms/lib/fo-exceptions.functions";
 import { listDepartures, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { useRestaurantTimezone } from "@/core/state/property-format";
 
@@ -33,6 +34,7 @@ function ConfirmationLink({ stay }: { stay: FrontOfficeStay }) {
 }
 
 export function DeparturesList({ restaurantId }: { restaurantId: string }) {
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const timezone = useRestaurantTimezone();
   const today = usePropertyBusinessDate(restaurantId, timezone);
 
@@ -101,7 +103,7 @@ export function DeparturesList({ restaurantId }: { restaurantId: string }) {
                     signals={signals}
                   />
                 </div>
-                {row.status === "checked_in" ? (
+                {row.status === "checked_in" && desk.canCheckOut ? (
                   <Button size="sm" onClick={() => setCheckOut(row)}>
                     Check out
                   </Button>

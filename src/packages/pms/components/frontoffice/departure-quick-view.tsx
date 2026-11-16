@@ -16,6 +16,8 @@ import { departureMenuItems, departureExceptionOwner } from "@/packages/pms/lib/
 import { CREDIT_BLOCK_BANNER, isCreditBalance, REFUND_IN_CASHIERING_CTA } from "@/packages/pms/lib/fo-check-out";
 import { foOperationalQueryOptions } from "@/packages/pms/lib/fo-freshness";
 import { useMoney } from "@/core/state/property-format";
+import { foDeskMenuAllowed } from "@/packages/pms/lib/front-office-desk-access";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
@@ -85,6 +87,7 @@ export function DepartureQuickViewSheet({
   onAction: (action: DepartureQuickViewAction, qv: FoDepartureQuickView) => void;
 }) {
   const money = useMoney();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const fetchQv = useServerFn(getFrontOfficeDepartureQuickView);
   const qvQuery = useQuery({
     queryKey: ["front-office", "departures-qv", restaurantId, reservationId, reservationRoomId],
@@ -103,7 +106,9 @@ export function DepartureQuickViewSheet({
 
   const qv = qvQuery.data;
   const denied = qvQuery.isError && isPermissionDeniedMessage(qvQuery.error);
-  const menu = qv ? departureMenuItems(qv.hints) : [];
+  const menu = qv
+    ? departureMenuItems(qv.hints).filter((item) => foDeskMenuAllowed(desk, item.id))
+    : [];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -142,11 +147,13 @@ export function DepartureQuickViewSheet({
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
+                {desk.canOpenReservation ? (
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: qv.stay.id }}>
                     Open Reservation
                   </Link>
                 </Button>
+                ) : null}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button type="button" variant="outline" size="icon" aria-label="More stay actions">
@@ -173,7 +180,7 @@ export function DepartureQuickViewSheet({
                 <Field label="Phone" value={qv.guest.phone || "—"} />
                 <Field label="Email" value={qv.guest.email || "—"} />
               </dl>
-              {qv.hints.canOpenGuest ? (
+              {desk.canViewGuest && qv.hints.canOpenGuest ? (
                 <Button type="button" variant="link" className="h-auto px-0" onClick={() => onAction("open_guest", qv)}>
                   Guest Profile
                 </Button>
@@ -232,22 +239,22 @@ export function DepartureQuickViewSheet({
                 </li>
               </ul>
               <div className="flex flex-wrap gap-2">
-                {qv.hints.canCheckOut ? (
+                {desk.canCheckOut && qv.hints.canCheckOut ? (
                   <Button type="button" size="sm" data-testid="fo-departure-check-out" onClick={() => onAction("check_out", qv)}>
                     Check out
                   </Button>
                 ) : null}
-                {qv.hints.canHandoffUnarrived ? (
+                {desk.canNoShow && qv.hints.canHandoffUnarrived ? (
                   <Button type="button" size="sm" data-testid="fo-departure-unarrived" onClick={() => onAction("unarrived", qv)}>
                     Did not arrive
                   </Button>
                 ) : null}
-                {qv.hints.canSetLateCheckout ? (
+                {desk.canStayEdit && qv.hints.canSetLateCheckout ? (
                   <Button type="button" size="sm" variant="outline" onClick={() => onAction("late_checkout", qv)}>
                     Late checkout
                   </Button>
                 ) : null}
-                {qv.financial.balance != null && isCreditBalance(qv.financial.balance) ? (
+                {desk.canOpenFolio && qv.financial.balance != null && isCreditBalance(qv.financial.balance) ? (
                   <Button type="button" size="sm" variant="outline" data-testid="fo-departure-refund" onClick={() => onAction("open_folio", qv)}>
                     {REFUND_IN_CASHIERING_CTA}
                   </Button>

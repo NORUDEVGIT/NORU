@@ -73,10 +73,8 @@ describe("FO guest workspace — status-aware tabs", () => {
   });
 
   it("both workspaces derive tabs from the stay status", () => {
-    assert.match(
-      confirmedSheet,
-      /foGuestWorkspaceTabs\(stay\.status, \{ canReadFolio: canOpenCashiering \}\)/,
-    );
+    assert.match(confirmedSheet, /const canReadFolio = desk\.canReadStayFolio/);
+    assert.match(confirmedSheet, /foGuestWorkspaceTabs\(stay\.status, \{ canReadFolio \}\)/);
     assert.match(inHouseSheet, /foGuestWorkspaceTabs\(qv\.stay\.status, \{ canReadFolio \}\)/);
     assert.match(confirmedSheet, /activeTab === "check_in"/);
     assert.doesNotMatch(confirmedSheet, /activeTab === "check_out"/);

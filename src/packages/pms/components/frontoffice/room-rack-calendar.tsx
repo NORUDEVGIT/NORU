@@ -1,5 +1,7 @@
 import {
   Fragment,
+  createContext,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -179,6 +181,13 @@ import {
   type FoRackStay,
   type FoRackBarMenuItem,
 } from "@/packages/pms/lib/fo-rack-bar-menu";
+import type { FrontOfficeDeskAccess } from "@/packages/pms/lib/front-office-desk-access";
+
+const RackDeskContext = createContext<FrontOfficeDeskAccess | null>(null);
+
+function useRackDeskGrants(): FrontOfficeDeskAccess | undefined {
+  return useContext(RackDeskContext) ?? undefined;
+}
 
 type Viewport = "phone" | "wide";
 
@@ -237,6 +246,7 @@ export function RoomRackCalendar({
   onRackAction,
   canOpenCashiering,
   staffRole,
+  deskAccess = null,
   onRackSearchChange,
   onWalkIn,
   category = "rack",
@@ -259,6 +269,7 @@ export function RoomRackCalendar({
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
   canOpenCashiering: boolean;
   staffRole?: string;
+  deskAccess?: FrontOfficeDeskAccess | null;
   onRackSearchChange?: (next: {
     horizon: CalendarHorizon;
     date: string;
@@ -353,7 +364,7 @@ export function RoomRackCalendar({
   const rangeStart = horizon === 7 ? mondayOf(focusDate) : focusDate;
   const rangeEnd = addDays(rangeStart, days - 1);
   const pageSize = rackReservationPageSize(days);
-  const showDrag = shouldShowDragHandle(viewport);
+  const showDrag = shouldShowDragHandle(viewport) && Boolean(deskAccess?.canStayEdit);
 
   const fetchOccupancy = useServerFn(listOccupancy);
   const fetchReservations = useServerFn(listReservations);
@@ -569,6 +580,7 @@ export function RoomRackCalendar({
       : null;
 
   return (
+    <RackDeskContext.Provider value={deskAccess}>
     <div className="space-y-3" data-testid="fo-room-rack-calendar">
       <OpsStrip
         {...(dashboardQuery.data ? { dashboard: dashboardQuery.data } : {})}
@@ -781,6 +793,7 @@ export function RoomRackCalendar({
         }}
       />
     </div>
+    </RackDeskContext.Provider>
   );
 }
 
@@ -1430,6 +1443,7 @@ function RackViewMenu({
   hkByRoom: Map<string, RackRoom>;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
 }) {
+  const grants = useRackDeskGrants();
   const actionStay = foRackActionStay(stay, businessDate);
   return (
     <RackStayMenu
@@ -1443,6 +1457,7 @@ function RackViewMenu({
           stay.roomId ? hkByRoom.get(stay.roomId)?.maintenanceStatus : null,
         ),
         staffRole,
+        ...(grants ? { grants } : {}),
       })}
       tone="card"
       onAction={(action) => onRackAction(action, actionStay)}
@@ -2212,6 +2227,7 @@ function BarTrack({
   onRoomDragStart: (stay: FoRackStay) => void;
   amendmentLatestByStay: AmendmentLatestByStay;
 }) {
+  const grants = useRackDeskGrants();
   return (
     <div
       className="relative grid h-full min-h-12 px-2 py-0.5"
@@ -2276,6 +2292,7 @@ function BarTrack({
               canOpenCashiering,
               maintenanceRelevant,
               staffRole,
+              ...(grants ? { grants } : {}),
             })}
             onAction={(action) => onRackAction(action, actionStay)}
           />
@@ -2629,6 +2646,7 @@ function PhoneRackList({
   staffRole?: string;
   amendmentLatestByStay: AmendmentLatestByStay;
 }) {
+  const grants = useRackDeskGrants();
   const todayStays = stays.filter((s) => s.arrivalDate <= today && s.departureDate > today);
   return (
     <div className="space-y-3" data-testid="fo-phone-rack-list">
@@ -2734,6 +2752,7 @@ function PhoneRackList({
                       stay.roomId ? hkByRoom.get(stay.roomId)?.maintenanceStatus : null,
                     ),
                     staffRole,
+                    ...(grants ? { grants } : {}),
                   })}
                   tone="card"
                   onAction={(action) => onRackAction(action, actionStay)}

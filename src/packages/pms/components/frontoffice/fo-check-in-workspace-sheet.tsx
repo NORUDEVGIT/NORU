@@ -37,6 +37,7 @@ import {
 import { liveStayBadges } from "@/packages/pms/lib/fo-rack-power";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/core/state/property-format";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { getAmendContext } from "@/packages/pms/lib/fo-amendments.functions";
 import {
   foGuestWorkspaceTabs,
@@ -194,6 +195,7 @@ export function FoCheckInWorkspaceSheet({
   onContinueCheckIn: (stay: FrontOfficeStay) => void;
 }) {
   const money = useMoney();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const fetchDetail = useServerFn(getReservation);
   const fetchFolio = useServerFn(getReservationFolio);
   const fetchAmend = useServerFn(getAmendContext);
@@ -431,7 +433,8 @@ export function FoCheckInWorkspaceSheet({
 
   const roomNumber = stay.roomNumber ?? reservation?.roomNumber ?? arrival?.room.roomNumber ?? null;
   const roomAssigned = Boolean(stay.roomId || reservation?.roomId);
-  const tabs = foGuestWorkspaceTabs(stay.status, { canReadFolio: canOpenCashiering });
+  const canReadFolio = desk.canReadStayFolio;
+  const tabs = foGuestWorkspaceTabs(stay.status, { canReadFolio });
   const activeTab =
     tabs.some((item) => item.id === tab) ||
     tab === "assign_room" ||
@@ -446,11 +449,11 @@ export function FoCheckInWorkspaceSheet({
     stay.status === "cancelled" ||
     stay.status === "no_show";
   const cardClass = compactChrome ? "rounded-lg border-[#DDD4C5] p-2.5" : undefined;
-  const canCheckIn = menuItems.some((item) => item.id === "check_in");
-  const canAssign = !roomAssigned && menuItems.some((item) => item.id === "assign");
-  const canChangeRoom = roomAssigned && foOpensPreArrivalCheckInWorkspace(stay);
-  const canNoShow = menuItems.some((item) => item.id === "no_show");
-  const canCancel = isStayCancellable(stay.status);
+  const canCheckIn = desk.canCheckIn && menuItems.some((item) => item.id === "check_in");
+  const canAssign = desk.canAssignRoom && !roomAssigned && menuItems.some((item) => item.id === "assign");
+  const canChangeRoom = desk.canAssignRoom && roomAssigned && foOpensPreArrivalCheckInWorkspace(stay);
+  const canNoShow = desk.canNoShow && menuItems.some((item) => item.id === "no_show");
+  const canCancel = desk.canCancel && isStayCancellable(stay.status);
   const assignmentRequired = stay.status === "confirmed" && !roomAssigned;
   const roomStatus =
     arrival?.room.status ??

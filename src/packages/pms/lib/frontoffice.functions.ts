@@ -9,8 +9,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsActorAny } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import {
   assertDateOnly,
   assertStayDates,
@@ -1083,10 +1084,10 @@ export const changeStayDates = createServerFn({ method: "POST" })
         throw new Error("The frozen early-departure policy cannot produce an authoritative charge amount.");
       }
       if (earlyPenalty && (earlyPenalty.amount ?? 0) > 0) {
-        await requirePmsActor(
+        await requirePmsActorAny(
           context as never,
           data.restaurantId,
-          PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
+          moduleOrDesk(PMS_PERMISSIONS.CASHIERING_CHARGE_POST, PMS_PERMISSIONS.FRONT_OFFICE_CHARGE_POST),
         );
       }
       const { assertExistingReservationGroupPickup, resyncGroupBlockInventoryForReservation } =

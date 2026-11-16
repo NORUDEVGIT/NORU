@@ -25,6 +25,7 @@ import {
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import { callPostFolioTransaction, cashierError } from "./cashiering.server";
 import { parseSnapshot } from "./rates.server";
 import type { FrontOfficeStay } from "./frontoffice.functions";
@@ -538,12 +539,16 @@ export const postCancelOrNoShowFee = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CancelNoShowFolioState> => {
-    const me = await requirePmsActorAll(context as never, data.restaurantId, [
-      data.kind === "cancel"
-        ? PMS_PERMISSIONS.FRONT_OFFICE_CANCEL
-        : PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW,
-      PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
-    ]);
+    const me = await requirePmsActor(
+      context as never,
+      data.restaurantId,
+      data.kind === "cancel" ? PMS_PERMISSIONS.FRONT_OFFICE_CANCEL : PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW,
+    );
+    await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.CASHIERING_CHARGE_POST, PMS_PERMISSIONS.FRONT_OFFICE_CHARGE_POST),
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
@@ -835,9 +840,11 @@ export const rerunCancellationSettlement = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ settlement: CancellationSettlement | null; settlementError: string | null }> => {
-      const me = await requirePmsActorAll(context as never, data.restaurantId, [
-        PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST,
-      ]);
+      const me = await requirePmsActorAny(
+        context as never,
+        data.restaurantId,
+        moduleOrDesk(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST, PMS_PERMISSIONS.FRONT_OFFICE_ADJUSTMENT_POST),
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: stay, error } = await supabaseAdmin
         .from("hotel_reservations")

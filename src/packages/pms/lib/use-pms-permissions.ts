@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { getMyPmsPermissions } from "./pms-permissions.functions";
 import type { PmsPermissionCode } from "./pms-permissions";
+import { frontOfficeDeskAccess, type FrontOfficeDeskAccess } from "./front-office-desk-access";
 import {
   pmsCan,
   pmsCanAll,
@@ -66,4 +67,10 @@ export function usePmsPermissions(restaurantId: string | undefined) {
       return invalidatePmsPermissions(queryClient, restaurantId);
     },
   };
+}
+
+/** Grants for the desk the caller is looking at. False until the permission query resolves. */
+export function useFrontOfficeDeskAccess(restaurantId: string | undefined): FrontOfficeDeskAccess {
+  const permissions = usePmsPermissions(restaurantId);
+  return frontOfficeDeskAccess({ isOwner: permissions.isOwner, codes: permissions.permissions });
 }

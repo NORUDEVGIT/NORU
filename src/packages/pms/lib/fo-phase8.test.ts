@@ -38,13 +38,15 @@ function requirement(
 }
 
 describe("FO Phase 8 — approval rule lookup", () => {
-  it("reads pms_approval_rules for display and keeps live staff-role authz", () => {
+  it("reads pms_approval_rules for display and authorizes from the catalogue permission", () => {
     const fns = readRel("./fo-approvals.functions.ts");
     assert.match(fns, /export const getFrontOfficeApprovalRequirement/);
     assert.match(fns, /from\("pms_approval_rules"\)/);
     assert.match(fns, /from\("pms_permissions"\)/);
     assert.match(fns, /requirePmsActor/);
-    assert.match(fns, /membership\.role/);
+    assert.match(fns, /hasEffectivePermission/);
+    assert.match(fns, /APPROVAL_GRANT/);
+    assert.doesNotMatch(fns, /membership\.role/);
     assert.match(fns, /late_checkout_needs_approval/);
     assert.doesNotMatch(fns, /pms_approval_requests/);
     assert.doesNotMatch(fns, /service_role/);
@@ -70,10 +72,10 @@ describe("FO Phase 8 — approval rule lookup", () => {
 });
 
 describe("FO Phase 8 — direct permission vs approval required", () => {
-  it("allows a live owner/manager and requires authorization for a receptionist", () => {
+  it("allows the catalogue permission and requires authorization without it", () => {
     const manager = requirement({
       actionKey: "front_office.check_in.override",
-      staffRole: "manager",
+      canAuthorize: true,
     });
     assert.equal(manager.directPermission, true);
     assert.equal(manager.approvalRequired, false);
@@ -192,9 +194,9 @@ describe("FO Phase 8 — Model B workspace honesty", () => {
   });
 
   it("labels late checkout as requiring approval without hiding the action", () => {
-    assert.equal(foLateCheckoutRequiresApproval(true, "receptionist"), true);
-    assert.equal(foLateCheckoutRequiresApproval(true, "manager"), false);
-    assert.equal(foLateCheckoutRequiresApproval(false, "receptionist"), false);
+    assert.equal(foLateCheckoutRequiresApproval(true, false), true);
+    assert.equal(foLateCheckoutRequiresApproval(true, true), false);
+    assert.equal(foLateCheckoutRequiresApproval(false, false), false);
     const live = foInHouseActionHints({
       status: "checked_in",
       assigned: true,

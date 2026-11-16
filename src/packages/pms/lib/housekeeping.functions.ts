@@ -12,7 +12,8 @@
  * transitions run inside locked SECURITY DEFINER functions.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { hasPmsPermission, requirePmsActor } from "./pms-permissions.server";
+import { hasEffectivePermission, hasPmsPermission, requirePmsActor, requirePmsActorAny, resolveEffectivePermissions } from "./pms-permissions.server";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -81,6 +82,16 @@ async function requireHousekeepingActor(
   permission: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS],
 ) {
   const membership = await requirePmsActor(context, restaurantId, permission);
+  await requireHousekeepingEnabled(restaurantId);
+  return membership;
+}
+
+async function requireHousekeepingActorAny(
+  context: never,
+  restaurantId: string,
+  permissions: readonly ((typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS])[],
+) {
+  const membership = await requirePmsActorAny(context, restaurantId, permissions);
   await requireHousekeepingEnabled(restaurantId);
   return membership;
 }
@@ -858,7 +869,10 @@ export const createHousekeepingTask = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ taskId: string }> => {
-    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.HOUSEKEEPING_TASK_CREATE);
+    const me = await requireHousekeepingActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.HOUSEKEEPING_TASK_CREATE,
+      PMS_PERMISSIONS.FRONT_OFFICE_HOUSEKEEPING_TASK_CREATE,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
     const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);
@@ -917,12 +931,12 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string; status: TaskStatus }> => {
-    const me = await requireHousekeepingActor(
+    const me = await requireHousekeepingActorAny(
       context as never,
       data.restaurantId,
       data.action === "cancel"
-        ? PMS_PERMISSIONS.HOUSEKEEPING_TASK_CANCEL
-        : PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT,
+        ? [PMS_PERMISSIONS.HOUSEKEEPING_TASK_CANCEL]
+        : [PMS_PERMISSIONS.HOUSEKEEPING_TASK_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_HOUSEKEEPING_TASK_EDIT],
     );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -938,7 +952,14 @@ export const updateHousekeepingTask = createServerFn({ method: "POST" })
     }
 
     const scope = resolveHousekeepingDataScope(me.role);
+    const deskStart =
+      data.action === "start" &&
+      hasEffectivePermission(
+        await resolveEffectivePermissions(context as never, data.restaurantId),
+        PMS_PERMISSIONS.FRONT_OFFICE_HOUSEKEEPING_TASK_EDIT,
+      );
     if (
+      !deskStart &&
       !housekeeperMayMutateTask({
         scope,
         action: data.action,
@@ -1458,7 +1479,11 @@ export const createMaintenanceRequest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requireHousekeepingActor(context as never, data.restaurantId, PMS_PERMISSIONS.MAINTENANCE_CREATE);
+    const me = await requireHousekeepingActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.MAINTENANCE_CREATE, PMS_PERMISSIONS.FRONT_OFFICE_MAINTENANCE_CREATE),
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await loadRoom(supabaseAdmin, data.restaurantId, data.roomId);
     const set4 = await loadSet4Snapshot(supabaseAdmin, data.restaurantId);

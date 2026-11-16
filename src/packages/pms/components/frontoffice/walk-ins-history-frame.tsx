@@ -12,6 +12,7 @@ import { listWalkInsHistory } from "@/packages/pms/lib/fo-cancel-noshow.function
 import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useRestaurantTimezone } from "@/core/state/property-format";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "Something went wrong.";
@@ -24,6 +25,7 @@ export function WalkInsHistoryFrame({
   restaurantId: string;
   today: string;
 }) {
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const timeZone = useRestaurantTimezone();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -121,7 +123,7 @@ export function WalkInsHistoryFrame({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
-                  {row.walkInIncomplete ? (
+                  {row.walkInIncomplete && desk.canCheckIn ? (
                     <Button size="sm" variant="outline" onClick={() => setFinishStay(row.stay)}>
                       Finish check-in
                     </Button>

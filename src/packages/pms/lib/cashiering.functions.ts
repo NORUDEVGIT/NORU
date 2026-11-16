@@ -23,6 +23,7 @@ import {
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { FO_STAY_FOLIO_READ, moduleOrDesk } from "./fo-desk-permissions";
 import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
@@ -293,17 +294,19 @@ async function cashieringCapability(
   const has = (code: (typeof PMS_PERMISSIONS)[keyof typeof PMS_PERMISSIONS]) =>
     hasEffectivePermission(resolved, code);
   const grants: FolioPermissionGrants = {
-    charge: has(PMS_PERMISSIONS.CASHIERING_CHARGE_POST),
-    payment: has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST),
-    deposit: has(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST),
-    refund: has(PMS_PERMISSIONS.CASHIERING_REFUND),
-    adjustment: has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST),
-    discount: has(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST),
+    charge: has(PMS_PERMISSIONS.CASHIERING_CHARGE_POST) || has(PMS_PERMISSIONS.FRONT_OFFICE_CHARGE_POST),
+    payment: has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST) || has(PMS_PERMISSIONS.FRONT_OFFICE_PAYMENT_POST),
+    deposit: has(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST) || has(PMS_PERMISSIONS.FRONT_OFFICE_DEPOSIT_POST),
+    refund: has(PMS_PERMISSIONS.CASHIERING_REFUND) || has(PMS_PERMISSIONS.FRONT_OFFICE_REFUND),
+    adjustment:
+      has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST) || has(PMS_PERMISSIONS.FRONT_OFFICE_ADJUSTMENT_POST),
+    discount: has(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST) || has(PMS_PERMISSIONS.FRONT_OFFICE_DISCOUNT_POST),
     transfer: has(PMS_PERMISSIONS.CASHIERING_TRANSFER_POST),
     writeOff: has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF),
-    close: has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE),
+    close: has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE) || has(PMS_PERMISSIONS.FRONT_OFFICE_FOLIO_AUTHORIZE),
     invoiceEdit: has(PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT),
-    invoiceAuthorize: has(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE),
+    invoiceAuthorize:
+      has(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE) || has(PMS_PERMISSIONS.FRONT_OFFICE_INVOICE_AUTHORIZE),
   };
   return {
     canOperate: grants.charge || grants.payment || grants.deposit || has(PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT),
@@ -1091,7 +1094,7 @@ export const getFolioWorkspace = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<FolioWorkspace | null> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    await requirePmsActorAny(context as never, data.restaurantId, FO_STAY_FOLIO_READ);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const folio = await loadGuestFolio(supabaseAdmin, data.restaurantId, data.folioId);
     if (!folio) return null;
@@ -1176,7 +1179,7 @@ export const getReservationFolio = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<{ id: string; folioNumber: string; balance: number } | null> => {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+      await requirePmsActorAny(context as never, data.restaurantId, FO_STAY_FOLIO_READ);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: row } = await supabaseAdmin
         .from("guest_folios")
@@ -1417,7 +1420,19 @@ export const postFolioEntry = createServerFn({ method: "POST" })
               : data.type === "discount"
                 ? PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST
                 : PMS_PERMISSIONS.CASHIERING_CHARGE_POST;
-    const me = await requirePmsActor(context as never, data.restaurantId, entryPermission);
+    const deskPermission =
+      data.type === "payment"
+        ? PMS_PERMISSIONS.FRONT_OFFICE_PAYMENT_POST
+        : data.type === "deposit"
+          ? PMS_PERMISSIONS.FRONT_OFFICE_DEPOSIT_POST
+          : data.type === "refund"
+            ? PMS_PERMISSIONS.FRONT_OFFICE_REFUND
+            : data.type === "adjustment"
+              ? PMS_PERMISSIONS.FRONT_OFFICE_ADJUSTMENT_POST
+              : data.type === "discount"
+                ? PMS_PERMISSIONS.FRONT_OFFICE_DISCOUNT_POST
+                : PMS_PERMISSIONS.FRONT_OFFICE_CHARGE_POST;
+    const me = await requirePmsActorAny(context as never, data.restaurantId, [entryPermission, deskPermission]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     if (data.type !== "adjustment" && data.amount <= 0) {
@@ -2004,10 +2019,10 @@ export const closeFolio = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, folioId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }): Promise<CashierResult> => {
-    const me = await requirePmsActor(
+    const me = await requirePmsActorAny(
       context as never,
       data.restaurantId,
-      PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE,
+      moduleOrDesk(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE, PMS_PERMISSIONS.FRONT_OFFICE_FOLIO_AUTHORIZE),
     );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: folio, error } = await supabaseAdmin.rpc("close_guest_folio", {
