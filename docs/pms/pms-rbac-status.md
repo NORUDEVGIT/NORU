@@ -95,3 +95,145 @@ Create these roles and open the matching URLs directly. A denied module shows th
 - One person with both a reservation-creator role and a cashier role. The union applies. There is no deny row.
 
 Owner still has every permission with no grant rows.
+
+## Front Office desk actions (uncommitted, migration 0211)
+
+Problem: a Front Office user could not post a charge, take a payment, assign a room, or edit a reservation unless they also held the matching module View (Cashiering, Reservations, Guest Profiles, Housekeeping). Settings forces that View on for any module action, so the desk grant alone exposed the whole module.
+
+Change: 15 new desk codes plus one promoted code. Each desk code parents to `front_office.desk.view`, so granting it does not open the other module. The owning module's code still works for the same server write. Existing roles keep working.
+
+### New permission codes
+
+| Code | Action | Risk tier | Used for |
+| --- | --- | --- | --- |
+| `front_office.charge.post` | Post Charge from Desk | Medium | Folio charges, add service, early-departure penalty |
+| `front_office.deposit.post` | Post Deposit from Desk | Medium | Check-in deposit |
+| `front_office.payment.post` | Take Payment from Desk | Medium | Folio payments, check-out payment |
+| `front_office.folio.authorize` | Close Folio from Desk | High | Close folio (folio tab and check-out) |
+| `front_office.adjustment.post` | Post Adjustment from Desk | High | Folio adjustments |
+| `front_office.discount.post` | Post Discount from Desk | High | Folio discounts |
+| `front_office.folio.refund` | Refund from Desk | High | Folio refunds |
+| `front_office.invoice.authorize` | Issue Invoice from Desk | High | Issue invoice from the folio tab |
+| `front_office.housekeeping_task.create` | Create Housekeeping Task from Desk | Medium | Room HK task |
+| `front_office.housekeeping_task.edit` | Update Housekeeping Task from Desk | Medium | Start cleaning on a desk task |
+| `front_office.maintenance.create` | Create Work Order from Desk | Medium | Maintenance work order |
+| `front_office.guest.edit` | Update Guest on this Stay | Medium | Guest details, ID documents, check-in registration |
+| `front_office.guest_service.create` | Add Guest Service from Desk | Medium | Guest service request |
+| `front_office.assignment.edit` | Assign Room from Desk | Medium | Room assign and change before arrival |
+| `front_office.reservation.edit` | Edit Reservation from Desk | Medium | Reservation amend and occupants |
+
+The risk tier comes from the `HIGH_CODES` list in `pms-permissions.ts`. Codes not listed there are Medium.
+
+Promoted: `front_office.check_out.override` (Check-Out Override, High). It was a legacy code with no live gate. It is now a Settings permission under Exceptions, and checkout settlement override requires it.
+
+Catalogue count: `PMS_PERMISSION_CODES` goes from 102 to 118.
+
+Transfer and write-off are not in the desk list. They stay Cashiering-only.
+
+### Migration
+
+- `supabase/migrations/0211_front_office_desk_actions.sql`, identical copy in `drizzle/migrations/`.
+- Inserts the 15 codes (ON CONFLICT updates metadata, keeps `active = true`) and upserts `front_office.check_out.override`.
+- Not applied to any database and not committed. The new codes grant nothing until 0211 is applied, because the resolver reads `pms_permissions`.
+- 0193, 0208, 0209, and 0210 are not edited.
+
+### Server changes
+
+- `src/packages/pms/lib/fo-desk-permissions.ts` (new): `moduleOrDesk`, `FO_STAY_FOLIO_READ`, `FO_CHECK_IN_FOLIO_READ`, `FO_CHECK_OUT_FOLIO_READ`, `FO_DESK_BALANCE_READ`, `folioEntryPermissions`.
+- Cashiering folio: `cashieringCapability` accepts the module code or the desk code for charge, payment, deposit, refund, adjustment, discount, close, and invoice authorize. Transfer and write-off stay Cashiering-only. `postFolioEntry` accepts either code. `getFolioWorkspace` and `getReservationFolio` read with `FO_STAY_FOLIO_READ`, so the folio tab loads without Cashiering View.
+- Stay-list and quick-view balances (`loadFoStaySignals`) read with `FO_DESK_BALANCE_READ`. The module Cashiering screens are unchanged.
+- Check-in: registration save needs guest edit (`guest.profile.edit` or `front_office.guest.edit`). Completing check-in posts pending services only when the actor also has charge post. Check-in deposit needs the deposit module or desk code.
+- Check-out: contract, confirmation, and context reads need `FO_CHECK_OUT_FOLIO_READ`. Payment needs payment (module or desk). Close folio needs folio close (module or desk). Settlement override needs both `front_office.check_out.create` and `front_office.check_out.override`. The `canOverride` flag in the check-out contract uses `mayOverrideCheckOut`.
+- Guest: `updateGuest`, guest document upload and save, document review, and guest service accept guest edit or the desk code. Guest merge, privacy, and other guest-module actions have no desk code and still need their own guest codes.
+- Reservation: `amendReservation` and `manageReservationRoomGuest` accept reservation edit or the desk code. `assignReservationRoom` accepts assignment edit or the desk code. Stay edit alone does not assign a room.
+- Housekeeping: create accepts HK create or desk create. Start and assign accept HK edit or desk edit. Cancel stays HK-only. Maintenance create accepts maintenance create or desk create.
+- Cancel and no-show fee charge: the action needs cancel or no-show, and the fee post needs charge (module or desk).
+- Early-departure penalty and `changeStayDates` penalty accept charge (module or desk).
+- Approvals: `evaluateFoApprovalRequirement` takes `canAuthorize` from the live permission. The role check was removed (`FO_LIVE_AUTHORIZER_ROLES`, `isFoLiveAuthorizer`). Mapping in `fo-approvals.functions.ts` (`APPROVAL_GRANT`):
+  - `front_office.check_in.override` → `front_office.check_in.override`
+  - `front_office.check_out.override` → `front_office.check_out.override`
+  - `front_office.fee.override` → `front_office.fee.override`
+  - `late_checkout.authorize` → `front_office.fee.override`
+- Late checkout hints in the in-house and departure desk lists take `canAuthorizeLateCheckout` from Fee Override.
+
+### Client changes
+
+- `front-office-desk-access.ts`: `frontOfficeDeskAccess(snapshot)` returns boolean flags per Front Office action (check-in, stay edit, room assign, charge, stay folio read, guest view, and others). `foDeskMenuAllowed(access, id)` maps rack and reservation menu ids to those flags.
+- `use-pms-permissions.ts`: `useFrontOfficeDeskAccess(restaurantId)`.
+- Gated UI (the buttons now follow the flags above): rack menu and rack drag, room HK modal entry, guest search result actions, arrival and departure quick views, in-house quick view folio tab, reservation side sheet menus, walk-in quick view, check-in workspace sheet actions, edit-details save, check-out payment and close folio, housekeeping and maintenance modal confirm, arrivals and departures check-out, stay-list check-out, walk-in "Finish check-in", registration duplicate-profile search, registration ID save, review step edit buttons.
+- Open Folio still requires `cashiering.folio.view` (`CASHIERING_VIEW`). Open Guest Profile requires `guest.profile.view`. Open Reservation requires `reservation.reservation.view`. These are intentional: opening a module screen still needs that module's View.
+- Settings: a new group `desk-actions` ("Actions from the desk") sits under Front Office in `staff-access.ts`. Check-Out Override is listed under Exceptions.
+
+### Tests
+
+- `pms-permissions.test.ts`: count 118. The 0193 "every live code is seeded" check now also accepts the later seed files 0085, 0196, 0203, 0209, and 0211.
+- `fo-phase8.test.ts`: approval tests use `canAuthorize` and `foLateCheckoutRequiresApproval(needs, canAuthorize)`. Membership-role assertions were replaced with `APPROVAL_GRANT` and `hasEffectivePermission` assertions.
+- New `front-office-desk-access.test.ts`: desk code parent is Front Office; Front Office view plus desk code is a valid grant; stay edit does not assign rooms; rack menu omits check-in without the grant; override path requires `FRONT_OFFICE_CHECK_OUT_OVERRIDE`.
+- Source-lock tests for check-in, folio tab, and guest workspace tabs were updated to the new `desk.canReadStayFolio` and `desk.canCheckIn` lines.
+
+Last run (`tsx --test` on `pms-permissions.test.ts`, `front-office-desk-access.test.ts`, and `fo-phase8.test.ts`): 34 tests, 33 passed, 1 failed. The failure is "does not add a fake Approvals inbox or request table". It fails with `6 !== 0` because it counts any `0101_` or `0102_` migration file, and the repo already has `0101_hk_history_guest_request_event.sql`, `0101_pms_rate_change_events.sql`, and `0102_pms_rate_restriction_change_events.sql`. That check is not part of this change and was not fixed.
+
+Not run under `tsx --test`: `fo-check-in-workspace`, `fo-folio-tab`, `fo-guest-workspace-tabs`, and `fo-rack-bar-menu` use `vitest`, and they fail to load in this environment with `Cannot read properties of undefined (reading 'config')`. Their source-lock lines were updated but not run. `fo-phase3` and `fo-phase4` have source-lock failures ("Move guest" text, `view === "inhouse"` and `view === "departures"`). They were not investigated and may predate this change. Full `tsc` was not run.
+
+### Known gaps (not changed)
+
+- Owner, or any active membership whose role is `owner`, skips every check.
+- Permissions are empty while loading, so action buttons stay hidden until the snapshot loads.
+- `updateGuest` with only the desk guest-edit code can edit any guest on the property, not only the guests on that stay.
+- Read-only quote endpoints (`quoteInHouseStayChange`, `getAmendContext`) still need only Front Office view.
+- Transfer and write-off stay Cashiering-only, so Front Office users still need the Cashiering module for them.
+- Some desk screens were not re-checked for every button. Check the Front Office buttons in a browser before relying on them.
+
+## Reservations action gates (uncommitted, no migration)
+
+Goal: every reservation action button and server write follows one rule set. No permission means the control is hidden. A permission that exists but is blocked by business state (closed reservation, checked-in stay, past arrival) means the control is visible and disabled.
+
+### Rules
+
+- Rate plan changes need `reservation.rate.override`. This covers Edit Reservation, the Rates tab, the room-type change dialog, reprice, and any amend that changes `ratePlanId`.
+- Room assign, change, unassign and room-type change need `reservation.assignment.edit`. This covers the Rooms tab, calendar drops, and the Edit Reservation room field. A room-type change also needs Edit Reservation.
+- New Reservation shows only with `reservation.reservation.create`. Export PDF shows only with `reservation.reservation.print`.
+- Calendar menu actions each check their own permission. There is no combined flag.
+- Late checkout and expected arrival keep the Front Office stay codes (`front_office.stay.edit`). Check-in on the occupants card uses `front_office.check_in.create`.
+- Guest profile writes need `guest.profile.*`. Edit Reservation alone does not grant them. Add companion needs `guest.profile.create` and the reservation edit code. Edit companion needs `guest.profile.edit`. Remove companion needs Edit Reservation.
+- Folio tab is shown only with `cashiering.folio.view`. Its money buttons follow the Cashiering capability flags.
+- Packages add and remove stay under Edit Reservation.
+- Cancel settlement stays under `reservation.reservation.cancel`. `front_office.fee.override` is required only to waive a fee. The fee post does not need a separate charge permission.
+
+### Server gates added or changed
+
+- `amendReservation`: `assertAmendScopedGrants` requires rate override when `ratePlanId` changes. It requires assignment edit (or the desk equivalent `front_office.assignment.edit`) when `roomId` changes. Comparison uses `?? null`, so a missing field means clear.
+- `confirmReservationRoomTypeChange`: requires rate override when the plan changes. It requires assignment edit when an assigned room would be released. `evaluateRoomTypeChange` now returns `heldRoomId`.
+- `applyReservationPromotion` and `removeReservationPromotion`: still Edit Reservation. The UI now hides them without edit.
+- `postCancelOrNoShowFee`: cancel uses `CANCEL_PERMISSIONS` (cancel or the Front Office cancel code). No-show uses `front_office.no_show.edit`. The charge requirement was removed.
+- `completeFoCancel`: `CANCEL_PERMISSIONS`.
+- `getCancelNoShowContext`: front office view or reservation view.
+
+### Client gates added or changed
+
+- `reservation-detail-actions.ts`: `ReservationDetailGrants` now has `checkIn`. `reservationDetailGrants(access)` builds all grants from the permission snapshot.
+- `reservation-detail-workspace.tsx`: passes `grants={detailGrants}` and `stayOpen` to every tab. The Folio tab is hidden without `openFolio`. The AmendDialog room type and room fields are disabled without assignment edit.
+- Stay tab: ETA and late checkout need `stayEdit`, with the status checks kept. Save and Cancel need Edit Reservation.
+- Rates tab: Change Rate Plan and Edit Rate need rate override. Apply Discount, Add promotion, Remove promotion and the rate-notes footer need Edit Reservation.
+- Rooms tab: room menu actions are filtered by grant. Change Room Type needs Edit Reservation. In-house room moves need `stayEdit`. Assign, change and unassign need assignment edit. The room-occupants Check In button uses `checkIn`, not Edit Reservation.
+- Room type change dialog: the rate plan select is locked to the current plan without rate override.
+- Guest tab: Add Guest needs Edit Reservation and guest create. Edit companion needs guest edit. Remove needs Edit Reservation. Preference and special request Edit buttons need Edit Reservation.
+- Requests tab: Add Request needs the guest service create grant. Start, complete and assign need guest edit. Save occasion and Save Changes need Edit Reservation. Back to Folio shows only with `openFolio`.
+- Notes tab: Add Note needs Edit Reservation (internal) or guest edit (guest profile note). Add Trace, pin, and the task menu need Edit Reservation.
+- Packages tab: remove and add need Edit Reservation.
+- Edit Reservation page: rate plan select needs rate override. Room select needs assignment edit. Guest name, phone and email need `guest.profile.edit` or `front_office.guest.edit`. The room type select is locked when the user cannot assign and a room is assigned.
+- Reservations list: New Reservation needs the create grant. Export PDF needs the print grant. The waitlist gets `canCreateGuest` and `canCreateReservation` props. Convert needs reservation create.
+- Create reservation page: guest create and master create use `GUEST_PROFILE_CREATE`, not guest view.
+- Front Office notes save (`front-office-frames.tsx`) sends the stored `ratePlanId`, so the new rate override check does not block it.
+
+### Tests
+
+- Updated source locks to the new gates: `cashiering-phase0.test.ts` (fee gate), `create-reservation-phase1.test.ts` (create page guest gate), `pms-ui-permission-audit.test.ts` (detail workspace grants).
+- The changed files parse with no syntax errors (26 files).
+- Failures that also occur on the untouched `HEAD` were not changed. They include the `AC-CR1-18`, `AC-CR1-9`, `AC-CR3-13`, `AC-CR3-7` and housekeeping CTA locks.
+
+### Known gaps
+
+- Full `tsc` has not completed a valid run. The full run was stopped, and a scoped run on the changed files was still running when this was written.
+- `reservation-workspace/booking-calendar.ts` `calendarDropRefusal` and the calendar server path were not re-tested against a browser.
+- `PricingSection` in `reservation-detail-workspace.tsx` is unused and was not gated.

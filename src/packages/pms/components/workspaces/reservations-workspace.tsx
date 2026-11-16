@@ -382,13 +382,6 @@ export function ReservationsWorkspace({
     noShow: access.can(PMS_PERMISSIONS.FRONT_OFFICE_NO_SHOW),
     folio: access.can(PMS_PERMISSIONS.CASHIERING_VIEW),
   };
-  const canManageActions = access.canAny([
-    PMS_PERMISSIONS.RESERVATION_CREATE,
-    PMS_PERMISSIONS.RESERVATION_EDIT,
-    PMS_PERMISSIONS.RESERVATION_CANCEL,
-    PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
-    PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT,
-  ]);
   const foDeskAccess = frontOfficeDeskAccess({
     isOwner: access.isOwner,
     codes: access.permissions,
@@ -1071,7 +1064,7 @@ export function ReservationsWorkspace({
                       </TooltipTrigger>
                       <TooltipContent>Refresh</TooltipContent>
                     </Tooltip>
-                    {isDeskOrCalendar ? (
+                    {isDeskOrCalendar && access.can(PMS_PERMISSIONS.RESERVATION_PRINT) ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -1092,7 +1085,7 @@ export function ReservationsWorkspace({
                         onChange={goWorkspaceSection}
                       />
                     ) : null}
-                    {isDeskOrCalendar ? (
+                    {isDeskOrCalendar && reservationCapabilities.create ? (
                       <Button
                         className={SHELL_PRIMARY_BUTTON}
                         data-testid="reservation-new-reservation"
@@ -1188,7 +1181,6 @@ export function ReservationsWorkspace({
                 <ReservationTable
                   rows={snapshot?.rows ?? []}
                   businessDate={snapshot?.businessDate ?? ""}
-                  canManage={canManageActions}
                   capabilities={reservationCapabilities}
                   onOpen={openReservation}
                   onAction={handleReservationAction}
@@ -1241,7 +1233,13 @@ export function ReservationsWorkspace({
               rangeStart={tableWeekStart}
               rangeEnd={tableStayEnd}
               currencyCode={membership.restaurant.currencyCode}
-              canManage={canManageActions}
+              access={{
+                assignRoom: reservationCapabilities.assign,
+                checkOut: reservationCapabilities.checkOut,
+                openHousekeeping: access.can(PMS_PERMISSIONS.HOUSEKEEPING_VIEW),
+                openGuest: access.can(PMS_PERMISSIONS.GUEST_PROFILE_VIEW),
+                openFolio: reservationCapabilities.folio,
+              }}
               onOpenReservation={openReservation}
               onOpenCalendar={() => goWorkspaceSection("calendar")}
             />
@@ -1281,13 +1279,15 @@ export function ReservationsWorkspace({
               rangeStart={tableWeekStart}
               rangeEnd={tableStayEnd}
               canWrite={access.can(PMS_PERMISSIONS.RESERVATION_WAITLIST_EDIT)}
+              canCreateGuest={access.can(PMS_PERMISSIONS.GUEST_PROFILE_CREATE)}
+              canCreateReservation={reservationCapabilities.create}
               onOpenReservation={openReservation}
             />
           ) : (
             <div className="min-w-0 w-full">
               <BookingCalendarPanel
                 restaurantId={restaurantId}
-                canManage={canManageActions}
+                capabilities={reservationCapabilities}
                 selectedId={selectedId}
                 selectedReservationRoomId={selectedRoomId}
                 shared={{
@@ -1770,15 +1770,13 @@ function ModeButton({
 function ReservationTable({
   rows,
   businessDate,
-  canManage,
   capabilities,
   onOpen,
   onAction,
 }: {
   rows: ReservationDeskRow[];
   businessDate: string;
-  canManage: boolean;
-  capabilities?: ReservationActionCapabilities;
+  capabilities: ReservationActionCapabilities;
   onOpen: (id: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
 }) {
@@ -1896,7 +1894,7 @@ function ReservationTable({
                       arrivalDate: row.arrivalDate,
                       businessDate,
                       hints: row.hints,
-                      canManage,
+                      canManage: false,
                       capabilities,
                     }}
                     onAction={(actionId) => onAction(actionId, row)}

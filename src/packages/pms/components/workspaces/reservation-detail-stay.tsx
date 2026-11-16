@@ -1,3 +1,4 @@
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
@@ -73,6 +74,8 @@ function formatDateDMY(dateStr: string | null | undefined): string {
 
 export function ReservationDetailStayTab({
   restaurantId,
+  grants,
+  stayOpen,
   reservation,
   editable,
   canManage,
@@ -91,6 +94,8 @@ export function ReservationDetailStayTab({
   businessDate,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  stayOpen: boolean;
   reservation: ReservationDetail;
   editable: boolean;
   canManage: boolean;
@@ -265,8 +270,10 @@ export function ReservationDetailStayTab({
   }
 
   const etaWritable =
-    canManage && (reservation.status === "pending" || reservation.status === "confirmed");
-  const lateWritable = canManage && reservation.status === "checked_in";
+    grants.stayEdit &&
+    stayOpen &&
+    (reservation.status === "pending" || reservation.status === "confirmed");
+  const lateWritable = grants.stayEdit && reservation.status === "checked_in";
   const lateApproval = useQuery({
     queryKey: ["front-office", "approval", restaurantId, "late_checkout.authorize", reservation.id],
     queryFn: () => fetchApproval({ data: { restaurantId, actionKey: "late_checkout.authorize" } }),
@@ -718,6 +725,7 @@ export function ReservationDetailStayTab({
                 <Label htmlFor="stay-eta" className="text-[11px] text-muted-foreground">
                   Expected arrival time
                 </Label>
+                {grants.stayEdit ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
                     id="stay-eta"
@@ -758,6 +766,11 @@ export function ReservationDetailStayTab({
                     Clear
                   </Button>
                 </div>
+                ) : (
+                  <p className="text-sm text-[#251605]" data-testid="stay-eta-readonly">
+                    {arrivalTime ?? "Not set"}
+                  </p>
+                )}
               </div>
             </section>
 
@@ -795,6 +808,7 @@ export function ReservationDetailStayTab({
                     Property policy requires approval before late checkout.
                   </p>
                 ) : null}
+                {grants.stayEdit ? (
                 <div className="flex flex-wrap items-center gap-2 pt-0.5">
                   <Button
                     type="button"
@@ -820,6 +834,7 @@ export function ReservationDetailStayTab({
                     Clear late checkout
                   </Button>
                 </div>
+                ) : null}
               </div>
             </section>
           </div>
@@ -885,25 +900,29 @@ export function ReservationDetailStayTab({
               Unsaved changes
             </span>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
-            disabled={!editable || !isDirty}
-            onClick={() => setDraft(buildStayDraft(reservation))}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
-            disabled={!editable || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? "Saving…" : "Save Changes"}
-          </Button>
+          {grants.edit ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
+                disabled={!editable || !isDirty}
+                onClick={() => setDraft(buildStayDraft(reservation))}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
+                disabled={!editable || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                {save.isPending ? "Saving…" : "Save Changes"}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
     </div>

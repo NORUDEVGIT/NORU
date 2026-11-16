@@ -115,6 +115,14 @@ function itemIdentity(item: ReservationExceptionItem): string {
   return `${item.reservationId ?? "_"}:${item.key}:${item.room?.roomId ?? item.stay.arrivalDate}`;
 }
 
+export type ReservationExceptionAccess = {
+  assignRoom: boolean;
+  checkOut: boolean;
+  openHousekeeping: boolean;
+  openGuest: boolean;
+  openFolio: boolean;
+};
+
 export function ReservationControlWorkspace({
   restaurantId,
   search = "",
@@ -122,7 +130,7 @@ export function ReservationControlWorkspace({
   rangeStart,
   rangeEnd,
   currencyCode,
-  canManage,
+  access,
   onOpenReservation,
   onOpenCalendar,
 }: {
@@ -134,7 +142,7 @@ export function ReservationControlWorkspace({
   rangeStart: string;
   rangeEnd: string;
   currencyCode: string;
-  canManage: boolean;
+  access: ReservationExceptionAccess;
   onOpenReservation: (reservationId: string) => void;
   onOpenCalendar: () => void;
 }) {
@@ -301,11 +309,11 @@ export function ReservationControlWorkspace({
       return;
     }
     const stay = stayFromExceptionItem(item);
-    if (target === "assign_room" && stay && canManage) {
+    if (target === "assign_room" && stay && access.assignRoom) {
       setFoAction({ kind: "assign_room", stay });
       return;
     }
-    if (target === "check_out" && stay && canManage) {
+    if (target === "check_out" && stay && access.checkOut) {
       setFoAction({ kind: "check_out", stay });
       return;
     }
@@ -591,7 +599,7 @@ export function ReservationControlWorkspace({
             <ExceptionDrawer
               item={selected}
               currencyCode={currencyCode}
-              canManage={canManage}
+              access={access}
               onOpenReservation={onOpenReservation}
               onLaunch={launchTarget}
             />
@@ -605,7 +613,7 @@ export function ReservationControlWorkspace({
             <ExceptionDrawer
               item={selected}
               currencyCode={currencyCode}
-              canManage={canManage}
+              access={access}
               onOpenReservation={onOpenReservation}
               onLaunch={launchTarget}
             />
@@ -646,13 +654,13 @@ export function ReservationControlWorkspace({
 function ExceptionDrawer({
   item,
   currencyCode,
-  canManage,
+  access,
   onOpenReservation,
   onLaunch,
 }: {
   item: ReservationExceptionItem | null;
   currencyCode: string;
-  canManage: boolean;
+  access: ReservationExceptionAccess;
   onOpenReservation: (reservationId: string) => void;
   onLaunch: (item: ReservationExceptionItem, target: ReservationExceptionActionTarget) => void;
 }) {
@@ -670,10 +678,19 @@ function ExceptionDrawer({
   }
 
   const actionLabel = reservationExceptionActionLabel(item.actionTarget);
+  const primaryGranted =
+    item.actionTarget === "open_housekeeping"
+      ? access.openHousekeeping
+      : item.actionTarget === "assign_room"
+        ? access.assignRoom
+        : item.actionTarget === "check_out"
+          ? access.checkOut
+          : true;
   const canPrimary =
-    item.actionTarget === "open_housekeeping" ||
-    item.actionTarget === "open_room_rack" ||
-    Boolean(item.reservationId);
+    primaryGranted &&
+    (item.actionTarget === "open_housekeeping" ||
+      item.actionTarget === "open_room_rack" ||
+      Boolean(item.reservationId));
 
   return (
     <div
@@ -726,14 +743,7 @@ function ExceptionDrawer({
             <Link to="/restaurant/pms/housekeeping">Open Housekeeping</Link>
           </Button>
         ) : canPrimary ? (
-          <Button
-            size="sm"
-            disabled={
-              (item.actionTarget === "assign_room" || item.actionTarget === "check_out") &&
-              !canManage
-            }
-            onClick={() => onLaunch(item, item.actionTarget)}
-          >
+          <Button size="sm" onClick={() => onLaunch(item, item.actionTarget)}>
             {actionLabel}
           </Button>
         ) : null}
@@ -746,14 +756,14 @@ function ExceptionDrawer({
             Open Reservation
           </Button>
         ) : null}
-        {item.guest.id ? (
+        {item.guest.id && access.openGuest ? (
           <Button size="sm" variant="outline" asChild>
             <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: item.guest.id }}>
               Guest Profile
             </Link>
           </Button>
         ) : null}
-        {item.financial.state === "available" && item.reservationId ? (
+        {item.financial.state === "available" && item.reservationId && access.openFolio ? (
           <Button
             size="sm"
             variant="outline"

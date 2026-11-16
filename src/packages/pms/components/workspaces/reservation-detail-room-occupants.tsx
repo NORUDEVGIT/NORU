@@ -31,6 +31,7 @@ export function ReservationRoomOccupants({
   restaurantId,
   reservation,
   canManage,
+  canCheckIn,
   onChanged,
   onOperate,
   selectedUnitId,
@@ -42,6 +43,7 @@ export function ReservationRoomOccupants({
   restaurantId: string;
   reservation: ReservationDetail;
   canManage: boolean;
+  canCheckIn: boolean;
   onChanged: () => void;
   onOperate?: (action: RoomOperationAction, reservationRoomId: string) => void;
   selectedUnitId?: string;
@@ -97,6 +99,7 @@ export function ReservationRoomOccupants({
             reservation={reservation}
             unit={unit}
             canManage={canManage}
+            canCheckIn={canCheckIn}
             adding={addingRoomId === unit.id}
             pending={mutation.isPending}
             onAdd={() => setAddingRoomId(unit.id)}
@@ -126,6 +129,7 @@ function RoomOccupantCard({
   reservation,
   unit,
   canManage,
+  canCheckIn,
   adding,
   pending,
   onAdd,
@@ -142,6 +146,7 @@ function RoomOccupantCard({
   reservation: ReservationDetail;
   unit: ReservationRoomUnit;
   canManage: boolean;
+  canCheckIn: boolean;
   adding: boolean;
   pending: boolean;
   onAdd: () => void;
@@ -251,7 +256,7 @@ function RoomOccupantCard({
             Add Guest
           </Button>
         ) : null}
-        {canManage && onOperate
+        {canCheckIn && onOperate
           ? operations
               .filter((action) => action === "check_in")
               .map((action) => (

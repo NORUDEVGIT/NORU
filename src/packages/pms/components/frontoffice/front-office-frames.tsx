@@ -245,6 +245,7 @@ export function AmendNotesDialog({
           children: reservation.children,
           specialRequests: reservation.specialRequests,
           notes,
+          ratePlanId: reservation.ratePlanId,
         },
       });
     },

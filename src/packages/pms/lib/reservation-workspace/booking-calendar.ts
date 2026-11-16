@@ -87,6 +87,42 @@ export function canDragCalendarBar(status: ReservationStatus): boolean {
   return status === "pending" || status === "confirmed" || status === "checked_in";
 }
 
+export type CalendarDragGrants = { edit: boolean; assign: boolean; stayEdit: boolean };
+
+/** An in-house bar moves rooms through Front Office; a booked bar amends through Reservations. */
+export function canDragCalendarBarWith(status: ReservationStatus, grants: CalendarDragGrants): boolean {
+  if (!canDragCalendarBar(status)) return false;
+  if (status === "checked_in") return grants.stayEdit;
+  return grants.edit;
+}
+
+/** Null when the drop may continue; otherwise the reason it is refused. */
+export function calendarDropRefusal(
+  input: {
+    kind: CalendarMoveKind;
+    currentRoomId: string | null;
+    proposedRoomId: string | null;
+    currentArrival: string;
+    proposedArrival: string;
+    currentDeparture: string;
+    proposedDeparture: string;
+  },
+  grants: CalendarDragGrants,
+): string | null {
+  if (input.kind === "fo_room_move") {
+    return grants.stayEdit ? null : "You don't have permission to move an in-house guest.";
+  }
+  if (input.kind !== "amend") return null;
+  const datesChanged =
+    input.currentArrival !== input.proposedArrival ||
+    input.currentDeparture !== input.proposedDeparture;
+  const roomChanged = input.currentRoomId !== input.proposedRoomId;
+  if (!grants.edit) return "You don't have permission to edit this reservation.";
+  if (roomChanged && !grants.assign) return "You don't have permission to assign or change rooms.";
+  if (datesChanged && !grants.edit) return "You don't have permission to edit this reservation.";
+  return null;
+}
+
 export function calendarDeskHints(
   bar: Pick<CalendarBar, "status" | "roomId">,
 ): ReservationDeskActionHints {
