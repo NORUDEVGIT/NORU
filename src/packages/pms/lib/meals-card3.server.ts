@@ -23,9 +23,9 @@ import {
   type TaxPosture,
 } from "./pms-set3-rates-guest.ts";
 
-// Phase B: CARD3_MEALS_TABS reflects the Package Master editor structure.
-// "Package Components" and "Package rate plan types" are no longer primary tabs.
-// They will be nested inside the Package Master editor in Phase E / Phase F.
+// CARD3_MEALS_TABS reflects the Package Master surface.
+// Package components are edited inside Package Master → Includes.
+// Room/rate applicability is no longer package-owned in the active editor.
 export const CARD3_MEALS_TABS = [
   { id: "overview", label: "Overview" },
   { id: "meal-plans", label: "Meal Plans" },
@@ -91,9 +91,61 @@ export type PackageCard3Row = {
   roomTypeIds: string[];
   ratePlanIds: string[];
   ratePlanLinks: PackageCard3RatePlanLink[];
+  /**
+   * Guest Service Type IDs bundled with this package.
+   * Persisted on existing `pms_packages.inclusion` JSON (string[]) — no separate link table.
+   */
+  serviceTypeIds: string[];
   coverImagePath: string | null;
   coverUrl: string | null;
 };
+
+/** Guest Service Type refs for Package Master → Benefits & Services. */
+export type Card3GuestServiceTypeRef = {
+  id: string;
+  categoryId: string;
+  categoryCode: string;
+  categoryName: string;
+  name: string;
+  code: string;
+  description: string;
+  active: boolean;
+  displayOrder: number;
+};
+
+export type Card3GuestServiceCategoryRef = {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+  displayOrder: number;
+};
+
+/** Temporary UI filter: Maintenance is operational, not a package benefit. */
+export const PACKAGE_EXCLUDED_SERVICE_CATEGORY_CODES = ["MNT"] as const;
+
+export function isPackageEligibleServiceCategoryCode(code: string): boolean {
+  const normalized = code.trim().toUpperCase();
+  return !(PACKAGE_EXCLUDED_SERVICE_CATEGORY_CODES as readonly string[]).includes(normalized);
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Read Guest Service Type IDs from legacy `pms_packages.inclusion` JSON. */
+export function serviceTypeIdsFromPackageInclusion(inclusion: unknown): string[] {
+  if (!Array.isArray(inclusion)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const row of inclusion) {
+    if (typeof row !== "string") continue;
+    const id = row.trim();
+    if (!UUID_RE.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
 
 export const PACKAGE_CHARGE_BASES = [
   "per_stay",
@@ -180,6 +232,10 @@ export type MealServiceRuleCard3 = {
   departmentId: string | null;
 };
 
+/**
+ * @deprecated Property meal service schedule / kitchen rules.
+ * Retired from Meal Plans & Packages commercial UI; retained for entitlement loaders.
+ */
 export type MealApplicabilityCard3 = {
   breakfast: MealServiceRuleCard3;
   lunch: MealServiceRuleCard3;
@@ -297,6 +353,8 @@ export type MealsCard3Snapshot = {
   ratePlans: Card3RatePlanRef[];
   foServices: Card3FoServiceRef[];
   departments: Card3DepartmentRef[];
+  guestServiceCategories: Card3GuestServiceCategoryRef[];
+  guestServiceTypes: Card3GuestServiceTypeRef[];
   mealPolicy: MealApplicabilityCard3;
 };
 
@@ -344,27 +402,9 @@ export function evaluateMealsCard3Readiness(snapshot: MealsCard3Snapshot): Meals
   const hasRows =
     snapshot.mealPlans.length > 0 || snapshot.packages.length > 0 || snapshot.components.length > 0;
 
-  if (!snapshot.mealPlans.some((row) => row.active)) {
-    blockers.push("Save at least one active meal plan.");
-  }
-
-  const completePackage = snapshot.packages.find(
-    (row) =>
-      row.active &&
-      row.packagePrice > 0 &&
-      (row.roomTypeIds.length > 0 || row.ratePlanIds.length > 0) &&
-      snapshot.components.some(
-        (component) =>
-          component.packageId === row.id && isValidPackageComponent(component, snapshot),
-      ),
-  );
-  if (!completePackage) {
-    blockers.push(
-      "Save an active priced package with room or rate applicability and at least one valid component.",
-    );
-  }
-
-  if (!hasRows) return { ready: false, status: "not_started", blockers };
-  if (blockers.length === 0) return { ready: true, status: "complete", blockers };
-  return { ready: false, status: "in_progress", blockers };
+  // Meal Plans & Packages are optional commercial catalogues:
+  // Room Only is valid; a Rate Plan may have no Package.
+  // Visiting the retired standalone Meal Plans & Packages page is not required.
+  if (!hasRows) return { ready: true, status: "not_started", blockers };
+  return { ready: true, status: "complete", blockers };
 }

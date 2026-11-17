@@ -231,7 +231,7 @@ export function evaluateRatesCard2Readiness(snapshot: RatesCard2Snapshot): Rates
   );
   if (!completePlan) {
     blockers.push(
-      "Save at least one active rate plan with a price on an existing Card 2 room type.",
+      "Save at least one active rate plan with a price on an existing room type.",
     );
   }
 

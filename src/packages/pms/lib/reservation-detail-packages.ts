@@ -294,6 +294,7 @@ export function chargeBasisHonestyCopy(configuredBasis: PackageChargeBasis): str
   return `Configured basis: ${PACKAGE_CHARGE_BASIS_LABELS[configuredBasis]}. ${PACKAGE_CHARGE_BASIS_OPERATIONAL_HONESTY}`;
 }
 
+/** @deprecated Package Master no longer owns room/rate applicability; kept for legacy reads. */
 export function packageApplicabilitySummary(pkg: PackageCard3Row): {
   room: string;
   rate: string;

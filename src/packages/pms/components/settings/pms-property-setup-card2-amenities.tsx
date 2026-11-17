@@ -119,15 +119,21 @@ export function PmsPropertySetupCard2Amenities({
   onReadiness,
   onStats,
   registerActions,
+  catalogueOnly = false,
+  onAmenityCreated,
 }: {
   restaurantId: string;
   canEdit: boolean;
-  onReadiness: (status: PropertySetupCardStatus, blockers: string[]) => void;
-  onStats: (stats: AmenitiesRailStats) => void;
-  registerActions: (actions: {
+  onReadiness?: (status: PropertySetupCardStatus, blockers: string[]) => void;
+  onStats?: (stats: AmenitiesRailStats) => void;
+  registerActions?: (actions: {
     saveDraft: () => Promise<boolean>;
     saveAndContinue: () => Promise<boolean>;
   }) => void;
+  /** Catalogue admin only — used inside Room Type wizard Manage Amenity Catalogue overlay. */
+  catalogueOnly?: boolean;
+  /** Fired after a new amenity is created (not edits). */
+  onAmenityCreated?: (amenityId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const fetchAmenities = useServerFn(listAmenities);
@@ -199,11 +205,13 @@ export function PmsPropertySetupCard2Amenities({
 
   const typesQuery = useQuery({
     queryKey: ["pms-card2-amenity-types", restaurantId],
+    enabled: !catalogueOnly,
     queryFn: () => fetchTypes({ data: { restaurantId, includeInactive: true } }),
   });
 
   const roomsQuery = useQuery({
     queryKey: ["pms-card2-amenity-rooms", restaurantId],
+    enabled: !catalogueOnly,
     queryFn: () => fetchRooms({ data: { restaurantId, includeInactive: true } }),
   });
 
@@ -214,7 +222,7 @@ export function PmsPropertySetupCard2Amenities({
 
   const typeMapQuery = useQuery({
     queryKey: ["pms-card2-type-amenities", restaurantId, selectedTypeId],
-    enabled: Boolean(selectedTypeId),
+    enabled: !catalogueOnly && Boolean(selectedTypeId),
     queryFn: () =>
       fetchTypeAmenities({
         data: { restaurantId, roomTypeId: selectedTypeId },
@@ -223,13 +231,13 @@ export function PmsPropertySetupCard2Amenities({
 
   const effectiveQuery = useQuery({
     queryKey: ["pms-card2-effective", restaurantId, selectedRoomId],
-    enabled: Boolean(selectedRoomId),
+    enabled: !catalogueOnly && Boolean(selectedRoomId),
     queryFn: () => fetchEffective({ data: { restaurantId, roomId: selectedRoomId } }),
   });
 
   const overridesQuery = useQuery({
     queryKey: ["pms-card2-overrides", restaurantId, selectedRoomId],
-    enabled: Boolean(selectedRoomId),
+    enabled: !catalogueOnly && Boolean(selectedRoomId),
     queryFn: () => fetchOverrides({ data: { restaurantId, roomId: selectedRoomId } }),
   });
 
@@ -367,8 +375,8 @@ export function PmsPropertySetupCard2Amenities({
     const status = readyQuery.data?.stepStatus ?? "not_started";
     const blockers = readyQuery.data?.blockers ?? [];
 
-    onReadiness(status, blockers);
-    onStats({
+    onReadiness?.(status, blockers);
+    onStats?.({
       total: amenities.length,
       active: activeAmenityCount,
       uncategorized,
@@ -413,6 +421,8 @@ export function PmsPropertySetupCard2Amenities({
         return;
       }
 
+      const wasCreate = !form.id;
+      const createdId = result.id;
       setFormError("");
       toast.success(form.id ? "Amenity updated" : "Amenity added");
       setCatalogEditorOpen(false);
@@ -420,8 +430,12 @@ export function PmsPropertySetupCard2Amenities({
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["pms-card2-amenities", restaurantId] }),
+        queryClient.invalidateQueries({ queryKey: ["pms-card2-amenity-categories", restaurantId] }),
         queryClient.invalidateQueries({ queryKey: ["pms-card2-amenities-ready", restaurantId] }),
       ]);
+      if (wasCreate && createdId) {
+        onAmenityCreated?.(createdId);
+      }
     },
     onError: () => toast.error("Could not save the amenity."),
   });
@@ -544,7 +558,7 @@ export function PmsPropertySetupCard2Amenities({
     if (!saved) return false;
 
     const latest = await fetchReady({ data: { restaurantId } });
-    onReadiness(latest.stepStatus, latest.blockers);
+    onReadiness?.(latest.stepStatus, latest.blockers);
 
     if (!latest.ready) {
       toast.error(latest.blockers[0] ?? "Amenities is not complete yet.");
@@ -555,6 +569,7 @@ export function PmsPropertySetupCard2Amenities({
   }
 
   useEffect(() => {
+    if (!registerActions || catalogueOnly) return;
     registerActions({ saveDraft, saveAndContinue });
   });
 
@@ -758,18 +773,29 @@ export function PmsPropertySetupCard2Amenities({
   }
 
   return (
-    <div className="space-y-6" data-testid="pms-card2-amenities-form">
+    <div
+      className={catalogueOnly ? "space-y-4" : "space-y-6"}
+      data-testid="pms-card2-amenities-form"
+      data-catalogue-only={catalogueOnly ? "true" : undefined}
+    >
       {/* SECTION 1: Master/Detail Category-First Amenity Catalog */}
       <section
-        className="rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm"
+        className={
+          catalogueOnly
+            ? "rounded-xl border border-[#E6E1D8] bg-white p-4 shadow-xs"
+            : "rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm"
+        }
         data-testid="pms-amenity-catalog-section"
       >
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#EDE6D8] pb-4">
           <div>
-            <h3 className="font-display text-lg text-[#251605]">Amenity Catalog</h3>
+            <h3 className="font-display text-lg text-[#251605]">
+              {catalogueOnly ? "Property Amenity Catalogue" : "Amenity Catalog"}
+            </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Category-first catalogue with 14 approved canonical categories, rich icon scanning,
-              and custom classifications.
+              {catalogueOnly
+                ? "Add categories and amenities for this property. Changes are available immediately for Room Type selection."
+                : "Category-first catalogue with 14 approved canonical categories, rich icon scanning, and custom classifications."}
             </p>
           </div>
 
@@ -1047,6 +1073,8 @@ export function PmsPropertySetupCard2Amenities({
         </div>
       </section>
 
+      {!catalogueOnly ? (
+      <>
       {/* SECTION 2: Room Type Amenities — Collapsible (collapsed by default) */}
       <Collapsible
         open={roomTypeAmenitiesOpen}
@@ -1440,6 +1468,8 @@ export function PmsPropertySetupCard2Amenities({
           <p className="mt-3 text-sm text-destructive">{effectiveQuery.data.message}</p>
         ) : null}
       </section>
+      </>
+      ) : null}
 
       {/* DIALOG 1: Add Custom Category */}
       <Dialog

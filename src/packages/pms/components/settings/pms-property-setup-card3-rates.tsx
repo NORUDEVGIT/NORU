@@ -542,7 +542,18 @@ function PlanDrawer({
       <div className="space-y-3">
         <div className="space-y-1">
           <Label>Category</Label>
-          <Select value={categoryId} disabled={!canEdit} onValueChange={setCategoryId}>
+          <Select
+            value={categoryId}
+            disabled={!canEdit}
+            onValueChange={(nextId) => {
+              setCategoryId(nextId);
+              if (!value && !codeManuallyEdited) {
+                const category = categories.find((row) => row.id === nextId);
+                const roomType = roomTypes.find((row) => row.id === roomTypeId);
+                setCode(suggestRatePlanCode(category?.code ?? "", roomType?.name ?? ""));
+              }
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a category" />
             </SelectTrigger>
@@ -579,6 +590,10 @@ function PlanDrawer({
                   fixedPrice: nextType.baseNightlyRate ?? 0,
                 });
                 if (computed.ok) setBaseRate(computed.baseRate);
+                if (!codeManuallyEdited) {
+                  const category = categories.find((row) => row.id === categoryId);
+                  setCode(suggestRatePlanCode(category?.code ?? "", nextType.name));
+                }
               }
             }}
           >
@@ -601,27 +616,23 @@ function PlanDrawer({
             value={name}
             disabled={!canEdit}
             placeholder="e.g. Best Available Rate"
-            onChange={(event) => {
-              const newName = event.target.value;
-              setName(newName);
-              if (!codeManuallyEdited) {
-                setCode(suggestRatePlanCode(newName));
-              }
-            }}
+            onChange={(event) => setName(event.target.value)}
           />
         </div>
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <Label htmlFor="plan-code">Rate Plan Code</Label>
-            {!codeManuallyEdited && code && (
-              <span className="text-[10px] text-muted-foreground">Auto-generated from name</span>
-            )}
+            {!codeManuallyEdited && code ? (
+              <span className="text-[10px] text-muted-foreground">
+                Auto from category & room type
+              </span>
+            ) : null}
           </div>
           <Input
             id="plan-code"
             value={code}
             disabled={!canEdit}
-            placeholder="e.g. BAR"
+            placeholder="e.g. BAR_STD_KING"
             onChange={(event) => {
               setCodeManuallyEdited(true);
               setCode(event.target.value.toUpperCase());

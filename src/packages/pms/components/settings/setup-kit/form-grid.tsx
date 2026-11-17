@@ -65,6 +65,7 @@ export function PropertySetupPanel({
   icon,
   testId,
   dense,
+  action,
   children,
 }: {
   title: string;
@@ -72,6 +73,7 @@ export function PropertySetupPanel({
   icon: PropertySetupFieldIconKey | LucideIcon;
   testId?: string;
   dense?: boolean;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -82,7 +84,13 @@ export function PropertySetupPanel({
       )}
       data-testid={testId}
     >
-      <PropertySetupSectionHeader icon={icon} title={title} description={helper} dense={dense} />
+      <PropertySetupSectionHeader
+        icon={icon}
+        title={title}
+        description={helper}
+        dense={dense}
+        action={action}
+      />
       {children}
     </section>
   );

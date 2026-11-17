@@ -428,6 +428,7 @@ export function Card3Section({
   testId,
   addLabel: _addLabel,
   onAdd: _onAdd,
+  action,
   children,
 }: {
   title: string;
@@ -436,10 +437,11 @@ export function Card3Section({
   testId?: string;
   addLabel?: string;
   onAdd?: () => void;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <PropertySetupPanel title={title} helper={helper} icon={icon} testId={testId}>
+    <PropertySetupPanel title={title} helper={helper} icon={icon} testId={testId} action={action}>
       {children}
     </PropertySetupPanel>
   );

@@ -62,6 +62,8 @@ function snapshot(partial?: Partial<MealsCard3Snapshot>): MealsCard3Snapshot {
     ratePlans: [{ id: "rp1", code: "BAR", name: "Best available", active: true }],
     foServices: [{ id: "fs1", name: "Airport transfer", defaultAmount: 0, sortOrder: 0, active: true }],
     departments: [{ id: "dep1", code: "HK", name: "Housekeeping", active: true }],
+    guestServiceCategories: [],
+    guestServiceTypes: [],
     mealPolicy: {
       breakfast: { includeArrival: false, includeStay: true, includeDeparture: true, departmentId: null },
       lunch: { includeArrival: true, includeStay: true, includeDeparture: false, departmentId: null },
@@ -100,6 +102,7 @@ const activePackage = {
   roomTypeIds: ["rt1"],
   ratePlanIds: [],
   ratePlanLinks: [],
+  serviceTypeIds: [],
   coverImagePath: null,
   coverUrl: null,
 };
@@ -121,42 +124,25 @@ const validComponent = {
 };
 
 describe("Card 3 Phase 4 meal plans and packages", () => {
-  it("uses only not_started, in_progress, and complete for this domain", () => {
+  it("treats meal plans and packages as optional catalogues (Room Only / no package valid)", () => {
     const empty = evaluateMealsCard3Readiness(snapshot());
     assert.equal(empty.status, "not_started");
-    assert.equal(empty.ready, false);
+    assert.equal(empty.ready, true);
+    assert.deepEqual(empty.blockers, []);
 
-    const started = evaluateMealsCard3Readiness(snapshot({ mealPlans: [activeMeal] }));
-    assert.equal(started.status, "in_progress");
-    assert.equal(started.ready, false);
+    const mealsOnly = evaluateMealsCard3Readiness(snapshot({ mealPlans: [activeMeal] }));
+    assert.equal(mealsOnly.status, "complete");
+    assert.equal(mealsOnly.ready, true);
 
-    const noApplicability = evaluateMealsCard3Readiness(
-      snapshot({
-        mealPlans: [activeMeal],
-        packages: [{ ...activePackage, roomTypeIds: [] }],
-        components: [validComponent],
-      }),
-    );
-    assert.equal(noApplicability.status, "in_progress");
-
-    const invalidComponent = evaluateMealsCard3Readiness(
-      snapshot({
-        mealPlans: [activeMeal],
-        packages: [activePackage],
-        components: [{ ...validComponent, mealPlanId: null, foServiceId: "foreign" }],
-      }),
-    );
-    assert.equal(invalidComponent.status, "in_progress");
-
-    const complete = evaluateMealsCard3Readiness(
+    const withPackage = evaluateMealsCard3Readiness(
       snapshot({
         mealPlans: [activeMeal],
         packages: [activePackage],
         components: [validComponent],
       }),
     );
-    assert.equal(complete.status, "complete");
-    assert.equal(complete.ready, true);
+    assert.equal(withPackage.status, "complete");
+    assert.equal(withPackage.ready, true);
   });
 
   it("exposes exactly the four Phase 4 tabs and the isolated API files", () => {
@@ -181,9 +167,11 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.doesNotMatch(section, /PmsPropertySetupCard3Meals/);
     assert.doesNotMatch(section, /getMealsCard3/);
     assert.doesNotMatch(section, /meal-plans-packages/);
-    assert.match(card2Section, /PmsPropertySetupCard3Meals/);
+    // Standalone Meal Plans & Packages tab retired — catalogue opens from Rate Plan Step 3.
+    assert.doesNotMatch(card2Section, /PmsPropertySetupCard3Meals/);
     assert.match(card2Section, /getMealsCard3/);
     assert.match(card2Section, /meal-plans-packages/);
+    assert.match(card2Section, /rates-pricing/);
     assert.match(section, /currencyQuery\.isLoading/);
     assert.match(section, /currencyStatus/);
     assert.match(section, /taxesStatus/);
@@ -200,9 +188,9 @@ describe("Card 3 Phase 4 meal plans and packages", () => {
     assert.match(ui, /Search packages/);
     // Phase B: "Search package components" is no longer a primary list search
     assert.doesNotMatch(ui, /Search package components/);
-    assert.match(ui, /Room types are inherited from Card 2/);
-    assert.match(ui, /Rate plans are inherited from Phase 3/);
-    assert.match(ui, /no reservation or\s+folio operational changes/);
+    assert.match(ui, /Configure meal plans and packages available for rate plans/);
+    assert.doesNotMatch(ui, /inherited from Card 2/);
+    assert.doesNotMatch(ui, /inherited from Phase 3/);
     assert.match(ui, /saveMealPlanCard3/);
     assert.match(ui, /savePackageCard3/);
     assert.match(ui, /savePackageComponentCard3/);
@@ -748,10 +736,11 @@ describe("meal service rules and package fulfillment", () => {
     assert.match(legacyMeals, /Create meal plans in Meal Plans & Packages/);
     assert.doesNotMatch(legacyMeals, /from\("pms_meal_plans"\)\.insert/);
     const policySave = fns.slice(fns.indexOf("export const saveMealApplicabilityPolicyCard3"));
-    assert.match(policySave, /requireRoomManager/);
-    assert.match(ui, /Meal Service Rules/);
-    assert.match(ui, /Requires Fulfillment/);
-    assert.match(ui, /Uses Property Meal Service Rules/);
+    assert.match(policySave, /@deprecated/);
+    assert.match(policySave, /pms_meal_applicability_policies/);
+    // Meal Service Rules UI retired from Meal Plans & Packages commercial setup.
+    assert.doesNotMatch(ui, /PmsCard3MealServiceRules/);
+    assert.doesNotMatch(ui, /Save meal rules/);
     assert.match(set3, /set3-meals-card3-redirect/);
     assert.doesNotMatch(set3, /Add meal plan/);
   });

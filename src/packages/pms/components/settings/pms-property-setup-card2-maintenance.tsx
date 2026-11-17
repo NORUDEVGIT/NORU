@@ -62,7 +62,7 @@ export type MaintenanceRailStats = {
 };
 
 function SectionCard({
-  number,
+  number: _number,
   title,
   description,
   children,
@@ -74,25 +74,21 @@ function SectionCard({
   children: ReactNode;
   testId?: string;
 }) {
+  void _number;
   const sectionId = testId?.replace(/^pms-card2-maintenance-/, "");
   return (
     <section
       id={sectionId}
-      className="scroll-mb-32 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm scroll-mt-6"
+      className="scroll-mt-6 rounded-2xl border border-[#E6E1D8] bg-white p-5"
       data-testid={testId}
     >
-      <div className="flex items-start gap-3">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#C89933]/15 text-sm font-semibold text-[#7A5511]">
-          {number}
-        </span>
-        <div>
-          <h2 className="font-display text-xl text-[#251605]">{title}</h2>
-          {description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          ) : null}
-        </div>
+      <div className="min-w-0">
+        <h2 className="font-sans text-lg font-semibold text-[#251605]">{title}</h2>
+        {description ? (
+          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+        ) : null}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 space-y-4">{children}</div>
     </section>
   );
 }
@@ -292,7 +288,7 @@ export function PmsPropertySetupCard2Maintenance({
     }
 
     toast.success(
-      "Maintenance is ready. Rooms & Operations stays In Progress until Card 2 review.",
+      "Maintenance is ready. Finish remaining Rooms & Operations steps when you are ready.",
     );
     return true;
   }
@@ -318,7 +314,7 @@ export function PmsPropertySetupCard2Maintenance({
 
   return (
     <div
-      className="space-y-5 scroll-mb-32"
+      className="space-y-3"
       data-testid="pms-card2-maintenance-form"
     >
       {!persisted ? (
@@ -332,7 +328,7 @@ export function PmsPropertySetupCard2Maintenance({
 
       <SectionCard
         number={1}
-        title="General Maintenance Policy"
+        title="Maintenance Settings"
         description="Control maintenance workflow defaults without changing operational room status directly."
         testId="pms-card2-maintenance-general"
       >

@@ -69,7 +69,7 @@ export type InventoryRailStats = {
 };
 
 function SectionCard({
-  number,
+  number: _number,
   title,
   description,
   children,
@@ -81,25 +81,21 @@ function SectionCard({
   children: ReactNode;
   testId?: string;
 }) {
+  void _number;
   const sectionId = testId?.replace(/^pms-card2-inventory-/, "");
   return (
     <section
       id={sectionId}
-      className="scroll-mb-32 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm scroll-mt-6"
+      className="scroll-mt-6 rounded-2xl border border-[#E6E1D8] bg-white p-5"
       data-testid={testId}
     >
-      <div className="flex items-start gap-3">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#C89933]/15 text-sm font-semibold text-[#7A5511]">
-          {number}
-        </span>
-        <div>
-          <h2 className="font-display text-xl text-[#251605]">{title}</h2>
-          {description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          ) : null}
-        </div>
+      <div className="min-w-0">
+        <h2 className="font-sans text-lg font-semibold text-[#251605]">{title}</h2>
+        {description ? (
+          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+        ) : null}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 space-y-4">{children}</div>
     </section>
   );
 }
@@ -301,16 +297,20 @@ export function PmsPropertySetupCard2Inventory({
   }, []);
 
   return (
-    <div
-      className="space-y-5 scroll-mb-32"
-      data-testid="pms-card2-inventory-form"
-    >
+    <div className="space-y-3" data-testid="pms-card2-inventory-form">
+      <div className="min-w-0">
+        <h2 className="font-sans text-lg font-semibold text-[#251605]">Inventory Rules</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Configure how rooms become available, blocked, and assigned at this property.
+        </p>
+      </div>
+
       {!persisted ? (
         <div
-          className="rounded-xl border border-[#E5DED1] bg-white px-4 py-3 text-sm text-muted-foreground"
+          className="rounded-lg border border-[#E5DED1] bg-white px-3 py-2 text-sm text-muted-foreground"
           data-testid="pms-card2-inventory-not-started"
         >
-          Defaults are shown. Save this step to create the property inventory-rules configuration.
+          Defaults are shown. Save this step to create inventory rules for this property.
         </div>
       ) : null}
 

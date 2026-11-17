@@ -4,10 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { PmsPropertySetupCard2RoomTypes } from "@/packages/pms/components/settings/pms-property-setup-card2-room-types";
 import { PmsPropertySetupCard2Housekeeping } from "@/packages/pms/components/settings/pms-property-setup-card2-housekeeping";
-import {
-  PmsPropertySetupCard2Amenities,
-  type AmenitiesRailStats,
-} from "@/packages/pms/components/settings/pms-property-setup-card2-amenities";
+import { type AmenitiesRailStats } from "@/packages/pms/components/settings/pms-property-setup-card2-amenities";
 import {
   PmsPropertySetupCard2Inventory,
   type InventoryRailStats,
@@ -17,37 +14,29 @@ import {
   type MaintenanceRailStats,
 } from "@/packages/pms/components/settings/pms-property-setup-card2-maintenance";
 import { PmsPropertySetupCard2Rates } from "@/packages/pms/components/settings/pms-property-setup-card2-rates";
-import { PmsPropertySetupCard3Meals } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
 import { getMealsCard3 } from "@/packages/pms/lib/meals-card3.functions";
 import {
   PropertySetupPanel,
-  PropertySetupStatusRail,
   PropertySetupStepNav,
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
-import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
 import type {
   Card2StepStatusMap,
   PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
+  CARD2_NAV_STEPS,
   CARD2_STEPS,
-  CARD2_SUBTITLE,
   card2StepById,
   card2StepFromSearch,
   evaluateCard2StepStatus,
   nextCard2Step,
   previousCard2Step,
+  resolveCard2NavStep,
   type Card2StepId,
 } from "@/packages/pms/lib/pms-property-setup-card2";
-
-function amenitiesStatusLabel(status: PropertySetupCardStatus, blockers: string[]): string {
-  if (status === "complete") return "Ready";
-  if (status === "in_progress" && blockers.length > 0) return "Needs Attention";
-  if (status === "in_progress") return "In Progress";
-  return "Not Started";
-}
+import { evaluateCard2AmenitiesReadiness } from "@/packages/pms/lib/rooms-amenities.functions";
 
 export function PmsPropertySetupCard2Section({
   restaurantId,
@@ -65,9 +54,9 @@ export function PmsPropertySetupCard2Section({
   const [step, setStep] = useState<Card2StepId>(() => {
     if (typeof window !== "undefined") {
       const fromSearch = card2StepFromSearch(window.location.search);
-      if (fromSearch) return fromSearch;
+      if (fromSearch) return resolveCard2NavStep(fromSearch);
     }
-    return initialStep;
+    return resolveCard2NavStep(initialStep);
   });
 
   useEffect(() => {
@@ -75,7 +64,7 @@ export function PmsPropertySetupCard2Section({
     const applyFromSearch = () => {
       const fromSearch = card2StepFromSearch(window.location.search);
       if (fromSearch) {
-        setStep(fromSearch);
+        setStep(resolveCard2NavStep(fromSearch));
       }
     };
     applyFromSearch();
@@ -86,6 +75,13 @@ export function PmsPropertySetupCard2Section({
       window.removeEventListener("hashchange", applyFromSearch);
     };
   }, []);
+
+  // Legacy ?card2Step=amenities → Room Types (catalogue lives in Room Type wizard Step 3).
+  // Legacy ?card2Step=meal-plans-packages → Rate & Pricing (catalogue lives in Rate Plan Step 3).
+  useEffect(() => {
+    if (step === "amenities") setStep("room-types");
+    if (step === "meal-plans-packages") setStep("rates-pricing");
+  }, [step]);
   const [roomTypesStatus, setRoomTypesStatus] = useState<PropertySetupCardStatus>(
     card2Steps?.["room-types"] ?? "not_started",
   );
@@ -114,18 +110,35 @@ export function PmsPropertySetupCard2Section({
   const [mealsStatus, setMealsStatus] = useState<PropertySetupCardStatus>(
     card2Steps?.["meal-plans-packages"] ?? "not_started",
   );
-  const [mealsBlockers, setMealsBlockers] = useState<string[]>([]);
   const loadMeals = useServerFn(getMealsCard3);
+  const loadAmenitiesReady = useServerFn(evaluateCard2AmenitiesReadiness);
   const mealsQuery = useQuery({
     queryKey: ["pms-card3-meals", restaurantId],
     queryFn: () => loadMeals({ data: { restaurantId } }),
+  });
+  const amenitiesReadyQuery = useQuery({
+    queryKey: ["pms-card2-amenities-ready", restaurantId],
+    queryFn: () => loadAmenitiesReady({ data: { restaurantId } }),
   });
   useEffect(() => {
     const readiness = mealsQuery.data?.readiness;
     if (!readiness) return;
     setMealsStatus(readiness.status);
-    setMealsBlockers(readiness.blockers);
   }, [mealsQuery.data?.readiness]);
+  useEffect(() => {
+    const ready = amenitiesReadyQuery.data;
+    if (!ready) return;
+    setAmenitiesStatus(ready.stepStatus);
+    setAmenitiesStats({
+      total: ready.catalogCount ?? 0,
+      active: ready.activeCatalogCount ?? 0,
+      uncategorized: ready.uncategorizedCount ?? 0,
+      typesConfigured: ready.typesConfigured ?? 0,
+      roomsWithOverrides: ready.roomsWithOverrides ?? 0,
+      blockers: ready.blockers ?? [],
+      stepStatus: ready.stepStatus,
+    });
+  }, [amenitiesReadyQuery.data]);
   const [continuePending, setContinuePending] = useState(false);
   const actionsRef = useRef<{
     saveDraft: () => Promise<boolean>;
@@ -144,27 +157,25 @@ export function PmsPropertySetupCard2Section({
     "rates-pricing": ratesStatus,
     "meal-plans-packages": mealsStatus,
   };
-  const railSections = CARD2_STEPS.map((row) => ({
+  const navSections = CARD2_NAV_STEPS.map((row, index) => ({
     id: row.id,
+    number: index + 1,
     title: row.title,
     status: evaluateCard2StepStatus(row.id, stepStatuses[row.id]),
   }));
-  const counts = propertySetupRailCounts(railSections.map((row) => row.status));
-  const railBlockers =
+  const stepBlockers =
     step === "housekeeping"
       ? housekeepingBlockers
       : step === "rates-pricing"
         ? ratesBlockers
-        : step === "meal-plans-packages"
-          ? mealsBlockers
-          : step === "inventory-rules"
+        : step === "inventory-rules"
           ? (inventoryStats?.blockers ?? [])
-          : step === "amenities"
-            ? (amenitiesStats?.blockers ?? [])
-            : step === "maintenance"
-              ? (maintenanceStats?.blockers ?? [])
+          : step === "maintenance"
+            ? (maintenanceStats?.blockers ?? [])
+            : step === "room-types"
+              ? (amenitiesStats?.blockers ?? [])
               : [];
-  const railWarnings =
+  const stepWarnings =
     step === "housekeeping"
       ? housekeepingWarnings
       : step === "rates-pricing"
@@ -182,12 +193,6 @@ export function PmsPropertySetupCard2Section({
       setHousekeepingStatus(status);
       setHousekeepingBlockers(blockers);
       setHousekeepingWarnings(warnings);
-    },
-    [],
-  );
-  const onAmenitiesReadiness = useCallback(
-    (status: PropertySetupCardStatus, _blockers: string[]) => {
-      setAmenitiesStatus(status);
     },
     [],
   );
@@ -211,14 +216,6 @@ export function PmsPropertySetupCard2Section({
     },
     [],
   );
-  const onMealsReadiness = useCallback(
-    (status: PropertySetupCardStatus, blockers: string[]) => {
-      setMealsStatus(status);
-      setMealsBlockers(blockers);
-    },
-    [],
-  );
-
   function goBack() {
     const previous = previousCard2Step(step);
     if (previous) {
@@ -239,7 +236,6 @@ export function PmsPropertySetupCard2Section({
   async function goContinue() {
     if (
       step === "room-types" ||
-      step === "amenities" ||
       step === "housekeeping" ||
       step === "inventory-rules" ||
       step === "maintenance"
@@ -254,171 +250,81 @@ export function PmsPropertySetupCard2Section({
   }
 
   async function selectStep(target: Card2StepId) {
+    const resolved = resolveCard2NavStep(target);
     const currentIndex = CARD2_STEPS.findIndex((item) => item.id === step);
-    const targetIndex = CARD2_STEPS.findIndex((item) => item.id === target);
+    const targetIndex = CARD2_STEPS.findIndex((item) => item.id === resolved);
     if (step === "housekeeping" && targetIndex > currentIndex) {
       setContinuePending(true);
       const ready = (await actionsRef.current?.saveAndContinue()) ?? false;
       setContinuePending(false);
       if (!ready) return;
     }
-    setStep(target);
+    setStep(resolved);
   }
 
-  const operationalFacts =
-    step === "housekeeping" ? (
-      <PropertySetupPanel
-        title="Housekeeping"
-        icon="housekeeping"
-        helper="Operating setup for this step."
-      >
-        <p className="text-sm text-[#251605]">
-          {amenitiesStatusLabel(housekeepingStatus, housekeepingBlockers)}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {housekeepingBlockers.length} blockers · {housekeepingWarnings.length} warnings
-        </p>
-      </PropertySetupPanel>
-    ) : step === "inventory-rules" && inventoryStats ? (
-      <PropertySetupPanel
-        title="Inventory"
-        icon="inventory"
-        helper="Live inventory counts for this property."
-      >
-        <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <p>Physical rooms: {inventoryStats.physicalRoomCount}</p>
-          <p>Room-level sellable: {inventoryStats.roomLevelSellableCount}</p>
-          <p>Canonical capacity: {inventoryStats.canonicalEngineSellableRoomCount}</p>
-          <p>Block policies: {inventoryStats.blockPoliciesConfigured} / 9</p>
-        </div>
-      </PropertySetupPanel>
-    ) : step === "amenities" && amenitiesStats ? (
-      <PropertySetupPanel title="Amenities" icon="amenity" helper="Configured amenity coverage.">
-        <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <p>Configured: {amenitiesStats.total}</p>
-          <p>Uncategorized: {amenitiesStats.uncategorized}</p>
-          <p>Room types configured: {amenitiesStats.typesConfigured}</p>
-          <p>Rooms with overrides: {amenitiesStats.roomsWithOverrides}</p>
-        </div>
-      </PropertySetupPanel>
-    ) : step === "maintenance" && maintenanceStats ? (
-      <PropertySetupPanel
-        title="Maintenance"
-        icon="maintenance"
-        helper="Status rules and policies."
-      >
-        <div className="grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          <p>Status rules: {maintenanceStats.configuredStatusRules} / 6</p>
-          <p>OOS policy: {maintenanceStats.oosPolicyConfigured ? "Enabled" : "Disabled"}</p>
-          <p>OOO policy: {maintenanceStats.oooPolicyConfigured ? "Enabled" : "Disabled"}</p>
-          <p>
-            Preventive: {maintenanceStats.preventiveMaintenanceEnabled ? "Enabled" : "Disabled"}
-          </p>
-        </div>
-      </PropertySetupPanel>
-    ) : step === "rates-pricing" ? (
-      <PropertySetupPanel
-        title="Rate & Pricing"
-        icon="rate"
-        helper="Master rate plans and standard pricing."
-      >
-        <p className="text-sm text-[#251605]">
-          {amenitiesStatusLabel(ratesStatus, ratesBlockers)}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {ratesBlockers.length} blockers · {ratesWarnings.length} warnings
-        </p>
-      </PropertySetupPanel>
-    ) : step === "meal-plans-packages" ? (
-      <PropertySetupPanel
-        title="Meal Plans & Packages"
-        icon="meal"
-        helper="Meal plans first, then package components, then packages."
-      >
-        <p className="text-sm text-[#251605]">
-          {amenitiesStatusLabel(mealsStatus, mealsBlockers)}
-        </p>
-        <p className="text-sm text-muted-foreground">{mealsBlockers.length} blockers</p>
-      </PropertySetupPanel>
-    ) : null;
+  const canSaveDraft =
+    canEdit &&
+    (step === "room-types" ||
+      step === "housekeeping" ||
+      step === "inventory-rules" ||
+      step === "maintenance");
 
   return (
     <section
-      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#F7F4EE]"
       data-testid="pms-card2-workspace"
       data-card-fullscreen="true"
     >
-      <div className="min-w-0 flex-1" data-testid="pms-card2-fullscreen">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="pms-card2-fullscreen">
         <PropertySetupWorkspaceShell
           cardNumber={2}
+          fill
           status={cardStatus}
-          description={CARD2_SUBTITLE}
-          sections={railSections}
-          complete={counts.complete}
-          inProgress={counts.inProgress}
-          notStarted={counts.notStarted}
-          blockers={railBlockers}
-          warnings={railWarnings}
           onBack={goBack}
-          onSaveDraft={
-            canEdit &&
-            (step === "room-types" ||
-              step === "amenities" ||
-              step === "housekeeping" ||
-              step === "inventory-rules" ||
-              step === "maintenance")
-              ? () => void actionsRef.current?.saveDraft()
-              : undefined
-          }
+          onSaveDraft={canSaveDraft ? () => void actionsRef.current?.saveDraft() : undefined}
           saveDraftDisabled={!canEdit}
           continueDisabled={!canEdit}
           continuePending={continuePending}
+          continueLabel={next ? "Save & Continue" : "Save & Finish"}
           onContinue={() => void goContinue()}
           footerTestId="pms-card2-chrome"
-          rail={
-            <div data-testid="pms-card2-status-rail">
-              <PropertySetupStatusRail
-                sections={railSections}
-                complete={counts.complete}
-                inProgress={counts.inProgress}
-                notStarted={counts.notStarted}
-                blockers={railBlockers}
-                warnings={railWarnings}
-              />
-            </div>
-          }
           stepNav={
             <div data-testid="pms-card2-steps">
               <PropertySetupStepNav
-                activeId={step}
+                marked
+                activeId={
+                  step === "amenities"
+                    ? "room-types"
+                    : step === "meal-plans-packages"
+                      ? "rates-pricing"
+                      : step
+                }
                 onSelect={(id) => void selectStep(id as Card2StepId)}
-                steps={railSections.map((row, index) => ({
-                  id: row.id,
-                  number: index + 1,
-                  title: row.title,
-                  status: row.status,
-                }))}
+                steps={navSections}
               />
             </div>
           }
         >
-          <div className="space-y-4" data-testid={`pms-card2-step-${step}`}>
-            {operationalFacts}
-            {step === "room-types" ? (
+          <div className="space-y-3" data-testid={`pms-card2-step-${step}`}>
+            {stepBlockers.length > 0 || stepWarnings.length > 0 ? (
+              <div
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                data-testid="pms-card2-step-notice"
+              >
+                {stepBlockers[0] ?? stepWarnings[0]}
+                {stepBlockers.length + stepWarnings.length > 1 ? (
+                  <span className="text-amber-800/80">
+                    {" "}
+                    · {stepBlockers.length + stepWarnings.length - 1} more
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+            {step === "room-types" || step === "amenities" ? (
               <PmsPropertySetupCard2RoomTypes
                 restaurantId={restaurantId}
                 canEdit={canEdit}
                 onReadiness={onRoomTypesReadiness}
-                registerActions={(actions) => {
-                  actionsRef.current = actions;
-                }}
-              />
-            ) : step === "amenities" ? (
-              <PmsPropertySetupCard2Amenities
-                restaurantId={restaurantId}
-                canEdit={canEdit}
-                onReadiness={onAmenitiesReadiness}
-                onStats={setAmenitiesStats}
                 registerActions={(actions) => {
                   actionsRef.current = actions;
                 }}
@@ -452,19 +358,12 @@ export function PmsPropertySetupCard2Section({
                   actionsRef.current = actions;
                 }}
               />
-            ) : step === "rates-pricing" ? (
+            ) : step === "rates-pricing" || step === "meal-plans-packages" ? (
               <PmsPropertySetupCard2Rates
                 restaurantId={restaurantId}
                 canEdit={canEdit}
                 onReadiness={onRatesReadiness}
                 onNavigateToRoomTypes={() => setStep("room-types")}
-              />
-            ) : step === "meal-plans-packages" ? (
-              <PmsPropertySetupCard3Meals
-                restaurantId={restaurantId}
-                canEdit={canEdit}
-                embedded
-                onReadiness={onMealsReadiness}
               />
             ) : (
               <PropertySetupPanel title={current.title} icon="room">

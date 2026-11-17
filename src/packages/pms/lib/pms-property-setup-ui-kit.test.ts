@@ -216,7 +216,14 @@ describe("Property Setup Phase A UI kit", () => {
     }));
     for (const card of cards) {
       assert.match(card.source, /PropertySetupWorkspaceShell/, `card ${card.number} shell`);
-      assert.match(card.source, /PropertySetupStatusRail/, `card ${card.number} rail`);
+      // Card 2 matches Property & Business chrome (marked pills + fill footer); no local status-summary rail.
+      if (card.number === 2) {
+        assert.match(card.source, /\bfill\b/, `card ${card.number} fill`);
+        assert.match(card.source, /marked/, `card ${card.number} marked`);
+        assert.doesNotMatch(card.source, /PropertySetupStatusRail/, `card ${card.number} rail`);
+      } else {
+        assert.match(card.source, /PropertySetupStatusRail/, `card ${card.number} rail`);
+      }
       assert.doesNotMatch(card.source, /CARD1_PMS_NAV/, `card ${card.number} nav`);
       assert.doesNotMatch(card.source, /PmsPropertySetupWorkspace/, `card ${card.number} legacy`);
     }

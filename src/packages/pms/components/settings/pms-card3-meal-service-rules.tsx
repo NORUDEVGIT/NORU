@@ -1,3 +1,8 @@
+/**
+ * @deprecated Meal Service Rules are retired from Rooms & Operations → Meal Plans & Packages.
+ * Kept for legacy operational entitlement/kitchen forecasting consumers. Do not re-mount in
+ * commercial Meal Plan / Package setup UI. Storage + saveMealApplicabilityPolicyCard3 remain.
+ */
 import { useEffect, useState } from "react";
 import { Baby, Coffee, Loader2, Moon, Save, SunMedium, type LucideIcon } from "lucide-react";
 
@@ -21,6 +26,7 @@ import type {
 
 const NONE = "none";
 
+/** @deprecated See file header — not part of active Meal Plans & Packages UI. */
 export function PmsCard3MealServiceRules({
   policy,
   departments,
