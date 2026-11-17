@@ -20,6 +20,7 @@ import {
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import { RoomTypeWizard } from "@/packages/pms/components/settings/room-type-wizard/room-type-wizard";
 import type { WizardStepId } from "@/packages/pms/components/settings/room-type-wizard/room-type-wizard-types";
+import { PropertySetupPanel } from "@/packages/pms/components/settings/setup-kit";
 
 export function PmsPropertySetupCard2RoomTypes({
   restaurantId,
@@ -102,7 +103,7 @@ export function PmsPropertySetupCard2RoomTypes({
   }
 
   return (
-    <div className="space-y-4" data-testid="pms-card2-room-types-form">
+    <div className="space-y-3" data-testid="pms-card2-room-types-form">
       {wizard ? (
         <RoomTypeWizard
           key={`${wizard.type?.id ?? "create"}-${wizard.initialStep ?? 1}`}
@@ -121,22 +122,24 @@ export function PmsPropertySetupCard2RoomTypes({
         />
       ) : null}
 
-      <section>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-display text-lg text-[#251605]">Room Types</h3>
+      <PropertySetupPanel
+        title="Room Types"
+        helper="Configure the room types and physical rooms available at this property."
+        icon="room"
+        testId="pms-card2-room-types"
+        action={
           <Button
             type="button"
-            variant="outline"
-            size="sm"
+            className="h-9 border border-[#C89933] bg-[#C89933] px-3 text-sm font-medium text-white hover:bg-[#B8892A]"
             disabled={disabled}
             onClick={openCreate}
           >
             <Plus className="mr-1 h-4 w-4" />
             New room type
           </Button>
-        </div>
-
-        <div className="mt-3 overflow-x-auto rounded-lg border border-[#E6DFD3] bg-white">
+        }
+      >
+        <div className="overflow-x-auto rounded-lg border border-[#E6DFD3]">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-[#F7F4EE] text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -243,7 +246,7 @@ export function PmsPropertySetupCard2RoomTypes({
             </tbody>
           </table>
         </div>
-      </section>
+      </PropertySetupPanel>
     </div>
   );
 }

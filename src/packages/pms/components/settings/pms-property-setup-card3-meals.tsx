@@ -75,21 +75,12 @@ import {
 
 } from "@/packages/pms/lib/meals-card3.functions";
 
-import { PmsCard3MealServiceRules } from "@/packages/pms/components/settings/pms-card3-meal-service-rules";
-
+import { PackageBenefitsServicesSection } from "@/packages/pms/components/settings/package-benefits-services-section";
 import {
-
-  saveMealApplicabilityPolicyCard3,
-
-} from "@/packages/pms/lib/meals-card3.functions";
-
-import {
-
-  SERVICE_TIMING_LABELS,
-
-  type MealApplicabilityCard3,
-
-} from "@/packages/pms/lib/meals-card3.server";
+  isValidPackageCode,
+  PACKAGE_CODE_STAFF_HINT,
+  suggestPackageCode,
+} from "@/packages/pms/lib/meals-package-code";
 
 import type { ServiceDateRule } from "@/packages/pms/lib/service-entitlement";
 
@@ -120,6 +111,8 @@ import {
   PACKAGE_INCLUSION_TYPES,
 
   PACKAGE_TYPE_LABELS,
+
+  SERVICE_TIMING_LABELS,
 
   TAX_POSTURE_LABELS,
 
@@ -209,6 +202,8 @@ type PackageInput = {
 
   active: boolean;
 
+  serviceTypeIds: string[];
+
   roomTypeIds: string[];
 
   ratePlanIds: string[];
@@ -287,6 +282,8 @@ function matchesQuery(query: string, ...values: string[]) {
 
 
 
+export type MealsCatalogueMode = "all" | "meals" | "packages";
+
 export function PmsPropertySetupCard3Meals({
 
   restaurantId,
@@ -297,7 +294,13 @@ export function PmsPropertySetupCard3Meals({
 
   embedded = false,
 
+  catalogueMode = "all",
+
   onReadiness,
+
+  onMealPlanCreated,
+
+  onPackageCreated,
 
 }: {
 
@@ -309,11 +312,21 @@ export function PmsPropertySetupCard3Meals({
 
   embedded?: boolean;
 
+  /** Catalogue admin only — Rate Plan Step 3 Manage catalogue / Manage packages overlays. */
+  catalogueMode?: MealsCatalogueMode;
+
   onReadiness?: (status: PropertySetupCardStatus, blockers: string[]) => void;
 
   onBack?: () => void;
 
+  onMealPlanCreated?: (mealPlanId: string) => void;
+
+  onPackageCreated?: (packageId: string) => void;
+
 }) {
+  const showMeals = catalogueMode === "all" || catalogueMode === "meals";
+  const showPackages = catalogueMode === "all" || catalogueMode === "packages";
+  const catalogueOnly = catalogueMode !== "all";
 
   const queryClient = useQueryClient();
 
@@ -328,8 +341,6 @@ export function PmsPropertySetupCard3Meals({
   const saveComponent = useServerFn(savePackageComponentCard3);
 
   const deleteComponent = useServerFn(deletePackageComponentCard3);
-
-const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
 
   const [mealSearch, setMealSearch] = useState("");
 
@@ -474,6 +485,8 @@ const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
 
     void queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
 
+    void queryClient.invalidateQueries({ queryKey: ["pms-card2-rates", restaurantId] });
+
   }
 
 
@@ -482,13 +495,25 @@ const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
 
     mutationFn: (input: MealPlanInput) => saveMeal({ data: input }),
 
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
 
       toast.success("Meal plan saved.");
 
       setMealDraft(null);
 
       invalidate();
+
+      if (!variables.id) {
+
+        const created = result?.snapshot?.mealPlans?.find(
+
+          (row) => row.code.trim().toUpperCase() === variables.code.trim().toUpperCase(),
+
+        );
+
+        if (created) onMealPlanCreated?.(created.id);
+
+      }
 
     },
 
@@ -499,18 +524,6 @@ const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
   const packageMutation = useMutation({
 
     mutationFn: (input: PackageInput) => savePackage({ data: input }),
-
-    onSuccess: () => {
-
-      toast.success("Package saved.");
-
-      setPackageDraft(null);
-
-      invalidate();
-
-    },
-
-    onError: (error: Error) => toast.error(error.message),
 
   });
 
@@ -551,25 +564,6 @@ const saveMealRules = useServerFn(saveMealApplicabilityPolicyCard3);
 
 
   void CARD3_MEALS_TABS;
-
-const mealRulesMutation = useMutation({
-
-  mutationFn: (policy: MealApplicabilityCard3) =>
-
-    saveMealRules({ data: { restaurantId, ...policy } }),
-
-  onSuccess: () => {
-
-    toast.success("Meal service rules saved.");
-
-    invalidate();
-
-  },
-
-  onError: (error: Error) => toast.error(error.message),
-
-});
-
   void componentDraft;
 
 
@@ -592,22 +586,25 @@ const mealRulesMutation = useMutation({
 
       ) : (
 
-        <div className="space-y-4" data-testid="pms-card3-meals">
+        <div
+          className="space-y-4"
+          data-testid="pms-card3-meals"
+          data-catalogue-mode={catalogueMode}
+        >
 
-          <Card3InheritedStrip>
+          {!catalogueOnly ? (
+            <Card3InheritedStrip>
 
-            Room types are inherited from Card 2. Rate plans are inherited from Phase 3. Room
+              Configure meal plans and packages available for rate plans at this property.
 
-            amenities are reused from Rooms & Operations. This configuration makes no reservation or
-
-            folio operational changes.
-
-          </Card3InheritedStrip>
+            </Card3InheritedStrip>
+          ) : null}
 
 
 
           {/* ── Meal Plans list ── */}
 
+          {showMeals ? (
           <Card3ListSection
 
             title="Meal plans"
@@ -622,7 +619,7 @@ const mealRulesMutation = useMutation({
 
             canEdit={canEdit}
 
-            addLabel="Add meal plan"
+            addLabel="Add Meal Plan"
 
             onAdd={() => setMealDraft("new")}
 
@@ -669,33 +666,15 @@ const mealRulesMutation = useMutation({
             }))}
 
           />
+          ) : null}
 
 
 
-          {/* ── Package Master list — unified entry point (Phase B) ── */}
+          {/* Package components live inside Package Master → Includes.
+              Meal Service Rules UI retired — operational kitchen schedules are not
+              commercial Meal Plan/Package setup. Legacy policy storage remains. */}
 
-<PmsCard3MealServiceRules
-
-  policy={snapshot.mealPolicy}
-
-  departments={snapshot.departments}
-
-  canEdit={canEdit}
-
-  pending={mealRulesMutation.isPending}
-
-  onSave={(policy) => mealRulesMutation.mutate(policy)}
-
-/>
-
-          {/* "Package rate plan types" and "Package components" are retired as
-
-              peer primary lists. Their data is preserved in snapshot. They will
-
-              be nested inside this editor in Phase E (Includes) and Phase F
-
-              (Applicability). */}
-
+          {showPackages ? (
           <Card3ListSection
 
             title="Packages"
@@ -710,11 +689,13 @@ const mealRulesMutation = useMutation({
 
             canEdit={canEdit}
 
-            addLabel="Add package"
+            addLabel="Add Package"
 
             onAdd={() => setPackageDraft("new")}
 
             columns={[
+
+              ...(catalogueMode === "packages" ? ["Cover"] : []),
 
               "Code",
 
@@ -738,6 +719,23 @@ const mealRulesMutation = useMutation({
 
               cells: [
 
+                ...(catalogueMode === "packages"
+                  ? [
+                      row.coverUrl ? (
+                        <img
+                          key={`${row.id}-cover`}
+                          src={row.coverUrl}
+                          alt=""
+                          className="h-8 w-10 rounded object-cover"
+                        />
+                      ) : (
+                        <span key={`${row.id}-cover`} className="text-muted-foreground">
+                          —
+                        </span>
+                      ),
+                    ]
+                  : []),
+
                 row.code,
 
                 row.name,
@@ -757,11 +755,13 @@ const mealRulesMutation = useMutation({
             }))}
 
           />
+          ) : null}
 
 
 
           {/* ── Editors ── */}
 
+          {showMeals ? (
           <MealPlanSheet
 
             key={mealDraft === "new" ? "meal-new" : (mealDraft?.id ?? "meal-closed")}
@@ -774,11 +774,14 @@ const mealRulesMutation = useMutation({
 
             pending={mealMutation.isPending}
 
+            className={catalogueOnly ? "z-[90]" : undefined}
+
             onClose={() => setMealDraft(null)}
 
             onSave={(payload) => mealMutation.mutate({ restaurantId, ...payload })}
 
           />
+          ) : null}
 
 
 
@@ -786,6 +789,7 @@ const mealRulesMutation = useMutation({
 
               Writer: savePackageCard3 (canonical). No second package writer. */}
 
+          {showPackages ? (
           <PackageMasterEditor
 
             key={packageDraft === "new" ? "package-new" : (packageDraft?.id ?? "package-closed")}
@@ -812,21 +816,44 @@ const mealRulesMutation = useMutation({
 
             departments={snapshot.departments}
 
+            guestServiceCategories={snapshot.guestServiceCategories}
+
+            guestServiceTypes={snapshot.guestServiceTypes}
+
+            existingPackages={packages}
+
             value={packageDraft === "new" || packageDraft === null ? null : packageDraft}
 
             pending={packageMutation.isPending}
 
             componentPending={componentMutation.isPending || deleteMutation.isPending}
 
+            className={catalogueOnly ? "z-[90]" : undefined}
+
             onClose={() => setPackageDraft(null)}
 
-            onSave={(payload) => packageMutation.mutate({ restaurantId, ...payload })}
+            onSave={async (payload) => {
+              const wasCreate = !payload.id;
+              const result = await packageMutation.mutateAsync({ restaurantId, ...payload });
+              const saved = result?.snapshot?.packages?.find(
+                (row) => row.code.trim().toUpperCase() === payload.code.trim().toUpperCase(),
+              );
+              if (!saved) throw new Error("Package could not be saved.");
+              if (wasCreate) onPackageCreated?.(saved.id);
+              return { id: saved.id, name: saved.name };
+            }}
+
+            onSaved={() => {
+              toast.success("Package saved.");
+              invalidate();
+            }}
 
             onSaveComponent={(payload) => componentMutation.mutate({ restaurantId, ...payload })}
 
             onDeleteComponent={(id) => deleteMutation.mutate(id)}
 
           />
+          ) : null}
 
         </div>
 
@@ -1185,33 +1212,85 @@ export function MealPlanSheet({
 
 // ---------------------------------------------------------------------------
 
-// Package Master Editor — Phase B + Phase E + Phase F
+// Package Master Editor
 
 // ---------------------------------------------------------------------------
 
-// Section structure (see package-master-refactor-plan.md §4 Phase B):
+// Active sections:
 
-//   1. Basic Information  ← live (code, name, type/category, description, active)
+//   1. Basic Information  (code, name, type/category, description, active)
 
-//   2. Pricing            ← live (package_price in property currency)
+//   2. Pricing            (package_price, charge basis)
 
-//   3. Includes           ← live — Phase E
+//   3. Benefits & Services (Guest Service Types via pms_packages.inclusion)
 
-//   4. Applicability      ← live — Phase F (room types + rate plans + inclusion_type)
-
-//   5. Cover Image        ← placeholder — Phase C
+//   4. Cover Image
 
 //
 
 // Writer: savePackageCard3 (canonical). No second package writer created here.
 
-// Applicability state is edited locally and persisted through savePackageCard3.
+// Legacy room/rate applicability links are preserved on save (not edited here).
+
+// Rate Plan will own package assignment.
 
 // ---------------------------------------------------------------------------
 
 
 
 // ---------------------------------------------------------------------------
+
+function validatePackageCoverFile(file: File): string | null {
+  if (!(PACKAGE_COVER_CONTENT_TYPES as readonly string[]).includes(file.type)) {
+    return "Use a JPG, PNG, or WebP image.";
+  }
+  if (file.size > PACKAGE_COVER_MAX_BYTES) {
+    return "Images must be 8 MB or smaller.";
+  }
+  return null;
+}
+
+async function uploadPackageCoverFile(input: {
+  restaurantId: string;
+  packageId: string;
+  file: File;
+  startUpload: (args: {
+    data: {
+      restaurantId: string;
+      packageId: string;
+      contentType: (typeof PACKAGE_COVER_CONTENT_TYPES)[number];
+      size: number;
+    };
+  }) => Promise<{ ok: boolean; path?: string; token?: string; message?: string }>;
+  setCover: (args: {
+    data: { restaurantId: string; packageId: string; storagePath: string };
+  }) => Promise<unknown>;
+}) {
+  const ticket = await input.startUpload({
+    data: {
+      restaurantId: input.restaurantId,
+      packageId: input.packageId,
+      contentType: input.file.type as (typeof PACKAGE_COVER_CONTENT_TYPES)[number],
+      size: input.file.size,
+    },
+  });
+  if (!ticket.ok || !ticket.path || !ticket.token) {
+    throw new Error(ticket.message ?? "Could not start the upload.");
+  }
+  const uploaded = await supabase.storage
+    .from("property-images")
+    .uploadToSignedUrl(ticket.path, ticket.token, input.file);
+  if (uploaded.error) {
+    throw new Error("Upload failed.");
+  }
+  await input.setCover({
+    data: {
+      restaurantId: input.restaurantId,
+      packageId: input.packageId,
+      storagePath: ticket.path,
+    },
+  });
+}
 
 function PackageCoverSection({
   restaurantId,
@@ -1219,12 +1298,22 @@ function PackageCoverSection({
   packageName,
   coverUrl,
   canEdit,
+  pendingFile,
+  pendingPreviewUrl,
+  onSelectPending,
+  onClearPending,
+  busy: busyExternal = false,
 }: {
   restaurantId: string;
   packageId: string | null;
   packageName: string;
   coverUrl: string | null;
   canEdit: boolean;
+  pendingFile: File | null;
+  pendingPreviewUrl: string | null;
+  onSelectPending: (file: File) => void;
+  onClearPending: () => void;
+  busy?: boolean;
 }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1233,6 +1322,11 @@ function PackageCoverSection({
   const startUpload = useServerFn(createPackageCoverUpload);
   const setCover = useServerFn(setPackageCoverImage);
   const removeCover = useServerFn(removePackageCoverImage);
+
+  const working = busy || busyExternal;
+  const deferUpload = !packageId;
+  const displayUrl = pendingPreviewUrl || coverUrl;
+  const hasImage = Boolean(displayUrl);
 
   function resetFile() {
     if (fileRef.current) fileRef.current.value = "";
@@ -1243,41 +1337,33 @@ function PackageCoverSection({
   }
 
   async function onFile(file: File | undefined) {
-    if (!packageId || !canEdit || !file) return;
-    if (!(PACKAGE_COVER_CONTENT_TYPES as readonly string[]).includes(file.type)) {
-      toast.error("Use a JPG, PNG, or WebP image.");
+    if (!canEdit || !file) return;
+    const invalid = validatePackageCoverFile(file);
+    if (invalid) {
+      toast.error(invalid);
       resetFile();
       return;
     }
-    if (file.size > PACKAGE_COVER_MAX_BYTES) {
-      toast.error("Images must be 8 MB or smaller.");
+
+    // Create mode (or pending retry): keep File locally — do not upload yet.
+    if (deferUpload || pendingFile) {
+      onSelectPending(file);
+      setConfirmRemove(false);
       resetFile();
       return;
     }
+
+    if (!packageId) return;
     setBusy(true);
     try {
-      const ticket = await startUpload({
-        data: {
-          restaurantId,
-          packageId,
-          contentType: file.type as (typeof PACKAGE_COVER_CONTENT_TYPES)[number],
-          size: file.size,
-        },
+      await uploadPackageCoverFile({
+        restaurantId,
+        packageId,
+        file,
+        startUpload,
+        setCover,
       });
-      if (!ticket.ok) {
-        toast.error(ticket.message ?? "Could not start the upload.");
-        return;
-      }
-      const uploaded = await supabase.storage
-        .from("property-images")
-        .uploadToSignedUrl(ticket.path, ticket.token, file);
-      if (uploaded.error) {
-        toast.error("Upload failed.");
-        return;
-      }
-      await setCover({
-        data: { restaurantId, packageId, storagePath: ticket.path },
-      });
+      onClearPending();
       await refreshCover();
       toast.success(coverUrl ? "Cover image replaced." : "Cover image uploaded.");
       setConfirmRemove(false);
@@ -1289,7 +1375,7 @@ function PackageCoverSection({
     }
   }
 
-  async function onRemove() {
+  async function onRemovePersisted() {
     if (!packageId || !canEdit) return;
     setBusy(true);
     try {
@@ -1304,114 +1390,126 @@ function PackageCoverSection({
     }
   }
 
+  function onRemoveClick() {
+    if (pendingFile || pendingPreviewUrl) {
+      onClearPending();
+      setConfirmRemove(false);
+      return;
+    }
+    if (!packageId) return;
+    if (!confirmRemove) {
+      setConfirmRemove(true);
+      return;
+    }
+    void onRemovePersisted();
+  }
+
   return (
     <div
       className="space-y-3 rounded-xl border border-[#E7E0D4] bg-white px-4 py-3"
       data-testid="package-master-section-cover"
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#9B9083]">5. Cover Image</p>
-      {!packageId ? (
-        <p className="text-xs text-muted-foreground" data-testid="pkg-cover-unsaved">
-          Save the package first to add a cover image.
-        </p>
-      ) : (
-        <>
-          <div className="aspect-[16/10] w-full max-w-xs overflow-hidden rounded-xl border border-[#DDD4C5] bg-[#FAF8F4]">
-            {coverUrl ? (
-              <img
-                src={coverUrl}
-                alt={packageName || "Package cover"}
-                className="h-full w-full object-cover"
-                data-testid="pkg-cover-preview"
-              />
-            ) : (
-              <div
-                className="flex h-full min-h-28 items-center justify-center px-3 text-center text-xs text-muted-foreground"
-                data-testid="pkg-cover-empty"
-              >
-                No cover image
-              </div>
-            )}
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#9B9083]">4. Cover Image</p>
+      <p className="text-xs text-muted-foreground">
+        Add a cover image for booking pages and package presentation.
+      </p>
+      <div className="aspect-[16/10] w-full max-w-xs overflow-hidden rounded-xl border border-[#DDD4C5] bg-[#FAF8F4]">
+        {hasImage ? (
+          <img
+            src={displayUrl ?? undefined}
+            alt={packageName || "Package cover"}
+            className="h-full w-full object-cover"
+            data-testid="pkg-cover-preview"
+          />
+        ) : (
+          <div
+            className="flex h-full min-h-28 items-center justify-center px-3 text-center text-xs text-muted-foreground"
+            data-testid="pkg-cover-empty"
+          >
+            No cover image
           </div>
-          <p className="text-[11px] text-muted-foreground">JPG, PNG, or WebP. Max 8 MB.</p>
-          {canEdit ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                data-testid="pkg-cover-file"
-                onChange={(event) => void onFile(event.target.files?.[0])}
-              />
-              {coverUrl ? (
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Optional. JPG, PNG, or WebP. Max 8 MB.
+        {pendingFile ? " Selected image will upload when you save the package." : null}
+      </p>
+      {canEdit ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            data-testid="pkg-cover-file"
+            onChange={(event) => void onFile(event.target.files?.[0])}
+          />
+          {hasImage ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={working}
+                data-testid="pkg-cover-replace"
+                onClick={() => fileRef.current?.click()}
+              >
+                {working ? "Working…" : "Replace Image"}
+              </Button>
+              {confirmRemove && !pendingFile && packageId ? (
                 <>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={busy}
-                    data-testid="pkg-cover-replace"
-                    onClick={() => fileRef.current?.click()}
+                    disabled={working}
+                    data-testid="pkg-cover-remove-confirm"
+                    onClick={() => void onRemovePersisted()}
                   >
-                    {busy ? "Working…" : "Replace Image"}
+                    Remove cover
                   </Button>
-                  {confirmRemove ? (
-                    <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={busy}
-                        data-testid="pkg-cover-remove-confirm"
-                        onClick={() => void onRemove()}
-                      >
-                        Remove cover
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy}
-                        onClick={() => setConfirmRemove(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      data-testid="pkg-cover-remove"
-                      onClick={() => setConfirmRemove(true)}
-                    >
-                      Remove Image
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={working}
+                    onClick={() => setConfirmRemove(false)}
+                  >
+                    Cancel
+                  </Button>
                 </>
               ) : (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={busy}
-                  data-testid="pkg-cover-upload"
-                  onClick={() => fileRef.current?.click()}
+                  disabled={working}
+                  data-testid="pkg-cover-remove"
+                  onClick={onRemoveClick}
                 >
-                  {busy ? "Working…" : "Upload Cover Image"}
+                  Remove Image
                 </Button>
               )}
-            </div>
-          ) : null}
-        </>
-      )}
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={working}
+              data-testid="pkg-cover-upload"
+              onClick={() => fileRef.current?.click()}
+            >
+              {working ? "Working…" : "Upload Cover Image"}
+            </Button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function PackageMasterEditor({
+export function PackageMasterEditor({
 
   open,
 
@@ -1420,10 +1518,6 @@ function PackageMasterEditor({
   canEdit,
 
   currencyCode,
-
-  roomTypes,
-
-  ratePlans,
 
   components,
 
@@ -1435,6 +1529,12 @@ function PackageMasterEditor({
 
   departments,
 
+  guestServiceCategories = [],
+
+  guestServiceTypes = [],
+
+  existingPackages = [],
+
   value,
 
   pending,
@@ -1445,9 +1545,13 @@ function PackageMasterEditor({
 
   onSave,
 
+  onSaved,
+
   onSaveComponent,
 
   onDeleteComponent,
+
+  className,
 
 }: {
 
@@ -1459,19 +1563,31 @@ function PackageMasterEditor({
 
   currencyCode: string;
 
-  roomTypes: MealsCard3Snapshot["roomTypes"];
+  /** @deprecated Legacy prop — room/rate applicability is no longer edited in Package Master. */
+  roomTypes?: MealsCard3Snapshot["roomTypes"];
 
-  ratePlans: MealsCard3Snapshot["ratePlans"];
+  /** @deprecated Legacy prop — room/rate applicability is no longer edited in Package Master. */
+  ratePlans?: MealsCard3Snapshot["ratePlans"];
 
+  /** @deprecated Legacy typed components — Meal Plans / Amenities no longer edited here. */
   components: PackageComponentCard3Row[];
 
+  /** @deprecated Legacy — Meal Plans are Rate Plan owned. */
   mealPlans: MealsCard3Snapshot["mealPlans"];
 
+  /** @deprecated Legacy — Room Amenities are Room Type owned. */
   roomAmenities: MealsCard3Snapshot["roomAmenities"];
 
+  /** @deprecated Legacy FO catalogue — Benefits & Services uses Guest Service Types. */
   foServices: MealsCard3Snapshot["foServices"];
 
   departments: MealsCard3Snapshot["departments"];
+
+  guestServiceCategories?: MealsCard3Snapshot["guestServiceCategories"];
+
+  guestServiceTypes?: MealsCard3Snapshot["guestServiceTypes"];
+
+  existingPackages?: ReadonlyArray<{ id: string; code: string }>;
 
   value: PackageCard3Row | null;
 
@@ -1479,8 +1595,14 @@ function PackageMasterEditor({
 
   componentPending: boolean;
 
+  className?: string;
+
   onClose: () => void;
 
+  /**
+   * Persist package identity / pricing / benefits.
+   * Must return the saved package id so Cover Image can upload afterward.
+   */
   onSave: (payload: {
 
     id?: string;
@@ -1499,13 +1621,18 @@ function PackageMasterEditor({
 
     active: boolean;
 
+    serviceTypeIds: string[];
+
     roomTypeIds: string[];
 
     ratePlanIds: string[];
 
     ratePlanLinks: { ratePlanId: string; inclusionType: PackageInclusionType }[];
 
-  }) => void;
+  }) => Promise<{ id: string; name: string }>;
+
+  /** Called after package + optional cover succeed, before the editor closes. */
+  onSaved?: (pkg: { id: string; name: string }) => void;
 
   onSaveComponent: (
 
@@ -1566,15 +1693,13 @@ function PackageMasterEditor({
 }) {
 
   // Section 1 — Basic Information
-
+  // Create: code auto-fills from name until manually edited. Edit: never overwrite stored code.
   const [code, setCode] = useState(value?.code ?? "");
-
   const [name, setName] = useState(value?.name ?? "");
-
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(Boolean(value?.code));
+  const [codeTouched, setCodeTouched] = useState(false);
   const [type, setType] = useState<PackageType>(value?.type ?? "accommodation");
-
   const [description, setDescription] = useState(value?.description ?? "");
-
   const [active, setActive] = useState(value?.active ?? true);
 
 
@@ -1589,319 +1714,160 @@ function PackageMasterEditor({
 
 
 
-  // Section 3 — Includes (Phase E)
-
-  const [inclusionDraft, setInclusionDraft] = useState<{
-
-    id?: string;
-
-    kind: PackageComponentKind;
-
-    sourceId: string;
-
-    quantity: number;
-
-    sortOrder: number;
-
-    requiresFulfillment: boolean;
-
-    departmentId: string | null;
-
-    serviceDateRule: ServiceDateRule | null;
-
-  } | null>(null);
-
-
-
-  const packageComponents = useMemo(() => {
-
-    if (!value?.id) return [];
-
-    return components
-
-      .filter((c) => c.packageId === value.id)
-
-      .sort((a, b) => {
-
-        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-
-        return a.sourceLabel.localeCompare(b.sourceLabel) || a.id.localeCompare(b.id);
-
-      });
-
-  }, [components, value?.id]);
-
-
-
-  const draftKind = inclusionDraft?.kind;
-
-  const draftSources = useMemo(() => {
-
-    if (!draftKind) return [];
-
-    if (draftKind === "meal_plan") return mealPlans;
-
-    if (draftKind === "room_amenity") return roomAmenities;
-
-    return foServices;
-
-  }, [draftKind, mealPlans, roomAmenities, foServices]);
-
-
-
-  function changeDraftKind(nextKind: PackageComponentKind) {
-
-    const nextSources =
-
-      nextKind === "meal_plan"
-
-        ? mealPlans
-
-        : nextKind === "room_amenity"
-
-          ? roomAmenities
-
-          : foServices;
-
-    setInclusionDraft((prev) =>
-
-      prev
-
-        ? {
-
-          ...prev,
-
-          kind: nextKind,
-
-          sourceId: nextSources[0]?.id ?? "",
-
-        }
-
-        : null,
-
-    );
-
-  }
-
-
-
-  function startAddInclusion() {
-
-    const nextKind: PackageComponentKind = "meal_plan";
-
-    const initialSource = mealPlans[0]?.id ?? roomAmenities[0]?.id ?? foServices[0]?.id ?? "";
-
-    const nextSortOrder =
-
-      packageComponents.length > 0 ? Math.max(...packageComponents.map((c) => c.sortOrder)) + 1 : 0;
-
-    setInclusionDraft({
-
-      kind: nextKind,
-
-      sourceId: initialSource,
-
-      quantity: 1,
-
-      sortOrder: nextSortOrder,
-
-      requiresFulfillment: false,
-
-      departmentId: null,
-
-      serviceDateRule: null,
-
-    });
-
-  }
-
-
-
-  function startEditInclusion(comp: PackageComponentCard3Row) {
-
-    const sourceId = comp.mealPlanId || comp.roomAmenityId || comp.foServiceId || "";
-
-    setInclusionDraft({
-
-      id: comp.id,
-
-      kind: comp.kind,
-
-      sourceId,
-
-      quantity: comp.quantity,
-
-      sortOrder: comp.sortOrder,
-
-      requiresFulfillment: comp.requiresFulfillment,
-
-      departmentId: comp.departmentId,
-
-      serviceDateRule: comp.serviceDateRule,
-
-    });
-
-  }
-
-
-
-  function saveDraftInclusion() {
-
-    if (!value?.id || !inclusionDraft || !inclusionDraft.sourceId) return;
-
-    if (inclusionDraft.quantity <= 0 || inclusionDraft.sortOrder < 0) return;
-
-
-
-    if (inclusionDraft.requiresFulfillment && !inclusionDraft.departmentId) return;
-
-    if (
-
-      inclusionDraft.requiresFulfillment &&
-
-      inclusionDraft.kind !== "meal_plan" &&
-
-      !inclusionDraft.serviceDateRule
-
-    ) {
-
-      return;
-
-    }
-
-    const base = {
-
-      ...(inclusionDraft.id ? { id: inclusionDraft.id } : {}),
-
-      packageId: value.id,
-
-      quantity: inclusionDraft.quantity,
-
-      sortOrder: inclusionDraft.sortOrder,
-
-      requiresFulfillment: inclusionDraft.requiresFulfillment,
-
-      departmentId: inclusionDraft.requiresFulfillment ? inclusionDraft.departmentId : null,
-
-      serviceDateRule:
-
-        inclusionDraft.requiresFulfillment && inclusionDraft.kind !== "meal_plan"
-
-          ? inclusionDraft.serviceDateRule
-
-          : null,
-
+  // Section 3 — Benefits & Services (Guest Service Types)
+  // Held in local modal state so create can select services before first save.
+  const [selectedServiceTypeIds, setSelectedServiceTypeIds] = useState<string[]>(
+    () => value?.serviceTypeIds ?? [],
+  );
+
+  // Section 4 — Cover Image local draft (upload after package id exists).
+  const queryClient = useQueryClient();
+  const [persistedPackageId, setPersistedPackageId] = useState<string | null>(
+    () => value?.id ?? null,
+  );
+  const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
+  const [pendingCoverPreviewUrl, setPendingCoverPreviewUrl] = useState<string | null>(null);
+  const [savingPackage, setSavingPackage] = useState(false);
+
+  const startUpload = useServerFn(createPackageCoverUpload);
+  const setCover = useServerFn(setPackageCoverImage);
+
+  // Silence unused legacy props retained for caller compatibility.
+  void components;
+  void mealPlans;
+  void roomAmenities;
+  void foServices;
+  void departments;
+  void componentPending;
+  void onSaveComponent;
+  void onDeleteComponent;
+
+  useEffect(() => {
+    return () => {
+      if (pendingCoverPreviewUrl) URL.revokeObjectURL(pendingCoverPreviewUrl);
     };
+  }, [pendingCoverPreviewUrl]);
 
+  function selectPendingCover(file: File) {
+    setPendingCoverPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setPendingCoverFile(file);
+  }
 
+  function clearPendingCover() {
+    setPendingCoverPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setPendingCoverFile(null);
+  }
 
-    if (inclusionDraft.kind === "meal_plan") {
+  const normalizedCode = code.trim().toUpperCase();
+  const selfPackageId = persistedPackageId ?? value?.id ?? null;
+  const codeFormatInvalid = Boolean(normalizedCode) && !isValidPackageCode(normalizedCode);
+  const codeDuplicate = Boolean(
+    normalizedCode &&
+      existingPackages.some(
+        (row) =>
+          row.code.trim().toUpperCase() === normalizedCode &&
+          row.id !== selfPackageId,
+      ),
+  );
+  const codeInlineError = !normalizedCode
+    ? codeTouched
+      ? "Package code is required."
+      : null
+    : codeFormatInvalid
+      ? PACKAGE_CODE_STAFF_HINT
+      : codeDuplicate
+        ? "That package code is already used for this property."
+        : null;
 
-      onSaveComponent({
+  function staffFacingPackageSaveError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    if (
+      /Use 1–20 letters, numbers, or underscores/i.test(message) ||
+      /"code"\s*:\s*"custom"/i.test(message) ||
+      (/^\s*\[\{/.test(message) && /code/i.test(message))
+    ) {
+      return PACKAGE_CODE_STAFF_HINT;
+    }
+    if (/23505|already used|duplicate/i.test(message)) {
+      return "That package code is already used for this property.";
+    }
+    return message || "Failed to save package.";
+  }
 
-        ...base,
-
-        kind: "meal_plan",
-
-        mealPlanId: inclusionDraft.sourceId,
-
-      });
-
-    } else if (inclusionDraft.kind === "room_amenity") {
-
-      onSaveComponent({
-
-        ...base,
-
-        kind: "room_amenity",
-
-        roomAmenityId: inclusionDraft.sourceId,
-
-      });
-
-    } else {
-
-      onSaveComponent({
-
-        ...base,
-
-        kind: "fo_service",
-
-        foServiceId: inclusionDraft.sourceId,
-
-      });
-
+  async function handleSubmit() {
+    if (!canEdit || savingPackage) return;
+    setCodeTouched(true);
+    if (!name.trim()) {
+      toast.error("Enter a package name before saving.");
+      return;
+    }
+    if (!normalizedCode || codeFormatInvalid) {
+      toast.error(PACKAGE_CODE_STAFF_HINT);
+      return;
+    }
+    if (codeDuplicate) {
+      toast.error("That package code is already used for this property.");
+      return;
     }
 
-    setInclusionDraft(null);
+    setSavingPackage(true);
+    try {
+      // 1–4. Create/update package + benefits. Reuse persisted id after partial cover failure.
+      const saved = await onSave({
+        ...((persistedPackageId ?? value?.id) ? { id: persistedPackageId ?? value?.id } : {}),
+        code: normalizedCode,
+        name,
+        type,
+        description,
+        packagePrice: price,
+        chargeBasis,
+        active,
+        serviceTypeIds: selectedServiceTypeIds,
+        roomTypeIds: value?.roomTypeIds ?? [],
+        ratePlanIds: value?.ratePlanIds ?? [],
+        ratePlanLinks: value?.ratePlanLinks ?? [],
+      });
+      setPersistedPackageId(saved.id);
 
-  }
+      // 5–6. Upload pending cover after package id exists.
+      if (pendingCoverFile) {
+        try {
+          await uploadPackageCoverFile({
+            restaurantId,
+            packageId: saved.id,
+            file: pendingCoverFile,
+            startUpload,
+            setCover,
+          });
+          clearPendingCover();
+          await queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
+        } catch (coverError: unknown) {
+          toast.error(
+            (coverError as Error)?.message ??
+              "Package saved, but the cover image could not be uploaded. You can try Save again.",
+          );
+          return;
+        }
+      }
 
-
-
-  // Section 4 — Applicability (Phase F)
-
-  type ApplicabilityMode = "all" | "selected";
-
-  const [roomTypeMode, setRoomTypeMode] = useState<ApplicabilityMode>(
-    (value?.roomTypeIds.length ?? 0) > 0 ? "selected" : "all",
-  );
-
-  const [selectedRoomTypeIds, setSelectedRoomTypeIds] = useState<string[]>(
-    value?.roomTypeIds ?? [],
-  );
-
-  const [ratePlanMode, setRatePlanMode] = useState<ApplicabilityMode>(
-    (value?.ratePlanIds.length ?? 0) > 0 ? "selected" : "all",
-  );
-
-  const [selectedRatePlanIds, setSelectedRatePlanIds] = useState<string[]>(
-    value?.ratePlanIds ?? [],
-  );
-
-  const [ratePlanInclusionById, setRatePlanInclusionById] = useState<
-    Record<string, PackageInclusionType>
-  >(() =>
-    Object.fromEntries(
-      (value?.ratePlanLinks ?? []).map((link) => [link.ratePlanId, link.inclusionType]),
-    ),
-  );
-
-  function toggleRoomType(id: string, checked: boolean) {
-    setSelectedRoomTypeIds((current) =>
-      checked
-        ? current.includes(id)
-          ? current
-          : [...current, id]
-        : current.filter((roomTypeId) => roomTypeId !== id),
-    );
-  }
-
-  function toggleRatePlan(id: string, checked: boolean) {
-    setSelectedRatePlanIds((current) =>
-      checked
-        ? current.includes(id)
-          ? current
-          : [...current, id]
-        : current.filter((ratePlanId) => ratePlanId !== id),
-    );
-
-    if (checked) {
-      setRatePlanInclusionById((current) => ({
-        ...current,
-        [id]: current[id] ?? "optional",
-      }));
+      if (onSaved) {
+        onSaved(saved);
+      } else {
+        toast.success("Package saved.");
+      }
+      onClose();
+    } catch (error: unknown) {
+      toast.error(staffFacingPackageSaveError(error));
+    } finally {
+      setSavingPackage(false);
     }
   }
-
-  function changeRatePlanInclusion(id: string, inclusionType: PackageInclusionType) {
-    setRatePlanInclusionById((current) => ({
-      ...current,
-      [id]: inclusionType,
-    }));
-  }
-
-
 
   return (
 
@@ -1911,62 +1877,20 @@ function PackageMasterEditor({
 
       onClose={onClose}
 
-      title={value ? "Edit package" : "Add package"}
+      className={className}
 
-      description="Package Master — canonical package record."
+      title={value || persistedPackageId ? "Edit package" : "Add package"}
+
+      description="Create a reusable hotel package that can be attached to rate plans."
 
       canEdit={canEdit}
 
-      pending={pending}
+      pending={pending || savingPackage}
 
       submitLabel="Save package"
 
       onSubmit={() => {
-
-        if (!canEdit) return;
-
-        if (roomTypeMode === "selected" && selectedRoomTypeIds.length === 0) {
-          toast.error("Select at least one room type or choose All Room Types.");
-          return;
-        }
-
-        if (ratePlanMode === "selected" && selectedRatePlanIds.length === 0) {
-          toast.error("Select at least one rate plan or choose All Rate Plans.");
-          return;
-        }
-
-        onSave({
-
-          ...(value ? { id: value.id } : {}),
-
-          code,
-
-          name,
-
-          type,
-
-          description,
-
-          packagePrice: price,
-
-          chargeBasis,
-
-          active,
-
-          roomTypeIds: roomTypeMode === "all" ? [] : selectedRoomTypeIds,
-
-          ratePlanIds: ratePlanMode === "all" ? [] : selectedRatePlanIds,
-
-          ratePlanLinks:
-            ratePlanMode === "all"
-              ? []
-              : selectedRatePlanIds.map((ratePlanId) => ({
-                ratePlanId,
-                inclusionType: ratePlanInclusionById[ratePlanId] ?? "optional",
-              })),
-
-        });
-
+        void handleSubmit();
       }}
 
     >
@@ -1993,30 +1917,6 @@ function PackageMasterEditor({
 
             <div className="space-y-1">
 
-              <Label htmlFor="pkg-master-code">Code</Label>
-
-              <Input
-
-                id="pkg-master-code"
-
-                value={code}
-
-                maxLength={20}
-
-                disabled={!canEdit}
-
-                className={goldFocus}
-
-                placeholder="e.g. WEEKEND"
-
-                onChange={(event) => setCode(event.target.value.toUpperCase())}
-
-              />
-
-            </div>
-
-            <div className="space-y-1">
-
               <Label htmlFor="pkg-master-name">Name</Label>
 
               <Input
@@ -2031,9 +1931,78 @@ function PackageMasterEditor({
 
                 placeholder="e.g. Weekend Escape"
 
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  const nextName = event.target.value;
+                  setName(nextName);
+                  if (!codeManuallyEdited) {
+                    setCode(suggestPackageCode(nextName));
+                  }
+                }}
 
               />
+
+            </div>
+
+            <div className="space-y-1">
+
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="pkg-master-code">Code</Label>
+                {canEdit && codeManuallyEdited && name.trim() ? (
+                  <button
+                    type="button"
+                    className="text-[10px] font-medium text-[#8A641A] hover:underline"
+                    data-testid="pkg-master-code-reset-auto"
+                    onClick={() => {
+                      setCodeManuallyEdited(false);
+                      setCode(suggestPackageCode(name));
+                      setCodeTouched(false);
+                    }}
+                  >
+                    Reset to auto
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="relative">
+                <Input
+
+                  id="pkg-master-code"
+
+                  value={code}
+
+                  maxLength={20}
+
+                  disabled={!canEdit}
+
+                  className={cn(
+                    goldFocus,
+                    "pr-14 font-mono uppercase",
+                    codeInlineError && "border-destructive",
+                  )}
+
+                  placeholder="e.g. WEEKEND_ESCAPE"
+
+                  aria-invalid={codeInlineError ? true : undefined}
+
+                  onBlur={() => setCodeTouched(true)}
+
+                  onChange={(event) => {
+                    setCodeManuallyEdited(true);
+                    setCode(event.target.value.toUpperCase());
+                  }}
+
+                />
+                {!codeManuallyEdited && code ? (
+                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-[#EDE6D8] px-1.5 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wider text-[#5C4528]">
+                    Auto
+                  </span>
+                ) : null}
+              </div>
+              {codeInlineError ? (
+                <p className="text-[11px] text-destructive" data-testid="pkg-master-code-error">
+                  {codeInlineError}
+                </p>
+              ) : null}
 
             </div>
 
@@ -2186,6 +2155,12 @@ function PackageMasterEditor({
 
             </Select>
 
+            <p className="text-xs text-muted-foreground">
+
+              This is the package component price. Room pricing remains controlled by the Rate Plan.
+
+            </p>
+
             {chargeBasis !== "per_stay" ? (
 
               <p className="text-xs text-muted-foreground" data-testid="pkg-charge-basis-limit">
@@ -2204,853 +2179,27 @@ function PackageMasterEditor({
 
 
 
-        {/* ── Section 3: Includes (Phase E) ─────────────────────────────── */}
-
-        <div
-
-          className="space-y-3 rounded-xl border border-[#E6D7B8] bg-[#FDFAF5] px-4 py-3"
-
-          data-testid="package-master-section-includes"
-
-        >
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-
-            <div>
-
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#6B6458]">
-
-                3. Includes
-
-              </p>
-
-              <p className="text-xs text-muted-foreground">
-
-                Meal plans, room amenities, and front-office services included in this package.
-
-              </p>
-
-            </div>
-
-            {value?.id && canEdit && !inclusionDraft ? (
-
-              <Button
-
-                type="button"
-
-                variant="outline"
-
-                size="sm"
-
-                className="h-8 border-[#C89933] text-xs font-medium text-[#251605] hover:bg-[#E6D7B8]/40"
-
-                disabled={componentPending}
-
-                onClick={startAddInclusion}
-
-                data-testid="pkg-master-add-inclusion"
-
-              >
-
-                + Add Inclusion
-
-              </Button>
-
-            ) : null}
-
-          </div>
-
-
-
-          {!value?.id ? (
-
-            <p
-
-              className="rounded-lg border border-dashed border-[#CCCCCC] p-3 text-xs text-muted-foreground"
-
-              data-testid="pkg-master-includes-unsaved-note"
-
-            >
-
-              Save the package first to manage inclusions.
-
-            </p>
-
-          ) : (
-
-            <div className="space-y-3">
-
-              {/* Inline Add / Edit Inclusion Form */}
-
-              {inclusionDraft ? (
-
-                <div
-
-                  className="space-y-3 rounded-lg border border-[#C89933]/60 bg-white p-3 shadow-sm"
-
-                  data-testid="pkg-master-inclusion-form"
-
-                >
-
-                  <div className="flex items-center justify-between border-b border-[#E6E1D8] pb-2">
-
-                    <p className="text-xs font-semibold text-[#251605]">
-
-                      {inclusionDraft.id ? "Edit Inclusion" : "Add Inclusion"}
-
-                    </p>
-
-                    <span className="text-[11px] text-muted-foreground">
-
-                      Linked to existing property catalogues
-
-                    </span>
-
-                  </div>
-
-
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-
-                    <div className="space-y-1">
-
-                      <Label htmlFor="pkg-comp-kind">Component Type</Label>
-
-                      <Select
-
-                        value={inclusionDraft.kind}
-
-                        disabled={!canEdit || componentPending}
-
-                        onValueChange={(next) => changeDraftKind(next as PackageComponentKind)}
-
-                      >
-
-                        <SelectTrigger id="pkg-comp-kind" className={goldFocus}>
-
-                          <SelectValue />
-
-                        </SelectTrigger>
-
-                        <SelectContent>
-
-                          {PACKAGE_COMPONENT_KINDS.map((kindKey) => (
-
-                            <SelectItem key={kindKey} value={kindKey}>
-
-                              {PACKAGE_COMPONENT_KIND_LABELS[kindKey]}
-
-                            </SelectItem>
-
-                          ))}
-
-                        </SelectContent>
-
-                      </Select>
-
-                    </div>
-
-
-
-                    <div className="space-y-1">
-
-                      <Label htmlFor="pkg-comp-source">Source</Label>
-
-                      <Select
-
-                        value={inclusionDraft.sourceId}
-
-                        disabled={!canEdit || componentPending || draftSources.length === 0}
-
-                        onValueChange={(next) =>
-
-                          setInclusionDraft((prev) => (prev ? { ...prev, sourceId: next } : null))
-
-                        }
-
-                      >
-
-                        <SelectTrigger id="pkg-comp-source" className={goldFocus}>
-
-                          <SelectValue
-
-                            placeholder={
-
-                              draftSources.length === 0
-
-                                ? "No items available in catalogue"
-
-                                : "Select a source"
-
-                            }
-
-                          />
-
-                        </SelectTrigger>
-
-                        <SelectContent>
-
-                          {draftSources.map((row) => (
-
-                            <SelectItem key={row.id} value={row.id}>
-
-                              {"code" in row && row.code ? `${row.code} — ` : ""}
-
-                              {row.name}
-
-                            </SelectItem>
-
-                          ))}
-
-                        </SelectContent>
-
-                      </Select>
-
-                      {draftSources.length === 0 ? (
-
-                        <p className="text-[11px] text-destructive">
-
-                          No {PACKAGE_COMPONENT_KIND_LABELS[inclusionDraft.kind].toLowerCase()}{" "}
-
-                          items found in catalogue.
-
-                        </p>
-
-                      ) : null}
-
-                    </div>
-
-
-
-                    <div className="space-y-1">
-
-                      <Label htmlFor="pkg-comp-quantity">Quantity</Label>
-
-                      <Input
-
-                        id="pkg-comp-quantity"
-
-                        type="number"
-
-                        min={0.01}
-
-                        step="any"
-
-                        value={inclusionDraft.quantity}
-
-                        disabled={!canEdit || componentPending}
-
-                        className={goldFocus}
-
-                        onChange={(e) => {
-
-                          const val = Number(e.target.value);
-
-                          setInclusionDraft((prev) => (prev ? { ...prev, quantity: val } : null));
-
-                        }}
-
-                      />
-
-                      {inclusionDraft.quantity <= 0 ? (
-
-                        <p className="text-[11px] text-destructive">
-
-                          Quantity must be greater than 0.
-
-                        </p>
-
-                      ) : null}
-
-                    </div>
-
-
-
-                    <div className="space-y-1">
-
-                      <Label htmlFor="pkg-comp-sort">Sort Order</Label>
-
-                      <Input
-
-                        id="pkg-comp-sort"
-
-                        type="number"
-
-                        min={0}
-
-                        step={1}
-
-                        value={inclusionDraft.sortOrder}
-
-                        disabled={!canEdit || componentPending}
-
-                        className={goldFocus}
-
-                        onChange={(e) => {
-
-                          const val = Math.max(0, Math.floor(Number(e.target.value) || 0));
-
-                          setInclusionDraft((prev) => (prev ? { ...prev, sortOrder: val } : null));
-
-                        }}
-
-                      />
-
-                    </div>
-
-                  </div>
-
-
-                  <div className="space-y-3 rounded-xl border px-3 py-3" data-testid="pkg-comp-fulfillment">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <Label htmlFor="pkg-comp-fulfillment">Requires Fulfillment</Label>
-                        <p className="text-[11px] text-muted-foreground">
-                          Enable when this package component must appear on an operational delivery/service list.
-                        </p>
-                      </div>
-                      <Switch
-                        id="pkg-comp-fulfillment"
-                        checked={inclusionDraft.requiresFulfillment}
-                        disabled={!canEdit || componentPending}
-                        onCheckedChange={(checked) =>
-                          setInclusionDraft((prev) =>
-                            prev ? { ...prev, requiresFulfillment: checked === true } : null,
-                          )
-                        }
-                      />
-                    </div>
-                    {inclusionDraft.requiresFulfillment ? (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-1">
-                          <Label htmlFor="pkg-comp-department">Responsible Department</Label>
-                          <Select
-                            value={inclusionDraft.departmentId ?? "none"}
-                            disabled={!canEdit || componentPending}
-                            onValueChange={(next) =>
-                              setInclusionDraft((prev) =>
-                                prev ? { ...prev, departmentId: next === "none" ? null : next } : null,
-                              )
-                            }
-                          >
-                            <SelectTrigger id="pkg-comp-department">
-                              <SelectValue placeholder="Select a department" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Select a department</SelectItem>
-                              {departments
-                                .filter((row) => row.active)
-                                .map((row) => (
-                                  <SelectItem key={row.id} value={row.id}>
-                                    {row.code} — {row.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {inclusionDraft.kind === "meal_plan" ? (
-                          <div className="space-y-1" data-testid="pkg-comp-meal-timing">
-                            <Label>Service Timing</Label>
-                            <p className="text-sm text-[#251605]">Uses Property Meal Service Rules</p>
-                            <p className="text-[11px] text-muted-foreground">
-                              Meal dates are determined by the property's Breakfast, Lunch, and Dinner rules.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <Label htmlFor="pkg-comp-timing">Service Timing</Label>
-                            <Select
-                              value={inclusionDraft.serviceDateRule ?? "none"}
-                              disabled={!canEdit || componentPending}
-                              onValueChange={(next) =>
-                                setInclusionDraft((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        serviceDateRule: next === "none" ? null : (next as ServiceDateRule),
-                                      }
-                                    : null,
-                                )
-                              }
-                            >
-                              <SelectTrigger id="pkg-comp-timing" data-testid="pkg-comp-timing">
-                                <SelectValue placeholder="Select timing" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Select timing</SelectItem>
-                                {(Object.keys(SERVICE_TIMING_LABELS) as ServiceDateRule[]).map((rule) => (
-                                  <SelectItem key={rule} value={rule}>
-                                    {SERVICE_TIMING_LABELS[rule]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="flex justify-end gap-2 border-t border-[#E6E1D8] pt-2">
-
-                    <Button
-
-                      type="button"
-
-                      variant="outline"
-
-                      size="sm"
-
-                      className="h-8 text-xs"
-
-                      onClick={() => setInclusionDraft(null)}
-
-                      disabled={componentPending}
-
-                    >
-
-                      Cancel
-
-                    </Button>
-
-                    <Button
-
-                      type="button"
-
-                      size="sm"
-
-                      className="h-8 bg-[#C89933] text-xs font-medium text-[#251605] hover:bg-[#C89933]/90"
-
-                      disabled={
-
-                        !canEdit ||
-
-                        componentPending ||
-
-                        !inclusionDraft.sourceId ||
-
-                        inclusionDraft.quantity <= 0 ||
-
-                        inclusionDraft.sortOrder < 0 ||
-
-                        (inclusionDraft.requiresFulfillment && !inclusionDraft.departmentId) ||
-
-                        (inclusionDraft.requiresFulfillment &&
-
-                          inclusionDraft.kind !== "meal_plan" &&
-
-                          !inclusionDraft.serviceDateRule)
-
-                      }
-
-                      onClick={saveDraftInclusion}
-
-                      data-testid="pkg-master-save-inclusion"
-
-                    >
-
-                      {componentPending ? "Saving…" : "Save Inclusion"}
-
-                    </Button>
-
-                  </div>
-
-                </div>
-
-              ) : null}
-
-
-
-              {/* Inclusions Table */}
-
-              <div className="overflow-x-auto rounded-lg border border-[#E6D7B8] bg-white">
-
-                <table
-
-                  className="w-full text-left text-xs text-[#251605]"
-
-                  data-testid="pkg-master-inclusions-table"
-
-                >
-
-                  <thead>
-
-                    <tr className="border-b border-[#E6D7B8] bg-[#FAF7F0] text-[10px] uppercase tracking-wide text-[#6B6458]">
-
-                      <th className="px-3 py-2 font-semibold">Inclusion / Source Name</th>
-
-                      <th className="px-3 py-2 font-semibold">Type</th>
-
-                      <th className="px-3 py-2 text-center font-semibold">Quantity</th>
-
-                      <th className="px-3 py-2 text-center font-semibold">Sort Order</th>
-
-                      <th className="px-3 py-2 text-right font-semibold">Action</th>
-
-                    </tr>
-
-                  </thead>
-
-                  <tbody>
-
-                    {packageComponents.length === 0 ? (
-
-                      <tr>
-
-                        <td colSpan={5} className="px-3 py-4 text-center text-muted-foreground">
-
-                          No inclusions added yet. Click "+ Add Inclusion" to attach
-
-                          items.
-
-                        </td>
-
-                      </tr>
-
-                    ) : (
-
-                      packageComponents.map((comp) => (
-
-                        <tr
-
-                          key={comp.id}
-
-                          className="border-b border-[#E6E1D8] last:border-0 hover:bg-[#FDFAF5]"
-
-                          data-testid={`pkg-component-row-${comp.id}`}
-
-                        >
-
-                          <td className="px-3 py-2 font-medium">{comp.sourceLabel || "—"}</td>
-
-                          <td className="px-3 py-2 text-muted-foreground">{comp.kindLabel}</td>
-
-                          <td className="px-3 py-2 text-center">{comp.quantity}</td>
-
-                          <td className="px-3 py-2 text-center">{comp.sortOrder}</td>
-
-                          <td className="px-3 py-2 text-right">
-
-                            <div className="flex items-center justify-end gap-1">
-
-                              <Button
-
-                                type="button"
-
-                                variant="ghost"
-
-                                size="sm"
-
-                                className="h-7 px-2 text-xs text-[#251605] hover:bg-[#E6D7B8]/40"
-
-                                disabled={!canEdit || componentPending}
-
-                                onClick={() => startEditInclusion(comp)}
-
-                              >
-
-                                Edit
-
-                              </Button>
-
-                              <Button
-
-                                type="button"
-
-                                variant="ghost"
-
-                                size="sm"
-
-                                className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
-
-                                disabled={!canEdit || componentPending}
-
-                                onClick={() => onDeleteComponent(comp.id)}
-
-                              >
-
-                                Remove
-
-                              </Button>
-
-                            </div>
-
-                          </td>
-
-                        </tr>
-
-                      ))
-
-                    )}
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
-            </div>
-
-          )}
-
-        </div>
-
-
-
-        {/* ── Section 4: Applicability (Phase F) ─────────────────────────── */}
-
-        <div
-
-          className="space-y-4 rounded-xl border border-[#E6D7B8] bg-[#FDFAF5] px-4 py-3"
-
-          data-testid="package-master-section-applicability"
-
-        >
-
-          <div>
-
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#6B6458]">
-
-              4. Applicability
-
-            </p>
-
-            <p className="text-xs text-muted-foreground">
-
-              Control which room types and rate plans can use this package. Empty link sets mean
-
-              the package is available to all inherited options.
-
-            </p>
-
-          </div>
-
-
-
-          <div className="space-y-3 rounded-xl border bg-white px-3 py-3">
-
-            <div className="flex flex-wrap items-start justify-between gap-3">
-
-              <div>
-
-                <p className="text-sm font-medium text-[#251605]">Room Type Applicability</p>
-
-                <p className="text-xs text-muted-foreground">
-
-                  Choose whether this package is available for every room type or only selected room types.
-
-                </p>
-
-              </div>
-
-              <Select
-
-                value={roomTypeMode}
-
-                disabled={!canEdit}
-
-                onValueChange={(next) => setRoomTypeMode(next as ApplicabilityMode)}
-
-              >
-
-                <SelectTrigger
-
-                  className={`${goldFocus} h-9 w-[12rem]`}
-
-                  data-testid="pkg-room-applicability-mode"
-
-                >
-
-                  <SelectValue />
-
-                </SelectTrigger>
-
-                <SelectContent>
-
-                  <SelectItem value="all">All Room Types</SelectItem>
-
-                  <SelectItem value="selected">Selected Room Types</SelectItem>
-
-                </SelectContent>
-
-              </Select>
-
-            </div>
-
-
-
-            {roomTypeMode === "all" ? (
-
-              <div
-
-                className="rounded-lg border border-dashed border-[#D8C9AA] bg-[#FDFAF5] px-3 py-2 text-xs text-muted-foreground"
-
-                data-testid="pkg-room-applicability-all"
-
-              >
-
-                Available for all room types. No room-type links will be stored.
-
-              </div>
-
-            ) : (
-
-              <div className="space-y-2">
-
-                <ApplicabilityList
-
-                  title="Selected room types"
-
-                  prefix="package-room"
-
-                  rows={roomTypes}
-
-                  selected={selectedRoomTypeIds}
-
-                  canEdit={canEdit}
-
-                  onToggle={toggleRoomType}
-
-                />
-
-                {selectedRoomTypeIds.length === 0 ? (
-
-                  <p className="text-[11px] text-destructive">
-
-                    Select at least one room type, or switch to All Room Types.
-
-                  </p>
-
-                ) : null}
-
-              </div>
-
-            )}
-
-          </div>
-
-
-
-          <div className="space-y-3 rounded-xl border bg-white px-3 py-3">
-
-            <div className="flex flex-wrap items-start justify-between gap-3">
-
-              <div>
-
-                <p className="text-sm font-medium text-[#251605]">Rate Plan Applicability</p>
-
-                <p className="text-xs text-muted-foreground">
-
-                  Restrict the package to selected rate plans and define whether each relationship is included in the rate or offered as an optional add-on.
-
-                </p>
-
-              </div>
-
-              <Select
-
-                value={ratePlanMode}
-
-                disabled={!canEdit}
-
-                onValueChange={(next) => setRatePlanMode(next as ApplicabilityMode)}
-
-              >
-
-                <SelectTrigger
-
-                  className={`${goldFocus} h-9 w-[12rem]`}
-
-                  data-testid="pkg-rate-applicability-mode"
-
-                >
-
-                  <SelectValue />
-
-                </SelectTrigger>
-
-                <SelectContent>
-
-                  <SelectItem value="all">All Rate Plans</SelectItem>
-
-                  <SelectItem value="selected">Selected Rate Plans</SelectItem>
-
-                </SelectContent>
-
-              </Select>
-
-            </div>
-
-
-
-            {ratePlanMode === "all" ? (
-
-              <div
-
-                className="rounded-lg border border-dashed border-[#D8C9AA] bg-[#FDFAF5] px-3 py-2 text-xs text-muted-foreground"
-
-                data-testid="pkg-rate-applicability-all"
-
-              >
-
-                Available for all rate plans. No rate-plan links will be stored.
-
-              </div>
-
-            ) : (
-
-              <div className="space-y-2">
-
-                <RatePlanApplicabilityList
-
-                  rows={ratePlans}
-
-                  selected={selectedRatePlanIds}
-
-                  inclusionByPlan={ratePlanInclusionById}
-
-                  canEdit={canEdit}
-
-                  onToggle={toggleRatePlan}
-
-                  onInclusionChange={changeRatePlanInclusion}
-
-                />
-
-                {selectedRatePlanIds.length === 0 ? (
-
-                  <p className="text-[11px] text-destructive">
-
-                    Select at least one rate plan, or switch to All Rate Plans.
-
-                  </p>
-
-                ) : null}
-
-              </div>
-
-            )}
-
-
-
-            <p className="text-[11px] text-muted-foreground">
-
-              Included / optional is package merchandising metadata only. It does not change room pricing, folio posting, or reservation package binding.
-
-            </p>
-
-          </div>
-
-        </div>
+        <PackageBenefitsServicesSection
+          canEdit={canEdit}
+          categories={guestServiceCategories}
+          serviceTypes={guestServiceTypes}
+          selectedIds={selectedServiceTypeIds}
+          onChange={setSelectedServiceTypeIds}
+        />
 
 
 
         <PackageCoverSection
           restaurantId={restaurantId}
-          packageId={value?.id ?? null}
+          packageId={persistedPackageId ?? value?.id ?? null}
           packageName={name}
           coverUrl={value?.coverUrl ?? null}
           canEdit={canEdit}
+          pendingFile={pendingCoverFile}
+          pendingPreviewUrl={pendingCoverPreviewUrl}
+          onSelectPending={selectPendingCover}
+          onClearPending={clearPendingCover}
+          busy={savingPackage}
         />
 
       </div>
@@ -3065,12 +2214,17 @@ function PackageMasterEditor({
 
 // ---------------------------------------------------------------------------
 
-// Applicability helpers used by Package Master Phase F
+// Legacy Package Master applicability helpers (no longer used in active editor).
+
+// Kept for backward-compatible reads / historical references. Rate Plan will own
+
+// package assignment.
 
 // ---------------------------------------------------------------------------
 
 
 
+/** @deprecated Package Master no longer edits room-type applicability. */
 function ApplicabilityList({
 
   title,
@@ -3157,6 +2311,7 @@ function ApplicabilityList({
 
 
 
+/** @deprecated Package Master no longer edits rate-plan applicability. */
 function RatePlanApplicabilityList({
 
   rows,

@@ -1,5 +1,6 @@
 import type { RatePlanPricingMethod } from "@/packages/pms/lib/rate-plan-from-defaults";
 import type { CancellationPolicyKind } from "@/packages/pms/lib/cancellation-policy-rules";
+import type { PackageInclusionType } from "@/packages/pms/lib/rate-plan-package-inclusion";
 
 export const RATE_PLAN_WIZARD_STEPS = [
   { id: 1, title: "Rate Plan & Pricing" },
@@ -12,6 +13,8 @@ export const RATE_PLAN_WIZARD_STEPS = [
 export type RatePlanWizardStepId = (typeof RATE_PLAN_WIZARD_STEPS)[number]["id"];
 
 export const RATE_PLAN_NONE = "__none__";
+
+export const RATE_PLAN_PACKAGE_INCLUSION_DEFAULT: PackageInclusionType = "included";
 
 export type RatePlanWizardForm = {
   categoryId: string;
@@ -34,6 +37,8 @@ export type RatePlanWizardForm = {
   earlyDeparturePolicyId: string;
   mealPlanId: string;
   packageId: string;
+  /** Rate Plan → Package relationship (not Package Master). */
+  packageInclusionType: PackageInclusionType;
   active: boolean;
   /** UI-only mirror of Active — model has no separate sellable column. */
   sellable: boolean;
@@ -72,6 +77,7 @@ export function emptyRatePlanWizardForm(defaults?: {
     earlyDeparturePolicyId: RATE_PLAN_NONE,
     mealPlanId: RATE_PLAN_NONE,
     packageId: RATE_PLAN_NONE,
+    packageInclusionType: RATE_PLAN_PACKAGE_INCLUSION_DEFAULT,
     active: true,
     sellable: true,
   };
@@ -86,11 +92,13 @@ export function derivedRefundabilityLabel(
 }
 
 export function isRatePlanWizardStep1Valid(form: RatePlanWizardForm): boolean {
+  const code = form.code.trim().toUpperCase();
   return (
     Boolean(form.categoryId) &&
     Boolean(form.roomTypeId) &&
     Boolean(form.name.trim()) &&
-    Boolean(form.code.trim()) &&
+    Boolean(code) &&
+    /^[A-Z0-9_]{1,30}$/.test(code) &&
     Boolean(form.validFrom.trim()) &&
     Number.isFinite(form.baseRate) &&
     form.baseRate >= 0 &&

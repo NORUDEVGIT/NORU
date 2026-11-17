@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 
 import type { RatePlanPricingMethod } from "@/packages/pms/lib/rate-plan-from-defaults";
+import type { PackageChargeBasis } from "@/packages/pms/lib/meals-card3.server";
 import type {
   RateCancellationPolicyRow,
   RateCategoryRow,
@@ -12,6 +13,15 @@ import type {
   RatePlanWizardForm,
   RatePlanWizardStepId,
 } from "./rate-plan-wizard-types";
+
+export type RatePlanWizardPackageOption = {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+  packagePrice: number;
+  chargeBasis: PackageChargeBasis;
+};
 
 export type RatePlanWizardFooterConfig = {
   continueLabel: string;
@@ -43,13 +53,14 @@ export type RatePlanWizardContextValue = {
   attemptedStep1: boolean;
   setAttemptedStep1: (value: boolean) => void;
   catalogues: RatePlanWizardCatalogues;
-  packages: Array<{ id: string; code: string; name: string; active: boolean }>;
+  packages: RatePlanWizardPackageOption[];
   onAddCategory: () => void;
   onAddCancellation: () => void;
   onAddDeposit: () => void;
   onAddNoShow: () => void;
   onAddEarlyDeparture: () => void;
   onAddMealPlan: () => void;
+  onAddPackage: () => void;
   onClose: () => void;
   onCompleted: () => void;
   setFooter: (config: RatePlanWizardFooterConfig | null) => void;

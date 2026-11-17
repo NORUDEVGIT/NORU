@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, X } from "lucide-react";
@@ -12,14 +12,35 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { cn } from "@/shared/lib/utils";
-import { getMealsCard3, savePackageCard3 } from "@/packages/pms/lib/meals-card3.functions";
+import { PackageMasterEditor } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
+import { parseOptionalIncludedField } from "@/packages/pms/components/settings/rate-plan-pricing-setup";
+import {
+  getMealsCard3,
+  saveMealPlanCard3,
+  savePackageCard3,
+} from "@/packages/pms/lib/meals-card3.functions";
+import { saveDepositPolicyCard3 } from "@/packages/pms/lib/payments-card3.functions";
 import {
   computeRatePlanBaseFromDefaults,
   occupancyFieldsFromRoomTypeDefaults,
   roomTypeBaseIsConfigured,
   type RatePlanPricingMethod,
 } from "@/packages/pms/lib/rate-plan-from-defaults";
-import { parseOptionalIncludedField } from "@/packages/pms/components/settings/rate-plan-pricing-setup";
+import {
+  saveRateCancellationPolicyCard2,
+  saveRateEarlyDeparturePolicyCard2,
+  saveRateNoShowPolicyCard2,
+} from "@/packages/pms/lib/rates-card2.functions";
+import type {
+  PackageChargeBasis,
+  PackageType,
+} from "@/packages/pms/lib/meals-card3.server";
+import type { PackageInclusionType } from "@/packages/pms/lib/rate-plan-package-inclusion";
+import {
+  isValidRatePlanCode,
+  RATE_PLAN_CODE_STAFF_HINT,
+  suggestRatePlanCode,
+} from "@/packages/pms/lib/rates-card2-code";
 import type {
   RateCancellationPolicyRow,
   RateCategoryRow,
@@ -31,6 +52,29 @@ import {
   RatePlanWizardContext,
   type RatePlanWizardFooterConfig,
 } from "./rate-plan-wizard-context";
+import {
+  clearCreateRatePlanWizardDraft,
+  freshCreateRatePlanWizardState,
+  readCreateRatePlanWizardDraft,
+  sanitizeCreateRatePlanWizardDraft,
+  writeCreateRatePlanWizardDraft,
+} from "./rate-plan-wizard-draft";
+import {
+  findConfiguredMealPlanForPreset,
+  isPredefinedMealSelection,
+  parsePredefMeal,
+} from "./rate-plan-wizard-meal-options";
+import {
+  findConfiguredCancellation,
+  findConfiguredDepositForPreset,
+  findConfiguredEarly,
+  findConfiguredNoShowForPreset,
+  isPredefinedPolicySelection,
+  parsePredefCancellation,
+  parsePredefDeposit,
+  parsePredefEarly,
+  parsePredefNoShow,
+} from "./rate-plan-wizard-policy-options";
 import {
   RatePlanWizardStep1,
   RatePlanWizardStep2,
@@ -46,6 +90,23 @@ import {
   type RatePlanWizardForm,
   type RatePlanWizardStepId,
 } from "./rate-plan-wizard-types";
+
+const DRAFT_AUTOSAVE_MS = 400;
+
+function staffFacingRatePlanSaveError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (
+    /Use 1–30 letters, numbers, or underscores/i.test(message) ||
+    /"code"\s*:\s*"custom"/i.test(message) ||
+    (/^\s*\[\{/.test(message) && /code/i.test(message))
+  ) {
+    return RATE_PLAN_CODE_STAFF_HINT;
+  }
+  if (/23505|already used|duplicate/i.test(message)) {
+    return "That rate plan code is already used for this property.";
+  }
+  return message || "Failed to save rate plan.";
+}
 
 export type RatePlanWizardSavePayload = {
   categoryId: string;
@@ -69,7 +130,15 @@ export type RatePlanWizardSavePayload = {
 };
 
 function optionalId(value: string) {
-  return value && value !== RATE_PLAN_NONE ? value : null;
+  if (
+    !value ||
+    value === RATE_PLAN_NONE ||
+    isPredefinedPolicySelection(value) ||
+    isPredefinedMealSelection(value)
+  ) {
+    return null;
+  }
+  return value;
 }
 
 export function RatePlanWizard({
@@ -124,34 +193,70 @@ export function RatePlanWizard({
   const queryClient = useQueryClient();
   const loadMeals = useServerFn(getMealsCard3);
   const savePackage = useServerFn(savePackageCard3);
+  const saveCancellation = useServerFn(saveRateCancellationPolicyCard2);
+  const saveNoShow = useServerFn(saveRateNoShowPolicyCard2);
+  const saveEarlyDeparture = useServerFn(saveRateEarlyDeparturePolicyCard2);
+  const saveDeposit = useServerFn(saveDepositPolicyCard3);
+  const saveMealPlan = useServerFn(saveMealPlanCard3);
 
-  const [step, setStep] = useState<RatePlanWizardStepId>(1);
+  const restoredDraftRef = useRef(
+    (() => {
+      const raw = readCreateRatePlanWizardDraft(restaurantId);
+      if (!raw) return null;
+      return sanitizeCreateRatePlanWizardDraft(raw, {
+        categories,
+        roomTypes,
+        mealPlans,
+        cancellationPolicies,
+        depositPolicies,
+        noShowPolicies,
+        earlyDeparturePolicies,
+        packages: [],
+      });
+    })(),
+  );
+  const skipInitialRoomDefaults = useRef(Boolean(restoredDraftRef.current));
+  const draftReadyRef = useRef(false);
+
+  const [step, setStep] = useState<RatePlanWizardStepId>(
+    () => restoredDraftRef.current?.step ?? 1,
+  );
   const [attemptedStep1, setAttemptedStep1] = useState(false);
-  const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(
+    () => restoredDraftRef.current?.codeManuallyEdited ?? false,
+  );
   const [footer, setFooter] = useState<RatePlanWizardFooterConfig | null>(null);
   const [saving, setSaving] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(() => Boolean(restoredDraftRef.current));
+  const [packageEditorOpen, setPackageEditorOpen] = useState(false);
+  const [packageSavePending, setPackageSavePending] = useState(false);
 
-  const [form, setForm] = useState<RatePlanWizardForm>(() =>
-    emptyRatePlanWizardForm({
+  const [form, setForm] = useState<RatePlanWizardForm>(() => {
+    if (restoredDraftRef.current) return restoredDraftRef.current.form;
+    return emptyRatePlanWizardForm({
       categoryId: categories[0]?.id ?? "",
       roomTypeId: roomTypes[0]?.id ?? "",
-    }),
-  );
+    });
+  });
 
   const mealsQuery = useQuery({
     queryKey: ["pms-card3-meals", restaurantId],
     queryFn: () => loadMeals({ data: { restaurantId } }),
   });
 
+  const mealsSnapshot = mealsQuery.data?.snapshot;
+
   const packages = useMemo(
     () =>
-      (mealsQuery.data?.snapshot?.packages ?? []).map((row) => ({
+      (mealsSnapshot?.packages ?? []).map((row) => ({
         id: row.id,
         code: row.code,
         name: row.name,
         active: row.active,
+        packagePrice: row.packagePrice,
+        chargeBasis: row.chargeBasis,
       })),
-    [mealsQuery.data?.snapshot?.packages],
+    [mealsSnapshot?.packages],
   );
 
   const applyRoomTypeDefaults = useCallback(
@@ -171,27 +276,99 @@ export function RatePlanWizard({
         percent: 10,
         fixedPrice: nextType.baseNightlyRate ?? 0,
       });
-      setForm((prev) => ({
-        ...prev,
-        roomTypeId,
-        pricingMethod: nextMethod,
-        includedOccupancy: occupancy.includedOccupancy,
-        extraAdultRate: occupancy.extraAdultRate,
-        extraChildRate: occupancy.extraChildRate,
-        baseRate: computed.ok ? computed.baseRate : prev.baseRate,
-      }));
+      setForm((prev) => {
+        const category = categories.find((row) => row.id === prev.categoryId);
+        return {
+          ...prev,
+          roomTypeId,
+          pricingMethod: nextMethod,
+          includedOccupancy: occupancy.includedOccupancy,
+          extraAdultRate: occupancy.extraAdultRate,
+          extraChildRate: occupancy.extraChildRate,
+          baseRate: computed.ok ? computed.baseRate : prev.baseRate,
+          code: codeManuallyEdited
+            ? prev.code
+            : suggestRatePlanCode(category?.code ?? "", nextType.name),
+        };
+      });
     },
-    [roomTypes],
+    [roomTypes, categories, codeManuallyEdited],
   );
 
-  // Seed defaults from first room type once on mount when empty form.
+  // Seed defaults from first room type once on mount when starting blank (not restored).
   useEffect(() => {
+    if (skipInitialRoomDefaults.current) return;
     if (form.roomTypeId && roomTypes.some((row) => row.id === form.roomTypeId)) {
       applyRoomTypeDefaults(form.roomTypeId);
     }
     // intentionally once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-validate package once packages finish loading after a restore.
+  const packageSanitizeDoneRef = useRef(false);
+  useEffect(() => {
+    if (!draftRestored || packageSanitizeDoneRef.current) return;
+    if (!mealsQuery.isFetched) return;
+    packageSanitizeDoneRef.current = true;
+    setForm((prev) =>
+      sanitizeCreateRatePlanWizardDraft(
+        {
+          version: 1,
+          restaurantId,
+          savedAt: new Date().toISOString(),
+          step,
+          codeManuallyEdited,
+          form: prev,
+        },
+        {
+          categories,
+          roomTypes,
+          mealPlans,
+          cancellationPolicies,
+          depositPolicies,
+          noShowPolicies,
+          earlyDeparturePolicies,
+          packages,
+        },
+      ).form,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftRestored, mealsQuery.isFetched, packages]);
+
+  // Autosave local draft (debounced). Closing the wizard keeps the draft.
+  useEffect(() => {
+    if (!draftReadyRef.current) {
+      draftReadyRef.current = true;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      writeCreateRatePlanWizardDraft(restaurantId, {
+        step,
+        codeManuallyEdited,
+        form,
+      });
+    }, DRAFT_AUTOSAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [restaurantId, step, codeManuallyEdited, form]);
+
+  function discardDraft() {
+    clearCreateRatePlanWizardDraft(restaurantId);
+    const fresh = freshCreateRatePlanWizardState({
+      categoryId: categories[0]?.id ?? "",
+      roomTypeId: roomTypes[0]?.id ?? "",
+    });
+    setStep(fresh.step);
+    setCodeManuallyEdited(fresh.codeManuallyEdited);
+    setForm(fresh.form);
+    setAttemptedStep1(false);
+    setDraftRestored(false);
+    skipInitialRoomDefaults.current = false;
+    if (fresh.form.roomTypeId) {
+      applyRoomTypeDefaults(fresh.form.roomTypeId);
+    }
+    toast.info("Draft discarded.");
+  }
 
   useEffect(() => {
     if (!newlyCreatedCategoryId) return;
@@ -230,7 +407,13 @@ export function RatePlanWizard({
     setStep(target);
   }
 
-  function buildPayload(): RatePlanWizardSavePayload {
+  function buildPayload(resolved: {
+    mealPlanId: string | null;
+    cancellationPolicyId: string | null;
+    noShowPolicyId: string | null;
+    depositPolicyId: string | null;
+    earlyDeparturePolicyId: string | null;
+  }): RatePlanWizardSavePayload {
     const extraAdult =
       form.extraAdultRate.trim() === "" ? null : Number(form.extraAdultRate);
     const extraChild =
@@ -244,12 +427,12 @@ export function RatePlanWizard({
       baseRate: form.baseRate,
       validFrom: form.validFrom.trim() || null,
       validTo: form.noEndDate ? null : form.validTo.trim() || null,
-      mealPlanId: optionalId(form.mealPlanId),
-      cancellationPolicyId: optionalId(form.cancellationPolicyId),
+      mealPlanId: resolved.mealPlanId,
+      cancellationPolicyId: resolved.cancellationPolicyId,
       refundabilityId: null,
-      depositPolicyId: optionalId(form.depositPolicyId),
-      noShowPolicyId: optionalId(form.noShowPolicyId),
-      earlyDeparturePolicyId: optionalId(form.earlyDeparturePolicyId),
+      depositPolicyId: resolved.depositPolicyId,
+      noShowPolicyId: resolved.noShowPolicyId,
+      earlyDeparturePolicyId: resolved.earlyDeparturePolicyId,
       includedOccupancy: parseOptionalIncludedField(form.includedOccupancy),
       extraAdultRate:
         extraAdult != null && Number.isFinite(extraAdult) ? extraAdult : null,
@@ -259,6 +442,156 @@ export function RatePlanWizard({
     };
   }
 
+  async function resolveMealPlanSelection(selection: string): Promise<string | null> {
+    if (!selection || selection === RATE_PLAN_NONE) return null;
+    if (!isPredefinedMealSelection(selection)) return selection;
+
+    const preset = parsePredefMeal(selection);
+    if (!preset) throw new Error("Unknown meal plan.");
+    if (!preset.materialize) return null;
+
+    const existing = findConfiguredMealPlanForPreset(preset, mealPlans);
+    if (existing?.id) return existing.id;
+
+    const result = await saveMealPlan({
+      data: {
+        restaurantId,
+        code: preset.code,
+        name: preset.name,
+        type: preset.type,
+        description: preset.description,
+        includesBreakfast: preset.includesBreakfast,
+        includesLunch: preset.includesLunch,
+        includesDinner: preset.includesDinner,
+        taxPosture: preset.taxPosture,
+        active: true,
+      },
+    });
+    const created = findConfiguredMealPlanForPreset(
+      preset,
+      result?.snapshot?.mealPlans ?? [],
+    );
+    if (!created?.id) throw new Error("Meal plan could not be saved.");
+    await queryClient.invalidateQueries({ queryKey: ["pms-card2-rates", restaurantId] });
+    await queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
+    return created.id;
+  }
+
+  async function resolvePolicySelection(
+    selection: string,
+    kind: "cancellation" | "no-show" | "deposit" | "early-departure",
+  ): Promise<string | null> {
+    if (!selection || selection === RATE_PLAN_NONE) return null;
+    if (!isPredefinedPolicySelection(selection)) return selection;
+
+    if (kind === "cancellation") {
+      const preset = parsePredefCancellation(selection);
+      if (!preset) throw new Error("Unknown cancellation policy.");
+      const existing = findConfiguredCancellation(preset, cancellationPolicies);
+      if (existing) return existing.id;
+      const result = await saveCancellation({
+        data: {
+          restaurantId,
+          code: preset.code,
+          name: preset.name,
+          description: preset.description,
+          policyKind: preset.policyKind,
+          windowValue: preset.windowValue,
+          windowUnit: preset.windowUnit,
+          cutoffTime: preset.cutoffTime,
+          penaltyType: preset.penaltyType,
+          penaltyValue: preset.penaltyValue,
+          active: true,
+        },
+      });
+      const created = findConfiguredCancellation(
+        preset,
+        result?.snapshot?.cancellationPolicies ?? [],
+      );
+      if (!created) throw new Error("Cancellation policy could not be saved.");
+      if (result) queryClient.setQueryData(["pms-card2-rates", restaurantId], result);
+      return created.id;
+    }
+
+    if (kind === "no-show") {
+      const preset = parsePredefNoShow(selection);
+      if (!preset) throw new Error("Unknown no-show policy.");
+      const existing = findConfiguredNoShowForPreset(preset, noShowPolicies);
+      if (existing) return existing.id;
+      const result = await saveNoShow({
+        data: {
+          restaurantId,
+          code: preset.code,
+          name: preset.name,
+          description: preset.description,
+          penaltyType: preset.penaltyType,
+          penaltyValue: preset.penaltyValue,
+          releaseHour: preset.releaseHour,
+          isDefault: false,
+          active: true,
+        },
+      });
+      const created = findConfiguredNoShowForPreset(
+        preset,
+        result?.snapshot?.noShowPolicies ?? [],
+      );
+      if (!created) throw new Error("No-show policy could not be saved.");
+      if (result) queryClient.setQueryData(["pms-card2-rates", restaurantId], result);
+      return created.id;
+    }
+
+    if (kind === "deposit") {
+      const preset = parsePredefDeposit(selection);
+      if (!preset) throw new Error("Unknown deposit policy.");
+      const existing = findConfiguredDepositForPreset(preset, depositPolicies);
+      if (existing) return existing.id;
+      const result = await saveDeposit({
+        data: {
+          restaurantId,
+          code: preset.code,
+          name: preset.name,
+          description: preset.description,
+          required: preset.required,
+          depositType: preset.depositType,
+          depositValue: preset.depositValue,
+          isDefault: false,
+          active: true,
+        },
+      });
+      const created = findConfiguredDepositForPreset(
+        preset,
+        result?.snapshot?.depositPolicies ?? [],
+      );
+      if (!created) throw new Error("Deposit policy could not be saved.");
+      await queryClient.invalidateQueries({ queryKey: ["pms-card2-rates", restaurantId] });
+      await queryClient.invalidateQueries({ queryKey: ["pms-card3-payments", restaurantId] });
+      return created.id;
+    }
+
+    const preset = parsePredefEarly(selection);
+    if (!preset) throw new Error("Unknown early departure policy.");
+    const existing = findConfiguredEarly(preset, earlyDeparturePolicies);
+    if (existing) return existing.id;
+    const result = await saveEarlyDeparture({
+      data: {
+        restaurantId,
+        code: preset.code,
+        name: preset.name,
+        description: preset.description,
+        penaltyType: preset.penaltyType,
+        penaltyValue: preset.penaltyValue,
+        active: true,
+      },
+    });
+    const created = findConfiguredEarly(
+      preset,
+      result?.snapshot?.earlyDeparturePolicies ?? [],
+    );
+    if (!created) throw new Error("Early departure policy could not be saved.");
+    if (result) queryClient.setQueryData(["pms-card2-rates", restaurantId], result);
+    return created.id;
+  }
+
   const completeSetup = useCallback(async () => {
     if (!isRatePlanWizardStep1Valid(form)) {
       setAttemptedStep1(true);
@@ -266,9 +599,34 @@ export function RatePlanWizard({
       toast.error("Please fill all required fields before completing.");
       return;
     }
+    if (!isValidRatePlanCode(form.code)) {
+      setAttemptedStep1(true);
+      setStep(1);
+      toast.error(RATE_PLAN_CODE_STAFF_HINT);
+      return;
+    }
     setSaving(true);
     try {
-      const payload = buildPayload();
+      const [
+        mealPlanId,
+        cancellationPolicyId,
+        noShowPolicyId,
+        depositPolicyId,
+        earlyDeparturePolicyId,
+      ] = await Promise.all([
+        resolveMealPlanSelection(form.mealPlanId),
+        resolvePolicySelection(form.cancellationPolicyId, "cancellation"),
+        resolvePolicySelection(form.noShowPolicyId, "no-show"),
+        resolvePolicySelection(form.depositPolicyId, "deposit"),
+        resolvePolicySelection(form.earlyDeparturePolicyId, "early-departure"),
+      ]);
+      const payload = buildPayload({
+        mealPlanId,
+        cancellationPolicyId,
+        noShowPolicyId,
+        depositPolicyId,
+        earlyDeparturePolicyId,
+      });
       const result = await onSave(payload);
       const packageId = optionalId(form.packageId);
       if (packageId && result?.snapshot) {
@@ -276,7 +634,7 @@ export function RatePlanWizard({
           const created = result.snapshot.plans.find(
             (plan) => plan.code.trim().toUpperCase() === payload.code.trim().toUpperCase(),
           );
-          const pkg = mealsQuery.data?.snapshot?.packages?.find((row) => row.id === packageId);
+          const pkg = mealsSnapshot?.packages?.find((row) => row.id === packageId);
           if (created && pkg) {
             const ratePlanIds = [...new Set([...pkg.ratePlanIds, created.id])];
             await savePackage({
@@ -295,8 +653,10 @@ export function RatePlanWizard({
                 ratePlanLinks: ratePlanIds.map((ratePlanId) => ({
                   ratePlanId,
                   inclusionType:
-                    pkg.ratePlanLinks.find((link) => link.ratePlanId === ratePlanId)
-                      ?.inclusionType ?? "optional",
+                    ratePlanId === created.id
+                      ? form.packageInclusionType
+                      : (pkg.ratePlanLinks.find((link) => link.ratePlanId === ratePlanId)
+                          ?.inclusionType ?? "optional"),
                 })),
               },
             });
@@ -309,16 +669,28 @@ export function RatePlanWizard({
           );
         }
       }
+      clearCreateRatePlanWizardDraft(restaurantId);
+      setDraftRestored(false);
       toast.success("Rate plan setup completed successfully!");
       onClose();
     } catch (error: unknown) {
-      toast.error((error as Error)?.message ?? "Failed to save rate plan.");
+      toast.error(staffFacingRatePlanSaveError(error));
     } finally {
       setSaving(false);
     }
-    // buildPayload reads latest form; intentional deps
+    // buildPayload / resolve* read latest form & catalogues; intentional deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, onSave, onClose, mealsQuery.data, restaurantId, savePackage, queryClient]);
+  }, [
+    form,
+    onSave,
+    onClose,
+    mealsSnapshot,
+    restaurantId,
+    savePackage,
+    saveMealPlan,
+    mealPlans,
+    queryClient,
+  ]);
 
   const catalogues = useMemo(
     () => ({
@@ -343,6 +715,43 @@ export function RatePlanWizard({
     ],
   );
 
+  const handleAddPackage = useCallback(() => {
+    setPackageEditorOpen(true);
+  }, []);
+
+  const handleSaveInlinePackage = useCallback(
+    async (payload: {
+      id?: string;
+      code: string;
+      name: string;
+      type: PackageType;
+      description?: string;
+      packagePrice: number;
+      chargeBasis: PackageChargeBasis;
+      active: boolean;
+      serviceTypeIds: string[];
+      roomTypeIds: string[];
+      ratePlanIds: string[];
+      ratePlanLinks: { ratePlanId: string; inclusionType: PackageInclusionType }[];
+    }) => {
+      setPackageSavePending(true);
+      try {
+        const result = await savePackage({
+          data: { restaurantId, ...payload },
+        });
+        await queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
+        const created = result?.snapshot?.packages?.find(
+          (row) => row.code.trim().toUpperCase() === payload.code.trim().toUpperCase(),
+        );
+        if (!created) throw new Error("Package could not be saved.");
+        return { id: created.id, name: created.name };
+      } finally {
+        setPackageSavePending(false);
+      }
+    },
+    [queryClient, restaurantId, savePackage],
+  );
+
   const value = useMemo(
     () => ({
       restaurantId,
@@ -363,6 +772,7 @@ export function RatePlanWizard({
       onAddNoShow,
       onAddEarlyDeparture,
       onAddMealPlan,
+      onAddPackage: handleAddPackage,
       onClose,
       onCompleted: onClose,
       setFooter,
@@ -385,6 +795,7 @@ export function RatePlanWizard({
       onAddNoShow,
       onAddEarlyDeparture,
       onAddMealPlan,
+      handleAddPackage,
       onClose,
       applyRoomTypeDefaults,
       saving,
@@ -398,13 +809,18 @@ export function RatePlanWizard({
   function handlePrimaryContinue() {
     if (step === 1 && !step1Valid) {
       setAttemptedStep1(true);
-      toast.error("Please fill all required fields before continuing.");
+      toast.error(
+        form.code.trim() && !isValidRatePlanCode(form.code)
+          ? RATE_PLAN_CODE_STAFF_HINT
+          : "Please fill all required fields before continuing.",
+      );
       return;
     }
     footer?.onContinue();
   }
 
   return (
+    <>
     <Dialog
       open
       onOpenChange={(next) => {
@@ -480,6 +896,27 @@ export function RatePlanWizard({
           </nav>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {draftRestored ? (
+              <div
+                className="mb-3 flex flex-col gap-2 rounded-lg border border-[#E6D7B8] bg-[#FBF7EE] px-3 py-2.5 text-[12px] text-[#5C5346] sm:flex-row sm:items-center sm:justify-between"
+                data-testid="pms-card2-rate-plan-draft-restored"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#C89933]" aria-hidden />
+                  <span>Unsaved rate plan draft restored.</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0 px-2 text-xs text-[#8A641A] hover:bg-[#F4EDE0] hover:text-[#251605]"
+                  onClick={discardDraft}
+                  data-testid="pms-card2-rate-plan-discard-draft"
+                >
+                  Discard draft
+                </Button>
+              </div>
+            ) : null}
             {step === 1 ? <RatePlanWizardStep1 /> : null}
             {step === 2 ? <RatePlanWizardStep2 /> : null}
             {step === 3 ? <RatePlanWizardStep3 /> : null}
@@ -522,5 +959,40 @@ export function RatePlanWizard({
         </RatePlanWizardContext.Provider>
       </DialogContent>
     </Dialog>
+
+    <PackageMasterEditor
+      open={packageEditorOpen}
+      restaurantId={restaurantId}
+      canEdit={canEdit}
+      currencyCode={currencyCode || mealsSnapshot?.currencyCode || ""}
+      roomTypes={mealsSnapshot?.roomTypes ?? []}
+      ratePlans={mealsSnapshot?.ratePlans ?? []}
+      components={mealsSnapshot?.components ?? []}
+      mealPlans={mealsSnapshot?.mealPlans ?? []}
+      roomAmenities={mealsSnapshot?.roomAmenities ?? []}
+      foServices={mealsSnapshot?.foServices ?? []}
+      departments={mealsSnapshot?.departments ?? []}
+      guestServiceCategories={mealsSnapshot?.guestServiceCategories ?? []}
+      guestServiceTypes={mealsSnapshot?.guestServiceTypes ?? []}
+      existingPackages={mealsSnapshot?.packages ?? []}
+      value={null}
+      pending={packageSavePending}
+      componentPending={false}
+      className="z-[80]"
+      onClose={() => setPackageEditorOpen(false)}
+      onSave={handleSaveInlinePackage}
+      onSaved={(pkg) => {
+        setForm((prev) => ({ ...prev, packageId: pkg.id }));
+        toast.success(`Selected "${pkg.name}" for rate plan.`);
+        void queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
+      }}
+      onSaveComponent={() => {
+        // Benefits & Services persist with Save package — no separate component writer.
+      }}
+      onDeleteComponent={() => {
+        // Benefits & Services persist with Save package — no separate component writer.
+      }}
+    />
+    </>
   );
 }

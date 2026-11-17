@@ -13,6 +13,7 @@ import { PROPERTY_SETUP_CARDS } from "./pms-property-setup-card1.ts";
 import {
   CARD2_HASH,
   CARD2_HREF,
+  CARD2_NAV_STEPS,
   CARD2_STEPS,
   CARD2_SUBTITLE,
   CARD2_TITLE,
@@ -23,6 +24,7 @@ import {
   nextCard2Step,
   previousCard2Step,
   resolveCard2Hash,
+  resolveCard2NavStep,
 } from "./pms-property-setup-card2.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -71,10 +73,13 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.equal(CARD2_STEPS[0]?.id, "room-types");
     assert.equal(nextCard2Step("room-types"), "rates-pricing");
     assert.equal(previousCard2Step("room-types"), null);
-    assert.equal(nextCard2Step("amenities"), "meal-plans-packages");
+    assert.equal(nextCard2Step("amenities"), "housekeeping");
     assert.equal(nextCard2Step("meal-plans-packages"), "housekeeping");
     assert.equal(nextCard2Step("maintenance"), null);
-    assert.equal(nextCard2Step("rates-pricing"), "amenities");
+    // Amenities + Meal Plans & Packages tabs retired — Continue skips to Housekeeping.
+    assert.equal(nextCard2Step("rates-pricing"), "housekeeping");
+    assert.equal(resolveCard2NavStep("meal-plans-packages"), "rates-pricing");
+    assert.ok(!CARD2_NAV_STEPS.some((row) => row.id === "meal-plans-packages"));
   });
 
   it("does not invent completion and does not collide with SET2 rooms", () => {
@@ -91,17 +96,23 @@ describe("PMS Property Setup Card 2 Phase 0 shell", () => {
     assert.equal(propertySetupRedirectHref("#rooms"), `${SET1_HUB_HREF}#rooms`);
   });
 
-  it("opens from the hub with setup-kit chrome, a status rail, and a draft save", () => {
+  it("opens from the hub with setup-kit chrome matching Property & Business", () => {
     assert.match(hub, /PmsPropertySetupCard2Section/);
     assert.match(hub, /restaurantId=\{restaurantId\}/);
     assert.match(hub, /card2Steps=/);
     assert.match(section, /PropertySetupWorkspaceShell/);
+    assert.match(section, /\bfill\b/);
+    assert.match(section, /marked/);
     assert.match(section, /PmsPropertySetupCard2RoomTypes/);
     assert.match(section, /PmsPropertySetupCard2Rates/);
-    assert.match(section, /PmsPropertySetupCard3Meals/);
+    assert.doesNotMatch(section, /PmsPropertySetupCard3Meals/);
     assert.match(hub, /card3LegacyMealsRedirectHref/);
+    assert.match(section, /meal-plans-packages/);
+    assert.match(section, /rates-pricing/);
     assert.match(section, /onSaveDraft/);
-    assert.match(section, /pms-card2-status-rail/);
+    assert.match(section, /Save & Finish/);
+    assert.doesNotMatch(section, /pms-card2-status-rail/);
+    assert.doesNotMatch(section, /Operating setup for this step/);
     assert.doesNotMatch(section, /CARD1_PMS_NAV/);
     assert.doesNotMatch(section, /pms-card2-top-nav/);
     assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
@@ -183,7 +194,9 @@ describe("PMS Property Setup Card 2 Phase 1 Room Types UI", () => {
     assert.doesNotMatch(ui, /from\("room_type_images"\)/);
     assert.match(sectionSrc, /step === "room-types"/);
     assert.match(sectionSrc, /step === "amenities"/);
-    assert.match(sectionSrc, /PmsPropertySetupCard2Amenities/);
+    assert.match(sectionSrc, /CARD2_NAV_STEPS/);
+    assert.match(sectionSrc, /resolveCard2NavStep/);
+    assert.match(sectionSrc, /Manage Amenity Catalogue|evaluateCard2AmenitiesReadiness/);
     assert.match(sectionSrc, /step === "inventory-rules"/);
     assert.match(sectionSrc, /PmsPropertySetupCard2Inventory/);
     assert.match(sectionSrc, /step === "maintenance"/);

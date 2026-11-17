@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Edit2, Lock, Plus } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
@@ -9,36 +17,57 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 import { COMMON_CURRENCIES } from "@/shared/lib/property-time";
 import { formatStayDate } from "@/shared/lib/property-dates";
-import {
-  CANCELLATION_PENALTY_TYPE_LABELS,
-  CANCELLATION_WINDOW_UNIT_LABELS,
-} from "@/packages/pms/lib/cancellation-policy-rules";
-import { buildNoShowPolicyPreview } from "@/packages/pms/lib/corporate-contracts.server";
-import { EARLY_DEPARTURE_PENALTY_TYPE_LABELS } from "@/packages/pms/lib/early-departure-policy";
+import { PROPERTY_SETUP_CONTROL_CLASS } from "@/packages/pms/lib/pms-property-setup-ui";
 import {
   computeRatePlanBaseFromDefaults,
   roomTypeBaseIsConfigured,
   type RatePlanPricingMethod,
 } from "@/packages/pms/lib/rate-plan-from-defaults";
-import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
-import type {
-  RateCancellationPolicyRow,
-  RateEarlyDeparturePolicyRow,
-  RateNoShowPolicyRow,
-} from "@/packages/pms/lib/rates-card2.server";
+import {
+  isValidRatePlanCode,
+  RATE_PLAN_CODE_STAFF_HINT,
+  suggestRatePlanCode,
+} from "@/packages/pms/lib/rates-card2-code";
+import { PmsPropertySetupCard3Meals } from "@/packages/pms/components/settings/pms-property-setup-card3-meals";
 import { useRatePlanWizard } from "./rate-plan-wizard-context";
+import {
+  buildCancellationWizardOptions,
+  buildDepositWizardOptions,
+  buildEarlyDepartureWizardOptions,
+  buildNoShowWizardOptions,
+  derivedCancellationKindFromSelection,
+  policyOptionLabel,
+  type WizardPolicyOption,
+} from "./rate-plan-wizard-policy-options";
+import {
+  PACKAGE_INCLUSION_TYPE_LABELS,
+  PACKAGE_INCLUSION_TYPES,
+  type PackageInclusionType,
+} from "@/packages/pms/lib/rate-plan-package-inclusion";
+import {
+  formatPackagePriceDetail,
+  formatRatePlanMoney,
+  oneNightStartingTotal,
+} from "@/packages/pms/lib/rate-plan-price-summary";
+import {
+  buildMealPlanWizardOptions,
+  resolveMealPlanSelectionValue,
+} from "./rate-plan-wizard-meal-options";
 import {
   derivedRefundabilityLabel,
   RATE_PLAN_NONE,
   type RatePlanWizardStepId,
 } from "./rate-plan-wizard-types";
+import type { RatePlanWizardPackageOption } from "./rate-plan-wizard-context";
 
 type Step1Field =
   | "categoryId"
@@ -47,6 +76,40 @@ type Step1Field =
   | "code"
   | "validFrom"
   | "baseRate";
+
+/** Rectangular NORU settings control — keep wizard field height (h-9), Settings radius (6px). */
+const WIZARD_CONTROL_CLASS = cn(
+  PROPERTY_SETUP_CONTROL_CLASS,
+  "h-9 rounded-[6px] focus:border-[#C89933] focus:outline-none focus:ring-1 focus:ring-[#C89933]",
+);
+
+const WIZARD_TEXTAREA_CLASS = cn(
+  WIZARD_CONTROL_CLASS,
+  "h-auto min-h-[4.5rem] py-2",
+);
+
+const WIZARD_SELECT_TRIGGER_CLASS = cn(
+  WIZARD_CONTROL_CLASS,
+  "justify-between [&>span]:line-clamp-1",
+);
+
+const WIZARD_SELECT_TRIGGER_TALL_CLASS = cn(
+  WIZARD_SELECT_TRIGGER_CLASS,
+  "h-auto min-h-9 py-1.5",
+);
+
+const WIZARD_LOCKED_CONTROL_CLASS =
+  "flex h-9 items-center gap-2 rounded-[6px] border border-[#CCCCCC] bg-[#F7F4EE] px-3 text-sm text-[#251605]";
+
+const PRICING_BASIS_OPTIONS: ReadonlyArray<{
+  value: RatePlanPricingMethod;
+  label: string;
+}> = [
+  { value: "use_base", label: "Use Room Type Base" },
+  { value: "discount", label: "Discount from Room Type Base" },
+  { value: "markup", label: "Markup from Room Type Base" },
+  { value: "fixed", label: "Fixed Price" },
+];
 
 function WizardCard({
   title,
@@ -84,7 +147,15 @@ function FieldError({ show, message }: { show: boolean; message: string }) {
   return <p className="text-[11px] text-destructive">{message}</p>;
 }
 
-function CreateButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+function CreateButton({
+  onClick,
+  disabled,
+  label = "Create",
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  label?: string;
+}) {
   return (
     <Button
       type="button"
@@ -95,7 +166,7 @@ function CreateButton({ onClick, disabled }: { onClick: () => void; disabled?: b
       onClick={onClick}
     >
       <Plus className="mr-1 size-3" />
-      Create
+      {label}
     </Button>
   );
 }
@@ -132,51 +203,53 @@ function formatWizardValidity(validFrom?: string | null, validTo?: string | null
   return `${formatStayDate(from!)} – ${formatStayDate(to!)}`;
 }
 
-function cancellationDetail(row: RateCancellationPolicyRow): string {
-  if (row.policyKind === "non_refundable") {
-    return `No free cancellation · ${CANCELLATION_PENALTY_TYPE_LABELS[row.penaltyType]} after`;
-  }
-  const penalty =
-    row.penaltyType === "percentage"
-      ? `${row.penaltyValue}% of stay`
-      : CANCELLATION_PENALTY_TYPE_LABELS[row.penaltyType];
-  if (row.cutoffTime) {
-    return `Free until same-day ${row.cutoffTime} · ${penalty} after`;
-  }
-  if (row.windowValue == null) {
-    return `${CANCELLATION_WINDOW_UNIT_LABELS[row.windowUnit]} · ${penalty} after`;
-  }
-  const windowLabel =
-    row.windowUnit === "days_before_arrival"
-      ? `${row.windowValue} ${row.windowValue === 1 ? "day" : "days"}`
-      : `${row.windowValue}h`;
-  return `Free until ${windowLabel} before arrival · ${penalty} after`;
-}
-
-function noShowDetail(row: RateNoShowPolicyRow): string {
-  return buildNoShowPolicyPreview(row.penaltyType, row.penaltyValue, row.releaseHour);
-}
-
-function earlyDepartureDetail(row: RateEarlyDeparturePolicyRow): string {
-  return row.description?.trim() || EARLY_DEPARTURE_PENALTY_TYPE_LABELS[row.penaltyType];
-}
-
-function PolicySelectItem({
-  value,
-  name,
-  detail,
-}: {
-  value: string;
-  name: string;
-  detail?: string;
-}) {
+function PolicySelectItem({ option }: { option: WizardPolicyOption }) {
   return (
-    <SelectItem value={value} className="items-start py-2">
+    <SelectItem value={option.value} className="items-start py-2">
       <div className="flex flex-col gap-0.5">
-        <span>{name}</span>
-        {detail ? <span className="text-[10px] font-normal text-[#8A7963]">{detail}</span> : null}
+        <span>{option.name}</span>
+        {option.detail ? (
+          <span className="text-[10px] font-normal text-[#8A7963]">{option.detail}</span>
+        ) : null}
       </div>
     </SelectItem>
+  );
+}
+
+function PolicySelectGroups({
+  options,
+  noruLabel = "NORU Policies",
+  customLabel = "Custom Policies",
+}: {
+  options: readonly WizardPolicyOption[];
+  noruLabel?: string;
+  customLabel?: string;
+}) {
+  const noru = options.filter((row) => row.group === "noru");
+  const custom = options.filter((row) => row.group === "custom");
+  return (
+    <>
+      {noru.length > 0 ? (
+        <SelectGroup>
+          <SelectLabel className="text-[10px] uppercase tracking-wider text-[#8A641A]">
+            {noruLabel}
+          </SelectLabel>
+          {noru.map((option) => (
+            <PolicySelectItem key={`${option.group}-${option.value}`} option={option} />
+          ))}
+        </SelectGroup>
+      ) : null}
+      {custom.length > 0 ? (
+        <SelectGroup>
+          <SelectLabel className="text-[10px] uppercase tracking-wider text-[#8A641A]">
+            {customLabel}
+          </SelectLabel>
+          {custom.map((option) => (
+            <PolicySelectItem key={`${option.group}-${option.value}`} option={option} />
+          ))}
+        </SelectGroup>
+      ) : null}
+    </>
   );
 }
 
@@ -275,11 +348,24 @@ export function RatePlanWizardStep1() {
               disabled={!canEdit}
               onValueChange={(categoryId) => {
                 markTouched("categoryId");
-                setForm((prev) => ({ ...prev, categoryId }));
+                setForm((prev) => {
+                  const category = catalogues.categories.find((row) => row.id === categoryId);
+                  const roomType = catalogues.roomTypes.find((row) => row.id === prev.roomTypeId);
+                  return {
+                    ...prev,
+                    categoryId,
+                    code: codeManuallyEdited
+                      ? prev.code
+                      : suggestRatePlanCode(category?.code ?? "", roomType?.name ?? ""),
+                  };
+                });
               }}
             >
               <SelectTrigger
-                className={cn(showError("categoryId", !form.categoryId) && "border-destructive")}
+                className={cn(
+                  WIZARD_SELECT_TRIGGER_CLASS,
+                  showError("categoryId", !form.categoryId) && "border-destructive",
+                )}
                 onBlur={() => markTouched("categoryId")}
               >
                 <SelectValue placeholder="Select category">
@@ -315,7 +401,10 @@ export function RatePlanWizardStep1() {
               }}
             >
               <SelectTrigger
-                className={cn(showError("roomTypeId", !form.roomTypeId) && "border-destructive")}
+                className={cn(
+                  WIZARD_SELECT_TRIGGER_CLASS,
+                  showError("roomTypeId", !form.roomTypeId) && "border-destructive",
+                )}
                 onBlur={() => markTouched("roomTypeId")}
               >
                 <SelectValue placeholder="Select room type">
@@ -345,15 +434,14 @@ export function RatePlanWizardStep1() {
               value={form.name}
               disabled={!canEdit}
               placeholder="e.g. Best Available Rate - Standard King"
-              className={cn(showError("name", !form.name.trim()) && "border-destructive")}
+              className={cn(
+                WIZARD_CONTROL_CLASS,
+                showError("name", !form.name.trim()) && "border-destructive",
+              )}
               onBlur={() => markTouched("name")}
               onChange={(event) => {
                 const name = event.target.value;
-                setForm((prev) => ({
-                  ...prev,
-                  name,
-                  code: codeManuallyEdited ? prev.code : suggestRatePlanCode(name),
-                }));
+                setForm((prev) => ({ ...prev, name }));
               }}
             />
             <FieldError show={showError("name", !form.name.trim())} message="Name is required." />
@@ -364,23 +452,63 @@ export function RatePlanWizardStep1() {
               <Label htmlFor="rpw-code">
                 Rate Plan Code <span className="text-destructive">*</span>
               </Label>
-              {!codeManuallyEdited && form.code ? (
-                <span className="text-[10px] text-muted-foreground">Auto from name</span>
+              {canEdit && codeManuallyEdited && (selectedCategory || selectedType) ? (
+                <button
+                  type="button"
+                  className="text-[10px] text-[#8A641A] hover:underline"
+                  data-testid="rpw-code-reset-auto"
+                  onClick={() => {
+                    setCodeManuallyEdited(false);
+                    setForm((prev) => ({
+                      ...prev,
+                      code: suggestRatePlanCode(
+                        selectedCategory?.code ?? "",
+                        selectedType?.name ?? "",
+                      ),
+                    }));
+                  }}
+                >
+                  Reset to auto
+                </button>
               ) : null}
             </div>
-            <Input
-              id="rpw-code"
-              value={form.code}
-              disabled={!canEdit}
-              placeholder="e.g. BAR-STD-KNG"
-              className={cn(showError("code", !form.code.trim()) && "border-destructive")}
-              onBlur={() => markTouched("code")}
-              onChange={(event) => {
-                setCodeManuallyEdited(true);
-                setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }));
-              }}
+            <div className="relative">
+              <Input
+                id="rpw-code"
+                value={form.code}
+                disabled={!canEdit}
+                placeholder="e.g. BAR_STD_KING"
+                className={cn(
+                  WIZARD_CONTROL_CLASS,
+                  "pr-14 font-mono uppercase",
+                  (showError("code", !form.code.trim()) ||
+                    (Boolean(form.code.trim()) && !isValidRatePlanCode(form.code))) &&
+                    "border-destructive",
+                )}
+                onBlur={() => markTouched("code")}
+                onChange={(event) => {
+                  setCodeManuallyEdited(true);
+                  setForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }));
+                }}
+              />
+              {!codeManuallyEdited && form.code ? (
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded bg-[#EDE6D8] px-1.5 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wider text-[#5C4528]">
+                  Auto
+                </span>
+              ) : null}
+            </div>
+            <FieldError
+              show={showError("code", !form.code.trim())}
+              message="Code is required."
             />
-            <FieldError show={showError("code", !form.code.trim())} message="Code is required." />
+            <FieldError
+              show={
+                Boolean(form.code.trim()) &&
+                !isValidRatePlanCode(form.code) &&
+                Boolean(attemptedStep1 || touched.code)
+              }
+              message={RATE_PLAN_CODE_STAFF_HINT}
+            />
           </div>
         </div>
 
@@ -391,6 +519,7 @@ export function RatePlanWizardStep1() {
             value={form.description}
             disabled={!canEdit}
             rows={2}
+            className={WIZARD_TEXTAREA_CLASS}
             onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
           />
         </div>
@@ -405,7 +534,10 @@ export function RatePlanWizardStep1() {
               type="date"
               value={form.validFrom}
               disabled={!canEdit}
-              className={cn(showError("validFrom", !form.validFrom) && "border-destructive")}
+              className={cn(
+                WIZARD_CONTROL_CLASS,
+                showError("validFrom", !form.validFrom) && "border-destructive",
+              )}
               onBlur={() => markTouched("validFrom")}
               onChange={(event) => setForm((prev) => ({ ...prev, validFrom: event.target.value }))}
             />
@@ -447,6 +579,7 @@ export function RatePlanWizardStep1() {
               value={form.validTo}
               disabled={!canEdit || form.noEndDate}
               className={cn(
+                WIZARD_CONTROL_CLASS,
                 form.noEndDate && "cursor-not-allowed bg-[#F3EFE7] text-[#A89F90] opacity-70",
               )}
               onChange={(event) =>
@@ -467,48 +600,59 @@ export function RatePlanWizardStep1() {
         description="Room Type values are used as starting defaults. The saved Rate Plan remains the pricing authority."
       >
         <div className="mb-3 space-y-1.5">
-          <p className="text-[11px] font-medium text-[#5C5346]">Pricing basis</p>
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-            {(
-              [
-                ["use_base", "Use Room Type Base"],
-                ["discount", "Discount from Room Type Base"],
-                ["markup", "Markup from Room Type Base"],
-                ["fixed", "Fixed Price"],
-              ] as const
-            ).map(([method, label]) => {
-              const selected = form.pricingMethod === method;
-              const disabled = !canEdit || (method !== "fixed" && !hasTypeBase);
-              return (
-                <button
-                  key={method}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => applyPricingMethod(method)}
-                  className={cn(
-                    "rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors",
-                    selected
-                      ? "border-[#C89933] bg-[#FBF3E0] text-[#251605] shadow-xs"
-                      : "border-[#E6E1D8] bg-white text-[#5C5346] hover:border-[#D9C7A2] hover:bg-[#FBF9F5]",
-                    disabled && "cursor-not-allowed opacity-50",
-                  )}
-                  aria-pressed={selected}
-                >
-                  {label}
-                </button>
-              );
-            })}
+          <div className="space-y-1">
+            <Label htmlFor="rpw-pricing-basis">Pricing Basis</Label>
+            <Select
+              value={form.pricingMethod}
+              disabled={!canEdit}
+              onValueChange={(next) => applyPricingMethod(next as RatePlanPricingMethod)}
+            >
+              <SelectTrigger id="rpw-pricing-basis" className={WIZARD_SELECT_TRIGGER_CLASS}>
+                <SelectValue>
+                  {PRICING_BASIS_OPTIONS.find((row) => row.value === form.pricingMethod)?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="z-[100] rounded-[6px]">
+                {PRICING_BASIS_OPTIONS.map((row) => (
+                  <SelectItem
+                    key={row.value}
+                    value={row.value}
+                    disabled={row.value !== "fixed" && !hasTypeBase}
+                  >
+                    {row.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {form.pricingMethod === "discount" || form.pricingMethod === "markup" ? (
+          {form.pricingMethod === "discount" ? (
             <div className="space-y-1 pt-1">
-              <Label>Percent</Label>
+              <Label htmlFor="rpw-discount-percent">Discount percent</Label>
               <Input
+                id="rpw-discount-percent"
                 type="number"
                 min={0}
                 value={form.methodPercent}
                 disabled={!canEdit}
+                className={WIZARD_CONTROL_CLASS}
                 onChange={(event) =>
-                  applyPricingMethod(form.pricingMethod, Number(event.target.value) || 0)
+                  applyPricingMethod("discount", Number(event.target.value) || 0)
+                }
+              />
+            </div>
+          ) : null}
+          {form.pricingMethod === "markup" ? (
+            <div className="space-y-1 pt-1">
+              <Label htmlFor="rpw-markup-percent">Markup percent</Label>
+              <Input
+                id="rpw-markup-percent"
+                type="number"
+                min={0}
+                value={form.methodPercent}
+                disabled={!canEdit}
+                className={WIZARD_CONTROL_CLASS}
+                onChange={(event) =>
+                  applyPricingMethod("markup", Number(event.target.value) || 0)
                 }
               />
             </div>
@@ -530,6 +674,7 @@ export function RatePlanWizardStep1() {
                 value={form.baseRate}
                 disabled={!canEdit}
                 className={cn(
+                  WIZARD_CONTROL_CLASS,
                   showError(
                     "baseRate",
                     !(Number.isFinite(form.baseRate) && form.baseRate >= 0),
@@ -551,8 +696,8 @@ export function RatePlanWizardStep1() {
           <div className="space-y-1">
             <Label>Currency</Label>
             <div
-              className="flex h-9 items-center gap-2 rounded-md border border-[#E6E1D8] bg-[#F7F4EE] px-3 text-sm text-[#251605]"
-              title="Inherited from Property & Business"
+              className={WIZARD_LOCKED_CONTROL_CLASS}
+              title="From Property & Business"
             >
               <Lock className="size-3.5 shrink-0 text-[#8A641A]" aria-hidden />
               <span className="truncate">{currencyDisplayLabel(catalogues.currencyCode)}</span>
@@ -570,6 +715,7 @@ export function RatePlanWizardStep1() {
               min={1}
               value={form.includedOccupancy}
               disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, includedOccupancy: event.target.value }))
               }
@@ -586,6 +732,7 @@ export function RatePlanWizardStep1() {
               step="any"
               value={form.extraAdultRate}
               disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, extraAdultRate: event.target.value }))
               }
@@ -602,6 +749,7 @@ export function RatePlanWizardStep1() {
               step="any"
               value={form.extraChildRate}
               disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, extraChildRate: event.target.value }))
               }
@@ -661,8 +809,26 @@ export function RatePlanWizardStep2() {
     setStep,
   } = useRatePlanWizard();
 
-  const selectedCancellation = catalogues.cancellationPolicies.find(
-    (row) => row.id === form.cancellationPolicyId,
+  const cancellationOptions = buildCancellationWizardOptions(
+    catalogues.cancellationPolicies,
+    form.cancellationPolicyId,
+  );
+  const noShowOptions = buildNoShowWizardOptions(
+    catalogues.noShowPolicies,
+    form.noShowPolicyId,
+  );
+  const depositOptions = buildDepositWizardOptions(
+    catalogues.depositPolicies,
+    form.depositPolicyId,
+  );
+  const earlyDepartureOptions = buildEarlyDepartureWizardOptions(
+    catalogues.earlyDeparturePolicies,
+    form.earlyDeparturePolicyId,
+  );
+
+  const refundKind = derivedCancellationKindFromSelection(
+    form.cancellationPolicyId,
+    catalogues.cancellationPolicies,
   );
 
   useEffect(() => {
@@ -677,13 +843,15 @@ export function RatePlanWizardStep2() {
     <div className="space-y-3">
       <WizardCard
         title="Policies"
-        description="Assign policies used when this rate plan is sold."
+        description="Select a NORU policy or a property custom policy. Create custom only when the policy is not already listed."
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1 sm:col-span-1">
             <div className="flex items-center justify-between">
               <Label className="font-semibold text-[#251605]">Cancellation Policy</Label>
-              {canEdit ? <CreateButton onClick={onAddCancellation} /> : null}
+              {canEdit ? (
+                <CreateButton label="Create custom" onClick={onAddCancellation} />
+              ) : null}
             </div>
             <Select
               value={form.cancellationPolicyId}
@@ -692,27 +860,20 @@ export function RatePlanWizardStep2() {
                 setForm((prev) => ({ ...prev, cancellationPolicyId }))
               }
             >
-              <SelectTrigger className="h-auto min-h-9 py-1.5">
+              <SelectTrigger className={WIZARD_SELECT_TRIGGER_TALL_CLASS}>
                 <SelectValue>
-                  {staffName(form.cancellationPolicyId, catalogues.cancellationPolicies)}
+                  {policyOptionLabel(form.cancellationPolicyId, cancellationOptions)}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="z-[100]">
+              <SelectContent className="z-[100] rounded-[6px]">
                 <SelectItem value={RATE_PLAN_NONE}>None</SelectItem>
-                {catalogues.cancellationPolicies.map((row) => (
-                  <PolicySelectItem
-                    key={row.id}
-                    value={row.id}
-                    name={row.name}
-                    detail={cancellationDetail(row)}
-                  />
-                ))}
+                <PolicySelectGroups options={cancellationOptions} />
               </SelectContent>
             </Select>
             <p className="text-[11px] text-[#5C5346]">
               Refundability:{" "}
               <span className="font-semibold text-[#251605]">
-                {derivedRefundabilityLabel(selectedCancellation?.policyKind)}
+                {derivedRefundabilityLabel(refundKind)}
               </span>
             </p>
           </div>
@@ -720,28 +881,21 @@ export function RatePlanWizardStep2() {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label className="font-semibold text-[#251605]">No-Show Policy</Label>
-              {canEdit ? <CreateButton onClick={onAddNoShow} /> : null}
+              {canEdit ? <CreateButton label="Create custom" onClick={onAddNoShow} /> : null}
             </div>
             <Select
               value={form.noShowPolicyId}
               disabled={!canEdit}
               onValueChange={(noShowPolicyId) => setForm((prev) => ({ ...prev, noShowPolicyId }))}
             >
-              <SelectTrigger className="h-auto min-h-9 py-1.5">
+              <SelectTrigger className={WIZARD_SELECT_TRIGGER_TALL_CLASS}>
                 <SelectValue>
-                  {staffName(form.noShowPolicyId, catalogues.noShowPolicies)}
+                  {policyOptionLabel(form.noShowPolicyId, noShowOptions)}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="z-[100]">
+              <SelectContent className="z-[100] rounded-[6px]">
                 <SelectItem value={RATE_PLAN_NONE}>None</SelectItem>
-                {catalogues.noShowPolicies.map((row) => (
-                  <PolicySelectItem
-                    key={row.id}
-                    value={row.id}
-                    name={row.name}
-                    detail={noShowDetail(row)}
-                  />
-                ))}
+                <PolicySelectGroups options={noShowOptions} />
               </SelectContent>
             </Select>
           </div>
@@ -749,23 +903,21 @@ export function RatePlanWizardStep2() {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label className="text-[#5C5346]">Deposit Policy</Label>
-              {canEdit ? <CreateButton onClick={onAddDeposit} /> : null}
+              {canEdit ? <CreateButton label="Create custom" onClick={onAddDeposit} /> : null}
             </div>
             <Select
               value={form.depositPolicyId}
               disabled={!canEdit}
               onValueChange={(depositPolicyId) => setForm((prev) => ({ ...prev, depositPolicyId }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className={WIZARD_SELECT_TRIGGER_CLASS}>
                 <SelectValue>
-                  {staffName(form.depositPolicyId, catalogues.depositPolicies)}
+                  {policyOptionLabel(form.depositPolicyId, depositOptions)}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="z-[100]">
+              <SelectContent className="z-[100] rounded-[6px]">
                 <SelectItem value={RATE_PLAN_NONE}>None</SelectItem>
-                {catalogues.depositPolicies.map((row) => (
-                  <PolicySelectItem key={row.id} value={row.id} name={row.name} />
-                ))}
+                <PolicySelectGroups options={depositOptions} />
               </SelectContent>
             </Select>
           </div>
@@ -773,7 +925,9 @@ export function RatePlanWizardStep2() {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <Label className="text-[#5C5346]">Early Departure Policy</Label>
-              {canEdit ? <CreateButton onClick={onAddEarlyDeparture} /> : null}
+              {canEdit ? (
+                <CreateButton label="Create custom" onClick={onAddEarlyDeparture} />
+              ) : null}
             </div>
             <Select
               value={form.earlyDeparturePolicyId}
@@ -782,21 +936,14 @@ export function RatePlanWizardStep2() {
                 setForm((prev) => ({ ...prev, earlyDeparturePolicyId }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className={WIZARD_SELECT_TRIGGER_CLASS}>
                 <SelectValue>
-                  {staffName(form.earlyDeparturePolicyId, catalogues.earlyDeparturePolicies)}
+                  {policyOptionLabel(form.earlyDeparturePolicyId, earlyDepartureOptions)}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="z-[100]">
+              <SelectContent className="z-[100] rounded-[6px]">
                 <SelectItem value={RATE_PLAN_NONE}>None</SelectItem>
-                {catalogues.earlyDeparturePolicies.map((row) => (
-                  <PolicySelectItem
-                    key={row.id}
-                    value={row.id}
-                    name={row.name}
-                    detail={earlyDepartureDetail(row)}
-                  />
-                ))}
+                <PolicySelectGroups options={earlyDepartureOptions} />
               </SelectContent>
             </Select>
           </div>
@@ -806,17 +953,77 @@ export function RatePlanWizardStep2() {
   );
 }
 
+function packagePriceDetail(
+  row: RatePlanWizardPackageOption,
+  currencyCode: string,
+): string {
+  return formatPackagePriceDetail(row, currencyCode);
+}
+
+function packageTreatmentHelper(inclusion: PackageInclusionType): string {
+  if (inclusion === "included") {
+    return "Package benefits are included with this rate plan.";
+  }
+  return "Guests may add this package separately when booking.";
+}
+
+function Step3CatalogueActions({
+  canEdit,
+  createLabel,
+  manageLabel,
+  manageTestId,
+  onCreate,
+  onManage,
+}: {
+  canEdit: boolean;
+  createLabel: string;
+  manageLabel: string;
+  manageTestId: string;
+  onCreate: () => void;
+  onManage: () => void;
+}) {
+  if (!canEdit) return null;
+  return (
+    <div className="flex items-center gap-1">
+      <CreateButton label={createLabel} onClick={onCreate} />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-5 border-[#D9D2C4] px-1.5 text-[10px] text-[#251605] hover:bg-[#F4EDE0]"
+        onClick={onManage}
+        data-testid={manageTestId}
+      >
+        {manageLabel}
+      </Button>
+    </div>
+  );
+}
+
 export function RatePlanWizardStep3() {
   const {
+    restaurantId,
     canEdit,
     form,
     setForm,
     catalogues,
     packages,
     onAddMealPlan,
+    onAddPackage,
     setFooter,
     setStep,
   } = useRatePlanWizard();
+  const queryClient = useQueryClient();
+  const [mealCatalogueOpen, setMealCatalogueOpen] = useState(false);
+  const [packageCatalogueOpen, setPackageCatalogueOpen] = useState(false);
+
+  const mealSelectValue = resolveMealPlanSelectionValue(form.mealPlanId, catalogues.mealPlans);
+  const mealOptions = buildMealPlanWizardOptions(catalogues.mealPlans, mealSelectValue);
+  const packageOptions = packages.filter(
+    (row) => row.active || row.id === form.packageId,
+  );
+  const selectedPackage = packageOptions.find((row) => row.id === form.packageId);
+  const packageSelected = Boolean(form.packageId && form.packageId !== RATE_PLAN_NONE);
 
   useEffect(() => {
     setFooter({
@@ -826,6 +1033,11 @@ export function RatePlanWizardStep3() {
     return () => setFooter(null);
   }, [setFooter, setStep]);
 
+  function refreshCatalogues() {
+    void queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["pms-card2-rates", restaurantId] });
+  }
+
   return (
     <div className="space-y-3">
       <p className="text-[11px] text-[#756A5B]">
@@ -834,52 +1046,175 @@ export function RatePlanWizardStep3() {
 
       <WizardCard
         title="Meal Plan"
-        description="Default is Room Only when no meal plan is selected."
-        action={canEdit ? <CreateButton onClick={onAddMealPlan} /> : null}
+        description="Select a standard NORU meal plan or a custom plan created for this property."
+        action={
+          <Step3CatalogueActions
+            canEdit={canEdit}
+            createLabel="Create custom"
+            manageLabel="Manage catalogue"
+            manageTestId="rate-plan-manage-meal-catalogue"
+            onCreate={onAddMealPlan}
+            onManage={() => setMealCatalogueOpen(true)}
+          />
+        }
       >
         <Select
-          value={form.mealPlanId}
+          value={mealSelectValue}
           disabled={!canEdit}
           onValueChange={(mealPlanId) => setForm((prev) => ({ ...prev, mealPlanId }))}
         >
-          <SelectTrigger>
+          <SelectTrigger className={WIZARD_SELECT_TRIGGER_CLASS}>
             <SelectValue>
-              {staffName(form.mealPlanId, catalogues.mealPlans, "Room Only")}
+              {policyOptionLabel(mealSelectValue, mealOptions, "Room Only")}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="z-[100]">
-            <SelectItem value={RATE_PLAN_NONE}>Room Only</SelectItem>
-            {catalogues.mealPlans.map((row) => (
-              <SelectItem key={row.id} value={row.id}>
-                {row.name}
-              </SelectItem>
-            ))}
+          <SelectContent className="z-[100] rounded-[6px]">
+            <PolicySelectGroups
+              options={mealOptions}
+              noruLabel="NORU Meal Plans"
+              customLabel="Custom Meal Plans"
+            />
           </SelectContent>
         </Select>
       </WizardCard>
 
       <WizardCard
         title="Package"
-        description="Optional. Select an existing package to bundle with this rate plan."
+        description="Select a reusable package from Package Master, or create a custom package."
+        action={
+          <Step3CatalogueActions
+            canEdit={canEdit}
+            createLabel="Create custom"
+            manageLabel="Manage packages"
+            manageTestId="rate-plan-manage-packages"
+            onCreate={onAddPackage}
+            onManage={() => setPackageCatalogueOpen(true)}
+          />
+        }
       >
         <Select
           value={form.packageId}
           disabled={!canEdit}
           onValueChange={(packageId) => setForm((prev) => ({ ...prev, packageId }))}
         >
-          <SelectTrigger>
-            <SelectValue>{staffName(form.packageId, packages, "None")}</SelectValue>
+          <SelectTrigger className={WIZARD_SELECT_TRIGGER_CLASS}>
+            <SelectValue>
+              {selectedPackage?.name ?? staffName(form.packageId, packageOptions, "None")}
+            </SelectValue>
           </SelectTrigger>
-          <SelectContent className="z-[100]">
+          <SelectContent className="z-[100] rounded-[6px]">
             <SelectItem value={RATE_PLAN_NONE}>None</SelectItem>
-            {packages.map((row) => (
-              <SelectItem key={row.id} value={row.id}>
-                {row.name}
+            {packageOptions.map((row) => (
+              <SelectItem key={row.id} value={row.id} className="items-start py-2">
+                <div className="flex flex-col gap-0.5">
+                  <span>{row.name}</span>
+                  <span className="text-[10px] font-normal text-[#8A7963]">
+                    {packagePriceDetail(row, catalogues.currencyCode)}
+                  </span>
+                </div>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        {packageSelected ? (
+          <div className="mt-3 space-y-1.5" data-testid="rate-plan-package-treatment">
+            <Label className="text-[11px] font-medium text-[#5C5346]">Package treatment</Label>
+            <Select
+              value={form.packageInclusionType}
+              disabled={!canEdit}
+              onValueChange={(next) =>
+                setForm((prev) => ({
+                  ...prev,
+                  packageInclusionType: next as PackageInclusionType,
+                }))
+              }
+            >
+              <SelectTrigger className={WIZARD_SELECT_TRIGGER_CLASS}>
+                <SelectValue>
+                  {PACKAGE_INCLUSION_TYPE_LABELS[form.packageInclusionType]}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="z-[100] rounded-[6px]">
+                {PACKAGE_INCLUSION_TYPES.map((kind) => (
+                  <SelectItem key={kind} value={kind}>
+                    {PACKAGE_INCLUSION_TYPE_LABELS[kind]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-[#756A5B]">
+              {packageTreatmentHelper(form.packageInclusionType)}
+            </p>
+          </div>
+        ) : null}
       </WizardCard>
+
+      {/* Nested Meal Plan catalogue — Rate Plan wizard stays mounted underneath */}
+      <Dialog open={mealCatalogueOpen} onOpenChange={setMealCatalogueOpen}>
+        <DialogContent
+          overlayClassName="bg-[#1F140A]/60 z-[70]"
+          className="z-[80] flex max-h-[90vh] w-[min(1100px,calc(100vw-2rem))] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] p-0 shadow-xl sm:max-w-none"
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader className="shrink-0 border-b border-[#EDE6D8] bg-white px-5 py-3 text-left">
+            <DialogTitle className="font-display text-base text-[#251605]">
+              Manage Meal Plan Catalogue
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#756A5B]">
+              Add or edit meal plans for this property. Your rate plan selections stay preserved
+              underneath.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <PmsPropertySetupCard3Meals
+              restaurantId={restaurantId}
+              canEdit={canEdit}
+              embedded
+              catalogueMode="meals"
+              onMealPlanCreated={(mealPlanId) => {
+                setForm((prev) => ({ ...prev, mealPlanId }));
+                refreshCatalogues();
+                setMealCatalogueOpen(false);
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Nested Package catalogue — Rate Plan wizard stays mounted underneath */}
+      <Dialog open={packageCatalogueOpen} onOpenChange={setPackageCatalogueOpen}>
+        <DialogContent
+          overlayClassName="bg-[#1F140A]/60 z-[70]"
+          className="z-[80] flex max-h-[90vh] w-[min(1100px,calc(100vw-2rem))] max-w-none flex-col gap-0 overflow-hidden rounded-2xl border border-[#DDD4C5] bg-[#F7F4EE] p-0 shadow-xl sm:max-w-none"
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader className="shrink-0 border-b border-[#EDE6D8] bg-white px-5 py-3 text-left">
+            <DialogTitle className="font-display text-base text-[#251605]">
+              Manage Packages
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#756A5B]">
+              Add or edit packages for this property. Your rate plan selections stay preserved
+              underneath.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <PmsPropertySetupCard3Meals
+              restaurantId={restaurantId}
+              canEdit={canEdit}
+              embedded
+              catalogueMode="packages"
+              onPackageCreated={(packageId) => {
+                setForm((prev) => ({ ...prev, packageId }));
+                refreshCatalogues();
+                setPackageCatalogueOpen(false);
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -963,16 +1298,30 @@ export function RatePlanWizardStep5() {
 
   const category = catalogues.categories.find((row) => row.id === form.categoryId);
   const roomType = catalogues.roomTypes.find((row) => row.id === form.roomTypeId);
-  const cancellation = catalogues.cancellationPolicies.find(
-    (row) => row.id === form.cancellationPolicyId,
+  const cancellationOptions = buildCancellationWizardOptions(
+    catalogues.cancellationPolicies,
+    form.cancellationPolicyId,
   );
-  const deposit = catalogues.depositPolicies.find((row) => row.id === form.depositPolicyId);
-  const noShow = catalogues.noShowPolicies.find((row) => row.id === form.noShowPolicyId);
-  const early = catalogues.earlyDeparturePolicies.find(
-    (row) => row.id === form.earlyDeparturePolicyId,
+  const noShowOptions = buildNoShowWizardOptions(
+    catalogues.noShowPolicies,
+    form.noShowPolicyId,
   );
-  const meal = catalogues.mealPlans.find((row) => row.id === form.mealPlanId);
+  const depositOptions = buildDepositWizardOptions(
+    catalogues.depositPolicies,
+    form.depositPolicyId,
+  );
+  const earlyOptions = buildEarlyDepartureWizardOptions(
+    catalogues.earlyDeparturePolicies,
+    form.earlyDeparturePolicyId,
+  );
+  const refundKind = derivedCancellationKindFromSelection(
+    form.cancellationPolicyId,
+    catalogues.cancellationPolicies,
+  );
+  const mealSelectValue = resolveMealPlanSelectionValue(form.mealPlanId, catalogues.mealPlans);
+  const mealOptions = buildMealPlanWizardOptions(catalogues.mealPlans, mealSelectValue);
   const pkg = packages.find((row) => row.id === form.packageId);
+  const packageSelected = Boolean(form.packageId && form.packageId !== RATE_PLAN_NONE);
 
   useEffect(() => {
     setFooter({
@@ -1013,11 +1362,57 @@ export function RatePlanWizardStep5() {
           />
         </ReviewSection>
 
-        <ReviewSection title="Pricing" step={1}>
+        <ReviewSection title="Price Summary" step={1}>
           <ReviewRow
-            label="Base rate"
-            value={`${catalogues.currencyCode} ${form.baseRate}`}
+            label="Room rate"
+            value={`${formatRatePlanMoney(catalogues.currencyCode, form.baseRate)} / night`}
           />
+          {packageSelected && pkg && form.packageInclusionType === "included" ? (
+            <>
+              <ReviewRow
+                label={pkg.name}
+                value={packagePriceDetail(pkg, catalogues.currencyCode)}
+              />
+              <ReviewRow
+                label="Package treatment"
+                value={PACKAGE_INCLUSION_TYPE_LABELS.included}
+              />
+              <div className="mt-2 flex justify-between gap-3 border-t border-[#EDE6D8] pt-2.5">
+                <span className="text-xs font-semibold text-[#251605]">
+                  1-night starting total
+                </span>
+                <span
+                  className="text-right text-sm font-semibold tabular-nums text-[#251605]"
+                  data-testid="rate-plan-review-starting-total"
+                >
+                  {formatRatePlanMoney(
+                    catalogues.currencyCode,
+                    oneNightStartingTotal(form.baseRate, pkg.packagePrice),
+                  )}
+                </span>
+              </div>
+              <p className="pt-1 text-[11px] text-[#756A5B]">
+                Final booking total depends on stay length and package charge basis.
+              </p>
+            </>
+          ) : null}
+          {packageSelected && pkg && form.packageInclusionType === "optional" ? (
+            <>
+              <ReviewRow
+                label="Optional add-on"
+                value={`${pkg.name} · ${packagePriceDetail(pkg, catalogues.currencyCode)}`}
+              />
+              <div className="mt-2 flex justify-between gap-3 border-t border-[#EDE6D8] pt-2.5">
+                <span className="text-xs font-semibold text-[#251605]">Starting room rate</span>
+                <span
+                  className="text-right text-sm font-semibold tabular-nums text-[#251605]"
+                  data-testid="rate-plan-review-starting-room-rate"
+                >
+                  {`${formatRatePlanMoney(catalogues.currencyCode, form.baseRate)} / night`}
+                </span>
+              </div>
+            </>
+          ) : null}
           <ReviewRow label="Currency" value={currencyDisplayLabel(catalogues.currencyCode)} />
           <ReviewRow label="Included occupancy" value={form.includedOccupancy.trim() || "—"} />
           <ReviewRow
@@ -1039,19 +1434,37 @@ export function RatePlanWizardStep5() {
         </ReviewSection>
 
         <ReviewSection title="Policies" step={2}>
-          <ReviewRow label="Cancellation" value={cancellation?.name ?? "None"} />
-          <ReviewRow label="Deposit" value={deposit?.name ?? "None"} />
-          <ReviewRow label="No-show" value={noShow?.name ?? "None"} />
-          <ReviewRow label="Early departure" value={early?.name ?? "None"} />
           <ReviewRow
-            label="Refundability"
-            value={derivedRefundabilityLabel(cancellation?.policyKind)}
+            label="Cancellation"
+            value={policyOptionLabel(form.cancellationPolicyId, cancellationOptions)}
           />
+          <ReviewRow
+            label="Deposit"
+            value={policyOptionLabel(form.depositPolicyId, depositOptions)}
+          />
+          <ReviewRow
+            label="No-show"
+            value={policyOptionLabel(form.noShowPolicyId, noShowOptions)}
+          />
+          <ReviewRow
+            label="Early departure"
+            value={policyOptionLabel(form.earlyDeparturePolicyId, earlyOptions)}
+          />
+          <ReviewRow label="Refundability" value={derivedRefundabilityLabel(refundKind)} />
         </ReviewSection>
 
         <ReviewSection title="Meals & Packages" step={3}>
-          <ReviewRow label="Meal Plan" value={meal?.name ?? "Room Only"} />
+          <ReviewRow
+            label="Meal Plan"
+            value={policyOptionLabel(mealSelectValue, mealOptions, "Room Only")}
+          />
           <ReviewRow label="Package" value={pkg?.name ?? "None"} />
+          {packageSelected ? (
+            <ReviewRow
+              label="Treatment"
+              value={PACKAGE_INCLUSION_TYPE_LABELS[form.packageInclusionType]}
+            />
+          ) : null}
         </ReviewSection>
 
         <ReviewSection title="Status & Availability" step={4}>

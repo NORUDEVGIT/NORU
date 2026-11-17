@@ -67,11 +67,23 @@ export const CARD2_STEPS = [
 
 export type Card2StepId = (typeof CARD2_STEPS)[number]["id"];
 
+/**
+ * Top-nav steps — Amenities lives in Room Type → Step 3;
+ * Meal Plans & Packages live in Rate Plan → Step 3.
+ */
+export const CARD2_NAV_STEPS = CARD2_STEPS.filter(
+  (row) => row.id !== "amenities" && row.id !== "meal-plans-packages",
+);
+
 export const CARD2_STEP_QUERY = "card2Step";
 export const CARD2_RATES_STEP: Card2StepId = "rates-pricing";
 export const CARD2_RATES_HREF = `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=rates-pricing#${CARD2_HASH}`;
 export const CARD2_MEALS_STEP: Card2StepId = "meal-plans-packages";
-export const CARD2_MEALS_HREF = `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=meal-plans-packages#${CARD2_HASH}`;
+/** Legacy deep-link — redirects to Rate & Pricing (catalogue is Rate Plan Step 3). */
+export const CARD2_MEALS_HREF = CARD2_RATES_HREF;
+/** Legacy deep-link target; redirects to Room Types & Rooms. */
+export const CARD2_AMENITIES_STEP: Card2StepId = "amenities";
+export const CARD2_AMENITIES_HREF = `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=amenities#${CARD2_HASH}`;
 
 export function card2StepHref(stepId: Card2StepId): string {
   return `${SET1_HUB_HREF}?${CARD2_STEP_QUERY}=${encodeURIComponent(stepId)}#${CARD2_HASH}`;
@@ -83,6 +95,14 @@ export function card2StepFromSearch(search: string): Card2StepId | null {
   if (!value) return null;
   return CARD2_STEPS.some((row) => row.id === value) ? (value as Card2StepId) : null;
 }
+
+export function resolveCard2NavStep(step: Card2StepId): Card2StepId {
+  if (step === "amenities") return "room-types";
+  if (step === "meal-plans-packages") return "rates-pricing";
+  return step;
+}
+
+const CARD2_RETIRED_NAV_STEPS = new Set<Card2StepId>(["amenities", "meal-plans-packages"]);
 
 export function formatRateValidity(validFrom?: string | null, validTo?: string | null): string {
   const from = validFrom?.trim();
@@ -98,15 +118,25 @@ export function card2StepById(step: Card2StepId) {
 }
 
 export function nextCard2Step(step: Card2StepId): Card2StepId | null {
-  const index = CARD2_STEPS.findIndex((row) => row.id === step);
-  if (index < 0 || index >= CARD2_STEPS.length - 1) return null;
-  return CARD2_STEPS[index + 1]?.id ?? null;
+  let index = CARD2_STEPS.findIndex((row) => row.id === step);
+  if (index < 0) return null;
+  while (index < CARD2_STEPS.length - 1) {
+    index += 1;
+    const candidate = CARD2_STEPS[index]?.id;
+    if (candidate && !CARD2_RETIRED_NAV_STEPS.has(candidate)) return candidate;
+  }
+  return null;
 }
 
 export function previousCard2Step(step: Card2StepId): Card2StepId | null {
-  const index = CARD2_STEPS.findIndex((row) => row.id === step);
-  if (index <= 0) return null;
-  return CARD2_STEPS[index - 1]?.id ?? null;
+  let index = CARD2_STEPS.findIndex((row) => row.id === step);
+  if (index < 0) return null;
+  while (index > 0) {
+    index -= 1;
+    const candidate = CARD2_STEPS[index]?.id;
+    if (candidate && !CARD2_RETIRED_NAV_STEPS.has(candidate)) return candidate;
+  }
+  return null;
 }
 
 export function evaluateCard2StepStatus(

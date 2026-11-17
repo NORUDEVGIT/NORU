@@ -59,7 +59,7 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.equal(CARD3_HREF, `${SET1_HUB_HREF}#financial-commercial`);
     assert.equal(CARD3_PROMOTIONS_HREF, card3DomainHref("revenue-commercial-rules"));
     assert.equal(CARD3_TAXES_HREF, card3DomainHref("taxes-fees"));
-    assert.equal(CARD3_PACKAGES_HREF, `${SET1_HUB_HREF}?card2Step=meal-plans-packages#rooms-inventory`);
+    assert.equal(CARD3_PACKAGES_HREF, `${SET1_HUB_HREF}?card2Step=rates-pricing#rooms-inventory`);
     assert.equal(card3DomainFromSearch("?card3Domain=revenue-commercial-rules"), "revenue-commercial-rules");
     assert.equal(card3DomainFromSearch("?card3Domain=unknown"), null);
     assert.match(section, /card3DomainFromSearch/);
