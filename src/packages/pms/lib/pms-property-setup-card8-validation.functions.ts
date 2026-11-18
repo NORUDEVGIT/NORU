@@ -104,18 +104,36 @@ async function runCard2(db: DbClient, restaurantId: string): Promise<Card8Adapte
   const housekeeping = evaluateCard2HousekeepingReadiness(housekeepingSnapshot);
   const rates = evaluateRatesCard2Readiness(ratesSnapshot);
   const meals = evaluateMealsCard3Readiness(await loadMealsCard3Snapshot(db, restaurantId));
+  const [{ CARD2_RATES_HREF, card2StepHref }] = await Promise.all([
+    import("./pms-property-setup-card2"),
+  ]);
   return adaptCard8DomainSlices(2, "rooms", [
     { id: "room-types", label: "Room Types & Rooms", blockers: roomTypes.blockers },
-    { id: "rates-pricing", label: "Rate & Pricing", blockers: rates.blockers },
+    {
+      id: "rates-pricing",
+      label: "Rate & Pricing",
+      blockers: rates.blockers,
+      href: CARD2_RATES_HREF,
+    },
     { id: "amenities", label: "Amenities", blockers: amenities.blockers },
-    { id: "meal-plans-packages", label: "Meal Plans & Packages", blockers: meals.blockers },
+    {
+      id: "meal-plans-packages",
+      label: "Meal Plans & Packages",
+      blockers: meals.blockers,
+      href: CARD2_RATES_HREF,
+    },
     {
       id: "housekeeping",
       label: "Housekeeping",
       blockers: housekeeping.blockers,
       warnings: housekeeping.warnings,
     },
-    { id: "inventory-rules", label: "Inventory Rules", blockers: inventory.blockers },
+    {
+      id: "inventory-rules",
+      label: "Inventory Rules",
+      blockers: inventory.blockers,
+      href: card2StepHref("inventory-rules"),
+    },
     { id: "accessibility", label: "Accessibility", warnings: accessibilityWarnings },
     { id: "connecting-rooms", label: "Connecting rooms", warnings: connectingWarnings },
     { id: "maintenance", label: "Maintenance", blockers: maintenance.blockers },
@@ -218,6 +236,8 @@ async function runCard4(
     identityFns,
     preferenceFns,
     companyFns,
+    groupFns,
+    travelAgencyFns,
     categoryFns,
     typeFns,
     pricingFns,
@@ -225,11 +245,18 @@ async function runCard4(
     slaFns,
     availabilityFns,
     channelFns,
+    templateFns,
+    eventFns,
+    ruleFns,
+    senderFns,
+    defaultFns,
     profileRules,
     requiredRules,
     identityRules,
     preferenceRules,
     companyRules,
+    groupRules,
+    travelAgencyRules,
     categoryRules,
     typeRules,
     pricingRules,
@@ -237,6 +264,11 @@ async function runCard4(
     slaRules,
     availabilityRules,
     channelRules,
+    templateRules,
+    eventRules,
+    ruleRules,
+    senderRules,
+    defaultRules,
     card4,
   ] = await Promise.all([
     import("./profile-types-card4.functions"),
@@ -244,6 +276,8 @@ async function runCard4(
     import("./identity-documents-card4.functions"),
     import("./preferences-card4.functions"),
     import("./company-business-card4.functions"),
+    import("./group-types-card4.functions"),
+    import("./travel-agency-types-card4.functions"),
     import("./service-categories-card4.functions"),
     import("./service-types-card4.functions"),
     import("./service-pricing-card4.functions"),
@@ -251,11 +285,18 @@ async function runCard4(
     import("./service-sla-rules-card4.functions"),
     import("./service-availability-card4.functions"),
     import("./communication-channels-card4.functions"),
+    import("./communication-templates-card4.functions"),
+    import("./notification-events-card4.functions"),
+    import("./automation-rules-card4.functions"),
+    import("./sender-settings-card4.functions"),
+    import("./communication-defaults-card4.functions"),
     import("./profile-types-card4.server"),
     import("./required-fields-card4.server"),
     import("./identity-documents-card4.server"),
     import("./preferences-card4.server"),
     import("./company-business-card4.server"),
+    import("./group-types-card4.server"),
+    import("./travel-agency-types-card4.server"),
     import("./service-categories-card4.server"),
     import("./service-types-card4.server"),
     import("./service-pricing-card4.server"),
@@ -263,14 +304,28 @@ async function runCard4(
     import("./service-sla-rules-card4.server"),
     import("./service-availability-card4.server"),
     import("./communication-channels-card4.server"),
+    import("./communication-templates-card4.server"),
+    import("./notification-events-card4.server"),
+    import("./automation-rules-card4.server"),
+    import("./sender-settings-card4.server"),
+    import("./communication-defaults-card4.server"),
     import("./pms-property-setup-card4"),
   ]);
+  async function loadOrEmpty<T>(load: () => Promise<T>, fallback: T): Promise<T> {
+    try {
+      return await load();
+    } catch {
+      return fallback;
+    }
+  }
   const [
     profile,
     required,
     identity,
     preferences,
     company,
+    groupTypes,
+    travelAgencyTypes,
     categories,
     types,
     pricing,
@@ -278,27 +333,109 @@ async function runCard4(
     sla,
     availability,
     channels,
+    templates,
+    events,
+    automation,
+    sender,
+    defaults,
   ] = await Promise.all([
-    profileFns.loadProfileTypesCard4Snapshot(db, restaurantId, userId, false, false),
-    requiredFns.loadRequiredFieldsCard4Snapshot(db, restaurantId, userId, false, false),
-    identityFns.loadIdentityDocumentsCard4Snapshot(db, restaurantId, userId, false, false),
-    preferenceFns.loadPreferencesCard4Snapshot(db, restaurantId, userId, false, false),
-    companyFns.loadCompanyBusinessCard4Snapshot(db, restaurantId, userId, false, false),
-    categoryFns.loadServiceCategoriesCard4Snapshot(db, restaurantId, userId, false, false),
-    typeFns.loadServiceTypesCard4Snapshot(db, restaurantId, userId),
-    pricingFns.loadServicePricingCard4Snapshot(db, restaurantId),
-    assignmentFns.loadServiceDepartmentAssignmentsCard4Snapshot(db, restaurantId),
-    slaFns.loadServiceSlaRulesCard4Snapshot(db, restaurantId),
-    availabilityFns.loadServiceAvailabilityCard4Snapshot(db, restaurantId),
-    channelFns.loadPmsCard4CommunicationChannelsSnapshot(db, restaurantId),
+    loadOrEmpty(
+      () => profileFns.loadProfileTypesCard4Snapshot(db, restaurantId, userId, false, false),
+      { types: [] },
+    ),
+    loadOrEmpty(
+      () => requiredFns.loadRequiredFieldsCard4Snapshot(db, restaurantId, userId, false, false),
+      { fields: [] },
+    ),
+    loadOrEmpty(
+      () => identityFns.loadIdentityDocumentsCard4Snapshot(db, restaurantId, userId, false, false),
+      { documentTypes: [] },
+    ),
+    loadOrEmpty(
+      () => preferenceFns.loadPreferencesCard4Snapshot(db, restaurantId, userId, false, false),
+      { categories: [], types: [] },
+    ),
+    loadOrEmpty(
+      () => companyFns.loadCompanyBusinessCard4Snapshot(db, restaurantId, userId, false, false),
+      {
+        types: [],
+        settings: {
+          enabled: false,
+          defaultBusinessTypeId: null,
+          autoApproval: false,
+          defaultInvalid: false,
+        },
+      },
+    ),
+    loadOrEmpty(
+      () => groupFns.loadGroupTypesCard4Snapshot(db, restaurantId, userId, false, false),
+      { types: [] },
+    ),
+    loadOrEmpty(
+      () =>
+        travelAgencyFns.loadTravelAgencyTypesCard4Snapshot(db, restaurantId, userId, false, false),
+      { types: [] },
+    ),
+    loadOrEmpty(
+      () => categoryFns.loadServiceCategoriesCard4Snapshot(db, restaurantId, userId, false, false),
+      { categories: [] },
+    ),
+    loadOrEmpty(() => typeFns.loadServiceTypesCard4Snapshot(db, restaurantId, userId), {
+      categories: [],
+      types: [],
+    }),
+    loadOrEmpty(() => pricingFns.loadServicePricingCard4Snapshot(db, restaurantId), {
+      pricing: [],
+      serviceTypes: [],
+    }),
+    loadOrEmpty(
+      () => assignmentFns.loadServiceDepartmentAssignmentsCard4Snapshot(db, restaurantId),
+      { assignments: [], serviceTypes: [], departments: [] },
+    ),
+    loadOrEmpty(() => slaFns.loadServiceSlaRulesCard4Snapshot(db, restaurantId), {
+      rules: [],
+      serviceTypes: [],
+    }),
+    loadOrEmpty(() => availabilityFns.loadServiceAvailabilityCard4Snapshot(db, restaurantId), {
+      availability: [],
+      serviceTypes: [],
+    }),
+    loadOrEmpty(() => channelFns.loadPmsCard4CommunicationChannelsSnapshot(db, restaurantId), {
+      channels: [],
+    }),
+    loadOrEmpty(() => templateFns.loadCommunicationTemplatesCard4Snapshot(db, restaurantId), {
+      templates: [],
+    }),
+    loadOrEmpty(() => eventFns.loadPmsCard4NotificationEventsSnapshot(db, restaurantId), {
+      events: [],
+    }),
+    loadOrEmpty(() => ruleFns.loadAutomationRulesCard4Snapshot(db, restaurantId), { rules: [] }),
+    loadOrEmpty(() => senderFns.loadPmsCard4SenderSettingsSnapshot(db, restaurantId), {
+      settings: [],
+    }),
+    loadOrEmpty(() => defaultFns.loadPmsCard4CommunicationDefaultsSnapshot(db, restaurantId), {
+      defaults: null,
+      channels: [],
+      senders: [],
+    }),
   ]);
-  const mainConfigured = [
-    profileRules.profileTypeConfigured(profile.types),
-    requiredRules.guestFieldsConfigured(required.fields),
-    identityRules.identityDocumentTypesConfigured(identity.documentTypes),
-    preferenceRules.preferencesConfigured(preferences.categories, preferences.types),
-    companyRules.companyBusinessConfigured(company.types, company.settings),
-  ];
+  const profileTypesConfigured = profileRules.profileTypeConfigured(profile.types);
+  const requiredFieldsConfigured = requiredRules.guestFieldsConfigured(required.fields);
+  const identityDocumentsConfigured = identityRules.identityDocumentTypesConfigured(
+    identity.documentTypes,
+  );
+  const preferencesConfigured = preferenceRules.preferencesConfigured(
+    preferences.categories,
+    preferences.types,
+  );
+  const companyBusinessConfigured = companyRules.companyBusinessConfigured(
+    company.types,
+    company.settings,
+  );
+  const groupTypesConfigured = groupRules.groupTypesConfigured(groupTypes.types);
+  const travelAgencyTypesConfigured = travelAgencyRules.travelAgencyTypesConfigured(
+    travelAgencyTypes.types,
+  );
   const gstConfigured = [
     categoryRules.serviceCategoriesConfigured(categories.categories),
     typeRules.serviceTypesConfigured(types.categories, types.types),
@@ -313,8 +450,18 @@ async function runCard4(
       availability.availability,
       availability.serviceTypes,
     ),
-  ];
-  const slices: Card8DomainSlice[] = card4.CARD4_STEPS.map((step, index) => ({
+  ] as const;
+  const channelsConfigured = channelRules.communicationChannelsConfigured(channels.channels);
+  const templatesConfigured = templateRules.communicationTemplatesConfigured(templates.templates);
+  const eventsConfigured = eventRules.notificationEventsConfigured(events.events);
+  const rulesConfigured = ruleRules.automationRulesConfigured(automation.rules);
+  const senderConfigured = senderRules.senderSettingsConfigured(sender.settings, channels.channels);
+  const defaultsConfigured = defaultRules.communicationDefaultsConfigured(
+    defaults.defaults,
+    channels.channels,
+    defaults.senders,
+  );
+  const slices: Card8DomainSlice[] = card4.CARD4_STEPS.map((step) => ({
     id: step.id,
     label: step.title,
     blockers: incomplete(
@@ -322,11 +469,13 @@ async function runCard4(
       card4.evaluateCard4StepStatus(
         step.id,
         undefined,
-        mainConfigured[0]!,
-        mainConfigured[1]!,
-        mainConfigured[2]!,
-        mainConfigured[3]!,
-        mainConfigured[4]!,
+        profileTypesConfigured,
+        requiredFieldsConfigured,
+        identityDocumentsConfigured,
+        preferencesConfigured,
+        companyBusinessConfigured,
+        groupTypesConfigured,
+        travelAgencyTypesConfigured,
       ) === "complete",
     ),
   }));
@@ -338,12 +487,12 @@ async function runCard4(
         step.title,
         card4.evaluateGstStepStatus(
           step.id,
-          gstConfigured[0]!,
-          gstConfigured[1]!,
-          gstConfigured[2]!,
-          gstConfigured[3]!,
-          gstConfigured[4]!,
-          gstConfigured[5]!,
+          gstConfigured[0],
+          gstConfigured[1],
+          gstConfigured[2],
+          gstConfigured[3],
+          gstConfigured[4],
+          gstConfigured[5],
         ) === "complete",
       ),
     })),
@@ -354,7 +503,12 @@ async function runCard4(
         step.title,
         card4.evaluateNotificationStepStatus(
           step.id,
-          channelRules.communicationChannelsConfigured(channels.channels),
+          channelsConfigured,
+          templatesConfigured,
+          eventsConfigured,
+          rulesConfigured,
+          senderConfigured,
+          defaultsConfigured,
         ) === "complete",
       ),
     })),
@@ -401,18 +555,44 @@ async function runCard6(db: DbClient, restaurantId: string): Promise<Card8Adapte
 }
 
 async function runCard7(db: DbClient, restaurantId: string): Promise<Card8AdapterResult> {
-  const [{ loadCard7ValidationSnapshot }, { buildCard7ValidationReport }] = await Promise.all([
+  const [
+    { loadCard7ValidationSnapshot },
+    { buildCard7ValidationReport },
+    { STAFF_ACCESS_HREF },
+  ] = await Promise.all([
     import("./card7-readiness.functions"),
     import("./card7-readiness.server"),
+    import("./pms-property-setup-card5"),
   ]);
   const snapshot = await loadCard7ValidationSnapshot(db, restaurantId);
   const report = buildCard7ValidationReport(snapshot);
   return adaptCard8DomainSlices(7, "security_data", [
-    { id: "security", label: "Security & Roles", ...report.security },
-    { id: "audit", label: "Audit", ...report.audit },
-    { id: "reports", label: "Reports", ...report.reports },
-    { id: "import", label: "Data Import", ...report.importDomain },
-    { id: "integrity", label: "Integrity", ...report.integrity },
+    {
+      id: "security",
+      label: "Security & Roles",
+      blockers: report.security.blockers,
+      warnings: report.security.warnings,
+      href: STAFF_ACCESS_HREF,
+    },
+    { id: "audit", label: "Audit", blockers: report.audit.blockers, warnings: report.audit.warnings },
+    {
+      id: "reports",
+      label: "Reports",
+      blockers: report.reports.blockers,
+      warnings: report.reports.warnings,
+    },
+    {
+      id: "import",
+      label: "Data Import",
+      blockers: report.importDomain.blockers,
+      warnings: report.importDomain.warnings,
+    },
+    {
+      id: "integrity",
+      label: "Integrity",
+      blockers: report.integrity.blockers,
+      warnings: report.integrity.warnings,
+    },
   ]);
 }
 

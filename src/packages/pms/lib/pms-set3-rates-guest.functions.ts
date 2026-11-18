@@ -195,6 +195,60 @@ export async function loadSet3Snapshot(supabaseAdmin: Admin, restaurantId: strin
     snapshot.ratePackageRules = parseRatePackageRules(rulesRes.data?.pms_rate_package_rules);
   }
 
+  // Card 4 is canonical for guest profile field rules; SET3 JSON is fallback only.
+  const [fieldsRes, typesRes] = await Promise.all([
+    supabaseAdmin
+      .from("pms_guest_fields")
+      .select("id, code, field_type, required, active")
+      .eq("restaurant_id", restaurantId),
+    supabaseAdmin
+      .from("pms_guest_profile_types")
+      .select("code, active, required_field_ids")
+      .eq("restaurant_id", restaurantId),
+  ]);
+  if (
+    (fieldsRes.error && isMissingSchemaError(fieldsRes.error)) ||
+    (typesRes.error && isMissingSchemaError(typesRes.error))
+  ) {
+    snapshot.card4GuestFieldsAvailable = false;
+    snapshot.card4GuestFields = [];
+    snapshot.card4GuestProfileTypes = [];
+  } else if (fieldsRes.error) {
+    throw new Error(fieldsRes.error.message);
+  } else if (typesRes.error) {
+    throw new Error(typesRes.error.message);
+  } else {
+    snapshot.card4GuestFieldsAvailable = true;
+    snapshot.card4GuestFields = (
+      (fieldsRes.data ?? []) as Array<{
+        id: string;
+        code: string;
+        field_type: string;
+        required: boolean;
+        active: boolean;
+      }>
+    ).map((row) => ({
+      id: row.id,
+      code: String(row.code ?? ""),
+      fieldType: String(row.field_type ?? ""),
+      required: row.required === true,
+      active: row.active !== false,
+    }));
+    snapshot.card4GuestProfileTypes = (
+      (typesRes.data ?? []) as Array<{
+        code: string;
+        active: boolean;
+        required_field_ids: unknown;
+      }>
+    ).map((row) => ({
+      code: String(row.code ?? ""),
+      active: row.active !== false,
+      requiredFieldIds: Array.isArray(row.required_field_ids)
+        ? row.required_field_ids.map((id) => String(id))
+        : [],
+    }));
+  }
+
   return snapshot;
 }
 

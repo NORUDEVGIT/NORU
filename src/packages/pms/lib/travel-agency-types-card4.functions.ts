@@ -275,3 +275,5 @@ export const deletePmsCard4TravelAgencyType = createServerFn({ method: "POST" })
     await writeAudit(db, data.restaurantId, context.userId, "travel_agency_type.deleted", { id: data.id });
     return { ok: true as const };
   });
+
+export { loadSnapshot as loadTravelAgencyTypesCard4Snapshot };

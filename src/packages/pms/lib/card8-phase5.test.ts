@@ -77,6 +77,10 @@ function readySnapshot(): Card8ReadinessSnapshot {
       departments: [],
       users: [],
       businessDate: "2026-09-20",
+      timezone: "Africa/Addis_Ababa",
+      openingDate: "2026-09-01",
+      proposedBusinessDate: null,
+      businessDateInitBlockedReason: null,
       opening: {
         totalRooms: 10,
         occupied: 2,
