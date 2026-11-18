@@ -798,23 +798,12 @@ export const saveCompanyContact = createServerFn({ method: "POST" })
       currentPhone = current.data.phone ?? null;
       currentStatus = current.data.status ?? null;
       const blocked = blockLastPrimaryRemoval({
-        contactRequired: Boolean(type?.contactRequired),
+        contactRequired: false,
         currentIsPrimary: Boolean(current.data.is_primary),
         nextIsPrimary: isPrimary,
         nextStatus: status,
       });
       if (blocked) throw new Error(blocked);
-    } else if (type?.contactRequired && !isPrimary) {
-      const existingPrimary = await db
-        .from("guest_company_contacts")
-        .select("id")
-        .eq("restaurant_id", data.restaurantId)
-        .eq("company_master_id", data.companyId)
-        .eq("is_primary", true)
-        .maybeSingle();
-      if (!existingPrimary.data) {
-        throw new Error("This business type requires a primary contact.");
-      }
     }
 
     if (emailNormalized || phoneNormalized) {

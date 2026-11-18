@@ -506,17 +506,6 @@ export function GuestFieldCatalogSheet({
                 >
                   Reorder
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="bg-[#C89933] text-[#251605]"
-                  onClick={() => {
-                    setSelectedField(null);
-                    setEditorOpen(true);
-                  }}
-                >
-                  <Plus className="mr-1 size-3.5" /> Add Field
-                </Button>
               </div>
             ) : null}
           </div>
@@ -589,21 +578,8 @@ export function GuestFieldCatalogSheet({
                     <div className="flex flex-col items-center justify-center gap-2">
                       <span className="text-sm font-medium text-[#251605]">No guest fields in catalog</span>
                       <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                        No guest profile fields found for this property. Click &quot;Add Field&quot; to create custom fields.
+                        No guest profile fields found for this property.
                       </p>
-                      {canEdit ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="mt-2 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 text-xs"
-                          onClick={() => {
-                            setSelectedField(null);
-                            setEditorOpen(true);
-                          }}
-                        >
-                          <Plus className="mr-1 size-3.5" /> Add Field
-                        </Button>
-                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>

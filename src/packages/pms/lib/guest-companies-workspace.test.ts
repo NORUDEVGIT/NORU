@@ -53,7 +53,7 @@ describe("Guest companies workspace helpers", () => {
     assert.equal(createStatusFromAutoApproval(false), "pending");
   });
 
-  it("validates required fields, tax, contact, and credit against the type", () => {
+  it("blocks credit when the company type disallows a credit account", () => {
     const missing = validateCompanyAgainstType(
       {
         name: "Acme",
@@ -73,7 +73,7 @@ describe("Guest companies workspace helpers", () => {
       fields,
       "create",
     );
-    assert.match(missing ?? "", /Tax ID is required/);
+    assert.equal(missing, "Credit accounts are not allowed for this business type.");
     const credit = validateCompanyAgainstType(
       {
         name: "Acme",

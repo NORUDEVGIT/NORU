@@ -1021,25 +1021,10 @@ export function createCompanyFieldRules(
         (matched && profileType?.requiredFieldIds?.includes(matched.id)) ||
           profileType?.requiredFieldIds?.some((id) => allCandidateCodes.has(id.toUpperCase())),
       );
-      const inBusinessProfile = Boolean(
-        (matched && businessProfileType?.requiredFieldIds?.includes(matched.id)) ||
-          businessProfileType?.requiredFieldIds?.some((id) => allCandidateCodes.has(id.toUpperCase())),
-      );
       const isCompanyMatched = Boolean(matched && isCompanyFieldCode(matched.code));
       const fieldRequired = Boolean(isCompanyMatched && matched?.required);
-
-      if (profileType) {
-        // Profile Type configuration directly governs field requirement
-        required = inProfileType || inBusinessProfile || fieldRequired;
-      } else {
-        // Fallback when no profileType is supplied
-        const taxReq = (code === "COMPANY_TAX_ID" || code === "TAX_ID") && Boolean(businessProfileType?.taxIdRequired);
-        const contactReq =
-          (code === "COMPANY_CONTACT_NAME" || code === "CONTACT_NAME" || code === "COMPANY_CONTACT_PHONE" || code === "CONTACT_PHONE") &&
-          Boolean(businessProfileType?.contactRequired);
-
-        required = inBusinessProfile || fieldRequired || taxReq || contactReq;
-      }
+      void businessProfileType;
+      required = inProfileType || fieldRequired;
     }
 
     const rule: CompanyCreateFieldRule = {
@@ -1162,19 +1147,21 @@ export function card4CompanyCreateGaps(
   );
   need(["COMPANY_BILLING_CURRENCY", "BILLING_CURRENCY", "BILLING_CURRENCY_CODE"], filled(draft.billingCurrencyCode) || filled(draft.currency), "billing", "billingCurrencyCode");
   need(["COMPANY_CREDIT_FACILITY", "CREDIT_FACILITY", "CREDIT_ACCOUNT_ENABLED", "ALLOW_CREDIT"], draft.creditAccountEnabled === true, "billing", "creditAccountEnabled");
-  need(
-    ["COMPANY_CREDIT_LIMIT", "CREDIT_LIMIT", "CREDIT_LIMIT_AMOUNT"],
-    draft.creditAccountEnabled && draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && !Number.isNaN(Number(draft.creditLimitAmount)),
-    "billing",
-    "creditLimitAmount",
-  );
-  need(
-    ["COMPANY_CREDIT_DAYS", "CREDIT_DAYS"],
-    draft.creditAccountEnabled && draft.creditDays !== null && draft.creditDays !== undefined && Number(draft.creditDays) > 0,
-    "billing",
-    "creditDays",
-  );
-  need(["COMPANY_CREDIT_STATUS", "CREDIT_STATUS"], draft.creditAccountEnabled && filled(draft.creditStatus), "billing", "creditStatus");
+  if (draft.creditAccountEnabled) {
+    need(
+      ["COMPANY_CREDIT_LIMIT", "CREDIT_LIMIT", "CREDIT_LIMIT_AMOUNT"],
+      draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && !Number.isNaN(Number(draft.creditLimitAmount)),
+      "billing",
+      "creditLimitAmount",
+    );
+    need(
+      ["COMPANY_CREDIT_DAYS", "CREDIT_DAYS"],
+      draft.creditDays !== null && draft.creditDays !== undefined && Number(draft.creditDays) > 0,
+      "billing",
+      "creditDays",
+    );
+    need(["COMPANY_CREDIT_STATUS", "CREDIT_STATUS"], filled(draft.creditStatus), "billing", "creditStatus");
+  }
   need(["COMPANY_TAX_EXEMPTION", "TAX_EXEMPTION", "TAX_EXEMPT"], draft.taxExempt === true, "billing", "taxExempt");
   need(["COMPANY_TAX_EXEMPTION_RULE", "TAX_EXEMPTION_RULE", "TAX_EXEMPTION_RULE_ID"], draft.taxExempt && filled(draft.taxExemptionRuleId), "billing", "taxExemptionRuleId");
   need(
@@ -1418,10 +1405,6 @@ export function companyCreateFieldIssues(
   if (draft.creditAccountEnabled) {
     if (options?.creditAccountAllowed === false) {
       issues.push({ key: "creditAccountEnabled", message: "This company type does not allow a credit account.", step: "billing" });
-    }
-
-    if (!draft.creditStatus) {
-      issues.push({ key: "creditStatus", message: "Credit status is required when credit is enabled.", step: "billing" });
     }
 
     if (draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && draft.creditLimitAmount < 0) {

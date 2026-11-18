@@ -795,10 +795,7 @@ export const persistCompanyCreate = createServerFn({ method: "POST" })
             throw new Error("This company type does not allow a credit account.");
           }
         }
-        if (!draft.creditStatus) {
-          throw new Error("Credit status is required when credit is enabled.");
-        }
-        if (!["pending_approval", "approved", "suspended"].includes(draft.creditStatus)) {
+        if (draft.creditStatus && !["pending_approval", "approved", "suspended"].includes(draft.creditStatus)) {
           throw new Error("Invalid credit status.");
         }
         if (draft.creditLimitAmount !== null && draft.creditLimitAmount !== undefined && draft.creditLimitAmount < 0) {
