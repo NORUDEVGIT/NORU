@@ -236,12 +236,11 @@ describe("Card 4 Settings field controls for Company creation", () => {
     assert.equal(requiredNameRule?.required, true, "Contact name must be required when configured");
     assert.equal(requiredPhoneRule?.required, true, "Contact phone must be required when configured");
 
-    // When profileType is null (fallback mode): businessProfileType.contactRequired defaults them to true
     const fallbackRules = createCompanyFieldRules(fields, null, businessProfileType);
     const fallbackNameRule = fallbackRules.find((r) => r.code === "COMPANY_CONTACT_NAME");
     const fallbackPhoneRule = fallbackRules.find((r) => r.code === "COMPANY_CONTACT_PHONE");
-    assert.equal(fallbackNameRule?.required, true, "Fallback without profileType respects businessProfileType");
-    assert.equal(fallbackPhoneRule?.required, true, "Fallback without profileType respects businessProfileType");
+    assert.equal(fallbackNameRule?.required, false, "Company type contact flag does not force contact name");
+    assert.equal(fallbackPhoneRule?.required, false, "Company type contact flag does not force contact phone");
   });
 
   it("makes inactive fields invisible and non-required even if marked required", () => {
@@ -549,11 +548,15 @@ describe("Card 4 Settings field controls for Company creation", () => {
     draft.taxExemptionRuleId = null;
 
     const issues = companyCreateFieldIssues(draft, { rules });
-    assert.ok(matchCompanyFieldIssue(issues, "creditLimitAmount"), "Credit limit must be flagged as required");
+    assert.equal(matchCompanyFieldIssue(issues, "creditLimitAmount"), undefined, "Credit limit is skipped while credit is off");
     assert.ok(matchCompanyFieldIssue(issues, "taxExemptionRuleId"), "Tax exemption rule must be flagged as required");
 
-    // Enable and set credit + tax exemption
     draft.creditAccountEnabled = true;
+    draft.creditStatus = null;
+    draft.creditLimitAmount = null;
+    const creditOn = companyCreateFieldIssues(draft, { rules });
+    assert.ok(matchCompanyFieldIssue(creditOn, "creditLimitAmount"), "Credit limit is required when credit is on");
+
     draft.creditStatus = "approved";
     draft.creditLimitAmount = 50000;
     draft.taxExempt = true;

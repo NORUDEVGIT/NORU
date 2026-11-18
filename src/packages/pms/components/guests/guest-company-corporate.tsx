@@ -177,8 +177,6 @@ export function GuestCompanyCorporate({
 
   const rules = useMemo(
     () => [
-      selectedType?.taxIdRequired ? "Tax ID is required for this business type." : null,
-      selectedType?.contactRequired ? "A primary contact and phone or email are required." : null,
       creditAllowed ? "Credit accounts are allowed for this type." : "Credit accounts are not allowed for this type.",
     ].filter(Boolean),
     [selectedType, creditAllowed],

@@ -82,30 +82,7 @@ export function validateCompanyAgainstType(
   if (mode === "create" && !type.active) {
     return "That business type is inactive and cannot be used for new companies.";
   }
-  const fieldById = new Map(fields.map((field) => [field.id, field]));
-  for (const fieldId of type.requiredFieldIds) {
-    const field = fieldById.get(fieldId);
-    if (!field || !field.active) continue;
-    const key = BUSINESS_FIELD_TO_COLUMN[field.code];
-    if (!key) continue;
-    if (key === "addressLine1") {
-      if (!input.addressLine1?.trim() && !input.city?.trim() && !input.country?.trim()) {
-        return `${field.name} is required for this business type.`;
-      }
-      continue;
-    }
-    const value = input[key];
-    if (typeof value !== "string" || !value.trim()) {
-      return `${field.name} is required for this business type.`;
-    }
-  }
-  if (type.taxIdRequired && !input.taxId?.trim()) return "Tax ID is required for this business type.";
-  if (type.contactRequired) {
-    if (!input.primaryContactName?.trim()) return "A contact person is required for this business type.";
-    if (!input.phone?.trim() && !input.email?.trim()) {
-      return "Phone or email is required when a contact is required.";
-    }
-  }
+  void fields;
   if (!type.creditAccountAllowed && input.creditAccountEnabled) {
     return "Credit accounts are not allowed for this business type.";
   }

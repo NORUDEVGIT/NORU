@@ -68,7 +68,7 @@ describe("Card 4 Company & Business catalogue", () => {
     assert.doesNotMatch(profileTypesSrc, /pms_business_profile_types/);
   });
 
-  it("rejects empty name/code, duplicate codes, and stale required fields", () => {
+  it("rejects empty name and code, and duplicate codes", () => {
     const existing = [{ id: TYPE_A, name: "Corporate Company", code: "CORP", active: true }];
     const fields = [
       { id: FIELD_A, active: true },
@@ -106,7 +106,7 @@ describe("Card 4 Company & Business catalogue", () => {
     );
     assert.equal(
       stale.some((row) => row.field === "requiredFieldIds"),
-      true,
+      false,
     );
     assert.deepEqual(staleRequiredFieldIds([FIELD_B, "missing"], fields), [FIELD_B, "missing"]);
   });
