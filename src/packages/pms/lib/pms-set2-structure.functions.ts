@@ -294,13 +294,23 @@ export async function loadSet2Snapshot(
     }
   }
 
-  const outletsRes = await supabaseAdmin
+  // Card 5 is canonical for facilities; prefer Card 5 columns when present.
+  let outletsRes = await supabaseAdmin
     .from("pms_outlets")
     .select(
-      "id, code, name, type, active, department_text, default_posting_label, is_default_rooms",
+      "id, code, name, type, active, department_text, default_posting_label, is_default_rooms, facility_category, facility_type_code",
     )
     .eq("restaurant_id", restaurantId)
     .order("name");
+  if (outletsRes.error && isMissingSchemaError(outletsRes.error)) {
+    outletsRes = await supabaseAdmin
+      .from("pms_outlets")
+      .select(
+        "id, code, name, type, active, department_text, default_posting_label, is_default_rooms",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("name");
+  }
   if (outletsRes.error && isMissingSchemaError(outletsRes.error)) {
     snapshot.outletsColumnsAvailable = false;
   } else if (outletsRes.error) {
@@ -317,6 +327,8 @@ export async function loadSet2Snapshot(
         department_text: string | null;
         default_posting_label: string | null;
         is_default_rooms: boolean;
+        facility_category?: string | null;
+        facility_type_code?: string | null;
       }>
     ).map((row) => ({
       id: row.id,
@@ -327,6 +339,8 @@ export async function loadSet2Snapshot(
       departmentText: String(row.department_text ?? ""),
       defaultPostingLabel: String(row.default_posting_label ?? ""),
       isDefaultRooms: row.is_default_rooms === true,
+      facilityCategory: String(row.facility_category ?? ""),
+      facilityTypeCode: String(row.facility_type_code ?? ""),
     }));
   }
 

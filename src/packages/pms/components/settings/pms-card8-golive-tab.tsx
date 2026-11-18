@@ -6,10 +6,13 @@ import { toast } from "sonner";
 import { PmsPropertySetupCard8Workspace } from "@/packages/pms/components/settings/pms-property-setup-card8-workspace";
 import {
   getCard8Golive,
+  initializeCard8BusinessDate,
   saveCard8Golive,
 } from "@/packages/pms/lib/pms-property-setup-card8-golive.functions";
 import { getCard8Validation } from "@/packages/pms/lib/pms-property-setup-card8-validation.functions";
+import { BUSINESS_DATE_CONFIRM_WORD } from "@/packages/pms/lib/business-date-recovery";
 import {
+  CARD8_GOLIVE_DATE_INIT_COPY,
   CARD8_GOLIVE_PLAN_STATUSES,
   CARD8_GOLIVE_TASK_CATEGORIES,
   CARD8_GOLIVE_TASK_STATUS_LABELS,
@@ -23,6 +26,7 @@ import {
 } from "@/packages/pms/lib/pms-property-setup-card8-golive";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
   Select,
@@ -53,6 +57,7 @@ export function Card8GoliveTab({
   const queryClient = useQueryClient();
   const load = useServerFn(getCard8Golive);
   const save = useServerFn(saveCard8Golive);
+  const initializeBusinessDate = useServerFn(initializeCard8BusinessDate);
   const loadValidation = useServerFn(getCard8Validation);
   const query = useQuery({
     queryKey: ["pms-card8-golive", restaurantId],
@@ -64,6 +69,8 @@ export function Card8GoliveTab({
   });
   const [plan, setPlan] = useState<Card8GolivePlan>(emptyCard8GolivePlan());
   const [tasks, setTasks] = useState<Card8GoliveTask[]>(emptyCard8GoliveTasks());
+  const [initAcknowledged, setInitAcknowledged] = useState(false);
+  const [initConfirmation, setInitConfirmation] = useState("");
 
   useEffect(() => {
     if (!query.data?.snapshot) return;
@@ -114,14 +121,59 @@ export function Card8GoliveTab({
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const initMutation = useMutation({
+    mutationFn: () =>
+      initializeBusinessDate({
+        data: {
+          restaurantId,
+          confirmed: true as const,
+          confirmation: BUSINESS_DATE_CONFIRM_WORD,
+        },
+      }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.message);
+        if (result.snapshot) {
+          queryClient.setQueryData(["pms-card8-golive", restaurantId], { snapshot: result.snapshot });
+          setPlan(result.snapshot.plan);
+          setTasks(result.snapshot.tasks);
+        }
+        return;
+      }
+      queryClient.setQueryData(["pms-card8-golive", restaurantId], { snapshot: result.snapshot });
+      setPlan(result.snapshot.plan);
+      setTasks(result.snapshot.tasks);
+      setInitAcknowledged(false);
+      setInitConfirmation("");
+      void queryClient.invalidateQueries({ queryKey: ["pms-card8-golive", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["pms-card8-readiness", restaurantId] });
+      void queryClient.invalidateQueries({ queryKey: ["pms-card1", restaurantId] });
+      toast.success(
+        result.alreadyInitialized
+          ? `Business date already set to ${result.businessDate}.`
+          : `Business date initialized to ${result.businessDate}.`,
+      );
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   function updateTask(taskKey: string, patch: Partial<Card8GoliveTask>) {
     setTasks((rows) =>
       rows.map((task) => (task.taskKey === taskKey ? { ...task, ...patch } : task)),
     );
   }
 
-  const opening = query.data?.snapshot.opening;
+  const snapshot = query.data?.snapshot;
+  const opening = snapshot?.opening;
   const validation = validationQuery.data;
+  const needsBusinessDateInit = Boolean(snapshot && !snapshot.businessDate);
+  const canInitialize =
+    editable &&
+    needsBusinessDateInit &&
+    Boolean(snapshot?.proposedBusinessDate) &&
+    !snapshot?.businessDateInitBlockedReason &&
+    initAcknowledged &&
+    initConfirmation.trim() === BUSINESS_DATE_CONFIRM_WORD;
 
   return (
     <PmsPropertySetupCard8Workspace
@@ -267,13 +319,90 @@ export function Card8GoliveTab({
           </div>
         </section>
 
+        {needsBusinessDateInit ? (
+          <section
+            className="rounded-2xl border border-[#C89933]/50 bg-[#FFF8E7] p-5"
+            data-testid="pms-card8-golive-business-date-init"
+          >
+            <h3 className="font-display text-lg text-[#251605]">Initialize Business Date</h3>
+            <p className="mt-2 text-sm text-muted-foreground">{CARD8_GOLIVE_DATE_INIT_COPY}</p>
+            <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Proposed live date
+                </dt>
+                <dd className="mt-1 text-lg font-semibold text-[#251605]">
+                  {snapshot?.proposedBusinessDate ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Property timezone
+                </dt>
+                <dd className="mt-1 font-medium">{snapshot?.timezone ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Opening date
+                </dt>
+                <dd className="mt-1 font-medium">{snapshot?.openingDate ?? "Not set"}</dd>
+              </div>
+            </dl>
+            {snapshot?.businessDateInitBlockedReason ? (
+              <p className="mt-4 text-sm text-destructive">{snapshot.businessDateInitBlockedReason}</p>
+            ) : (
+              <>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  This becomes the live operating business date. Night Audit will own every later
+                  roll. Property Activation stays a separate step.
+                </p>
+                <label className="mt-4 flex items-start gap-2 text-sm">
+                  <Checkbox
+                    checked={initAcknowledged}
+                    disabled={!editable || initMutation.isPending}
+                    onCheckedChange={(value) => setInitAcknowledged(value === true)}
+                    data-testid="pms-card8-golive-business-date-ack"
+                  />
+                  <span>
+                    I confirm {snapshot?.proposedBusinessDate} in {snapshot?.timezone} should become
+                    the live business date.
+                  </span>
+                </label>
+                <div className="mt-3 max-w-xs">
+                  <Label htmlFor="golive-bd-confirm">
+                    Type {BUSINESS_DATE_CONFIRM_WORD} to continue
+                  </Label>
+                  <Input
+                    id="golive-bd-confirm"
+                    className="mt-2"
+                    value={initConfirmation}
+                    disabled={!editable || initMutation.isPending}
+                    onChange={(event) => setInitConfirmation(event.target.value)}
+                    autoComplete="off"
+                    data-testid="pms-card8-golive-business-date-confirm"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  className="mt-4"
+                  disabled={!canInitialize || initMutation.isPending}
+                  onClick={() => initMutation.mutate()}
+                  data-testid="pms-card8-golive-business-date-init-action"
+                >
+                  {initMutation.isPending ? "Initializing…" : "Initialize Business Date"}
+                </Button>
+              </>
+            )}
+          </section>
+        ) : null}
+
         <section className="grid gap-4 md:grid-cols-3">
           <Confirmation
             title="Business date"
-            value={query.data?.snapshot.businessDate ?? "Unavailable"}
+            value={snapshot?.businessDate ?? "Unavailable"}
             detail="Night Audit authority. Only this confirmation is stored."
             checked={plan.businessDateConfirmed}
-            disabled={!editable || !query.data?.snapshot.businessDate}
+            disabled={!editable || !snapshot?.businessDate}
             onChecked={(checked) =>
               setPlan((current) => ({ ...current, businessDateConfirmed: checked }))
             }

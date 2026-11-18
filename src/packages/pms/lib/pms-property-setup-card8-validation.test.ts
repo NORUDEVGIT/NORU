@@ -14,6 +14,7 @@ import {
   CARD8_VALIDATION_READY_RULE,
   CARD8_VALIDATION_RUNS_TABLE,
   card8ValidationReady,
+  classifyCard8ActivationSeverity,
   deriveCard8ValidationCounts,
   mapCard8Blocker,
   mapCard8Warning,
@@ -120,11 +121,75 @@ describe("PMS Property Setup Card 8 Phase 2 System Validation aggregator", () =>
     assert.doesNotMatch(moduleSrc, /evaluateCard1Status\(|buildCard5ValidationReport\(/);
   });
 
-  it("maps blockers to critical, warnings to warning, and Card 7 integrity copy to informational", () => {
+  it("maps blockers to activation severity, warnings to warning, and Card 7 integrity copy to informational", () => {
     assert.equal(CARD8_CARD7_INTEGRITY_INFORMATIONAL, CARD7_INTEGRITY_COPY);
-    assert.equal(mapCard8Blocker("Identity is incomplete"), "critical");
+    assert.equal(mapCard8Blocker("Identity is incomplete."), "critical");
+    assert.equal(
+      mapCard8Blocker("Identity is incomplete.", { cardNumber: 1, domainId: "identity" }),
+      "critical",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity("Save at least one active fee.", {
+        cardNumber: 3,
+        domainId: "taxes",
+      }),
+      "informational",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity("Save at least one active exemption rule.", {
+        cardNumber: 3,
+        domainId: "taxes",
+      }),
+      "informational",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity("Save at least one active tax.", {
+        cardNumber: 3,
+        domainId: "taxes",
+      }),
+      "critical",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity("Group Types is incomplete.", {
+        cardNumber: 4,
+        domainId: "group-types",
+      }),
+      "informational",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity("Add at least one active market segment.", {
+        cardNumber: 5,
+        domainId: "sales",
+      }),
+      "informational",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity("Set coverage for administration.roles.activate", {
+        cardNumber: 7,
+        domainId: "audit",
+      }),
+      "informational",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity(
+        "Permission catalogue is empty. Mappings cannot be completed until the product catalogue is seeded.",
+        { cardNumber: 7, domainId: "security" },
+      ),
+      "critical",
+    );
+    assert.equal(
+      classifyCard8ActivationSeverity("Add at least one active hotel role.", {
+        cardNumber: 7,
+        domainId: "security",
+      }),
+      "critical",
+    );
     assert.equal(mapCard8Warning("VAT certificate missing"), "warning");
     assert.equal(mapCard8Warning(CARD7_INTEGRITY_COPY), "informational");
+    assert.equal(
+      mapCard8Warning("No integration catalogue entries are configured."),
+      "informational",
+    );
   });
 
   it("derives counts from issues and treats READY as zero critical only", () => {
@@ -210,7 +275,7 @@ describe("PMS Property Setup Card 8 Phase 2 System Validation aggregator", () =>
     assert.match(tab, /View Issues/);
     assert.match(tab, /Fix Configuration/);
     assert.match(tab, /READY/);
-    assert.match(tab, /CARD8_VALIDATION_LIVE_RECOMPUTE/);
+    assert.match(tab, /CARD8_SYSTEM_INFO_COPY|CARD8_VALIDATION_READY_RULE/);
     assert.doesNotMatch(tab, /createServerFn/);
     assert.doesNotMatch(tab, /126 Passed|Healthy ✓|PROPERTY ACTIVE/);
     assert.doesNotMatch(functionsSrc, /evaluateSet1Checklist/);

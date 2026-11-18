@@ -187,3 +187,5 @@ export const deletePmsCard4GroupType = createServerFn({ method: "POST" })
       id: data.id });
     return { ok: true as const };
   });
+
+export { loadSnapshot as loadGroupTypesCard4Snapshot };

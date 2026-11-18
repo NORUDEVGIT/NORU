@@ -115,7 +115,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     href: propertySetupRedirectHref("#property-business"),
     classification: "SUPPORTED",
     source: "evaluateCard1Status / evaluateCard1StepStatus / card1StepComplete",
-    note: "Wrap eight steps. Incomplete step is critical. VAT and structure strings stay warnings.",
+    note: "Wrap eight steps. Incomplete step is activation-critical. VAT and structure strings stay warnings.",
   },
   {
     cardNumber: 2,
@@ -126,7 +126,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     classification: "SUPPORTED",
     source:
       "evaluateRoomTypesRoomsReadiness, evaluateRatesCard2Readiness, amenities, evaluateMealsCard3Readiness, evaluateCard2HousekeepingReadiness, evaluateCard2InventoryReadiness, evaluateCard2MaintenanceReadiness",
-    note: "Do not use stored evaluateCard2StepStatus as the rule engine.",
+    note: "Do not use stored evaluateCard2StepStatus as the rule engine. classifyCard8ActivationSeverity demotes optional HK/maintenance/amenity-default incompleteness.",
   },
   {
     cardNumber: 3,
@@ -136,7 +136,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     href: propertySetupRedirectHref("#financial-commercial"),
     classification: "SUPPORTED",
     source: "evaluate*Card3Readiness for six domains",
-    note: "No buildCard3ValidationReport yet. Compose domain evaluators only.",
+    note: "Activation keeps tax + payment + primary currency critical. Fees/exemptions/billing/FX demote.",
   },
   {
     cardNumber: 4,
@@ -146,7 +146,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     href: propertySetupRedirectHref("#guest-services"),
     classification: "SUPPORTED",
     source: "evaluateCard4StepStatus / evaluateGstStepStatus / evaluateNotificationStepStatus",
-    note: "Use legacy programme id housekeeping-maintenance. Do not invent a new stored key.",
+    note: "Guest/comms catalogues are warning/informational for activation. Load all configured flags.",
   },
   {
     cardNumber: 5,
@@ -156,7 +156,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     href: propertySetupRedirectHref("#organization-facilities"),
     classification: "REUSABLE",
     source: "buildCard5ValidationReport / getCard5Validation",
-    note: "Call the existing report. Map domain and integrity blockers/warnings.",
+    note: "Sales/Events empties are informational. Org integrity stays visible as warning.",
   },
   {
     cardNumber: 6,
@@ -166,7 +166,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     href: propertySetupRedirectHref("#connectivity-distribution"),
     classification: "SUPPORTED",
     source: "integrations-card6 records; not SET5/SET6 Activate evaluators",
-    note: "Empty catalogue is a warning. Never emit Connected or sync-health.",
+    note: "Empty catalogue is informational. Never emit Connected or sync-health.",
   },
   {
     cardNumber: 7,
@@ -176,7 +176,7 @@ export const CARD8_VALIDATION_ADAPTERS: Card8ValidationAdapter[] = [
     href: propertySetupRedirectHref("#security-data-reports"),
     classification: "REUSABLE",
     source: "buildCard7ValidationReport / getCard7Validation",
-    note: "CARD7_INTEGRITY_COPY is informational, not critical.",
+    note: "Activation-critical: seeded permission catalogue + ≥1 active hotel role. Coverage/reports/import demote. CARD7_INTEGRITY_COPY informational.",
   },
 ];
 
@@ -190,12 +190,146 @@ export type Card8ValidationPhase2Report = {
   counts: Card8ValidationCounts;
 };
 
-export function mapCard8Blocker(message: string): Card8ValidationSeverity {
+export type Card8BlockerContext = {
+  cardNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  domainId?: string;
+  domainLabel?: string;
+};
+
+/**
+ * Activation severity for a domain blocker.
+ * Domain modules may still mark setup incompleteness as blockers; Card 8
+ * separates that from core PMS activation readiness.
+ */
+export function classifyCard8ActivationSeverity(
+  message: string,
+  context: Card8BlockerContext,
+): Card8ValidationSeverity {
+  const text = message.trim();
+  const domain = `${context.domainId ?? ""} ${context.domainLabel ?? ""}`.toLowerCase();
+
+  if (context.cardNumber === 3) {
+    if (/active fee/i.test(text) || /exemption rule/i.test(text)) return "informational";
+    if (/service charge/i.test(text)) return "warning";
+    if (
+      /save financial settings/i.test(text) ||
+      /fiscal year/i.test(text) ||
+      /fx source/i.test(text) ||
+      /currency besides/i.test(text) ||
+      /exchange rate/i.test(text) ||
+      /invoice settings/i.test(text) ||
+      /billing rule/i.test(text)
+    ) {
+      return "warning";
+    }
+  }
+
+  if (context.cardNumber === 4) {
+    if (
+      /group types/i.test(text) ||
+      /travel agency/i.test(text) ||
+      /service pricing/i.test(text) ||
+      /department assignment/i.test(text) ||
+      /sla rules/i.test(text) ||
+      /service availability/i.test(text) ||
+      /communication templates/i.test(text) ||
+      /notification events/i.test(text) ||
+      /automation rules/i.test(text) ||
+      /sender settings/i.test(text) ||
+      /communication defaults/i.test(text)
+    ) {
+      return "informational";
+    }
+    return "warning";
+  }
+
+  if (context.cardNumber === 5) {
+    if (
+      /market segment/i.test(text) ||
+      /sales source/i.test(text) ||
+      /lead type/i.test(text) ||
+      /event type/i.test(text) ||
+      /event status/i.test(text) ||
+      /pipeline stage/i.test(text) ||
+      /function-space/i.test(text) ||
+      /active facility/i.test(text) ||
+      /event package/i.test(text) ||
+      /contract default/i.test(text)
+    ) {
+      return "informational";
+    }
+    return "warning";
+  }
+
+  if (context.cardNumber === 6) return "warning";
+
+  if (context.cardNumber === 7) {
+    if (/permission catalogue is empty/i.test(text)) return "critical";
+    if (/add at least one active hotel role/i.test(text)) return "critical";
+    if (/set coverage for /i.test(text)) return "informational";
+    if (
+      /audit policy/i.test(text) ||
+      /retention days/i.test(text) ||
+      /audit category/i.test(text) ||
+      /configure category /i.test(text) ||
+      /required category /i.test(text) ||
+      /sensitive permission catalogue/i.test(text) ||
+      /invalid coverage/i.test(text) ||
+      /report definition/i.test(text) ||
+      /report permission/i.test(text) ||
+      /\bmetric\b/i.test(text) ||
+      /export, filter, schedule/i.test(text) ||
+      /import type/i.test(text) ||
+      /import policy/i.test(text) ||
+      /mapping template/i.test(text) ||
+      /duplicate policy/i.test(text) ||
+      /validation rules for /i.test(text) ||
+      /migration history/i.test(text) ||
+      /supported import/i.test(text) ||
+      /enable at least one supported import/i.test(text) ||
+      /query key/i.test(text)
+    ) {
+      return /import /i.test(text) || /migration history/i.test(text) || /mapping template/i.test(text)
+        ? "informational"
+        : "warning";
+    }
+    if (/security|role|permission|approval|membership|data scope/i.test(domain)) {
+      return "warning";
+    }
+    return "warning";
+  }
+
+  if (context.cardNumber === 2) {
+    if (/active room types have no amenity defaults/i.test(text)) return "warning";
+    if (
+      /save the housekeeping settings/i.test(text) ||
+      /save inventory rules/i.test(text) ||
+      /save maintenance rules/i.test(text)
+    ) {
+      return "warning";
+    }
+    if (/housekeeping|maintenance|amenities/i.test(domain) && /configure |select |enable |allow |choose /i.test(text)) {
+      return "warning";
+    }
+  }
+
   return "critical";
+}
+
+export function mapCard8Blocker(
+  message: string,
+  context?: Card8BlockerContext,
+): Card8ValidationSeverity {
+  if (!context) return "critical";
+  return classifyCard8ActivationSeverity(message, context);
 }
 
 export function mapCard8Warning(message: string): Card8ValidationSeverity {
   if (message === CARD8_CARD7_INTEGRITY_INFORMATIONAL) return "informational";
+  if (/no integration catalogue entries/i.test(message)) return "informational";
+  if (/offline/i.test(message) && /runtime|policy only|optional/i.test(message)) {
+    return "informational";
+  }
   return "warning";
 }
 

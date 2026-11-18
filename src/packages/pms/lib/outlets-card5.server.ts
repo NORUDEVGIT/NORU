@@ -1,6 +1,11 @@
 /**
  * Card 5 Phase 2 — Outlets & Facilities (pure helpers).
- * Card 5 classification is separate from the legacy SET2 posting type.
+ *
+ * Canonical owner for facility/outlet configuration in Property Setup.
+ * Card 5 classification (facility_category / facility_type_code) is separate
+ * from the legacy SET2 posting type (`type='rooms'` / `is_default_rooms`).
+ * SET1 activation prefers Card 5 identity (code ROOMS or facility_type_code
+ * rooms) and keeps legacy SET2 fields as fallback only.
  */
 import { STAFF_ROLES, type StaffRole } from "@/core/lib/module-access";
 import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";

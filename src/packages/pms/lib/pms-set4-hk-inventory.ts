@@ -1,11 +1,17 @@
 /**
  * PMS-SET4 — Housekeeping rules · Room inventory rules · Maintenance rules (Issue #74).
  *
+ * Canonical OOO/OOS operational meaning/state is owned by Card 2 Rooms &
+ * Inventory housekeeping (`pms_housekeeping_status_catalog` core statuses
+ * `out_of_order` / `out_of_service`). Legacy SET4 `pms_ooo_oos_posture.savedAt`
+ * remains a compatibility fallback and optional custom-meaning override — not a
+ * mandatory activation prerequisite when Card 2 restriction statuses are active.
+ *
  * Abel-approved 2026-09-14 locks:
  * - HK workspace is LIVE at /restaurant/pms/housekeeping. No second board.
  * - HK status Complete when saved (min dirty · clean · inspected). Pickup optional.
- * - Room inventory rules OOO/OOS Complete when saved. NOT warehouse.
- *   Deep-link /restaurant/pms/room-inventory.
+ * - Room inventory rules OOO/OOS Complete when Card 2 statuses are usable (or
+ *   legacy posture is saved). NOT warehouse. Deep-link /restaurant/pms/room-inventory.
  * - Maintenance categories / priorities / SLA / type tags = Warning, never an
  *   Activate Incomplete on their own. No CMMS. Deep-link /restaurant/pms/maintenance.
  * - Single expanding Activate on pms_set1_live. Optional catalogues Warning.
@@ -24,7 +30,11 @@ export const SET4_RI_UNAVAILABLE = "Unavailable — room inventory rule columns 
 export const SET4_MAINT_UNAVAILABLE = "Unavailable — maintenance catalogues are not applied yet.";
 export const SET4_HK_UNSAVED = "Housekeeping statuses are a draft until you save. Dirty, clean and inspected must stay active.";
 export const SET4_OOO_UNSAVED = "OOO and OOS meaning is a draft until you save.";
+export const SET4_OOO_CUSTOM_OPTIONAL =
+  "Custom OOO/OOS meaning copy is optional while Card 2 Out of Order and Out of Service statuses are active.";
 export const SET4_CLEANING_WARNING = "No cleaning types in the posture yet. This is a warning, not a block.";
+export const CARD2_OOO_STATUS_CODE = "out_of_order";
+export const CARD2_OOS_STATUS_CODE = "out_of_service";
 export const SET4_REASONS_WARNING = "No restriction reasons in the catalogue yet. This is a warning, not a block.";
 export const SET4_CATEGORIES_WARNING = "No maintenance categories in the catalogue yet. This is a warning, not a block.";
 export const SET4_PRIORITIES_WARNING = "No maintenance priorities in the catalogue yet. This is a warning, not a block.";
@@ -174,7 +184,12 @@ export type Set4ActivateInput = {
   cleaningAvailable: boolean;
   cleaningTypeCount: number;
   oooOosAvailable: boolean;
+  /** Combined Card 2 statuses or legacy posture readiness. */
   oooOosSaved: boolean;
+  /** Legacy descriptive posture explicitly saved (optional when Card 2 ready). */
+  oooOosLegacyPostureSaved: boolean;
+  /** Card 2 core OOO + OOS restriction statuses active. */
+  card2OooOosReady: boolean;
   restrictionReasonsAvailable: boolean;
   restrictionReasonCount: number;
   maintenanceAvailable: boolean;
@@ -182,6 +197,11 @@ export type Set4ActivateInput = {
   maintenancePriorityCount: number;
   maintenanceTypeTagCount: number;
   maintenanceSlaSaved: boolean;
+};
+
+export type Card2RestrictionStatusRow = {
+  code: string;
+  active: boolean;
 };
 
 export type Set4Snapshot = {
@@ -196,6 +216,9 @@ export type Set4Snapshot = {
   maintenancePriorities: PmsSet4CatalogueItem[];
   maintenanceTypeTags: PmsSet4CatalogueItem[];
   maintenanceSla: MaintenanceSla;
+  /** Card 2 status catalogue readable. */
+  card2StatusCatalogAvailable: boolean;
+  card2RestrictionStatuses: Card2RestrictionStatusRow[];
 };
 
 export function emptyHkStatusRules(partial?: Partial<HkStatusRules>): HkStatusRules {
@@ -266,6 +289,8 @@ export function emptySet4Activate(partial?: Partial<Set4ActivateInput>): Set4Act
     cleaningTypeCount: 0,
     oooOosAvailable: false,
     oooOosSaved: false,
+    oooOosLegacyPostureSaved: false,
+    card2OooOosReady: false,
     restrictionReasonsAvailable: false,
     restrictionReasonCount: 0,
     maintenanceAvailable: false,
@@ -286,6 +311,8 @@ export function completeSet4Activate(partial?: Partial<Set4ActivateInput>): Set4
     cleaningTypeCount: 5,
     oooOosAvailable: true,
     oooOosSaved: true,
+    oooOosLegacyPostureSaved: true,
+    card2OooOosReady: true,
     restrictionReasonsAvailable: true,
     restrictionReasonCount: 1,
     maintenanceAvailable: true,
@@ -310,19 +337,40 @@ export function emptySet4Snapshot(partial?: Partial<Set4Snapshot>): Set4Snapshot
     maintenancePriorities: [],
     maintenanceTypeTags: [],
     maintenanceSla: emptyMaintenanceSla(),
+    card2StatusCatalogAvailable: false,
+    card2RestrictionStatuses: [],
     ...partial,
   };
 }
 
+/** Card 2 core Out of Order + Out of Service statuses are active and usable. */
+export function card2OooOosStatusesReady(
+  statuses: readonly Card2RestrictionStatusRow[],
+  catalogAvailable: boolean,
+): boolean {
+  if (!catalogAvailable || statuses.length === 0) return false;
+  const active = new Set(
+    statuses.filter((row) => row.active).map((row) => row.code.trim().toLowerCase()),
+  );
+  return active.has(CARD2_OOO_STATUS_CODE) && active.has(CARD2_OOS_STATUS_CODE);
+}
+
 export function activateInputFromSet4Snapshot(snapshot: Set4Snapshot): Set4ActivateInput {
+  const legacyPostureSaved = Boolean(snapshot.oooOosPosture.savedAt);
+  const card2Ready = card2OooOosStatusesReady(
+    snapshot.card2RestrictionStatuses,
+    snapshot.card2StatusCatalogAvailable,
+  );
   return {
     hkColumnsAvailable: snapshot.hkColumnsAvailable,
     hkStatusesSaved: Boolean(snapshot.statusRules.savedAt),
     hkMinComplete: hkStatusMinComplete(snapshot.statusRules, snapshot.hkColumnsAvailable),
     cleaningAvailable: snapshot.hkColumnsAvailable,
     cleaningTypeCount: snapshot.cleaningPosture.types.filter((row) => row.active).length,
-    oooOosAvailable: snapshot.oooOosAvailable,
-    oooOosSaved: Boolean(snapshot.oooOosPosture.savedAt),
+    oooOosAvailable: snapshot.oooOosAvailable || snapshot.card2StatusCatalogAvailable,
+    oooOosSaved: card2Ready || legacyPostureSaved,
+    oooOosLegacyPostureSaved: legacyPostureSaved,
+    card2OooOosReady: card2Ready,
     restrictionReasonsAvailable: snapshot.cataloguesAvailable,
     restrictionReasonCount: snapshot.restrictionReasons.filter((row) => row.active).length,
     maintenanceAvailable: snapshot.cataloguesAvailable,
@@ -585,7 +633,9 @@ export function evaluateRoomInventory(input: Set4ActivateInput): Set1DomainRepor
     warnings.push(SET4_RI_UNAVAILABLE);
   } else if (!input.oooOosSaved) {
     missing.push("OOO and OOS meaning");
-    warnings.push(SET4_OOO_UNSAVED);
+    if (!input.card2OooOosReady) warnings.push(SET4_OOO_UNSAVED);
+  } else if (input.card2OooOosReady && !input.oooOosLegacyPostureSaved) {
+    warnings.push(SET4_OOO_CUSTOM_OPTIONAL);
   }
   if (!input.restrictionReasonsAvailable) {
     if (!warnings.includes(SET4_RI_UNAVAILABLE)) warnings.push(SET4_REASONS_WARNING);

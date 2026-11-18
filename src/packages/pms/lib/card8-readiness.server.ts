@@ -65,15 +65,13 @@ export function withCard8Verdict(slice: Card8ReadinessSlice): Card8DomainReport 
 
 export function evaluateCard8OfflineDomain(snapshot: Card8OfflineSnapshot): Card8ReadinessSlice {
   const readiness = evaluateCard8OfflineReadiness(snapshot);
+  // Offline runtime is unsupported. Policy incompleteness must not block
+  // System Validation / Go-Live / overall activation composition.
   return {
-    ready: readiness.ready,
-    status: readiness.ready
-      ? "complete"
-      : readiness.status === "in_progress"
-        ? "in_progress"
-        : "not_started",
-    blockers: readiness.blockers,
-    warnings: readiness.warnings,
+    ready: true,
+    status: "complete",
+    blockers: [],
+    warnings: [...readiness.warnings, ...readiness.blockers],
   };
 }
 

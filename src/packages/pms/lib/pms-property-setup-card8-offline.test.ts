@@ -63,16 +63,17 @@ function configuredSnapshot() {
 }
 
 describe("PMS Property Setup Card 8 Phase 1 Offline & Sync policy", () => {
-  it("treats unsaved policy as FAIL and valid saved policy as PASS with runtime warning", () => {
+  it("treats offline policy as optional while runtime is absent", () => {
     assert.equal(CARD8_OFFLINE_SCHEMA_APPLIED, true);
     const unsaved = evaluateCard8OfflineReadiness(emptyCard8OfflineSnapshot());
-    assert.equal(unsaved.verdict, "FAIL");
-    assert.equal(unsaved.ready, false);
-    assert.ok(unsaved.blockers.some((row) => /save offline & sync policy/i.test(row)));
+    assert.equal(unsaved.verdict, "PASS");
+    assert.equal(unsaved.ready, true);
+    assert.equal(unsaved.blockers.length, 0);
+    assert.ok(unsaved.warnings.some((row) => /optional while no offline runtime/i.test(row)));
     assert.ok(unsaved.warnings.some((row) => /runtime limitation/i.test(row)));
 
     const saved = evaluateCard8OfflineReadiness(configuredSnapshot());
-    assert.equal(saved.verdict, "PASS");
+    assert.equal(saved.verdict, "PARTIAL");
     assert.equal(saved.ready, true);
     assert.equal(saved.status, "in_progress");
     assert.ok(saved.warnings.includes(CARD8_OFFLINE_POLICY_ONLY_COPY));
@@ -129,7 +130,7 @@ describe("PMS Property Setup Card 8 Phase 1 Offline & Sync policy", () => {
   it("loads and saves through restaurant-scoped APIs without a runtime engine", () => {
     assert.match(functions, /export const getCard8OfflinePolicy/);
     assert.match(functions, /export const saveCard8OfflinePolicy/);
-    assert.match(functions, /canEditSet1/);
+    assert.match(functions, /requirePmsSetupActor|hasPmsPermission|canEditSet1/);
     assert.match(functions, /from\("pms_offline_policies"\)/);
     assert.match(functions, /from\("pms_offline_capabilities"\)/);
     assert.match(functions, /restaurant_staff_audit_log/);

@@ -105,6 +105,11 @@ export type HousekeepingCard2Readiness = {
   warnings: string[];
 };
 
+/**
+ * Core statuses include restriction OOO/OOS. SET1 activation treats active
+ * `out_of_order` + `out_of_service` here as canonical operational readiness;
+ * legacy SET4 `pms_ooo_oos_posture` is fallback/optional custom copy only.
+ */
 export const CORE_HOUSEKEEPING_STATUSES: ReadonlyArray<
   Pick<HousekeepingCard2Status, "code" | "name" | "domain" | "operational" | "sortOrder">
 > = [
