@@ -1003,7 +1003,16 @@ export function Card5SalesEventsTab({
                 };
                 return (
                   <tr key={row.id} className="border-b last:border-0">
-                    <td className="px-3 py-2 font-medium text-[#251605]">{row.name}</td>
+                    <td className="px-3 py-2 font-medium text-[#251605]">
+                      <span className="inline-flex items-center gap-2">
+                        <span>{row.name}</span>
+                        {"system" in row && row.system ? (
+                          <span className="rounded bg-[#EDE6D8] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#5C4528]">
+                            System
+                          </span>
+                        ) : null}
+                      </span>
+                    </td>
                     <td className="px-3 py-2">{"code" in row ? row.code : "—"}</td>
                     <td className="px-3 py-2">{detail || "—"}</td>
                     <td className={CARD5_STATUS_TD_CLASS}>
