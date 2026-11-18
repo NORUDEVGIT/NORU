@@ -123,6 +123,7 @@ export type PmsSet6CatalogueItem = {
   name: string;
   description: string;
   active: boolean;
+  system?: boolean;
 };
 
 export type ChannelClassRow = {
