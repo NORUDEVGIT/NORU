@@ -117,7 +117,8 @@ describe("current PMS action visibility", () => {
 
   it("does not use a role to flash account write-off before permissions load", () => {
     const panel = read("../components/cashiering/financial-account-payments-panel.tsx");
-    assert.match(panel, /writeOff: false/);
+    assert.match(panel, /granted: NO_ACCOUNT_WORKSPACE_GRANTS/);
+    assert.doesNotMatch(panel, /role === "owner"|role === "manager"/);
     assert.match(panel, /caps\.canWriteOff \?/);
   });
 

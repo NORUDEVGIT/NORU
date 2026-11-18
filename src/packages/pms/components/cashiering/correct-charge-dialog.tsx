@@ -12,7 +12,9 @@ import {
   type CorrectionMode,
   type FolioChargeCorrectionPreview,
 } from "@/packages/pms/lib/cashiering.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { CORRECTION_AUTHORIZER } from "@/packages/pms/lib/cashiering.server";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { roundFolioMoney } from "@/packages/pms/lib/folio-workspace";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -67,6 +69,12 @@ export function CorrectChargeDialog({
   money: (value: number) => string;
 }) {
   const { dateTime } = useRestaurantTime();
+  const permissions = usePmsPermissions(restaurantId);
+  const permissionsReady = !permissions.isLoading && !permissions.isError;
+  const canAdjustMode =
+    permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST);
+  const canDiscountMode =
+    permissionsReady && permissions.can(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST);
   const preview = useServerFn(previewFolioChargeCorrection);
   const post = useServerFn(postFolioChargeCorrection);
   const fetchNotice = useServerFn(getCashieringCorrectionNotice);
@@ -87,6 +95,15 @@ export function CorrectChargeDialog({
     setReplaceAfter(false);
     setIdemKey(idempotencyKey());
   }, [open, sourceTransactionId, quantityAvailable, quantity]);
+
+  useEffect(() => {
+    if (!open || !permissionsReady) return;
+    setMode((current) => {
+      const allowed = current === "discount" ? canDiscountMode : canAdjustMode;
+      if (allowed && (current !== "correct_quantity" || quantityAvailable)) return current;
+      return canAdjustMode ? "adjust_amount" : "discount";
+    });
+  }, [open, permissionsReady, canAdjustMode, canDiscountMode, quantityAvailable]);
 
   const parsedAmount = Number(amount);
   const parsedQuantity = Number(nextQuantity);
@@ -120,7 +137,11 @@ export function CorrectChargeDialog({
           amount: requested,
         },
       }),
-    enabled: open && Boolean(sourceTransactionId) && amountReady,
+    enabled:
+      open &&
+      Boolean(sourceTransactionId) &&
+      amountReady &&
+      (mode === "discount" ? canDiscountMode : canAdjustMode),
     retry: false,
   });
   const plan = previewQuery.data as FolioChargeCorrectionPreview | undefined;
@@ -194,7 +215,11 @@ export function CorrectChargeDialog({
           </section>
           <section className="rounded-xl border border-[#E8E1D7] bg-card p-4">
             <div className="flex flex-wrap gap-2">
-              {MODES.filter((item) => item.id !== "correct_quantity" || quantityAvailable).map(
+              {MODES.filter((item) => {
+                if (item.id === "correct_quantity" && !quantityAvailable) return false;
+                if (item.id === "discount") return canDiscountMode;
+                return canAdjustMode;
+              }).map(
                 (item) => (
                   <button
                     key={item.id}
@@ -318,7 +343,13 @@ export function CorrectChargeDialog({
           <Button
             type="button"
             className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-            disabled={!plan || !reason.trim() || mutation.isPending || Boolean(previewError)}
+            disabled={
+              (mode === "discount" ? !canDiscountMode : !canAdjustMode) ||
+              !plan ||
+              !reason.trim() ||
+              mutation.isPending ||
+              Boolean(previewError)
+            }
             onClick={() => mutation.mutate()}
           >
             {replaceAfter

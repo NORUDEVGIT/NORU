@@ -413,15 +413,29 @@ export function FinancialAccountWorkspacePage({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
-                      {workspace.capabilities.canReceivePayment ? (
-                        <>
-                          <ActionItem icon={Landmark} onSelect={() => openPayment("payment")}>
-                            Receive Payment
-                          </ActionItem>
-                          <ActionItem icon={Wallet} onSelect={() => openPayment("deposit")}>
-                            Receive Deposit
-                          </ActionItem>
-                        </>
+                      {workspace.capabilities.showReceivePayment ? (
+                        <ActionItem
+                          icon={Landmark}
+                          disabled={!workspace.capabilities.canReceivePayment}
+                          onSelect={() => openPayment("payment")}
+                        >
+                          Receive Payment
+                          {workspace.capabilities.canReceivePayment ? null : (
+                            <span className="ml-auto text-[11px] text-muted-foreground">Account closed</span>
+                          )}
+                        </ActionItem>
+                      ) : null}
+                      {workspace.capabilities.showReceiveDeposit ? (
+                        <ActionItem
+                          icon={Wallet}
+                          disabled={!workspace.capabilities.canReceiveDeposit}
+                          onSelect={() => openPayment("deposit")}
+                        >
+                          Receive Deposit
+                          {workspace.capabilities.canReceiveDeposit ? null : (
+                            <span className="ml-auto text-[11px] text-muted-foreground">Account closed</span>
+                          )}
+                        </ActionItem>
                       ) : null}
                       {workspace.capabilities.canCreateInvoice ? (
                         <ActionItem icon={FileText} onSelect={openInvoices}>
@@ -461,11 +475,16 @@ export function FinancialAccountWorkspacePage({
                           </DropdownMenuItem>
                         </>
                       ) : null}
-                      {workspace.account.status === "open" && workspace.capabilities.canClose ? (
+                      {workspace.capabilities.showClose ? (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            disabled={closeMut.isPending}
+                            disabled={closeMut.isPending || !workspace.capabilities.canClose}
+                            title={
+                              workspace.capabilities.canClose
+                                ? undefined
+                                : "Account balance must be zero before closing."
+                            }
                             data-testid="close-account"
                             onSelect={() => closeMut.mutate()}
                           >
@@ -622,7 +641,7 @@ export function FinancialAccountWorkspacePage({
                     ) : null}
                   </section>
 
-                  {workspace.account.status === "open" && !workspace.capabilities.canClose ? (
+                  {workspace.capabilities.showClose && !workspace.capabilities.canClose ? (
                     <p
                       className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] p-3 text-[11px] text-[#A89F91]"
                       data-testid="close-account-reason"
@@ -968,13 +987,15 @@ function ActionItem({
   icon: Icon,
   children,
   onSelect,
+  disabled = false,
 }: {
   icon: LucideIcon;
   children: ReactNode;
   onSelect: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <DropdownMenuItem onSelect={onSelect}>
+    <DropdownMenuItem onSelect={onSelect} disabled={disabled}>
       <Icon className="size-4 text-muted-foreground" />
       {children}
     </DropdownMenuItem>

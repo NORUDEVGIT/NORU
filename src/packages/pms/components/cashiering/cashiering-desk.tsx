@@ -81,6 +81,8 @@ import {
   emptyPolish1Snapshot,
 } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import { usePmsSet1Foundation } from "@/packages/pms/lib/use-pms-set1";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { useMoney, useRestaurantTime } from "@/core/state/property-format";
 import { formatStayDate } from "@/shared/lib/property-dates";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
@@ -493,12 +495,24 @@ export type CashieringActionGrants = {
   adjustment: boolean;
   close: boolean;
   transfer: boolean;
-  writeOff?: boolean;
+  writeOff: boolean;
 };
 
-const CashieringGrantContext = createContext<CashieringActionGrants | null>(null);
+const NO_CASHIERING_GRANTS: CashieringActionGrants = {
+  charge: false,
+  payment: false,
+  deposit: false,
+  refund: false,
+  discount: false,
+  adjustment: false,
+  close: false,
+  transfer: false,
+  writeOff: false,
+};
 
-function useCashieringGrants(): CashieringActionGrants | null {
+const CashieringGrantContext = createContext<CashieringActionGrants>(NO_CASHIERING_GRANTS);
+
+function useCashieringGrants(): CashieringActionGrants {
   return useContext(CashieringGrantContext);
 }
 
@@ -513,7 +527,7 @@ export function CashieringDesk({
   canOperate,
   canManage,
   canAllocate = false,
-  grants = null,
+  grants,
   membershipId,
   role,
   onTab,
@@ -529,7 +543,7 @@ export function CashieringDesk({
   canOperate: boolean;
   canManage: boolean;
   canAllocate?: boolean;
-  grants?: CashieringActionGrants | null;
+  grants: CashieringActionGrants;
   membershipId: string;
   role: string;
   weekStart: string | null;
@@ -542,6 +556,7 @@ export function CashieringDesk({
   const businessDate = usePropertyBusinessDate(restaurantId, timezone);
   const money = useMoney();
   const { dateTime } = useRestaurantTime();
+  const canViewGuestAccounts = usePmsPermissions(restaurantId).can(PMS_PERMISSIONS.GUEST_ACCOUNT_VIEW);
   const [search, setSearch] = useState(moduleSearch);
   const [filter, setFilter] = useState<FolioFilter>("all");
   const [statusFilter, setStatusFilter] = useState<FolioStatusFilter>("all");
@@ -885,9 +900,12 @@ export function CashieringDesk({
       {tab === "accounts" ? (
         <AccountsPanel
           restaurantId={restaurantId}
-          canManage={canManage}
-          canWriteOff={grants ? (grants.writeOff ?? canManage) : canManage}
-          canCloseAccount={grants ? grants.close : canManage}
+          canOpenAccount={grants.charge && canViewGuestAccounts}
+          canTransfer={grants.transfer}
+          canAdjust={grants.adjustment}
+          canDiscount={grants.discount}
+          canWriteOff={grants.writeOff}
+          canCloseAccount={grants.close}
           money={money}
         />
       ) : null}
@@ -1315,24 +1333,10 @@ function SideCard({
   );
 }
 
-function FolioActionMenu({
-  folio,
-  canOperate,
-  canManage,
-}: {
-  folio: FolioRow;
-  canOperate: boolean;
-  canManage: boolean;
-}) {
+function FolioActionMenu({ folio }: { folio: FolioRow }) {
   const open = folio.status === "open";
   const grants = useCashieringGrants();
-  const allowed = (key: keyof CashieringActionGrants, bundled: boolean) =>
-    grants ? grants[key] : bundled;
-  const item = (
-    key: keyof CashieringActionGrants,
-    bundled: boolean,
-    node: ReactNode,
-  ) => (allowed(key, bundled) ? node : null);
+  const item = (key: keyof CashieringActionGrants, node: ReactNode) => (grants[key] ? node : null);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1354,7 +1358,7 @@ function FolioActionMenu({
         onClick={(event) => event.stopPropagation()}
       >
         <FolioPageItem folioId={folio.id} label="Open folio" icon={FileText} />
-        {item("charge", canManage, (
+        {item("charge", (
           <FolioPageItem
             folioId={folio.id}
             action="charge"
@@ -1363,7 +1367,7 @@ function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item("payment", canOperate, (
+        {item("payment", (
           <FolioPageItem
             folioId={folio.id}
             action="payment"
@@ -1372,7 +1376,7 @@ function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item("deposit", canOperate, (
+        {item("deposit", (
           <FolioPageItem
             folioId={folio.id}
             action="deposit"
@@ -1381,7 +1385,7 @@ function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item("refund", canManage, (
+        {item("refund", (
           <FolioPageItem
             folioId={folio.id}
             action="refund"
@@ -1390,7 +1394,7 @@ function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item("discount", canManage, (
+        {item("discount", (
           <FolioPageItem
             folioId={folio.id}
             action="discount"
@@ -1399,7 +1403,7 @@ function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item("adjustment", canManage, (
+        {item("adjustment", (
           <FolioPageItem
             folioId={folio.id}
             action="adjustment"
@@ -1408,7 +1412,7 @@ function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item("close", canManage, (
+        {item("close", (
           <FolioPageItem
             folioId={folio.id}
             action="close"
@@ -1603,11 +1607,7 @@ function FolioTable({
                       className="px-3.5 py-3 text-center"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <FolioActionMenu
-                        folio={folio}
-                        canOperate={canOperate}
-                        canManage={canManage}
-                      />
+                      <FolioActionMenu folio={folio} />
                     </td>
                   </tr>
                 );
@@ -1914,6 +1914,7 @@ function FinancialActivityPanel({
   documentProperty?: CashieringDocumentProperty | null;
   weekStart: string | null;
 }) {
+  const grants = useCashieringGrants();
   const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
   const [query, setQuery] = useState("");
   const [method, setMethod] = useState("all");
@@ -2033,15 +2034,13 @@ function FinancialActivityPanel({
           selectedFolioId={selected?.id ?? null}
           onSelect={onChooseActivity}
           actions={(row) => (
-            <ActivityRowActions row={row} canAllocate={canAllocate} canManage={canManage} />
+            <ActivityRowActions row={row} canAllocate={canAllocate} />
           )}
         />
         {showInspector ? (
           activity === "all" ? (
             <FinancialActivityHelp
               selected={selected}
-              canOperate={canOperate}
-              canManage={canManage}
               money={money}
               onSelectActivity={onActivity}
             />
@@ -2057,7 +2056,13 @@ function FinancialActivityPanel({
                 preferredSourceId={sourceLineId}
                 pendingFolioId={pendingFolioId}
                 onChooseFolio={onChooseFolio}
-                canPost={activity === "refund" ? canManage : canOperate}
+                canPost={
+                  activity === "refund"
+                    ? grants.refund
+                    : activity === "deposit"
+                      ? grants.deposit
+                      : grants.payment
+                }
                 money={money}
                 depositPolicySummary={depositPolicySummary}
                 authorizerNote={authorizerNote}
@@ -2080,7 +2085,7 @@ function FinancialActivityPanel({
             guestName: folio.guestName,
           }))}
           selected={selected}
-          canManage={grants ? grants.transfer : canManage}
+          canTransfer={grants.transfer}
           money={money}
           dateTime={dateTime}
           dashboard={dashboard}
@@ -2174,22 +2179,18 @@ function TransferActivityHelp({
 
 function FinancialActivityHelp({
   selected,
-  canOperate,
-  canManage,
   money,
   onSelectActivity,
 }: {
   selected: FolioDetail | null;
-  canOperate: boolean;
-  canManage: boolean;
   money?: (value: number) => string;
   onSelectActivity?: (activity: CashieringActivityFilter) => void;
 }) {
   const grants = useCashieringGrants();
-  const allowPayment = grants ? grants.payment : canOperate;
-  const allowDeposit = grants ? grants.deposit : canOperate;
-  const allowRefund = grants ? grants.refund : canManage;
-  const allowTransfer = grants ? grants.transfer : canManage;
+  const allowPayment = grants.payment;
+  const allowDeposit = grants.deposit;
+  const allowRefund = grants.refund;
+  const allowTransfer = grants.transfer;
   if (!selected) {
     return (
       <aside className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-card p-5 shadow-xs">
@@ -2379,13 +2380,11 @@ function FinancialActivityHelp({
 function ActivityRowActions({
   row,
   canAllocate,
-  canManage,
 }: {
   row: LedgerEntryRow;
   canAllocate: boolean;
-  canManage: boolean;
 }) {
-  const canRefund = useCashieringGrants()?.refund ?? canManage;
+  const canRefund = useCashieringGrants().refund;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

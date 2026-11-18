@@ -53,8 +53,12 @@ export const getFinancialAccountInvoiceBoard = createServerFn({ method: "GET" })
       context,
     }): Promise<
       AccountInvoiceBoard & {
-        canManage: boolean;
-        canOperate: boolean;
+        /** `cashiering.invoice.edit`: create, save and delete drafts. */
+        canEdit: boolean;
+        /** `cashiering.invoice.authorize`: issue and reprint. */
+        canAuthorize: boolean;
+        /** `cashiering.payment.post` and `cashiering.allocation.edit`. */
+        canReceivePayment: boolean;
         canAllocate: boolean;
         invoiceSettingsAvailable: boolean;
       }
@@ -103,8 +107,9 @@ export const getFinancialAccountInvoiceBoard = createServerFn({ method: "GET" })
                 : [],
             }
           : null,
-        canManage: flags.createInvoice || flags.authorizeInvoice,
-        canOperate: flags.receivePayment,
+        canEdit: flags.createInvoice,
+        canAuthorize: flags.authorizeInvoice,
+        canReceivePayment: flags.receiveInvoicePayment,
         canAllocate: flags.allocate,
         invoiceSettingsAvailable: Boolean(settings),
       };

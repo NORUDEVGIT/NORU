@@ -447,6 +447,7 @@ export function CreditNoteSection({
             </div>
           </div>
           <div className="flex justify-end gap-2 border-t border-[#E8E1D7] px-4 py-3">
+            {canEditDraft ? (
             <Button
               size="sm"
               variant="outline"
@@ -456,11 +457,12 @@ export function CreditNoteSection({
             >
               Save draft
             </Button>
+            ) : null}
+            {canAuthorize ? (
             <Button
               size="sm"
               className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
               disabled={
-                !canAuthorize ||
                 issueMut.isPending ||
                 items.length === 0 ||
                 reason.trim().length === 0
@@ -470,6 +472,7 @@ export function CreditNoteSection({
             >
               Issue credit note
             </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

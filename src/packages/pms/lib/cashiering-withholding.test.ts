@@ -247,7 +247,7 @@ describe("company withholding settlement", () => {
       counterparts: {},
       allocations: [],
       coverage: { legacyInvoice: null, invoices: [], debitNotes: [], creditNotes: [] },
-      access: { canManage: false, open: true },
+      access: { canCorrect: false, canTransfer: false, canRefund: false, canApplyDeposit: false, open: true },
     });
     assert.equal(history[0]?.label, "Withholding Certificate");
     assert.equal(Math.round((100 + -20) * 100) / 100, 80);

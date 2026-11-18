@@ -65,7 +65,10 @@ export type HistoryCoverageInput = {
 };
 
 export type HistoryAccess = {
-  canManage: boolean;
+  canCorrect: boolean;
+  canTransfer: boolean;
+  canRefund: boolean;
+  canApplyDeposit: boolean;
   open: boolean;
 };
 
@@ -513,20 +516,22 @@ function actionsFor(
   rows: HistoryLedgerRow[],
   input: HistoryBuildInput,
 ): HistoryActions {
-  const manage = input.access.canManage && input.access.open;
+  const { open } = input.access;
   const actions = baseActions(false);
-  if (event.kind === "charge" && manage && !covered(event)) {
-    const remainder = correctableGroupRemainder(event.id, rows);
-    const movable = chargeGroupRemainder(event.id, rows);
-    actions.correct = remainder.grossRemaining > 0.009;
-    actions.transfer = movable.grossRemaining > 0.009;
+  if (event.kind === "charge" && open && !covered(event)) {
+    if (input.access.canCorrect) {
+      actions.correct = correctableGroupRemainder(event.id, rows).grossRemaining > 0.009;
+    }
+    if (input.access.canTransfer) {
+      actions.transfer = chargeGroupRemainder(event.id, rows).grossRemaining > 0.009;
+    }
   }
-  if ((event.kind === "payment" || event.kind === "deposit") && manage) {
+  if ((event.kind === "payment" || event.kind === "deposit") && open && input.access.canRefund) {
     const received = roundMoney(Math.abs(event.amount));
     const refunded = refundedAgainst(event.id, rows);
     actions.refund = roundMoney(received - refunded) > 0.009;
   }
-  if (event.kind === "deposit" && manage) {
+  if (event.kind === "deposit" && open && input.access.canApplyDeposit) {
     const applied = input.allocations
       .filter((line) => line.depositTransactionId === event.id)
       .reduce((sum, line) => sum + Number(line.amount || 0), 0);

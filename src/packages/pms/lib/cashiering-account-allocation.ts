@@ -18,8 +18,6 @@ export type AllocationRejection = {
   code: string;
 };
 
-const ALLOCATE_ROLES = ["owner", "manager", "accountant"] as const;
-const VIEW_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
 
 export function roundAllocationMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -102,20 +100,14 @@ export function settlementStateLabel(state: SettlementState): string {
 }
 
 export function allocationCapabilities(input: {
-  role: string;
   status: "open" | "closed";
-  granted?: { view: boolean; allocate: boolean };
+  granted: { view: boolean; allocate: boolean };
 }): {
   canView: boolean;
   canAllocate: boolean;
   canReverse: boolean;
 } {
-  const view = input.granted
-    ? input.granted.view
-    : (VIEW_ROLES as readonly string[]).includes(input.role);
-  const allocate = input.granted
-    ? input.granted.allocate
-    : (ALLOCATE_ROLES as readonly string[]).includes(input.role);
+  const { view, allocate } = input.granted;
   const open = input.status === "open";
   return {
     canView: view,

@@ -61,6 +61,8 @@ import {
 } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { FolioReservationQuickView } from "@/packages/pms/components/cashiering/folio-reservation-quick-view";
 import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import {
@@ -178,7 +180,7 @@ export function GuestFolioPage({
   const fetchCorrectionNotice = useServerFn(getCashieringCorrectionNotice);
   const query = useQuery({
     queryKey: ["folio", restaurantId, folioId, "workspace"],
-    queryFn: () => fetchWorkspace({ data: { restaurantId, folioId } }),
+    queryFn: () => fetchWorkspace({ data: { restaurantId, folioId, scope: "cashiering" } }),
     retry: false,
   });
   const correctionNoticeQuery = useQuery({
@@ -391,6 +393,9 @@ function FolioWorkspaceBody({
   });
   const folio = workspace.folio;
   const caps = workspace.capabilities;
+  const permissions = usePmsPermissions(restaurantId);
+  const canViewGuest = permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+  const canViewReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
 
   const [tab, setTab] = useState<FolioWorkspaceTabId>(() => resolveTab(initialTab));
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -478,6 +483,7 @@ function FolioWorkspaceBody({
 
   useEffect(() => {
     if (initialAction === "allocate" || initialPaymentId) {
+      if (!workspace.canAllocateInvoices) return;
       if (initialPaymentId) setAllocatePaymentId(initialPaymentId);
       if (initialInvoiceId) setAllocateInvoiceId(initialInvoiceId);
       setAllocateOpen(true);
@@ -497,7 +503,7 @@ function FolioWorkspaceBody({
       adjustment: caps.canAdjust,
     };
     if (allowed[initialAction]) openEntry(initialAction);
-  }, [initialAction, initialPaymentId, initialInvoiceId, caps]);
+  }, [initialAction, initialPaymentId, initialInvoiceId, caps, workspace.canAllocateInvoices]);
 
   function selectTab(next: FolioWorkspaceTabId) {
     setTab(next);
@@ -560,7 +566,9 @@ function FolioWorkspaceBody({
   async function printPostedTender(transactionId: string) {
     onChanged();
     try {
-      const fresh = await fetchWorkspace({ data: { restaurantId, folioId: folio.id } });
+      const fresh = await fetchWorkspace({
+        data: { restaurantId, folioId: folio.id, scope: "cashiering" },
+      });
       const row = fresh?.folio.transactions.find((line) => line.id === transactionId);
       if (!fresh || !row) return;
       const receipt = buildTenderReceiptFromFolioRow(row, fresh, tenderReceiptContext);
@@ -792,6 +800,8 @@ function FolioWorkspaceBody({
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
+                canViewGuest={canViewGuest}
+                canViewReservation={canViewReservation}
                 onViewInvoice={() => {
                   setDetailsOpen(false);
                   selectTab("invoices");
@@ -924,7 +934,13 @@ function FolioWorkspaceBody({
                     debitNotes: [],
                     creditNotes: [],
                   }}
-                  access={{ canManage: workspace.canManage, open: folio.status === "open" }}
+                  access={{
+                    canCorrect: workspace.grants.adjustment || workspace.grants.discount,
+                    canTransfer: workspace.grants.transfer,
+                    canRefund: workspace.grants.refund,
+                    canApplyDeposit: workspace.canAllocateInvoices,
+                    open: folio.status === "open",
+                  }}
                   searchExtras={[folio.folioNumber, folio.guestName]}
                   documents={workspace.folio.issuedInvoices.flatMap((invoice) => {
                     const issued = {
@@ -1193,7 +1209,9 @@ function FolioWorkspaceBody({
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap gap-2">
-            {open && workspace.canOperate && (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
+            {open &&
+            workspace.canReceiveInvoicePayment &&
+            (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
               <Button
                 type="button"
                 disabled={issuedOutstanding == null}
@@ -1228,7 +1246,9 @@ function FolioWorkspaceBody({
               This invoice is already covered. A manager can register it.
             </p>
           ) : null}
-          {issuedOutstanding != null && issuedOutstanding > 0.01 && !workspace.canOperate ? (
+          {issuedOutstanding != null &&
+          issuedOutstanding > 0.01 &&
+          !workspace.canReceiveInvoicePayment ? (
             <p className="text-sm text-muted-foreground">A cashier receives the payment.</p>
           ) : null}
           {issuedOutstanding != null &&
@@ -1297,6 +1317,8 @@ function FolioWorkspaceBody({
         workspace={workspace}
         money={money}
         dateTime={dateTime}
+        canViewGuest={canViewGuest}
+        canViewReservation={canViewReservation}
         onClose={() => setChargeId(null)}
         onCorrectCharge={() => {
           if (!chargeGroup) return;

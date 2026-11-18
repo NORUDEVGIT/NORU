@@ -123,11 +123,11 @@ export function CashierControl({
   }, []);
 
   useEffect(() => {
-    if (selectedShiftId && initialAction === "close") {
+    if (selectedShiftId && initialAction === "close" && (canShiftEdit || canAuthorizeShifts)) {
       setCloseId(selectedShiftId);
       setMode("close");
     }
-  }, [selectedShiftId, initialAction]);
+  }, [selectedShiftId, initialAction, canShiftEdit, canAuthorizeShifts]);
 
   const fetchShifts = useServerFn(listCashierShifts);
   const fetchActivity = useServerFn(getCashieringBusinessDateActivity);

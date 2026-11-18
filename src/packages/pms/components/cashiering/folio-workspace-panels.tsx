@@ -428,7 +428,7 @@ function RowMenu({
             <ArrowLeftRight className="size-4" /> Transfer Charge
           </DropdownMenuItem>
         ) : null}
-        {workspace.capabilities.canAdjust &&
+        {(workspace.capabilities.canAdjust || workspace.capabilities.canDiscount) &&
         isParentTransferCharge(row) &&
         correctableGroupRemainder(row.id, rows).grossRemaining > 0.009 ? (
           <DropdownMenuItem onSelect={() => actions.onCorrectCharge(row)}>
@@ -1701,9 +1701,11 @@ export function SettlementTab({
                     Settlement actions
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" onClick={onIssueInvoice}>
-                      <FileText className="size-4" /> Issue final invoice
-                    </Button>
+                    {caps.canIssueInvoice && workspace.grants.invoiceAuthorize ? (
+                      <Button type="button" size="sm" onClick={onIssueInvoice}>
+                        <FileText className="size-4" /> Issue final invoice
+                      </Button>
+                    ) : null}
                     {workspace.canAllocateInvoices ? (
                       <Button
                         type="button"
@@ -1730,7 +1732,7 @@ export function SettlementTab({
                         <CreditCard className="size-4" /> Post payment
                       </Button>
                     ) : null}
-                    {workspace.canManage && balance > 0.009 ? (
+                    {caps.canTransfer && balance > 0.009 ? (
                       <Button type="button" size="sm" variant="outline" onClick={onTransfer}>
                         <ArrowLeftRight className="size-4" /> Transfer charges
                       </Button>
@@ -1790,7 +1792,7 @@ export function SettlementTab({
               </p>
             </SectionCard>
           ) : null}
-          {open && !workspace.canOperate ? (
+          {open && !caps.canPostCharge && !caps.canPostPayment && !caps.canPostDeposit ? (
             <p className="text-sm text-muted-foreground">Read-only access for your role.</p>
           ) : null}
         </div>
@@ -1809,7 +1811,7 @@ export function SettlementTab({
             money={money}
             dateTime={dateTime}
             canAllocate={workspace.canAllocateInvoices}
-            canReceive={open && workspace.canOperate}
+            canReceive={open && workspace.canReceiveInvoicePayment}
             onAllocate={onAllocateInvoice}
             onReceive={setReceiveInvoice}
             filter={invoiceFilter}
@@ -2158,6 +2160,8 @@ export function FolioSidebar({
   onClose,
   onViewGuest,
   onViewReservation,
+  canViewGuest,
+  canViewReservation,
 }: {
   workspace: FolioWorkspace;
   money: Money;
@@ -2166,6 +2170,8 @@ export function FolioSidebar({
   onClose?: () => void;
   onViewGuest?: (guestId: string) => void;
   onViewReservation?: (reservationId: string) => void;
+  canViewGuest: boolean;
+  canViewReservation: boolean;
 }) {
   const folio = workspace.folio;
   const s = workspace.financialSummary;
@@ -2278,7 +2284,7 @@ export function FolioSidebar({
             </p>
           ) : null}
         </div>
-        {folio.guestId ? (
+        {folio.guestId && canViewGuest ? (
           onViewGuest ? (
             <Button
               type="button"
@@ -2351,7 +2357,7 @@ export function FolioSidebar({
             <Field label="Market Segment" value={folio.marketSegment ?? "Not configured"} />
             <Field label="Booking Source" value={folio.bookingSource ?? "Not configured"} />
           </div>
-          {onViewReservation ? (
+          {!canViewReservation ? null : onViewReservation ? (
             <Button
               type="button"
               variant="outline"

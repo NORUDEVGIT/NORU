@@ -44,6 +44,8 @@ export function AccountReturnTransferDialog({
   onDone,
   money,
   initialSourceId = null,
+  canTransfer,
+  canCorrect,
 }: {
   restaurantId: string;
   account: FinancialAccountRow | null;
@@ -52,6 +54,8 @@ export function AccountReturnTransferDialog({
   onDone: () => void;
   money: (value: number) => string;
   initialSourceId?: string | null;
+  canTransfer: boolean;
+  canCorrect: boolean;
 }) {
   const fetchCharges = useServerFn(listFinancialAccountCharges);
   const fetchBoard = useServerFn(getFinancialAccountInvoiceBoard);
@@ -245,7 +249,8 @@ export function AccountReturnTransferDialog({
                             : `Remaining ${money(entry.remainder.grossRemaining)}`}
                         </span>
                       </button>
-                      {!entry.invoiced &&
+                      {canCorrect &&
+                      !entry.invoiced &&
                       correctable.some((item) => item.row.id === entry.row.id) ? (
                         <span className="mt-2 block">
                           <Button
@@ -342,16 +347,18 @@ export function AccountReturnTransferDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-              disabled={
-                !selected || !destination || !reason.trim() || !amountValid || mutation.isPending
-              }
-              onClick={() => mutation.mutate()}
-            >
-              Transfer Charge
-            </Button>
+            {canTransfer ? (
+              <Button
+                type="button"
+                className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+                disabled={
+                  !selected || !destination || !reason.trim() || !amountValid || mutation.isPending
+                }
+                onClick={() => mutation.mutate()}
+              >
+                Transfer Charge
+              </Button>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>

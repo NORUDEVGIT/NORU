@@ -33,7 +33,10 @@ import {
   getFinancialAccountPaymentDetail,
   listFinancialAccountPayments,
 } from "@/packages/pms/lib/cashiering-account-payments.functions";
-import type { AccountWorkspaceKind } from "@/packages/pms/lib/cashiering-account-workspace";
+import {
+  NO_ACCOUNT_WORKSPACE_GRANTS,
+  type AccountWorkspaceKind,
+} from "@/packages/pms/lib/cashiering-account-workspace";
 import {
   postFinancialAccountEntry,
   postSettlementWriteOff,
@@ -205,19 +208,12 @@ export function FinancialAccountPayments({
     () =>
       result?.capabilities ??
       accountPaymentCapabilities({
-        role,
         status: shownStatus,
         balance: shownBalance,
         accountKind,
-        granted: {
-          receivePayment: false,
-          refund: false,
-          createInvoice: false,
-          writeOff: false,
-          close: false,
-        },
+        granted: NO_ACCOUNT_WORKSPACE_GRANTS,
       }),
-    [accountKind, result?.capabilities, role, shownBalance, shownStatus],
+    [accountKind, result?.capabilities, shownBalance, shownStatus],
   );
   const presentation = accountBalancePresentation(shownBalance);
   const pageCount = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
@@ -356,11 +352,13 @@ export function FinancialAccountPayments({
         </PmsFilterMenu>
       </FolioChromeSlot>
       <FolioChromeSlot name="cta">
-        {caps.canReceivePayment ? (
+        {caps.showReceivePayment ? (
           <Button
             size="sm"
             className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
             data-testid="receive-payment"
+            disabled={!caps.canReceivePayment}
+            title={caps.canReceivePayment ? undefined : "This account is closed."}
             onClick={openPayment}
           >
             <Landmark className="size-3.5" /> Receive Payment

@@ -832,6 +832,8 @@ export function FinancialAccountCharges({
         onClose={() => setReturnId(null)}
         onDone={refresh}
         money={money}
+        canTransfer
+        canCorrect={false}
       />
     </section>
   );

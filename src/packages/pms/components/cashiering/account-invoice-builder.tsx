@@ -243,7 +243,8 @@ export function AccountInvoiceWorkspace({
       `${group.description} ${group.sourceGuest ?? ""} ${group.sourceFolioNumber ?? ""} ${group.sourceConfirmation ?? ""} ${group.departmentName ?? ""}`.toLowerCase();
     return haystack.includes(search.trim().toLowerCase());
   });
-  const canManage = Boolean(board?.canManage);
+  const canEdit = Boolean(board?.canEdit);
+  const canAuthorize = Boolean(board?.canAuthorize);
   const hasGroups = (board?.groups.length ?? 0) > 0;
 
   function refresh() {
@@ -387,7 +388,7 @@ export function AccountInvoiceWorkspace({
             ) : null}
           </div>
         </div>
-        {canManage && board?.account.status === "open" ? (
+        {canEdit && board?.account.status === "open" ? (
           <div className="flex flex-wrap gap-2">
             {board.draft && !editing ? (
               <>
@@ -515,9 +516,10 @@ export function AccountInvoiceWorkspace({
                     return (
                       <tr key={group.sourceGroupId} className="border-b border-[#E8E1D7]">
                         <td className="px-3 py-2">
+                          {canEdit ? (
                           <Checkbox
                             checked={checked}
-                            disabled={invoiced || !canManage}
+                            disabled={invoiced}
                             onCheckedChange={(value) =>
                               setSelectedIds((current) =>
                                 value
@@ -526,6 +528,7 @@ export function AccountInvoiceWorkspace({
                               )
                             }
                           />
+                          ) : null}
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">
                           {dateTime(group.postedAt)}
@@ -610,6 +613,7 @@ export function AccountInvoiceWorkspace({
                 />
               </label>
               <div className="flex justify-end gap-2">
+                {canEdit ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -619,6 +623,8 @@ export function AccountInvoiceWorkspace({
                 >
                   Save draft
                 </Button>
+                ) : null}
+                {canAuthorize ? (
                 <Button
                   size="sm"
                   className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
@@ -628,6 +634,7 @@ export function AccountInvoiceWorkspace({
                 >
                   Issue invoice
                 </Button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -769,7 +776,7 @@ export function AccountInvoiceWorkspace({
                                   <FileText className="size-3.5 text-[#8a6a1f]" />
                                   <span>View</span>
                                 </Button>
-                                {canManage ? (
+                                {canAuthorize ? (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -856,8 +863,8 @@ export function AccountInvoiceWorkspace({
         restaurantId={restaurantId}
         accountId={accountId}
         accountOpen={board?.account.status === "open"}
-        canManage={canManage}
-        canOperate={Boolean(board?.canOperate)}
+        canAuthorize={canAuthorize}
+        canReceivePayment={Boolean(board?.canReceivePayment)}
         canAllocate={Boolean(board?.canAllocate)}
         money={money}
         dateTime={dateTime}

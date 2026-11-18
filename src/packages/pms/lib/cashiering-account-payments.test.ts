@@ -100,6 +100,27 @@ function activityRow(
   };
 }
 
+const ALL_ACCOUNT_GRANTS = {
+  receivePayment: true,
+  receiveDeposit: true,
+  receiveInvoicePayment: true,
+  refund: true,
+  createInvoice: true,
+  writeOff: true,
+  close: true,
+  viewGuestProfile: true,
+};
+const NO_ACCOUNT_GRANTS = {
+  receivePayment: false,
+  receiveDeposit: false,
+  receiveInvoicePayment: false,
+  refund: false,
+  createInvoice: false,
+  writeOff: false,
+  close: false,
+  viewGuestProfile: false,
+};
+
 describe("account payment migration", () => {
   it("keeps the dual-lane function free of new tables and a client shift id", () => {
     assert.equal(sql, drizzle);
@@ -250,38 +271,36 @@ describe("account payment posting rules", () => {
     assert.equal(groups[0]?.remainingAmount, 10000);
   });
 
-  it("keeps cashier payment access and manager-only refund and write-off", () => {
-    for (const role of ["owner", "manager"]) {
-      const open = accountPaymentCapabilities({
-        role,
-        status: "open",
-        balance: 2000,
-        accountKind: "company",
-      });
-      assert.equal(open.canReceivePayment, true);
-      assert.equal(open.canRefund, true);
-      assert.equal(open.canWriteOff, true);
-    }
-    const cashier = accountPaymentCapabilities({
-      role: "cashier",
-      status: "open",
-      balance: 2000,
-      accountKind: "group",
-    });
-    assert.equal(cashier.canReceivePayment, true);
-    assert.equal(cashier.canRefund, false);
-    assert.equal(cashier.canWriteOff, false);
-    const accountant = accountPaymentCapabilities({
-      role: "accountant",
+  it("derives payment, refund, and write-off from their own permissions", () => {
+    const open = accountPaymentCapabilities({
+      granted: ALL_ACCOUNT_GRANTS,
       status: "open",
       balance: 2000,
       accountKind: "company",
     });
-    assert.equal(accountant.canReceivePayment, false);
-    assert.equal(accountant.canRefund, false);
-    assert.equal(accountant.canWriteOff, false);
+    assert.equal(open.canReceivePayment, true);
+    assert.equal(open.canRefund, true);
+    assert.equal(open.canWriteOff, true);
+    const paymentOnly = accountPaymentCapabilities({
+      granted: { ...NO_ACCOUNT_GRANTS, receivePayment: true },
+      status: "open",
+      balance: 2000,
+      accountKind: "group",
+    });
+    assert.equal(paymentOnly.canReceivePayment, true);
+    assert.equal(paymentOnly.canRefund, false);
+    assert.equal(paymentOnly.canWriteOff, false);
+    const none = accountPaymentCapabilities({
+      granted: NO_ACCOUNT_GRANTS,
+      status: "open",
+      balance: 2000,
+      accountKind: "company",
+    });
+    assert.equal(none.canReceivePayment, false);
+    assert.equal(none.canRefund, false);
+    assert.equal(none.canWriteOff, false);
     const closed = accountPaymentCapabilities({
-      role: "owner",
+      granted: ALL_ACCOUNT_GRANTS,
       status: "closed",
       balance: 0,
       accountKind: "company",

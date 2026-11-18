@@ -237,3 +237,49 @@ Goal: every reservation action button and server write follows one rule set. No 
 - Full `tsc` has not completed a valid run. The full run was stopped, and a scoped run on the changed files was still running when this was written.
 - `reservation-workspace/booking-calendar.ts` `calendarDropRefusal` and the calendar server path were not re-tested against a browser.
 - `PricingSection` in `reservation-detail-workspace.tsx` is unused and was not gated.
+
+## Cashiering action gates (uncommitted, no migration)
+
+Rule: no permission hides the action; a blocking business state shows it disabled with a reason. Server enforcement was not weakened, and posting/financial rules are unchanged.
+
+### Scope
+
+- The Cashiering page loads folio grants with `scope: "cashiering"`, so only `cashiering.*` codes count. Front Office, Reservations and Night Audit keep the default `"desk"` scope, which still accepts their own desk codes.
+- `getCashieringAccess` and `FolioWorkspace` expose `canReceiveInvoicePayment` (`cashiering.payment.post` and `cashiering.allocation.edit`).
+
+### Client gates
+
+| Action | Permission |
+| --- | --- |
+| Return to guest folio, settlement transfer, history Transfer | `cashiering.transfer.post` |
+| Correct charge: amount, quantity, reversal | `cashiering.adjustment.post` |
+| Correct charge: apply discount | `cashiering.discount.post` |
+| History Refund | `cashiering.refund` |
+| Receive deposit | `cashiering.deposit.post` |
+| Allocate deposit, `?action=allocate` drawer | `cashiering.allocation.edit` |
+| Open account | `cashiering.charge.post` and `guest.account.view` |
+| Close account (disabled when balance is not zero) | `cashiering.folio.close` |
+| Receive payment on account (disabled when closed) | `cashiering.payment.post` |
+| Invoice payment (guest and company) | `cashiering.payment.post` and `cashiering.allocation.edit` |
+| Company invoice draft create/save, line checkboxes | `cashiering.invoice.edit` |
+| Issue / reprint invoice, settlement "Issue final invoice", credit/debit note issue | `cashiering.invoice.authorize` |
+| Cashier Shift tab and side rail entry | any `cashiering.shift.*` |
+| Side rail Folios / Payments | `cashiering.folio.view` |
+| Side rail Night Audit | `night_audit.run.view` |
+| Guest Profile links | `guest.profile.view` |
+| Reservation links | `reservation.reservation.view` |
+| Fiscal settings link | `configuration.integration.view` |
+
+Printing stays available to anyone who can view the folio or invoice.
+
+### Removed
+
+- Role checks in account workspace, payment, allocation, charge-ownership and guest-allocation capabilities. They take permission grants instead.
+- Cashier/Accountant/Manager role lists for the Cashiering and Night Audit side rail.
+- Dead, ungated `components/cashiering/cashiering-tabs.tsx` (no imports).
+
+### Known gaps
+
+- Some internal components still accept unused `canOperate` / `canManage` props; they no longer gate anything.
+- Legacy `requireCashier*` role helpers in `cashiering.server.ts` remain exported but are not called.
+- Pre-existing source-text test failures in the cashiering suites were not fixed (for example `DebitNoteSection`, `canManage ?`, `Issue invoice` in `guest-folio-page.tsx`, settlement `canClose: input.canManage`).

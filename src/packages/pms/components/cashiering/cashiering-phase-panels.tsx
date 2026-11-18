@@ -115,7 +115,7 @@ export function TransfersPanel({
   restaurantId,
   folios,
   selected,
-  canManage,
+  canTransfer,
   money,
   dateTime,
   dashboard,
@@ -125,7 +125,7 @@ export function TransfersPanel({
   restaurantId: string;
   folios: Array<{ id: string; folioNumber: string; guestName: string }>;
   selected: FolioDetail | null;
-  canManage: boolean;
+  canTransfer: boolean;
   money: (n: number) => string;
   dateTime: (iso: string | null | undefined) => string;
   dashboard?: {
@@ -260,7 +260,7 @@ export function TransfersPanel({
           note="Move part of a charge between open guest folios. The original charge line stays posted."
           borderTone="transfer"
         >
-          {canManage ? (
+          {canTransfer ? (
           <div className="space-y-3">
             <div>
               <Label>Source folio</Label>
@@ -381,7 +381,7 @@ export function TransfersPanel({
               type="button"
               className="min-h-11 w-full bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
               disabled={
-                !canManage ||
+                !canTransfer ||
                 mutation.isPending ||
                 !sourceFolioId ||
                 !targetFolioId ||
@@ -403,15 +403,22 @@ export function TransfersPanel({
 
 export function AccountsPanel({
   restaurantId,
-  canManage,
-  canWriteOff = canManage,
-  canCloseAccount = canManage,
+  canOpenAccount,
+  canTransfer,
+  canAdjust,
+  canDiscount,
+  canWriteOff,
+  canCloseAccount,
   money,
 }: {
   restaurantId: string;
-  canManage: boolean;
-  canWriteOff?: boolean;
-  canCloseAccount?: boolean;
+  /** `cashiering.charge.post` plus `guest.account.view` for the master picker. */
+  canOpenAccount: boolean;
+  canTransfer: boolean;
+  canAdjust: boolean;
+  canDiscount: boolean;
+  canWriteOff: boolean;
+  canCloseAccount: boolean;
   money: (n: number) => string;
 }) {
   const queryClient = useQueryClient();
@@ -577,7 +584,7 @@ export function AccountsPanel({
           />
         </PmsFilterMenu>
       </CashieringShellSlot>
-      {canManage ? (
+      {canOpenAccount ? (
         <CashieringShellSlot name="cta">
           <Button
             type="button"
@@ -716,15 +723,18 @@ export function AccountsPanel({
                               <span>Open Workspace</span>
                             </DropdownMenuItem>
 
-                            {canManage && row.status === "open" ? (
+                            {row.status === "open" &&
+                            (canTransfer || canAdjust || canDiscount || canWriteOff || canCloseAccount) ? (
                               <>
-                                <DropdownMenuItem
-                                  className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#251605] hover:bg-[#FAF8F4]"
-                                  onClick={() => setTransferAccount(row)}
-                                >
-                                  <Receipt className="size-3.5 text-[#736B5E]" />
-                                  <span>Review Charges</span>
-                                </DropdownMenuItem>
+                                {canTransfer || canAdjust || canDiscount ? (
+                                  <DropdownMenuItem
+                                    className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#251605] hover:bg-[#FAF8F4]"
+                                    onClick={() => setTransferAccount(row)}
+                                  >
+                                    <Receipt className="size-3.5 text-[#736B5E]" />
+                                    <span>Review Charges</span>
+                                  </DropdownMenuItem>
+                                ) : null}
 
                                 <DropdownMenuSeparator className="my-1 bg-[#E8E1D7]" />
 
@@ -742,13 +752,22 @@ export function AccountsPanel({
                                     <span>Write Off Balance</span>
                                   </DropdownMenuItem>
                                 ) : null}
-                                {canCloseAccount && Math.abs(row.balance) < 0.01 ? (
+                                {canCloseAccount ? (
                                   <DropdownMenuItem
                                     className="cursor-pointer gap-2 rounded-lg text-xs font-medium text-[#7A7167] hover:bg-[#FAF8F4]"
+                                    disabled={Math.abs(row.balance) >= 0.01}
+                                    title={
+                                      Math.abs(row.balance) >= 0.01
+                                        ? "Settle the balance to zero before closing."
+                                        : undefined
+                                    }
                                     onClick={() => closeMutation.mutate(row.id)}
                                   >
                                     <Lock className="size-3.5 text-[#7A7167]" />
-                                    <span>Close Account</span>
+                                    <span>
+                                      Close Account
+                                      {Math.abs(row.balance) >= 0.01 ? " · balance must be zero" : ""}
+                                    </span>
                                   </DropdownMenuItem>
                                 ) : null}
                               </>
@@ -784,10 +803,10 @@ export function AccountsPanel({
             </div>
           </DialogHeader>
 
-          {!canManage ? (
+          {!canOpenAccount ? (
             <div className="p-6">
               <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-medium text-amber-900">
-                Only a cashiering manager or administrator can open new financial accounts.
+                Opening a financial account needs the Cashiering charge permission.
               </p>
             </div>
           ) : (
@@ -902,6 +921,8 @@ export function AccountsPanel({
           void queryClient.invalidateQueries({ queryKey: ["financial-accounts", restaurantId] })
         }
         money={money}
+        canTransfer={canTransfer}
+        canCorrect={canAdjust || canDiscount}
       />
     </div>
   );
@@ -910,13 +931,13 @@ export function AccountsPanel({
 export function DepositAllocationForm({
   restaurantId,
   selected,
-  canManage,
+  canAllocate,
   money,
   onRefresh,
 }: {
   restaurantId: string;
   selected: FolioDetail | null;
-  canManage: boolean;
+  canAllocate: boolean;
   money: (n: number) => string;
   onRefresh: () => void;
 }) {
@@ -973,7 +994,7 @@ export function DepositAllocationForm({
             <p className="font-medium">{selected.guestName}</p>
             <p className="text-xs text-muted-foreground">{selected.folioNumber}</p>
           </div>
-          {!canManage ? (
+          {!canAllocate ? (
             <p className="text-xs text-amber-800">Allocation permission is required.</p>
           ) : null}
           <div>
@@ -1019,7 +1040,7 @@ export function DepositAllocationForm({
           <Button
             type="button"
             className="min-h-11 w-full bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-            disabled={!canManage || mutation.isPending || !depositId || !chargeId || !amount}
+            disabled={!canAllocate || mutation.isPending || !depositId || !chargeId || !amount}
             onClick={() => mutation.mutate()}
           >
             Allocate

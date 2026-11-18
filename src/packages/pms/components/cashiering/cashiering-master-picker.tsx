@@ -10,6 +10,8 @@ import {
   GUEST_PROFILE_DIRECTORY_PATH,
   guestProfileSearch,
 } from "@/packages/pms/lib/guest-profile-wave1";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   accountListItems,
   type GuestAccountSummary,
@@ -66,6 +68,7 @@ export function CashieringMasterPicker({
   const Icon = copy.icon;
   const fetchAccounts = useServerFn(listGuestAccounts);
   const fetchAccount = useServerFn(getGuestAccount);
+  const canViewGuestProfile = usePmsPermissions(restaurantId).can(PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -231,13 +234,17 @@ export function CashieringMasterPicker({
           </div>
           <p className="text-[11px] text-[#7A7167]">
             Masters are created in{" "}
-            <Link
+            {canViewGuestProfile ? (
+              <Link
               to={GUEST_PROFILE_DIRECTORY_PATH}
               search={guestProfileSearch({ section: copy.createSection })}
               className="font-medium text-[#8A6A2F] underline-offset-4 hover:underline"
             >
               Guest Profile
             </Link>
+            ) : (
+              "Guest Profile"
+            )}
             . This opens a billing account, not a stay summary.
           </p>
         </>

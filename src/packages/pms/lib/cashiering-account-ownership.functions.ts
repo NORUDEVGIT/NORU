@@ -367,7 +367,7 @@ export const listFinancialAccountChargeGroups = createServerFn({ method: "GET" }
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => chargeQuery.parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const accountResult = await supabaseAdmin
@@ -405,9 +405,10 @@ export const listFinancialAccountChargeGroups = createServerFn({ method: "GET" }
         folioNumber: info?.folioNumber ?? null,
         actorName: group.actorMembershipId ? (actors.get(group.actorMembershipId) ?? null) : null,
         capabilities: chargeCapabilities({
-          role: me.role,
           accountStatus: account.status,
-          canMutate: flags.adjust,
+          canAdjust: flags.adjust,
+          canDiscount: flags.discount,
+          canTransfer: flags.transfer,
           group,
         }),
       } as ChargeListRow & { capabilities: ReturnType<typeof chargeCapabilities> };
@@ -421,8 +422,10 @@ export const listFinancialAccountChargeGroups = createServerFn({ method: "GET" }
       rows: page.rows.map((row) => ({
         ...row,
         capabilities: chargeCapabilities({
-          role: me.role,
           accountStatus: account.status,
+          canAdjust: flags.adjust,
+          canDiscount: flags.discount,
+          canTransfer: flags.transfer,
           group: row,
         }),
       })),
