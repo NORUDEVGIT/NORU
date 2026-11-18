@@ -258,11 +258,29 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.equal(defaults[0]?.origin, "default");
     assert.deepEqual(
       DEFAULT_BOOKING_SOURCES.map((row) => row.label),
-      ["Phone", "Walk-in", "Email", "Direct", "Corporate", "Travel agency", "Other"],
+      [
+        "Walk-In",
+        "Phone",
+        "Email",
+        "Hotel Website",
+        "Online Travel Agency",
+        "Travel Agency / Tour Operator",
+        "Company / Corporate",
+        "Referral",
+        "Other",
+      ],
     );
     assert.deepEqual(
       DEFAULT_MARKET_SEGMENTS.map((row) => row.label),
-      ["Leisure", "Corporate", "Government", "Complimentary / house", "Other"],
+      [
+        "Individual / Transient",
+        "Corporate",
+        "Group",
+        "Government",
+        "NGO / International Organization",
+        "Leisure",
+        "Other",
+      ],
     );
     const defaultSegments = resolveMarketSegmentOptions(undefined);
     assert.equal(defaultSegments.length, DEFAULT_MARKET_SEGMENTS.length);
