@@ -5,7 +5,11 @@
  * No persistence, APIs, schema, or financial business logic.
  */
 
-import { CARD2_MEALS_HREF } from "./pms-property-setup-card2.ts";
+import {
+  CARD2_MEALS_HREF,
+  CARD2_RATES_HREF,
+  card2StepHref,
+} from "./pms-property-setup-card2.ts";
 import { SET1_HUB_HREF, withReturnTo } from "./pms-set1-foundation.ts";
 
 export { withReturnTo };
@@ -17,6 +21,8 @@ export const CARD3_PURPOSE = "Taxes, Policies & Fees, Rates & Meal Plans, Paymen
 export const CARD3_HASH = "financial-commercial";
 export const CARD3_HREF = `${SET1_HUB_HREF}#${CARD3_HASH}`;
 export const CARD3_DOMAIN_QUERY = "card3Domain";
+/** Legacy focus query for retired commercial sub-areas (restrictions / overbooking). */
+export const CARD3_FOCUS_QUERY = "card3Focus";
 export const CARD3_PROGRAMME_ID = "rates-guest-rules";
 export const CARD3_SIDEBAR_OUT =
   "Card 3 uses full-screen PMS top-nav chrome. The old Settings left sidebar is out.";
@@ -44,8 +50,8 @@ export const CARD3_DOMAINS = [
   },
   {
     id: "payments-deposits",
-    title: "Payments & Deposits",
-    description: "Configure payment methods and deposit policies.",
+    title: "Payments",
+    description: "Configure payment methods accepted at the property.",
     icon: "credit-card",
   },
   {
@@ -57,13 +63,15 @@ export const CARD3_DOMAINS = [
   {
     id: "corporate-contract-rates",
     title: "Corporate & Contract Rates",
-    description: "Manage corporate agreements and negotiated rates.",
+    description:
+      "Optional. Create corporate agreements and contract rates when needed — not required for activation.",
     icon: "building",
   },
   {
     id: "revenue-commercial-rules",
     title: "Revenue & Commercial Rules",
-    description: "Configure restrictions, promotions, seasons and commercial controls.",
+    description:
+      "Optional. Promotions and pricing seasons — not required for activation.",
     icon: "trending-up",
   },
 ] as const;
@@ -83,11 +91,39 @@ export const CARD3_PROMOTIONS_HREF = card3DomainHref("revenue-commercial-rules")
 export const CARD3_TAXES_HREF = card3DomainHref("taxes-fees");
 export const CARD3_PACKAGES_HREF = CARD2_MEALS_HREF;
 export const CARD3_LEGACY_MEALS_DOMAIN = "meal-plans-packages";
+export const CARD3_INVENTORY_RULES_HREF = card2StepHref("inventory-rules");
 
 export function card3LegacyMealsRedirectHref(search: string): string | null {
   const raw = search.startsWith("?") ? search.slice(1) : search;
   const value = new URLSearchParams(raw).get(CARD3_DOMAIN_QUERY);
   return value === CARD3_LEGACY_MEALS_DOMAIN ? CARD2_MEALS_HREF : null;
+}
+
+/**
+ * Retires duplicate commercial ownership links:
+ * - restrictions / seasons tab focus → Rate & Pricing
+ * - overbooking focus → Inventory Rules
+ * Unknown focuses under revenue-commercial-rules resolve to the promotions page.
+ */
+export function card3LegacyCommercialRedirectHref(search: string): string | null {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  const params = new URLSearchParams(raw);
+  const domain = params.get(CARD3_DOMAIN_QUERY);
+  const focus = (params.get(CARD3_FOCUS_QUERY) ?? params.get("tab") ?? "")
+    .trim()
+    .toLowerCase();
+  if (domain !== "revenue-commercial-rules" || !focus) return null;
+
+  if (focus === "restrictions" || focus === "restriction") {
+    return CARD2_RATES_HREF;
+  }
+  if (focus === "overbooking") {
+    return CARD3_INVENTORY_RULES_HREF;
+  }
+  if (focus === "overview" || focus === "seasons" || focus === "promotions" || focus === "pricing-seasons") {
+    return CARD3_PROMOTIONS_HREF;
+  }
+  return null;
 }
 
 export function card3DomainFromSearch(search: string): Card3DomainId | null {

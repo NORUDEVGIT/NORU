@@ -441,7 +441,14 @@ export function Card3Section({
   children: ReactNode;
 }) {
   return (
-    <PropertySetupPanel title={title} helper={helper} icon={icon} testId={testId} action={action}>
+    <PropertySetupPanel
+      title={title}
+      helper={helper}
+      icon={icon}
+      testId={testId}
+      action={action}
+      dense
+    >
       {children}
     </PropertySetupPanel>
   );

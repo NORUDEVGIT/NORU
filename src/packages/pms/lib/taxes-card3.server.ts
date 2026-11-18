@@ -57,7 +57,7 @@ export const CARD3_TAXES_AUDIT_SECTION = "card3-taxes";
 export const CARD3_TAXES_UNAVAILABLE =
   "Taxes & Fees are unavailable until their approved migration is applied.";
 export const CARD3_TAXES_SET1_COPY =
-  "Cashiering, reservations, invoicing and night audit use this catalogue (`pms_taxes`). Retired restaurant till columns are historical only.";
+  "Configure taxes, service charges, fees and exemptions applied to guest charges.";
 
 export const TAX_CHARGE_TYPE_LABELS: Record<TaxChargeType, string> = {
   percentage: "Percentage",

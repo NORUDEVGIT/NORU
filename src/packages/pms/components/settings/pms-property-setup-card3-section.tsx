@@ -7,13 +7,12 @@ import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-u
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   CARD3_DOMAINS,
-  CARD3_SUBTITLE,
+  CARD3_TITLE,
   card3DomainFromSearch,
   type Card3DomainId,
 } from "@/packages/pms/lib/pms-property-setup-card3";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
-  PropertySetupStatusRail,
   PropertySetupStepNav,
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
@@ -42,10 +41,12 @@ export function PmsPropertySetupCard3Section({
   canEdit: boolean;
 }) {
   const [activeDomain, setActiveDomain] = useState<Card3DomainId>(
-    () => card3DomainFromSearch(typeof window === "undefined" ? "" : window.location.search) ?? "currency-financial-settings",
+    () =>
+      card3DomainFromSearch(typeof window === "undefined" ? "" : window.location.search) ??
+      "currency-financial-settings",
   );
   const registerDraftSave = useCallback((_value: Card3DraftSave | null) => {
-    /* Section-level saves replaced the wizard footer. */
+    /* Catalogue domains save immediately — no setup-page draft semantics. */
   }, []);
   const domain = CARD3_DOMAINS.find((row) => row.id === activeDomain) ?? CARD3_DOMAINS[0];
   const loadCurrency = useServerFn(getCurrencyCard3);
@@ -111,9 +112,6 @@ export function PmsPropertySetupCard3Section({
   }));
   const counts = propertySetupRailCounts(railSections.map((row) => row.status));
   const completeCount = counts.complete;
-  const progressPercent = Math.round(
-    (completeCount / Math.max(1, CARD3_DOMAINS.length)) * 100,
-  );
   const cardStatus: PropertySetupCardStatus =
     completeCount === CARD3_DOMAINS.length
       ? "complete"
@@ -122,9 +120,14 @@ export function PmsPropertySetupCard3Section({
         : "not_started";
   const currentIndex = CARD3_DOMAINS.findIndex((row) => row.id === activeDomain);
   const previousDomain = currentIndex > 0 ? CARD3_DOMAINS[currentIndex - 1] : undefined;
+  const nextDomain =
+    currentIndex >= 0 && currentIndex < CARD3_DOMAINS.length - 1
+      ? CARD3_DOMAINS[currentIndex + 1]
+      : undefined;
 
   function goBackToHub() {
-    const search = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const search =
+      typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
     const returnTo = search?.get("returnTo") || search?.get("from");
     if (returnTo) {
       window.location.href = returnTo;
@@ -144,27 +147,32 @@ export function PmsPropertySetupCard3Section({
 
   return (
     <section
-      className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#F7F4EE]"
       data-testid="pms-card3-workspace"
       data-card-fullscreen="true"
     >
-      <div className="min-w-0 flex-1" data-testid="pms-card3-fullscreen">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="pms-card3-fullscreen">
         <Card3DraftSaveProvider register={registerDraftSave}>
           <PropertySetupWorkspaceShell
             cardNumber={3}
+            fill
+            title={CARD3_TITLE}
             status={cardStatus}
-            description={CARD3_SUBTITLE}
-            hideTitle
             sections={railSections}
             complete={counts.complete}
             inProgress={counts.inProgress}
             notStarted={counts.notStarted}
             onBack={previousDomain ? () => setActiveDomain(previousDomain.id) : goBackToHub}
-            footer={null}
+            onContinue={
+              nextDomain ? () => setActiveDomain(nextDomain.id) : goBackToHub
+            }
+            continueLabel={nextDomain ? "Continue" : "Finish"}
+            continueDisabled={false}
             footerTestId="pms-card3-chrome"
             stepNav={
               <div data-testid="pms-card3-steps">
                 <PropertySetupStepNav
+                  marked
                   activeId={activeDomain}
                   onSelect={(id) => setActiveDomain(id as Card3DomainId)}
                   steps={CARD3_DOMAINS.map((item, index) => ({
@@ -173,16 +181,6 @@ export function PmsPropertySetupCard3Section({
                     title: item.title,
                     status: domainStatuses[item.id],
                   }))}
-                />
-              </div>
-            }
-            rail={
-              <div data-testid="pms-card3-status-rail">
-                <PropertySetupStatusRail
-                  sections={railSections}
-                  complete={counts.complete}
-                  inProgress={counts.inProgress}
-                  notStarted={counts.notStarted}
                 />
               </div>
             }

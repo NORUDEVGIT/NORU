@@ -8,6 +8,7 @@ import {
   CARD3_CORPORATE_AUDIT_SECTION,
   CARD3_CORPORATE_TABS,
   evaluateCorporateCard3Readiness,
+  suggestCorporateAgreementCode,
   type CorporateCard3Snapshot,
 } from "./corporate-card3.server.ts";
 
@@ -22,6 +23,10 @@ const ui = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-corporate.tsx", import.meta.url),
   "utf8",
 );
+const wizard = readFileSync(
+  new URL("../components/settings/corporate-agreement-wizard.tsx", import.meta.url),
+  "utf8",
+);
 
 function snapshot(partial?: Partial<CorporateCard3Snapshot>): CorporateCard3Snapshot {
   return {
@@ -33,10 +38,12 @@ function snapshot(partial?: Partial<CorporateCard3Snapshot>): CorporateCard3Snap
         active: true,
         paymentTerms: "NET30",
         creditLimitNote: "Review monthly",
+        defaultBillingRuleId: null,
       },
     ],
     roomTypes: [{ id: "rt1", code: "C2SM", name: "Small", active: true }],
     currencies: [{ code: "ETB", isBase: true }],
+    billingRules: [],
     agreements: [],
     contractRates: [],
     ...partial,
@@ -50,6 +57,8 @@ const activeAgreement = {
   code: "CORP1",
   name: "Acme 2026",
   contractNumber: "C-100",
+  contractTypeId: null,
+  contractTypeLabel: "",
   validFrom: "2026-01-01",
   validTo: "2026-12-31",
   currencyCode: "ETB",
@@ -72,14 +81,18 @@ const activeRate = {
 };
 
 describe("Card 3 Phase 7 corporate and contract rates", () => {
-  it("uses only not_started, in_progress, and complete for this domain", () => {
+  it("treats empty corporate catalogues as optional and activation-ready", () => {
     const empty = evaluateCorporateCard3Readiness(snapshot());
-    assert.equal(empty.status, "not_started");
-    assert.equal(empty.ready, false);
+    assert.equal(empty.status, "complete");
+    assert.equal(empty.ready, true);
+    assert.deepEqual(empty.blockers, []);
 
-    const started = evaluateCorporateCard3Readiness(snapshot({ agreements: [activeAgreement] }));
-    assert.equal(started.status, "in_progress");
-    assert.equal(started.ready, false);
+    const withAgreement = evaluateCorporateCard3Readiness(
+      snapshot({ agreements: [activeAgreement] }),
+    );
+    assert.equal(withAgreement.status, "complete");
+    assert.equal(withAgreement.ready, true);
+    assert.deepEqual(withAgreement.blockers, []);
 
     const complete = evaluateCorporateCard3Readiness(
       snapshot({
@@ -89,12 +102,28 @@ describe("Card 3 Phase 7 corporate and contract rates", () => {
     );
     assert.equal(complete.status, "complete");
     assert.equal(complete.ready, true);
+
+    const invalid = evaluateCorporateCard3Readiness(
+      snapshot({
+        agreements: [{ ...activeAgreement, validTo: "2020-01-01" }],
+      }),
+    );
+    assert.equal(invalid.ready, true);
+    assert.equal(invalid.blockers.length, 0);
+    assert.ok(invalid.warnings.length > 0);
   });
 
-  it("exposes exactly the three Phase 7 tabs and the isolated API files", () => {
+  it("suggests sequential CORP_YYYY_NNN agreement codes", () => {
+    assert.equal(
+      suggestCorporateAgreementCode(["CORP_2026_001", "CORP_2026_003"], 2026),
+      "CORP_2026_004",
+    );
+  });
+
+  it("exposes corporate tabs and the isolated API files", () => {
     assert.deepEqual(
       CARD3_CORPORATE_TABS.map((tab) => tab.label),
-      ["Overview", "Corporate Agreements", "Contract Rates"],
+      ["Corporate Agreements", "Contract Rates", "Contract Types"],
     );
     assert.equal(existsSync(join(here, "corporate-card3.server.ts")), true);
     assert.equal(existsSync(join(here, "corporate-card3.functions.ts")), true);
@@ -103,32 +132,27 @@ describe("Card 3 Phase 7 corporate and contract rates", () => {
     assert.match(fns, /export const saveContractRateCard3/);
   });
 
-  it("wires the Phase 7 workspace, inherited catalogues, editing, search, audit, and loading state", () => {
+  it("wires the consolidated corporate agreement wizard workspace", () => {
     assert.match(section, /getCorporateCard3/);
     assert.match(section, /PmsPropertySetupCard3Corporate/);
     assert.match(section, /domain\?\.id === "corporate-contract-rates"/);
-    assert.match(section, /corporateQuery\.isLoading/);
-    assert.match(section, /corporateStatus/);
-    assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
-    assert.match(ui, /CARD3_CORPORATE_TABS/);
-    assert.doesNotMatch(ui, /onAuditHistory/);
-    assert.match(ui, /Card3ListSection/);
-    assert.match(ui, /Card3OverlapSheet/);
-    assert.match(ui, /Search corporate agreements/);
-    assert.match(ui, /Search contract rates/);
-    assert.match(ui, /Filter contract rates by agreement/);
-    assert.match(ui, /Inherited payment terms/);
-    assert.match(ui, /Authorized bookers\s+are out of this workspace/);
-    assert.match(ui, /no reservation or\s+folio operational changes/);
-    assert.match(ui, /saveCorporateAgreementCard3/);
-    assert.match(ui, /saveContractRateCard3/);
-    assert.match(ui, /focus-visible:ring-\[#C89933\]/);
+    assert.match(ui, /New Corporate Agreement/);
+    assert.match(ui, /No corporate agreements configured/);
+    assert.match(ui, /Optional/);
+    assert.match(ui, /Manage contract types/);
+    assert.match(ui, /CorporateAgreementWizard/);
+    assert.match(wizard, /Create Corporate Agreement/);
+    assert.match(wizard, /Complete Corporate Agreement/);
+    assert.match(wizard, /GuestCompanyCreateModal/);
+    assert.match(wizard, /Contract Rates/);
+    assert.match(wizard, /Billing & Commercial/);
+    assert.match(fns, /contract_type_id/);
+    assert.match(fns, /agreementId/);
   });
 
-  it("requires member reads, manager writes, shared audit, and migration fail-soft", () => {
-    assert.match(fns, /requireFrontOfficeAccess/);
-    assert.ok((fns.match(/requireRoomManager/g) ?? []).length >= 2);
+  it("requires setup actor, shared audit, and migration fail-soft", () => {
+    assert.match(fns, /requirePmsSetupActor/);
     assert.match(fns, /restaurant_staff_audit_log/);
     assert.equal(CARD3_CORPORATE_AUDIT_SECTION, "card3-corporate");
     assert.match(fns, /card3_corporate_agreement_saved/);

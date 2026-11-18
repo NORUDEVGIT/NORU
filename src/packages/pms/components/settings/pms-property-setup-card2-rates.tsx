@@ -119,6 +119,12 @@ import { saveDepositPolicyCard3 } from "@/packages/pms/lib/payments-card3.functi
 import type { DepositPolicyCard3Row } from "@/packages/pms/lib/payments-card3";
 import { RatePlanWizard } from "@/packages/pms/components/settings/rate-plan-wizard/rate-plan-wizard";
 import {
+  isEffectivelyOpenEndedRestrictionWindow,
+  parseOptionalNonNegativeInt,
+  parseOptionalPositiveInt,
+  RATE_PLAN_RESTRICTION_OPEN_ENDED_TO,
+} from "@/packages/pms/components/settings/rate-plan-wizard/rate-plan-wizard-types";
+import {
   PACKAGE_INCLUSION_TYPE_LABELS,
   PACKAGE_INCLUSION_TYPES,
   parsePackageInclusionType,
@@ -1385,6 +1391,15 @@ function PlanDrawer({
     includedOccupancy: number | null;
     extraAdultRate: number | null;
     extraChildRate: number | null;
+    minAdvanceDays: number | null;
+    maxAdvanceDays: number | null;
+    /** Omitted when date-level stay/CTA/CTD are heterogeneous (non-destructive). */
+    minStayNights?: number | null;
+    maxStayNights?: number | null;
+    closedToArrival?: boolean;
+    closedToDeparture?: boolean;
+    restrictionValidFrom?: string | null;
+    restrictionValidTo?: string | null;
     active: boolean;
   }) => void | Promise<unknown>;
   onAddCancellationPolicy?: () => void;
@@ -1494,6 +1509,42 @@ function PlanDrawer({
     value ? savedOccupancy.extraChildRate : createDefaults.extraChildRate,
   );
   const [active, setActive] = useState(value?.active ?? true);
+  const [minStayNights, setMinStayNights] = useState(
+    value?.restrictionCalendarWritable === false || value?.minStayNights == null
+      ? ""
+      : String(value.minStayNights),
+  );
+  const [maxStayNights, setMaxStayNights] = useState(
+    value?.restrictionCalendarWritable === false || value?.maxStayNights == null
+      ? ""
+      : String(value.maxStayNights),
+  );
+  const [minAdvanceDays, setMinAdvanceDays] = useState(
+    value?.minAdvanceDays == null ? "" : String(value.minAdvanceDays),
+  );
+  const [maxAdvanceDays, setMaxAdvanceDays] = useState(
+    value?.maxAdvanceDays == null ? "" : String(value.maxAdvanceDays),
+  );
+  const restrictionCalendarWritable = value?.restrictionCalendarWritable !== false;
+  const restrictionHasDateOverrides = value?.restrictionHasDateOverrides === true;
+  const [closedToArrival, setClosedToArrival] = useState(
+    restrictionCalendarWritable ? (value?.closedToArrival ?? false) : false,
+  );
+  const [closedToDeparture, setClosedToDeparture] = useState(
+    restrictionCalendarWritable ? (value?.closedToDeparture ?? false) : false,
+  );
+  const restrictionFromRaw = restrictionCalendarWritable
+    ? dateField(value?.restrictionValidFrom) || dateField(value?.validFrom)
+    : dateField(value?.validFrom);
+  const [restrictionValidFrom, setRestrictionValidFrom] = useState(restrictionFromRaw);
+  const restrictionToRaw = restrictionCalendarWritable ? (value?.restrictionValidTo ?? "") : "";
+  const restrictionOpenEnded = restrictionCalendarWritable
+    ? isEffectivelyOpenEndedRestrictionWindow(restrictionFromRaw, restrictionToRaw)
+    : true;
+  const [restrictionNoEndDate, setRestrictionNoEndDate] = useState(restrictionOpenEnded);
+  const [restrictionValidTo, setRestrictionValidTo] = useState(
+    restrictionOpenEnded ? "" : dateField(restrictionToRaw),
+  );
 
   useEffect(() => {
     if (!newlyCreatedPolicy) return;
@@ -1606,6 +1657,21 @@ function PlanDrawer({
         includedOccupancy: parseOptionalIncludedField(includedOccupancy),
         extraAdultRate: extraAdultRate.trim() === "" ? null : Number(extraAdultRate),
         extraChildRate: extraChildRate.trim() === "" ? null : Number(extraChildRate),
+        minAdvanceDays: parseOptionalNonNegativeInt(minAdvanceDays),
+        maxAdvanceDays: parseOptionalNonNegativeInt(maxAdvanceDays),
+        // Heterogeneous date-level stay/CTA/CTD: omit calendar fields so save cannot flatten them.
+        ...(restrictionCalendarWritable
+          ? {
+              minStayNights: parseOptionalPositiveInt(minStayNights),
+              maxStayNights: parseOptionalPositiveInt(maxStayNights),
+              closedToArrival,
+              closedToDeparture,
+              restrictionValidFrom: restrictionValidFrom.trim() || validFrom.trim() || null,
+              restrictionValidTo: restrictionNoEndDate
+                ? RATE_PLAN_RESTRICTION_OPEN_ENDED_TO
+                : restrictionValidTo.trim() || null,
+            }
+          : {}),
         active,
       });
 
@@ -2237,14 +2303,152 @@ function PlanDrawer({
           ) : null}
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border px-3 py-2">
-          <Label htmlFor="plan-active">Active</Label>
-          <Switch
-            id="plan-active"
-            checked={active}
-            disabled={!canEdit}
-            onCheckedChange={setActive}
-          />
+        <div className="space-y-3 rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/60 p-4">
+          <div className="border-b border-[#E6E1D8] pb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#251605]">
+              Availability & Restrictions
+            </p>
+            <p className="text-[11px] text-[#756A5B]">
+              Matches Create Rate Plan Step 4. Blank stay fields mean no minimum or no maximum.
+            </p>
+          </div>
+          {restrictionHasDateOverrides ? (
+            <p className="rounded-[6px] border border-[#D9D0C3] bg-white px-3 py-2 text-[11px] text-[#5C5346]">
+              This rate plan has date-specific restriction overrides.
+              {restrictionCalendarWritable
+                ? " Saving base restrictions will not erase those overrides."
+                : " Stay and arrival controls vary by date — edit them on the rate calendar. Saving here will not erase those overrides."}
+            </p>
+          ) : null}
+          <div className="flex items-center justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 py-2">
+            <div>
+              <Label htmlFor="plan-active">Active</Label>
+              <p className="text-[11px] text-[#756A5B]">
+                Available for sale: {active ? "Yes" : "No"}
+              </p>
+            </div>
+            <Switch
+              id="plan-active"
+              checked={active}
+              disabled={!canEdit}
+              onCheckedChange={setActive}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="plan-min-stay">Minimum stay</Label>
+              <Input
+                id="plan-min-stay"
+                type="number"
+                min={1}
+                placeholder={restrictionCalendarWritable ? "No minimum" : "Varies by date"}
+                value={minStayNights}
+                disabled={!canEdit || !restrictionCalendarWritable}
+                className={PROPERTY_SETUP_CONTROL_CLASS}
+                onChange={(event) => setMinStayNights(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="plan-max-stay">Maximum stay</Label>
+              <Input
+                id="plan-max-stay"
+                type="number"
+                min={1}
+                placeholder={restrictionCalendarWritable ? "No maximum" : "Varies by date"}
+                value={maxStayNights}
+                disabled={!canEdit || !restrictionCalendarWritable}
+                className={PROPERTY_SETUP_CONTROL_CLASS}
+                onChange={(event) => setMaxStayNights(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="plan-min-advance">Minimum advance booking</Label>
+              <Input
+                id="plan-min-advance"
+                type="number"
+                min={0}
+                placeholder="No minimum"
+                value={minAdvanceDays}
+                disabled={!canEdit}
+                className={PROPERTY_SETUP_CONTROL_CLASS}
+                onChange={(event) => setMinAdvanceDays(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="plan-max-advance">Maximum advance booking</Label>
+              <Input
+                id="plan-max-advance"
+                type="number"
+                min={0}
+                placeholder="No maximum"
+                value={maxAdvanceDays}
+                disabled={!canEdit}
+                className={PROPERTY_SETUP_CONTROL_CLASS}
+                onChange={(event) => setMaxAdvanceDays(event.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 py-2">
+              <Label htmlFor="plan-cta">Closed to Arrival</Label>
+              <Switch
+                id="plan-cta"
+                checked={closedToArrival}
+                disabled={!canEdit || !restrictionCalendarWritable}
+                onCheckedChange={setClosedToArrival}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-[6px] border border-[#CCCCCC] bg-white px-3 py-2">
+              <Label htmlFor="plan-ctd">Closed to Departure</Label>
+              <Switch
+                id="plan-ctd"
+                checked={closedToDeparture}
+                disabled={!canEdit || !restrictionCalendarWritable}
+                onCheckedChange={setClosedToDeparture}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="plan-rest-from">Valid from</Label>
+              <Input
+                id="plan-rest-from"
+                type="date"
+                value={restrictionValidFrom}
+                disabled={!canEdit || !restrictionCalendarWritable}
+                className={PROPERTY_SETUP_CONTROL_CLASS}
+                onChange={(event) => setRestrictionValidFrom(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="plan-rest-to">Valid to</Label>
+                <label className="flex items-center gap-2 text-xs text-[#251605]">
+                  <input
+                    type="checkbox"
+                    checked={restrictionNoEndDate}
+                    disabled={!canEdit || !restrictionCalendarWritable}
+                    onChange={(event) => {
+                      setRestrictionNoEndDate(event.target.checked);
+                      if (event.target.checked) setRestrictionValidTo("");
+                    }}
+                  />
+                  No end date
+                </label>
+              </div>
+              <Input
+                id="plan-rest-to"
+                type="date"
+                value={restrictionNoEndDate ? "" : restrictionValidTo}
+                disabled={!canEdit || !restrictionCalendarWritable || restrictionNoEndDate}
+                className={PROPERTY_SETUP_CONTROL_CLASS}
+                onChange={(event) => {
+                  setRestrictionValidTo(event.target.value);
+                  setRestrictionNoEndDate(false);
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </Card3OverlapSheet>

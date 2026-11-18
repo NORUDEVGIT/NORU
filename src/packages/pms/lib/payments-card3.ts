@@ -1,6 +1,7 @@
 /**
- * Card 3 Phase 5 — Payments & Deposits (pure helpers).
- * Reuses pms_payment_methods. Deposit policies are Card 3-native.
+ * Card 3 Phase 5 — Payments (pure helpers).
+ * Reuses pms_payment_methods. Deposit policies remain available to Rate Plan
+ * Policies; they are no longer edited on this Financial & Commercial step.
  */
 
 import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
@@ -8,13 +9,20 @@ import type { PropertySetupCardStatus } from "./pms-property-setup-card1.ts";
 export const CARD3_PAYMENTS_TABS = [
   { id: "overview", label: "Overview" },
   { id: "payment-methods", label: "Payment Methods" },
-  { id: "deposit-policies", label: "Deposit Policies" },
 ] as const;
 export type Card3PaymentsTabId = (typeof CARD3_PAYMENTS_TABS)[number]["id"];
 
 export const CARD3_PAYMENTS_AUDIT_SECTION = "card3-payments";
 export const CARD3_PAYMENTS_UNAVAILABLE =
-  "Payments & Deposits are unavailable until their approved migration is applied.";
+  "Payments are unavailable until their approved migration is applied.";
+
+export const PAYMENT_PROCESSING_MODES = ["manual", "integrated"] as const;
+export type PaymentProcessingMode = (typeof PAYMENT_PROCESSING_MODES)[number];
+
+export const PAYMENT_PROCESSING_MODE_LABELS: Record<PaymentProcessingMode, string> = {
+  manual: "Manual",
+  integrated: "Integrated",
+};
 
 export const PAYMENT_TYPE_CLASSES = [
   "cash",
@@ -62,6 +70,21 @@ export type PaymentMethodCard3Row = {
   typeClassLabel: string;
   notes: string;
   active: boolean;
+  /**
+   * UI-only until a payment-method ↔ integration column exists.
+   * Existing rows always read as manual with no linked provider.
+   */
+  processingMode?: PaymentProcessingMode;
+  providerIntegrationId?: string | null;
+  providerLabel?: string;
+};
+
+export type PaymentIntegrationOption = {
+  id: string;
+  name: string;
+  provider: string;
+  status: string;
+  enabled: boolean;
 };
 
 export type DepositPolicyCard3Row = {
@@ -80,7 +103,10 @@ export type DepositPolicyCard3Row = {
 export type PaymentsCard3Snapshot = {
   currencyCode: string;
   paymentMethods: PaymentMethodCard3Row[];
+  /** Still loaded for Rate Plan consumers; not edited on this page. */
   depositPolicies: DepositPolicyCard3Row[];
+  /** Configured Connectivity payment integrations (staff-facing names only). */
+  paymentIntegrations?: PaymentIntegrationOption[];
 };
 
 export type PaymentsCard3Readiness = {
@@ -93,13 +119,10 @@ export function evaluatePaymentsCard3Readiness(
   snapshot: PaymentsCard3Snapshot,
 ): PaymentsCard3Readiness {
   const blockers: string[] = [];
-  const hasRows = snapshot.paymentMethods.length > 0 || snapshot.depositPolicies.length > 0;
+  const hasRows = snapshot.paymentMethods.length > 0;
 
   if (!snapshot.paymentMethods.some((row) => row.active)) {
     blockers.push("Save at least one active payment method.");
-  }
-  if (!snapshot.depositPolicies.some((row) => row.active && row.isDefault)) {
-    blockers.push("Save at least one active default deposit policy.");
   }
 
   if (!hasRows) return { ready: false, status: "not_started", blockers };

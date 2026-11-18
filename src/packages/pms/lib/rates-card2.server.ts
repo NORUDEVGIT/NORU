@@ -165,6 +165,31 @@ export type RatePlanRow = {
   includedOccupancy: number | null;
   extraAdultRate: number | null;
   extraChildRate: number | null;
+  /** Plan-level advance booking (hotel_rate_plans). Null = no minimum / no maximum. */
+  minAdvanceDays: number | null;
+  maxAdvanceDays: number | null;
+  /**
+   * Base/default stay + CTA/CTD from hotel_rate_restrictions when values are
+   * uniform across dates. Null stay = no minimum / no maximum.
+   * When restrictionCalendarWritable is false, these stay/CTA fields are unset
+   * (do not invent a representative date).
+   */
+  minStayNights: number | null;
+  maxStayNights: number | null;
+  closedToArrival: boolean;
+  closedToDeparture: boolean;
+  restrictionValidFrom: string | null;
+  restrictionValidTo: string | null;
+  /**
+   * True when date-level rows differ (stay/CTA/CTD) or any stop_sell is set.
+   * Staff notice only — not a DB table name.
+   */
+  restrictionHasDateOverrides: boolean;
+  /**
+   * False when stay/CTA/CTD values are heterogeneous across dates.
+   * Rate Plan save must not write hotel_rate_restrictions in that case.
+   */
+  restrictionCalendarWritable: boolean;
   active: boolean;
 };
 

@@ -96,6 +96,7 @@ import {
 import { CARD2_HASH, isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
 import {
   CARD3_HASH,
+  card3LegacyCommercialRedirectHref,
   card3LegacyMealsRedirectHref,
   isCard3WorkspaceHash,
 } from "@/packages/pms/lib/pms-property-setup-card3";
@@ -201,6 +202,10 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       const mealsRedirect = card3LegacyMealsRedirectHref(window.location.search);
       if (mealsRedirect) {
         window.history.replaceState(null, "", mealsRedirect);
+      }
+      const commercialRedirect = card3LegacyCommercialRedirectHref(window.location.search);
+      if (commercialRedirect) {
+        window.history.replaceState(null, "", commercialRedirect);
       }
       if (raw === "card-5" || raw === "card5") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD5_HASH}`);

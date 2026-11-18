@@ -100,8 +100,9 @@ describe("legacy cancellation catalogue phase 4B", () => {
     assert.match(save, /from\("pms_rate_cancellation_policies"\)/);
     assert.doesNotMatch(save, /pms_cancellation_policies/);
     assert.match(ratesUi, /title="Cancellation policies"/);
-    assert.match(payments, /Cancellation policies are managed in Rate &amp; Pricing/);
+    assert.match(payments, /Deposit policies are managed in\s+Rate Plan/);
     assert.doesNotMatch(payments, /title="Cancellation policies"/);
+    assert.doesNotMatch(payments, /title="Deposit policies"/);
   });
 
   it("asserts safety, drops the legacy columns and table, and does not use CASCADE", () => {
