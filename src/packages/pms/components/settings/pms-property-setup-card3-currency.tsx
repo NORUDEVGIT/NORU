@@ -56,6 +56,7 @@ import {
   type PropertyCurrency,
 } from "@/packages/pms/lib/currency-card3.server";
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const MONTHS = [
   "January",
@@ -185,7 +186,7 @@ export function PmsPropertySetupCard3Currency({
       );
       void queryClient.invalidateQueries({ queryKey: ["pms-card3-currency", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to refresh exchange rates."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to refresh exchange rates.")),
   });
 
   const currencyMut = useMutation({
@@ -196,7 +197,7 @@ export function PmsPropertySetupCard3Currency({
       setCurrencyDraft(null);
       void queryClient.invalidateQueries({ queryKey: ["pms-card3-currency", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const rateMut = useMutation({
     mutationFn: (input: Parameters<typeof saveRate>[0]["data"]) => saveRate({ data: input }),
@@ -205,7 +206,7 @@ export function PmsPropertySetupCard3Currency({
       setRateDraft(null);
       void queryClient.invalidateQueries({ queryKey: ["pms-card3-currency", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const settingsMut = useMutation({
     mutationFn: (input: Parameters<typeof saveSettings>[0]["data"]) =>
@@ -215,7 +216,7 @@ export function PmsPropertySetupCard3Currency({
       setSettingsDirty(false);
       void queryClient.invalidateQueries({ queryKey: ["pms-card3-currency", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function saveFinancialSettings() {

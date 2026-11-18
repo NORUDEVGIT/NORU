@@ -44,6 +44,7 @@ import {
   type Card7ImportTypeSetting,
   type Card7ImportValidationRule,
 } from "../../lib/import-card7.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const INNER_TABS = [
   { id: "overview", label: "Overview" },
@@ -151,7 +152,7 @@ export function Card7ImportTab({
       setPolicyDraft(result.snapshot.policy);
       toast.success("Import policy saved. No file was parsed.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const typesMutation = useMutation({
@@ -170,7 +171,7 @@ export function Card7ImportTab({
       setTypeDraft(undefined);
       toast.success("Supported import types saved.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const templatesMutation = useMutation({
@@ -194,7 +195,7 @@ export function Card7ImportTab({
       setTemplateDraft(result.snapshot.templates);
       toast.success("Mapping templates saved. Approved Noru fields only.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const validationMutation = useMutation({
@@ -215,7 +216,7 @@ export function Card7ImportTab({
       setValidationDraft(undefined);
       toast.success("Validation flags saved. No import was executed.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const duplicatesMutation = useMutation({
@@ -235,7 +236,7 @@ export function Card7ImportTab({
       setDuplicateDraft(undefined);
       toast.success("Duplicate policy saved. Auto-merge remains unavailable.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function addTemplate() {

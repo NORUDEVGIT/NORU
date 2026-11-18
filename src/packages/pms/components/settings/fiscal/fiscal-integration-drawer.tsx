@@ -47,6 +47,7 @@ import {
   type FiscalCatalogRow,
   type FiscalNatureOfSupplies,
 } from "@/packages/pms/lib/fiscal/fiscal.types";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 type MappingSnapshot = {
   taxes: FiscalCatalogRow[];
@@ -141,7 +142,7 @@ export function FiscalIntegrationDrawer({
       })
       .catch((error: Error) => {
         itemsSeeded.current = false;
-        toast.error(error.message);
+        toast.error(friendlySetupError(error));
       });
   }, [open, section, canEdit, status, restaurantId, ensureItems]);
 
@@ -154,7 +155,7 @@ export function FiscalIntegrationDrawer({
       await refresh();
       toast.success("Fiscal connection saved.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const credentialMutation = useMutation({
@@ -167,7 +168,7 @@ export function FiscalIntegrationDrawer({
       await refresh();
       toast.success("Credentials saved. They are not shown again.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const testMutation = useMutation({
@@ -177,7 +178,7 @@ export function FiscalIntegrationDrawer({
       if (result.ok) toast.success(result.message);
       else toast.error(result.message);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -868,7 +869,7 @@ function TaxMappingRow({
               externalItemCode: itemCode,
               natureOfSupplies: nature,
               harmonizationCode: null,
-            }).catch((error: Error) => toast.error(error.message));
+            }).catch((error: Error) => toast.error(friendlySetupError(error)));
           }}
         >
           Save
@@ -919,7 +920,7 @@ function MappingRow({
         <Button
           type="button"
           variant="outline"
-          onClick={() => onSave(value).catch((error: Error) => toast.error(error.message))}
+          onClick={() => onSave(value).catch((error: Error) => toast.error(friendlySetupError(error)))}
         >
           Save
         </Button>
@@ -1018,7 +1019,7 @@ function ItemRow({
               externalItemCode: itemCode,
               natureOfSupplies: chosen,
               harmonizationCode: null,
-            }).catch((error: Error) => toast.error(error.message));
+            }).catch((error: Error) => toast.error(friendlySetupError(error)));
           }}
         >
           Save

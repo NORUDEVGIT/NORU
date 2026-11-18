@@ -18,6 +18,7 @@ import { DEPOSIT_TYPE_LABELS, DEPOSIT_TYPES, FEE_BASIS_LABELS, FEE_BASES, PROPER
 import { CARD3_TAXES_HREF } from "@/packages/pms/lib/pms-property-setup-card3";
 import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import { cn } from "@/shared/lib/utils";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 export function ReadinessChip({ readiness }: { readiness: Set1Readiness }) {
   const styles: Record<Set1Readiness, string> = {
@@ -89,7 +90,7 @@ export function Set1IdentitySection({ restaurantId, snapshot, canEdit }: { resta
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -267,7 +268,7 @@ export function Set1OpsSection({ restaurantId, snapshot, canEdit }: { restaurant
       toast.success("Check-in times saved.");
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -367,7 +368,7 @@ export function Set1PoliciesSection({ restaurantId, role, snapshot, canEdit }: {
     },
     onError: (error: Error) => {
       setConfirmOpen(false);
-      toast.error(error.message);
+      toast.error(friendlySetupError(error));
     },
   });
 
@@ -519,7 +520,7 @@ export function Set1GoLiveSection({ restaurantId, snapshot, checklist, canEdit, 
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (

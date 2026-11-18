@@ -47,6 +47,7 @@ import {
   type ServiceCategoryDraft,
   type ServiceCategoryRecord,
 } from "@/packages/pms/lib/service-categories-card4.server";
+import { draftWithGeneratedCode, friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 function recordToDraft(row: ServiceCategoryRecord): ServiceCategoryDraft {
   return {
     id: row.id,
@@ -87,6 +88,7 @@ export function PmsCard4ServiceCategories({
   const [search, setSearch] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<ServiceCategoryDraft>(emptyServiceCategoryDraft());
+  const [codeTouched, setCodeTouched] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ServiceCategoryRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
@@ -122,7 +124,7 @@ export function PmsCard4ServiceCategories({
       setDirty(false);
       toast.success("Service category saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save service category."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save service category.")),
   });
 
   const toggleMutation = useMutation({
@@ -132,7 +134,7 @@ export function PmsCard4ServiceCategories({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Service category enabled." : "Service category disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -142,7 +144,7 @@ export function PmsCard4ServiceCategories({
       setPendingDelete(null);
       toast.success("Service category deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const editorValid = !editorOpen || errors.length === 0;
@@ -175,19 +177,27 @@ export function PmsCard4ServiceCategories({
   }, [saveRequest, canEdit, query.data, editorOpen, errors, dirty, onSaved, saveMutation]);
 
   function openCreate() {
+    setCodeTouched(false);
     setDraft(emptyServiceCategoryDraft(categories.length + 1));
     setDirty(true);
     setEditorOpen(true);
   }
 
   function openEdit(row: ServiceCategoryRecord) {
+    setCodeTouched(true);
     setDraft(recordToDraft(row));
     setDirty(false);
     setEditorOpen(true);
   }
 
   function mark<K extends keyof ServiceCategoryDraft>(key: K, value: ServiceCategoryDraft[K]) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    if (key === "code") setCodeTouched(true);
+    setDraft((prev) =>
+      draftWithGeneratedCode(prev, key, value, {
+        codeTouched: key === "code" ? true : codeTouched,
+        normalize: normalizeServiceCategoryCode,
+      }),
+    );
     setDirty(true);
   }
 

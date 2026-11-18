@@ -52,6 +52,7 @@ import {
   saveRoomAmenityCatalogue,
 } from "@/packages/pms/lib/pms-set2-structure.functions";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function refreshSet2(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -102,7 +103,7 @@ export function Set2StructureSection({
       setBuildingOpen(false);
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const floorMutation = useMutation({
     mutationFn: (input: { id?: string; buildingId: string; code: string; name: string; active: boolean }) =>
@@ -112,7 +113,7 @@ export function Set2StructureSection({
       setFloorOpen(false);
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const wingMutation = useMutation({
     mutationFn: (input: {
@@ -127,7 +128,7 @@ export function Set2StructureSection({
       setWingOpen(false);
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const assistMutation = useMutation({
     mutationFn: (enabled: boolean) => ensureAssist({ data: { restaurantId, enabled } }),
@@ -135,7 +136,7 @@ export function Set2StructureSection({
       toast.success("Single-building layout updated.");
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const bulkMutation = useMutation({
     mutationFn: () =>
@@ -152,7 +153,7 @@ export function Set2StructureSection({
       setBulkOpen(false);
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const deleteMutation = useMutation({
     mutationFn: () =>
@@ -170,7 +171,7 @@ export function Set2StructureSection({
       setReassignToId("");
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains.structure;
@@ -611,11 +612,13 @@ function BuildingDialog({
 }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [active, setActive] = useState(true);
   useEffect(() => {
     if (!open) return;
     setCode(building?.code ?? "");
     setName(building?.name ?? "");
+    setCodeTouched(Boolean(building));
     setActive(building?.active ?? true);
   }, [open, building]);
   return (
@@ -627,11 +630,26 @@ function BuildingDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor="set2-building-code">Code</Label>
-            <Input id="set2-building-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+            <Input
+              id="set2-building-code"
+              value={code}
+              onChange={(event) => {
+                setCodeTouched(true);
+                setCode(event.target.value.toUpperCase());
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="set2-building-name">Name</Label>
-            <Input id="set2-building-name" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="set2-building-name"
+              value={name}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!building && !codeTouched) setCode(setupCodeFromName(next));
+              }}
+            />
           </div>
           <div className="flex items-center justify-between rounded-xl border border-border px-3 py-3">
             <Label htmlFor="set2-building-active">Active</Label>
@@ -676,11 +694,13 @@ function FloorDialog({
 }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [active, setActive] = useState(true);
   useEffect(() => {
     if (!open) return;
     setCode(floor?.code ?? "");
     setName(floor?.name ?? "");
+    setCodeTouched(Boolean(floor));
     setActive(floor?.active ?? true);
     onBuildingId(floor?.buildingId ?? buildingId);
   }, [open, floor, buildingId, onBuildingId]);
@@ -708,11 +728,26 @@ function FloorDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="set2-floor-code">Code</Label>
-            <Input id="set2-floor-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+            <Input
+              id="set2-floor-code"
+              value={code}
+              onChange={(event) => {
+                setCodeTouched(true);
+                setCode(event.target.value.toUpperCase());
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="set2-floor-name">Name</Label>
-            <Input id="set2-floor-name" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="set2-floor-name"
+              value={name}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!floor && !codeTouched) setCode(setupCodeFromName(next));
+              }}
+            />
           </div>
         </div>
         <DialogFooter>
@@ -862,7 +897,7 @@ export function Set2RoomsSection({
       setOpen(false);
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -987,12 +1022,14 @@ function AmenityDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [category, setCategory] = useState("");
   const [active, setActive] = useState(true);
   useEffect(() => {
     if (!open) return;
     setName(amenity?.name ?? "");
     setCode(amenity?.code ?? "");
+    setCodeTouched(Boolean(amenity));
     setCategory(amenity?.category ?? "");
     setActive(amenity?.active ?? true);
   }, [open, amenity]);
@@ -1005,12 +1042,27 @@ function AmenityDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor="set2-amenity-name">Name</Label>
-            <Input id="set2-amenity-name" value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id="set2-amenity-name"
+              value={name}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!amenity && !codeTouched) setCode(setupCodeFromName(next));
+              }}
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="set2-amenity-code">Code</Label>
-              <Input id="set2-amenity-code" value={code} onChange={(event) => setCode(event.target.value)} />
+              <Input
+                id="set2-amenity-code"
+                value={code}
+                onChange={(event) => {
+                  setCodeTouched(true);
+                  setCode(event.target.value.toUpperCase());
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="set2-amenity-category">Category</Label>
@@ -1066,7 +1118,7 @@ export function Set2OutletsSection({
       setOpen(false);
       refreshSet2(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -1188,6 +1240,7 @@ function OutletDialog({
 }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [type, setType] = useState<OutletType>("rooms");
   const [active, setActive] = useState(true);
   const [departmentText, setDepartmentText] = useState("");
@@ -1196,6 +1249,7 @@ function OutletDialog({
   useEffect(() => {
     if (!open) return;
     setCode(outlet?.code ?? "");
+    setCodeTouched(Boolean(outlet));
     setName(outlet?.name ?? "");
     setType(outlet?.type ?? "rooms");
     setActive(outlet?.active ?? true);
@@ -1213,11 +1267,26 @@ function OutletDialog({
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="set2-outlet-code">Code</Label>
-              <Input id="set2-outlet-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+              <Input
+                id="set2-outlet-code"
+                value={code}
+                onChange={(event) => {
+                  setCodeTouched(true);
+                  setCode(event.target.value.toUpperCase());
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="set2-outlet-name">Name</Label>
-              <Input id="set2-outlet-name" value={name} onChange={(event) => setName(event.target.value)} />
+              <Input
+                id="set2-outlet-name"
+                value={name}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setName(next);
+                  if (!outlet && !codeTouched) setCode(setupCodeFromName(next));
+                }}
+              />
             </div>
           </div>
           <div className="space-y-2">

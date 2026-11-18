@@ -81,6 +81,7 @@ import {
   validateDistributionDraft,
   validateDistributionSyncConfig,
 } from "@/packages/pms/lib/distribution-catalog";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const ENVIRONMENT_LABELS = { sandbox: "Sandbox", production: "Production" } as const;
 
@@ -190,7 +191,7 @@ function ProviderChannelConnections({
       setEditing(null);
       toast.success("Distribution configuration saved.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const toggleMutation = useMutation({
@@ -201,7 +202,7 @@ function ProviderChannelConnections({
       setPendingDisable(null);
       toast.success(input.enabled ? "Distribution enabled." : "Distribution disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -211,7 +212,7 @@ function ProviderChannelConnections({
       setPendingDelete(null);
       toast.success("Distribution configuration deleted. The integration was kept.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const activationMutation = useMutation({
@@ -228,7 +229,7 @@ function ProviderChannelConnections({
           : "Distribution deactivated. Mappings were preserved.",
       );
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const emptySnapshot = {

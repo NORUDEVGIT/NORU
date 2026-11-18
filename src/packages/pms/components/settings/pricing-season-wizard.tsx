@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Search, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveCommercialSeasonCard3 } from "@/packages/pms/lib/commercial-card3.functions";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 import {
   PRICING_SEASON_CODE_STAFF_HINT,
   PRICING_SEASON_WIZARD_STEPS,
@@ -121,7 +122,10 @@ function staffFacingSeasonSaveError(error: unknown): string {
   if (/Valid to must be|on or after/i.test(message)) {
     return "Valid To must be on or after Valid From.";
   }
-  return message || "Could not save pricing season.";
+  return friendlySetupError(
+    error instanceof Error ? error : new Error(message),
+    "Could not save pricing season.",
+  );
 }
 
 function WizardCard({ title, children }: { title: string; children: ReactNode }) {

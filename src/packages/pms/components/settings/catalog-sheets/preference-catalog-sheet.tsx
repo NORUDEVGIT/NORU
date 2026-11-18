@@ -76,6 +76,7 @@ import {
   validatePreferenceTypeDraft,
 } from "@/packages/pms/lib/preferences-card4.server";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function typeToDraft(row: PreferenceTypeRecord): PreferenceTypeDraft {
   return {
@@ -178,7 +179,7 @@ export function PreferenceTypeEditorSheet({
       onOpenChange(false);
       onSaved?.(res.id);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save preference type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save preference type.")),
   });
 
   function mark<K extends keyof PreferenceTypeDraft>(key: K, value: PreferenceTypeDraft[K]) {
@@ -468,7 +469,7 @@ export function PreferenceCategoryEditorSheet({
       onOpenChange(false);
       onSaved?.();
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save category."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save category.")),
   });
 
   return (
@@ -593,7 +594,7 @@ export function PreferenceCatalogSheet({
       await queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const typeFlagsMutation = useMutation({
@@ -604,7 +605,7 @@ export function PreferenceCatalogSheet({
       await queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteTypeMutation = useMutation({
@@ -616,7 +617,7 @@ export function PreferenceCatalogSheet({
       setPendingDeleteType(null);
       toast.success("Preference type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const reorderCategoriesMutation = useMutation({
@@ -626,7 +627,7 @@ export function PreferenceCatalogSheet({
       await queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const reorderTypesMutation = useMutation({
@@ -636,7 +637,7 @@ export function PreferenceCatalogSheet({
       await queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const handleMoveCategory = (index: number, direction: -1 | 1) => {

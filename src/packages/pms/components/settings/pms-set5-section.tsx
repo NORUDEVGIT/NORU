@@ -69,6 +69,7 @@ import {
   savePmsSessionAccess,
   savePmsWorkCenter,
 } from "@/packages/pms/lib/pms-set5-depts-guestsvc.functions";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function refreshSet5(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -160,11 +161,13 @@ function CatalogueDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [active, setActive] = useState(true);
   useEffect(() => {
     if (!open) return;
     setName(row?.name ?? "");
     setCode(row?.code ?? "");
+    setCodeTouched(Boolean(row));
     setActive(row?.active ?? true);
   }, [open, row]);
   return (
@@ -176,11 +179,26 @@ function CatalogueDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor={`set5-cat-name-${title}`}>Name</Label>
-            <Input id={`set5-cat-name-${title}`} value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id={`set5-cat-name-${title}`}
+              value={name}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!row && !codeTouched) setCode(setupCodeFromName(next));
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`set5-cat-code-${title}`}>Code</Label>
-            <Input id={`set5-cat-code-${title}`} value={code} onChange={(event) => setCode(event.target.value)} />
+            <Input
+              id={`set5-cat-code-${title}`}
+              value={code}
+              onChange={(event) => {
+                setCodeTouched(true);
+                setCode(event.target.value.toUpperCase());
+              }}
+            />
           </div>
           {extra}
         </div>
@@ -239,7 +257,7 @@ export function Set5DepartmentsSection({
       setDeptOpen(false);
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const workMutation = useMutation({
     mutationFn: (input: { id?: string; code: string; name: string; active: boolean; departmentId: string }) =>
@@ -249,7 +267,7 @@ export function Set5DepartmentsSection({
       setWorkOpen(false);
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const routingMutation = useMutation({
     mutationFn: () =>
@@ -264,7 +282,7 @@ export function Set5DepartmentsSection({
       toast.success("Routing defaults saved.");
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains.departments;
@@ -481,7 +499,7 @@ export function Set5GuestServicesSection({
       setOpen(false);
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["guest-services-types"];
@@ -629,7 +647,7 @@ export function Set5NotificationsSection({
       toast.success("Notification channels saved.");
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const templateMutation = useMutation({
     mutationFn: (input: {
@@ -645,7 +663,7 @@ export function Set5NotificationsSection({
       setOpen(false);
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const eventMutation = useMutation({
     mutationFn: () => saveEvents({ data: { restaurantId, rules: events.rules } }),
@@ -653,7 +671,7 @@ export function Set5NotificationsSection({
       toast.success("Event rules saved.");
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains.notifications;
@@ -894,7 +912,7 @@ export function Set5AdminSection({
       toast.success("Administration controls saved.");
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains.administration;
@@ -1065,7 +1083,7 @@ export function Set5SecuritySection({
       toast.success("Session access posture saved.");
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const retentionMutation = useMutation({
     mutationFn: () =>
@@ -1081,7 +1099,7 @@ export function Set5SecuritySection({
       toast.success("Audit retention posture saved.");
       refreshSet5(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["security-audit"];

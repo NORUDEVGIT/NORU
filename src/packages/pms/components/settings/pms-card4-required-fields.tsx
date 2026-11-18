@@ -71,6 +71,7 @@ import {
   type GuestFieldRecord,
   type GuestFieldType,
 } from "@/packages/pms/lib/required-fields-card4.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: GuestFieldRecord): GuestFieldDraft {
   return {
@@ -164,7 +165,7 @@ export function PmsCard4RequiredFields({
       toast.success("Required fields saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save required field configuration."),
+      toast.error(friendlySetupError(error, "Unable to save required field configuration.")),
   });
 
   const flagsMutation = useMutation({
@@ -179,7 +180,7 @@ export function PmsCard4RequiredFields({
       await queryClient.invalidateQueries({ queryKey });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const reorderMutation = useMutation({
@@ -190,7 +191,7 @@ export function PmsCard4RequiredFields({
       setReorderOpen(false);
       toast.success("Required fields saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save field order."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save field order.")),
   });
 
   const deleteMutation = useMutation({
@@ -201,7 +202,7 @@ export function PmsCard4RequiredFields({
       setPendingDelete(null);
       toast.success("Field deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const editorValid = !editorOpen || errors.length === 0;

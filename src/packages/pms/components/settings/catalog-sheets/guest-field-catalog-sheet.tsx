@@ -81,6 +81,7 @@ import {
   validateGuestFieldDraft,
 } from "@/packages/pms/lib/required-fields-card4.server";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: GuestFieldRecord): GuestFieldDraft {
   return {
@@ -176,7 +177,7 @@ export function GuestFieldEditorSheet({
       onSaved?.(res.field?.id ?? draft.id ?? undefined);
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save guest field."),
+      toast.error(friendlySetupError(error, "Unable to save guest field.")),
   });
 
   function mark<K extends keyof GuestFieldDraft>(key: K, value: GuestFieldDraft[K]) {
@@ -452,7 +453,7 @@ export function GuestFieldCatalogSheet({
       });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const reorderMutation = useMutation({
@@ -463,7 +464,7 @@ export function GuestFieldCatalogSheet({
       setReorderOpen(false);
       toast.success("Field order updated.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save field order."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save field order.")),
   });
 
   const deleteMutation = useMutation({
@@ -477,7 +478,7 @@ export function GuestFieldCatalogSheet({
       setPendingDelete(null);
       toast.success("Field deleted from catalog.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (

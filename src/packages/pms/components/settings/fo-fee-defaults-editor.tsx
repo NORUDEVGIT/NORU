@@ -43,6 +43,7 @@ import {
 } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import type { FeeBasis } from "@/packages/pms/lib/pms-set1-foundation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/components/ui/select";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const EMPTY: FoFeeDefaults = {
   cancelFeeRequired: true,
@@ -158,7 +159,7 @@ export function FoFeeDefaultsEditor({
     },
     onError: (error: Error) => {
       setConfirmOpen(false);
-      toast.error(error.message);
+      toast.error(friendlySetupError(error));
     },
   });
 

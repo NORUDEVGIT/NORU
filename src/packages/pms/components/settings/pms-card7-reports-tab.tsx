@@ -42,6 +42,7 @@ import {
   type Card7ReportsReadiness,
   type Card7ReportsSnapshot,
 } from "../../lib/reports-card7.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const INNER_TABS = [
   { id: "overview", label: "Overview" },
@@ -179,7 +180,7 @@ export function Card7ReportsTab({
       setDefinitionDraft(undefined);
       toast.success("Report catalogue saved and SET6 posture mirrored.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const metricsMutation = useMutation({
@@ -199,7 +200,7 @@ export function Card7ReportsTab({
       setMetricDraft(undefined);
       toast.success("Metric display settings saved. Canonical formulas were unchanged.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const permissionsMutation = useMutation({
@@ -218,7 +219,7 @@ export function Card7ReportsTab({
       setMappingDraft(undefined);
       toast.success("Report permission mappings saved. Live authz is unchanged.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const policyMutation = useMutation({
@@ -243,7 +244,7 @@ export function Card7ReportsTab({
       setPolicyDraft(result.snapshot.policy);
       toast.success("Report defaults saved. No schedule was executed.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function toggleMapping(definitionId: string, permissionId: string, enabled: boolean) {

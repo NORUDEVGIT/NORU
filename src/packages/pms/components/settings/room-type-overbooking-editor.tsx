@@ -12,6 +12,7 @@ import {
   type RoomTypeOverbookingRuleRow,
 } from "@/packages/pms/lib/overbooking.functions";
 import { OVERBOOKING_CAPACITY_NOTE } from "@/packages/pms/lib/inventory-rules-card2.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 export function RoomTypeOverbookingEditor({
   restaurantId,
@@ -43,7 +44,7 @@ export function RoomTypeOverbookingEditor({
       await queryClient.invalidateQueries({ queryKey: ["room-type-overbooking-rules", restaurantId] });
       await queryClient.invalidateQueries({ queryKey: ["overbooking-board", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (

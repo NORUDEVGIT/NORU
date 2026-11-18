@@ -48,6 +48,7 @@ import {
   type TravelAgencyTypeRecord,
 } from "@/packages/pms/lib/travel-agency-types-card4.server";
 import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
+import { draftWithGeneratedCode, friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: TravelAgencyTypeRecord): TravelAgencyTypeDraft {
   return {
@@ -90,6 +91,7 @@ export function PmsCard4TravelAgencyTypes({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<TravelAgencyTypeDraft>(emptyTravelAgencyTypeDraft());
+  const [codeTouched, setCodeTouched] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<TravelAgencyTypeRecord | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
@@ -112,11 +114,19 @@ export function PmsCard4TravelAgencyTypes({
   function applyRecord(row: TravelAgencyTypeRecord | null) {
     setSelectedId(row?.id ?? null);
     setDraft(row ? recordToDraft(row) : emptyTravelAgencyTypeDraft());
+    setCodeTouched(Boolean(row));
     setDirty(false);
   }
 
   function mark<K extends keyof TravelAgencyTypeDraft>(key: K, value: TravelAgencyTypeDraft[K]) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    if (key === "code") setCodeTouched(true);
+    setDraft((prev) =>
+      draftWithGeneratedCode(prev, key, value, {
+        codeTouched: key === "code" ? true : codeTouched,
+        style: "compact",
+        max: 12,
+      }),
+    );
     setDirty(true);
   }
 
@@ -150,7 +160,7 @@ export function PmsCard4TravelAgencyTypes({
       thenNextRef.current = false;
       onSaved(thenNext);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save travel agency type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save travel agency type.")),
   });
 
   const toggleMutation = useMutation({
@@ -163,7 +173,7 @@ export function PmsCard4TravelAgencyTypes({
       setDraft((prev) => (prev.id === input.id ? { ...prev, active: input.active } : prev));
       toast.success(input.active ? "Travel agency type activated." : "Travel agency type deactivated.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -179,7 +189,7 @@ export function PmsCard4TravelAgencyTypes({
       setEditorOpen(false);
       toast.success("Travel agency type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const canSave = canEdit && errors.length === 0 && !saveMutation.isPending;
@@ -208,6 +218,7 @@ export function PmsCard4TravelAgencyTypes({
       ...emptyTravelAgencyTypeDraft(),
       sortOrder: (types.length + 1) * 10,
     });
+    setCodeTouched(false);
     setDirty(false);
     setEditorOpen(true);
   }
@@ -456,6 +467,7 @@ export function PmsCard4TravelAgencyTypes({
                 setDirty(false);
                 if (target === "__NEW__") {
                   setSelectedId(null);
+                  setCodeTouched(false);
                   setDraft({
                     ...emptyTravelAgencyTypeDraft(),
                     sortOrder: (types.length + 1) * 10,

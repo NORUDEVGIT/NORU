@@ -48,6 +48,7 @@ import {
   type CommercialPromotionRow,
   type CommercialSeasonRow,
 } from "@/packages/pms/lib/commercial-card3.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -144,7 +145,7 @@ export function PmsPropertySetupCard3Commercial({
       toast.success("Promotion updated.");
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const seasonMutation = useMutation({
@@ -164,7 +165,7 @@ export function PmsPropertySetupCard3Commercial({
       toast.success("Pricing season updated.");
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   void CARD3_COMMERCIAL_TABS;

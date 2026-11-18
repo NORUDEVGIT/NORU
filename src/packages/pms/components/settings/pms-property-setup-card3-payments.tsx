@@ -26,6 +26,7 @@ import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import { CARD6_HREF } from "@/packages/pms/lib/pms-property-setup-card6";
 import { PROPERTY_SETUP_CONTROL_CLASS, PROPERTY_SETUP_TEXTAREA_CLASS } from "@/packages/pms/lib/pms-property-setup-ui";
 import { suggestPaymentMethodCode } from "@/packages/pms/lib/payments-card3-code";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 import { taxSetupCodeIsTaken } from "@/packages/pms/lib/taxes-card3-code";
 import {
   getPaymentsCard3,
@@ -189,7 +190,7 @@ export function PmsPropertySetupCard3Payments({
     if (/check constraint|invalid input|zod/i.test(raw)) {
       return "Please check the form and try again.";
     }
-    return raw || "Please check the form and try again.";
+    return friendlySetupError(error, "Please check the form and try again.");
   }
 
   const methodMutation = useMutation({
@@ -560,6 +561,7 @@ export function DepositPolicySheet({
   }) => void;
 }) {
   const [code, setCode] = useState(value?.code ?? "");
+  const [codeTouched, setCodeTouched] = useState(Boolean(value?.code));
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
   const [depositType, setDepositType] = useState<DepositPolicyType>(
@@ -602,7 +604,10 @@ export function DepositPolicySheet({
             maxLength={20}
             disabled={!canEdit}
             className={PAY_FIELD_CLASS}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
+            onChange={(event) => {
+              setCodeTouched(true);
+              setCode(event.target.value.toUpperCase());
+            }}
           />
         </SetupField>
         <SetupField label="Name" htmlFor="policy-name">
@@ -611,7 +616,11 @@ export function DepositPolicySheet({
             value={name}
             disabled={!canEdit}
             className={PAY_FIELD_CLASS}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setName(next);
+              if (!value && !codeTouched) setCode(setupCodeFromName(next));
+            }}
           />
         </SetupField>
         <SetupField label="Description" htmlFor="policy-description">
