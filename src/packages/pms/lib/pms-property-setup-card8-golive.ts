@@ -37,6 +37,18 @@ export const CARD8_GOLIVE_LOCK_COPY =
 export const CARD8_GOLIVE_DATE_COPY =
   "Business date is restaurants.business_date. Night Audit owns the roll. Card 1 business_date_config is policy, not current date.";
 
+export const CARD8_GOLIVE_DATE_INIT_COPY =
+  "Initialize once during Go-Live preparation. After this, Night Audit owns every advance of the live business date.";
+
+export const CARD8_GOLIVE_DATE_INIT_REASON =
+  "Go-Live first business date initialization";
+
+export const CARD8_GOLIVE_DATE_BEFORE_OPENING =
+  "The property opening date is still in the future. Initialize the live business date on or after the opening date.";
+
+export const CARD8_GOLIVE_DATE_TIMEZONE_REQUIRED =
+  "Set a valid property timezone in Property & Business before initializing the business date.";
+
 export const CARD8_GOLIVE_OPENING_COPY =
   "Opening state must come from the housekeeping dashboard. Occupied is derived from checked-in stays. Do not treat availableRooms as guest-ready.";
 
@@ -243,10 +255,44 @@ export type Card8GoliveSnapshot = {
   departments: Card8GoliveOwnerOption[];
   users: Card8GoliveOwnerOption[];
   businessDate: string | null;
+  /** Property IANA timezone used to propose the first business date. */
+  timezone: string | null;
+  /** Card 1 opening date (sell/check-in floor). Null when unset. */
+  openingDate: string | null;
+  /** Property-local calendar date proposed when business_date is still null. */
+  proposedBusinessDate: string | null;
+  /** Non-null when first-time initialization must wait (e.g. future opening date). */
+  businessDateInitBlockedReason: string | null;
   opening: Card8GoliveOpeningSnapshot;
   futureReservations: number;
   canEdit: boolean;
 };
+
+export type Card8BusinessDateInitProposal = {
+  proposedBusinessDate: string | null;
+  blockedReason: string | null;
+};
+
+/**
+ * First live business date for Go-Live preparation.
+ * Uses property-local today. Blocks when Opening Date is still in the future.
+ */
+export function proposeCard8FirstBusinessDate(input: {
+  timezone: string | null | undefined;
+  openingDate: string | null | undefined;
+  propertyLocalToday: string;
+}): Card8BusinessDateInitProposal {
+  const timezone = String(input.timezone ?? "").trim();
+  if (!timezone) {
+    return { proposedBusinessDate: null, blockedReason: CARD8_GOLIVE_DATE_TIMEZONE_REQUIRED };
+  }
+  const today = input.propertyLocalToday.slice(0, 10);
+  const opening = input.openingDate?.trim() ? input.openingDate.trim().slice(0, 10) : null;
+  if (opening && /^\d{4}-\d{2}-\d{2}$/.test(opening) && opening > today) {
+    return { proposedBusinessDate: null, blockedReason: CARD8_GOLIVE_DATE_BEFORE_OPENING };
+  }
+  return { proposedBusinessDate: today, blockedReason: null };
+}
 
 export function emptyCard8GolivePlan(): Card8GolivePlan {
   return {

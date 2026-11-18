@@ -83,7 +83,7 @@ export const AGENCIES_STAT_COPY =
 export const CONTACTS_STAT_COPY = "Contact profiles are not tracked yet.";
 
 export const REQUIRED_FIELDS_CANONICAL_NOTE =
-  "Long-term required fields live on Card 4 pms_guest_fields. Runtime create/update still uses SET3 pms_guest_profile_rules until the registration phase.";
+  "Card 4 pms_guest_fields is canonical for guest field configuration and SET1 guest-profile readiness. Legacy SET3 pms_guest_profile_rules remains a fallback; runtime create/update may still consult it until the registration phase.";
 
 export const IDENTITY_CANONICAL_NOTE =
   "Document types stay on pms_guest_id_types. Files stay on guest_documents. Listing searches stored id_document_number only.";

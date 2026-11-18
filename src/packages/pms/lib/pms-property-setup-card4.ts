@@ -1,8 +1,10 @@
 /**
  * PMS Property Setup Card 4 — Guest & Services (Issue #195).
  *
- * Guest Profile Rules (phases 1–5) plus Guest Service Types (categories and types).
- * Operational Guest Profiles and Guest Services requests are not configured here.
+ * Canonical owner for Guest Profile Rules (phases 1–5) plus Guest Service Types.
+ * SET1 activation prefers Card 4 Individual Guest field readiness and falls back
+ * to legacy SET3 `pms_guest_profile_rules`. Operational Guest Profiles and Guest
+ * Services requests are not configured here.
  */
 
 import { SET1_HUB_HREF } from "./pms-set1-foundation.ts";

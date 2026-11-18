@@ -1,6 +1,18 @@
 /**
  * PMS-SET2 — Structure · Rooms deep-link · Amenities · Outlets (Issue #62).
  *
+ * Canonical outlet/facility owner is Property Setup Card 5
+ * (Organization & Facilities → Outlets & Facilities). Card 5 writes
+ * `pms_outlets` with facility_category / facility_type_code and does not
+ * populate legacy SET2 posting `type='rooms'` / `is_default_rooms`.
+ *
+ * Activation readiness therefore prefers Card 5 machine-readable identity
+ * (facility code `ROOMS` or facility_type_code `rooms`) and keeps legacy
+ * SET2 type / is_default_rooms as backward-compatible fallback only.
+ *
+ * Card 5 categories (fnb/events/wellness/services/other) do not include a
+ * dedicated Rooms category — do not invent one from display name alone.
+ *
  * Live inspect 2026-09-14 (qcwptraosaudcbjasmul / main, after #63 + 0048):
  * - hotel_buildings / hotel_floors / hotel_wings / pms_outlets exist and are empty.
  * - hotel_rooms has text building/floor/wing plus nullable FKs (all FK-null).
@@ -84,6 +96,11 @@ export type HotelWing = {
   status: string;
 };
 
+/** Canonical Card 5 Rooms facility code (stable identity, not display name). */
+export const CARD5_ROOMS_FACILITY_CODE = "ROOMS";
+/** Forward-compatible Card 5 facility_type_code for the Rooms operating outlet. */
+export const CARD5_ROOMS_FACILITY_TYPE_CODE = "rooms";
+
 export type PmsOutlet = {
   id: string;
   code: string;
@@ -93,6 +110,9 @@ export type PmsOutlet = {
   departmentText: string;
   defaultPostingLabel: string;
   isDefaultRooms: boolean;
+  /** Card 5 facility taxonomy; empty when columns are absent. */
+  facilityCategory: string;
+  facilityTypeCode: string;
 };
 
 export type Set2Amenity = {
@@ -179,6 +199,25 @@ export function emptySet2Snapshot(partial?: Partial<Set2Snapshot>): Set2Snapshot
   };
 }
 
+/**
+ * Active Rooms operating outlet/facility for activation.
+ * Canonical (Card 5): code ROOMS or facility_type_code rooms.
+ * Legacy (SET2): type rooms or is_default_rooms.
+ * Display name alone never qualifies.
+ */
+export function isActiveRoomsOutlet(outlet: Pick<
+  PmsOutlet,
+  "active" | "code" | "type" | "isDefaultRooms" | "facilityTypeCode"
+>): boolean {
+  if (!outlet.active) return false;
+  const code = outlet.code.trim().toUpperCase();
+  const facilityType = outlet.facilityTypeCode.trim().toLowerCase();
+  const canonical =
+    code === CARD5_ROOMS_FACILITY_CODE || facilityType === CARD5_ROOMS_FACILITY_TYPE_CODE;
+  const legacy = outlet.type === "rooms" || outlet.isDefaultRooms === true;
+  return canonical || legacy;
+}
+
 export function activateInputFromSnapshot(snapshot: Set2Snapshot): Set2ActivateInput {
   return {
     structureColumnsAvailable: snapshot.structureColumnsAvailable,
@@ -188,9 +227,7 @@ export function activateInputFromSnapshot(snapshot: Set2Snapshot): Set2ActivateI
     roomTypeCount: snapshot.roomTypeCount,
     roomCount: snapshot.roomCount,
     amenityCount: snapshot.amenities.filter((row) => row.active).length,
-    hasActiveRoomsOutlet: snapshot.outlets.some(
-      (row) => row.active && (row.type === "rooms" || row.isDefaultRooms),
-    ),
+    hasActiveRoomsOutlet: snapshot.outlets.some((row) => isActiveRoomsOutlet(row)),
   };
 }
 

@@ -379,3 +379,5 @@ export const testPmsCard4CommunicationTemplate = createServerFn({ method: "POST"
       result: "sent" as const,
       message: `Test email sent to ${to}. This was not a guest or production notification.` };
   });
+
+export { loadSnapshot as loadCommunicationTemplatesCard4Snapshot };

@@ -1,6 +1,16 @@
 /**
  * PMS-SET3 — Rates & meal-plan rules · Guest profile rules (Issue #68).
  *
+ * Canonical guest-profile configuration owner is Property Setup Card 4
+ * (Guest & Services → Guest Profile Rules / Individual Guest fields) via
+ * `pms_guest_fields` + `pms_guest_profile_types`. Legacy SET3 JSON
+ * `restaurants.pms_guest_profile_rules` remains a compatibility fallback for
+ * older properties and must not be required merely for a missing `savedAt`
+ * when Card 4 already expresses first-name + contact readiness.
+ *
+ * Card 4 does not currently model consent/privacy defaults; those stay on the
+ * legacy SET3 rules object when present and are not invented for Card 4.
+ *
  * Live inspect locks:
  * - Rate plan masters are configured in Property Setup Card 2
  *   (`/restaurant/settings?card2Step=rates-pricing#rooms-inventory`). Rate & Revenue is operational.
@@ -153,6 +163,20 @@ export type Set3ActivateInput = {
   vipLevelCount: number;
 };
 
+export type Card4GuestFieldActivateRow = {
+  id: string;
+  code: string;
+  fieldType: string;
+  required: boolean;
+  active: boolean;
+};
+
+export type Card4GuestProfileTypeActivateRow = {
+  code: string;
+  active: boolean;
+  requiredFieldIds: string[];
+};
+
 export type Set3Snapshot = {
   activeRatePlanCount: number;
   mealPlansAvailable: boolean;
@@ -165,7 +189,14 @@ export type Set3Snapshot = {
   vipLevels: PmsGuestVipLevel[];
   guestRules: GuestProfileRules;
   ratePackageRules: RatePackageRules;
+  /** Card 4 catalogue present (tables readable). Empty catalogue → fall back to SET3 JSON. */
+  card4GuestFieldsAvailable: boolean;
+  card4GuestFields: Card4GuestFieldActivateRow[];
+  card4GuestProfileTypes: Card4GuestProfileTypeActivateRow[];
 };
+
+/** Contact field codes Card 4 may use for the phone|email gate. */
+export const CARD4_GUEST_CONTACT_CODES = ["PHONE", "EMAIL", "MOBILE", "MOBILE_PHONE"] as const;
 
 export function emptyGuestProfileRules(partial?: Partial<GuestProfileRules>): GuestProfileRules {
   return {
@@ -224,6 +255,36 @@ export function completeSet3Activate(partial?: Partial<Set3ActivateInput>): Set3
   });
 }
 
+/**
+ * Card 4 Individual Guest minimum for activation:
+ * - active IND profile type
+ * - active FIRST_NAME field (system-required identity)
+ * - at least one active contact field (phone/email family) required on the
+ *   field row or listed in IND required_field_ids
+ */
+export function card4GuestProfileMinComplete(
+  fields: readonly Card4GuestFieldActivateRow[],
+  profileTypes: readonly Card4GuestProfileTypeActivateRow[],
+): boolean {
+  if (!fields.length) return false;
+  const ind = profileTypes.find((row) => row.active && row.code.trim().toUpperCase() === "IND");
+  if (!ind) return false;
+  const byCode = new Map(fields.map((row) => [row.code.trim().toUpperCase(), row]));
+  const firstName = byCode.get("FIRST_NAME");
+  if (!firstName?.active) return false;
+  const requiredIds = new Set(ind.requiredFieldIds);
+  return fields.some((row) => {
+    if (!row.active) return false;
+    const code = row.code.trim().toUpperCase();
+    const isContact =
+      (CARD4_GUEST_CONTACT_CODES as readonly string[]).includes(code) ||
+      row.fieldType === "phone" ||
+      row.fieldType === "email";
+    if (!isContact) return false;
+    return row.required === true || requiredIds.has(row.id);
+  });
+}
+
 export function emptySet3Snapshot(partial?: Partial<Set3Snapshot>): Set3Snapshot {
   return {
     activeRatePlanCount: 0,
@@ -237,20 +298,32 @@ export function emptySet3Snapshot(partial?: Partial<Set3Snapshot>): Set3Snapshot
     vipLevels: [],
     guestRules: emptyGuestProfileRules(),
     ratePackageRules: emptyRatePackageRules(),
+    card4GuestFieldsAvailable: false,
+    card4GuestFields: [],
+    card4GuestProfileTypes: [],
     ...partial,
   };
 }
 
 export function activateInputFromSet3Snapshot(snapshot: Set3Snapshot): Set3ActivateInput {
+  const card4Configured =
+    snapshot.card4GuestFieldsAvailable &&
+    snapshot.card4GuestFields.length > 0 &&
+    snapshot.card4GuestProfileTypes.length > 0;
+  const card4Ready =
+    card4Configured &&
+    card4GuestProfileMinComplete(snapshot.card4GuestFields, snapshot.card4GuestProfileTypes);
+  const legacyReady = guestMinComplete(snapshot.guestRules, snapshot.guestRulesAvailable);
+  const guestReady = card4Ready || legacyReady;
   return {
     activeRatePlanCount: snapshot.activeRatePlanCount,
     mealPlansAvailable: snapshot.mealPlansAvailable,
     mealPlanCount: snapshot.mealPlans.filter((row) => row.active).length,
     packagesAvailable: snapshot.packagesAvailable,
     packageCount: snapshot.packages.filter((row) => row.active).length,
-    guestRulesAvailable: snapshot.guestRulesAvailable,
-    guestRulesSaved: Boolean(snapshot.guestRules.savedAt),
-    guestMinComplete: guestMinComplete(snapshot.guestRules, snapshot.guestRulesAvailable),
+    guestRulesAvailable: snapshot.guestRulesAvailable || card4Configured,
+    guestRulesSaved: card4Ready || Boolean(snapshot.guestRules.savedAt),
+    guestMinComplete: guestReady,
     idTypesAvailable: snapshot.idVipAvailable,
     idTypeCount: snapshot.idTypes.filter((row) => row.active).length,
     vipLevelsAvailable: snapshot.idVipAvailable,

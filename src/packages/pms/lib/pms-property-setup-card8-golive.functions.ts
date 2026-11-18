@@ -17,6 +17,12 @@ import { isMissingSchemaError } from "./pms-set2-structure";
 import { checkedInRoomIds, expandStayRooms } from "./reservation-room-units";
 import { persistCard8Overall } from "./card8-readiness.functions";
 import {
+  BUSINESS_DATE_CONFIRM_WORD,
+  businessDateAdjustmentError,
+} from "./business-date-recovery";
+import {
+  CARD8_GOLIVE_DATE_INIT_COPY,
+  CARD8_GOLIVE_DATE_INIT_REASON,
   CARD8_GOLIVE_PLAN_STATUSES,
   CARD8_GOLIVE_TASK_CATALOGUE,
   CARD8_GOLIVE_TASK_STATUSES,
@@ -24,6 +30,7 @@ import {
   card8GoliveReady,
   emptyCard8GolivePlan,
   emptyCard8GoliveTasks,
+  proposeCard8FirstBusinessDate,
   type Card8GoliveOwnerOption,
   type Card8GolivePlan,
   type Card8GoliveSnapshot,
@@ -32,6 +39,8 @@ import {
   type Card8GoliveTaskStatus,
 } from "./pms-property-setup-card8-golive";
 import { loadCard8ValidationReport } from "./pms-property-setup-card8-validation.functions";
+import { propertyToday } from "@/shared/lib/property-dates";
+import { isValidTimeZone } from "@/shared/lib/property-time";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type DbClient = any;
@@ -158,15 +167,28 @@ export async function loadCard8GoliveSnapshot(
 ): Promise<Card8GoliveSnapshot> {
   const propertyResult = await db
     .from("restaurants")
-    .select("business_date")
+    .select("business_date, timezone, opening_date")
     .eq("id", restaurantId)
     .maybeSingle();
   const property = required<any | null>(
     propertyResult,
     "Could not load the property business date.",
   );
-  const businessDate = property?.business_date ? String(property.business_date) : null;
-  const today = businessDate ?? new Date().toISOString().slice(0, 10);
+  const businessDate = property?.business_date ? String(property.business_date).slice(0, 10) : null;
+  const timezoneRaw = property?.timezone ? String(property.timezone).trim() : "";
+  const timezone = timezoneRaw && isValidTimeZone(timezoneRaw) ? timezoneRaw : timezoneRaw || null;
+  const openingDate = property?.opening_date ? String(property.opening_date).slice(0, 10) : null;
+  const propertyLocalToday =
+    timezone && isValidTimeZone(timezone) ? propertyToday(timezone) : propertyToday("UTC");
+  const proposal =
+    businessDate == null
+      ? proposeCard8FirstBusinessDate({
+          timezone,
+          openingDate,
+          propertyLocalToday,
+        })
+      : { proposedBusinessDate: null, blockedReason: null };
+  const today = businessDate ?? proposal.proposedBusinessDate ?? propertyLocalToday;
 
   const [planResult, tasksResult, roomsResult, occupiedResult, upcomingResult, owners] =
     await Promise.all([
@@ -265,6 +287,10 @@ export async function loadCard8GoliveSnapshot(
     departments: owners.departments,
     users: owners.users,
     businessDate,
+    timezone,
+    openingDate,
+    proposedBusinessDate: proposal.proposedBusinessDate,
+    businessDateInitBlockedReason: proposal.blockedReason,
     opening: {
       totalRooms: rooms.length,
       occupied: rooms.filter((room) => occupiedRoomIds.has(String(room.id))).length,
@@ -284,12 +310,13 @@ async function writeAudit(
   restaurantId: string,
   userId: string,
   metadata: Record<string, unknown>,
+  action = "pms_card8_golive_updated",
 ) {
   const result = await db.from("restaurant_staff_audit_log").insert({
     restaurant_id: restaurantId,
     actor_user_id: userId,
     target_user_id: userId,
-    action: "pms_card8_golive_updated",
+    action,
     metadata: { section: "go-live", ...metadata } as unknown as Json,
   });
   if (result.error) console.error("[card8-golive] audit", result.error.message);
@@ -317,7 +344,11 @@ export const saveCard8Golive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    const me = await requirePmsSetupActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE,
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as DbClient;
     const before = await loadCard8GoliveSnapshot(db, data.restaurantId, true);
@@ -424,5 +455,129 @@ export const saveCard8Golive = createServerFn({ method: "POST" })
     await persistCard8Overall(db, data.restaurantId, context.userId, me.role);
     return {
       snapshot: await loadCard8GoliveSnapshot(db, data.restaurantId, true),
+    };
+  });
+
+export type InitializeCard8BusinessDateResult =
+  | {
+      ok: true;
+      alreadyInitialized: boolean;
+      businessDate: string;
+      timezone: string | null;
+      snapshot: Card8GoliveSnapshot;
+    }
+  | { ok: false; message: string; snapshot?: Card8GoliveSnapshot };
+
+/**
+ * First-time restaurants.business_date initialization for Go-Live preparation.
+ * Uses the production adjust_business_date writer with expected=null only.
+ * Does not activate the property. Night Audit remains the roll owner afterward.
+ */
+export const initializeCard8BusinessDate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        /** Explicit staff acknowledgement that the proposed date becomes live. */
+        confirmed: z.literal(true),
+        confirmation: z.literal(BUSINESS_DATE_CONFIRM_WORD),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }): Promise<InitializeCard8BusinessDateResult> => {
+    const me = await requirePmsSetupActor(
+      context as never,
+      data.restaurantId,
+      PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE,
+    );
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as DbClient;
+    const before = await loadCard8GoliveSnapshot(db, data.restaurantId, true);
+
+    if (before.businessDate) {
+      return {
+        ok: true,
+        alreadyInitialized: true,
+        businessDate: before.businessDate,
+        timezone: before.timezone,
+        snapshot: before,
+      };
+    }
+
+    if (before.businessDateInitBlockedReason || !before.proposedBusinessDate) {
+      return {
+        ok: false,
+        message:
+          before.businessDateInitBlockedReason ??
+          "A first business date could not be proposed for this property.",
+        snapshot: before,
+      };
+    }
+
+    // Production writer owned by Night Audit recovery/init RPC (null → value only here).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: row, error } = await (supabaseAdmin as any).rpc("adjust_business_date", {
+      _restaurant_id: data.restaurantId,
+      _expected_business_date: null,
+      _new_business_date: before.proposedBusinessDate,
+      _reason: CARD8_GOLIVE_DATE_INIT_REASON,
+      _membership_id: me.id,
+    });
+
+    if (error) {
+      const message = String(error.message ?? "");
+      if (/BUSINESS_DATE_STALE/.test(message)) {
+        const refreshed = await loadCard8GoliveSnapshot(db, data.restaurantId, true);
+        if (refreshed.businessDate) {
+          return {
+            ok: true,
+            alreadyInitialized: true,
+            businessDate: refreshed.businessDate,
+            timezone: refreshed.timezone,
+            snapshot: refreshed,
+          };
+        }
+      }
+      return {
+        ok: false,
+        message: businessDateAdjustmentError(message),
+        snapshot: before,
+      };
+    }
+
+    const saved = row as {
+      old_business_date: string | null;
+      new_business_date: string;
+      changed_at: string;
+      changed_by_membership_id: string;
+    };
+
+    await writeAudit(
+      db,
+      data.restaurantId,
+      context.userId,
+      {
+        note: CARD8_GOLIVE_DATE_INIT_COPY,
+        oldBusinessDate: saved.old_business_date
+          ? String(saved.old_business_date).slice(0, 10)
+          : null,
+        newBusinessDate: String(saved.new_business_date).slice(0, 10),
+        timezone: before.timezone,
+        openingDate: before.openingDate,
+        membershipId: me.id,
+        confirmation: BUSINESS_DATE_CONFIRM_WORD,
+      },
+      "pms_card8_business_date_initialized",
+    );
+
+    await persistCard8Overall(db, data.restaurantId, context.userId, me.role);
+    const snapshot = await loadCard8GoliveSnapshot(db, data.restaurantId, true);
+    return {
+      ok: true,
+      alreadyInitialized: false,
+      businessDate: snapshot.businessDate ?? String(saved.new_business_date).slice(0, 10),
+      timezone: snapshot.timezone,
+      snapshot,
     };
   });

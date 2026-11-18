@@ -1,8 +1,11 @@
 /**
  * Card 4 Phase 2 — Required Fields types and validation.
  *
- * Pure module. Property Setup catalogue only. Does not replace SET3
- * guestRules.requiredFields or operational guest create / check-in forms.
+ * Canonical Property Setup owner for guest field catalogues
+ * (`pms_guest_fields`). SET1 activation prefers Card 4 Individual Guest
+ * first-name + contact readiness and falls back to legacy SET3
+ * `pms_guest_profile_rules` for older properties. Runtime create/update may
+ * still consult SET3 rules until the registration phase fully migrates.
  */
 
 export const GUEST_FIELD_TYPES = [

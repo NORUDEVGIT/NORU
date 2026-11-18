@@ -128,15 +128,34 @@ export async function loadSet4Snapshot(supabaseAdmin: Admin, restaurantId: strin
     snapshot.maintenanceSla = parseMaintenanceSla(rulesRes.data?.pms_maintenance_sla);
   }
 
-  const [reasons, categories, priorities, tags] = await Promise.all([
+  const [reasons, categories, priorities, tags, card2StatusesRes] = await Promise.all([
     loadCatalogue(supabaseAdmin, "pms_restriction_reasons", restaurantId),
     loadCatalogue(supabaseAdmin, "pms_maintenance_categories", restaurantId),
     loadCatalogue(supabaseAdmin, "pms_maintenance_priorities", restaurantId),
     loadCatalogue(supabaseAdmin, "pms_maintenance_type_tags", restaurantId),
+    supabaseAdmin
+      .from("pms_housekeeping_status_catalog")
+      .select("code, active")
+      .eq("restaurant_id", restaurantId)
+      .in("code", ["out_of_order", "out_of_service"]),
   ]);
   snapshot.cataloguesAvailable = reasons.available && categories.available && priorities.available && tags.available;
   snapshot.restrictionReasons = reasons.rows;
   snapshot.maintenanceCategories = categories.rows;
+  if (card2StatusesRes.error && isMissingSchemaError(card2StatusesRes.error)) {
+    snapshot.card2StatusCatalogAvailable = false;
+    snapshot.card2RestrictionStatuses = [];
+  } else if (card2StatusesRes.error) {
+    throw new Error(card2StatusesRes.error.message);
+  } else {
+    snapshot.card2StatusCatalogAvailable = true;
+    snapshot.card2RestrictionStatuses = (
+      (card2StatusesRes.data ?? []) as Array<{ code: string; active: boolean }>
+    ).map((row) => ({
+      code: String(row.code ?? ""),
+      active: row.active !== false,
+    }));
+  }
   snapshot.maintenancePriorities = priorities.rows;
   snapshot.maintenanceTypeTags = tags.rows;
 

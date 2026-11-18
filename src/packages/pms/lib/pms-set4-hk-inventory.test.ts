@@ -131,6 +131,8 @@ describe("PMS-SET4 OOO/OOS mandatory and optional Warning", () => {
     const missingOoo = foundationReady(
       completeSet4Activate({
         oooOosSaved: false,
+        card2OooOosReady: false,
+        oooOosLegacyPostureSaved: false,
         restrictionReasonCount: 0,
         cleaningTypeCount: 0,
       }),

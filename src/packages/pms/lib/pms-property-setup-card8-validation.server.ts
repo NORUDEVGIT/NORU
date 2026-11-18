@@ -50,23 +50,29 @@ export function adaptCard8DomainSlices(
   for (const slice of slices) {
     const href = slice.href ?? adapter?.href;
     for (const [index, message] of (slice.blockers ?? []).entries()) {
+      const severity = mapCard8Blocker(message, {
+        cardNumber,
+        domainId: slice.id,
+        domainLabel: slice.label,
+      });
       issues.push({
-        id: issueId(cardNumber, slice.id, "critical", index),
+        id: issueId(cardNumber, slice.id, severity, index),
         cardNumber,
         category,
         domain: slice.label,
-        severity: mapCard8Blocker(message),
+        severity,
         message,
         ...(href ? { href } : {}),
       });
     }
     for (const [index, message] of (slice.warnings ?? []).entries()) {
+      const severity = mapCard8Warning(message);
       issues.push({
-        id: issueId(cardNumber, slice.id, "warning", index),
+        id: issueId(cardNumber, slice.id, severity, index),
         cardNumber,
         category,
         domain: slice.label,
-        severity: mapCard8Warning(message),
+        severity,
         message,
         ...(href ? { href } : {}),
       });

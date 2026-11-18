@@ -312,26 +312,32 @@ export function evaluateCard8OfflineReadiness(
   snapshot: Card8OfflineSnapshot,
 ): Card8OfflineReadiness {
   const blockers: string[] = [];
-  const warnings = [CARD8_OFFLINE_RUNTIME_WARNING];
+  const warnings = [CARD8_OFFLINE_RUNTIME_WARNING, CARD8_OFFLINE_POLICY_ONLY_COPY];
   if (!snapshot.available) {
-    blockers.push(CARD8_OFFLINE_UNAVAILABLE);
+    warnings.push(CARD8_OFFLINE_UNAVAILABLE);
   } else {
-    blockers.push(...card8OfflinePolicyErrors(snapshot.policy));
-    blockers.push(...card8OfflineCapabilityErrors(snapshot.capabilities));
-    if (!snapshot.policy.configured) {
-      blockers.push("Save Offline & Sync policy before this domain is ready.");
+    const policyErrors = card8OfflinePolicyErrors(snapshot.policy);
+    const capabilityErrors = card8OfflineCapabilityErrors(snapshot.capabilities);
+    // Invalid saved policy stays visible, but unused offline capability is optional
+    // while no runtime engine exists — never activation-critical.
+    if (snapshot.policy.configured) {
+      warnings.push(...policyErrors, ...capabilityErrors);
+    } else {
+      warnings.push(
+        "Offline & Sync policy is optional while no offline runtime exists.",
+        ...policyErrors,
+        ...capabilityErrors,
+      );
     }
   }
-  warnings.push(CARD8_OFFLINE_POLICY_ONLY_COPY);
-  const ready = blockers.length === 0;
-  let verdict: Card8AuditVerdict = "FAIL";
-  if (ready) verdict = "PASS";
-  else if (snapshot.available && snapshot.policy.configured) verdict = "PARTIAL";
+  // Policy completeness is guidance only. Runtime remains unavailable.
+  const ready = true;
+  const verdict: Card8AuditVerdict = snapshot.policy.configured ? "PARTIAL" : "PASS";
   return {
-    status: ready ? "in_progress" : snapshot.policy.configured ? "in_progress" : "not_started",
+    status: snapshot.policy.configured ? "in_progress" : "not_started",
     ready,
     verdict,
     blockers,
-    warnings,
+    warnings: [...new Set(warnings)],
   };
 }

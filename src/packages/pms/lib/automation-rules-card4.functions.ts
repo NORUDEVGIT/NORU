@@ -471,3 +471,5 @@ export const testPmsCard4AutomationRule = createServerFn({ method: "POST" })
         allowManualSending: template.allowManualSending,
         attachPdf: template.attachPdf } });
   });
+
+export { loadSnapshot as loadAutomationRulesCard4Snapshot };
