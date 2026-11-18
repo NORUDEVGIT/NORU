@@ -155,7 +155,7 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.match(types, /pms_taxes:/);
   });
 
-  it("keeps five taxes tabs and removes Tax Groups from UI", () => {
+  it("keeps five taxes tabs and exposes Manage Tax Groups from the default card", () => {
     assert.deepEqual(
       CARD3_TAXES_TABS.map((tab) => tab.label),
       ["Overview", "Taxes", "Service Charges", "Fees", "Exemptions"],
@@ -163,12 +163,23 @@ describe("Card 3 Phase 2 taxes readiness", () => {
     assert.match(section, /PmsPropertySetupCard3Taxes/);
     assert.match(ui, /CARD3_TAXES_SET1_COPY/);
     assert.match(ui, /Card3ListSection/);
+    assert.match(ui, /Manage tax groups/);
+    assert.match(ui, /ManageTaxGroupsDialog/);
+    assert.match(ui, /saveTaxGroupCard3/);
+    assert.match(ui, /default-room-tax-group-summary/);
     assert.doesNotMatch(ui, /title="Tax groups"/);
-    assert.doesNotMatch(ui, /Add tax group/);
     assert.doesNotMatch(ui, /GroupDrawer/);
-    assert.doesNotMatch(ui, /saveTaxGroupCard3/);
     assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.doesNotMatch(ui, /Rates & Pricing/);
+  });
+
+  it("uses staff-facing Taxes & Fees copy without schema table names", () => {
+    assert.match(
+      server,
+      /Configure taxes, service charges, fees and exemptions applied to guest charges/,
+    );
+    assert.doesNotMatch(server, /pms_taxes/);
+    assert.doesNotMatch(ui, /Retired restaurant till columns/);
   });
 
   it("verifies readiness completes without Tax Group and tolerates legacy group data", () => {
@@ -319,6 +330,15 @@ describe("Card 3 Phase 2 taxes readiness", () => {
         expectedLabels[key],
       );
     }
+  });
+
+  it("keeps tax editors on generated readonly codes and rectangular fields", () => {
+    assert.match(ui, /suggestTaxSetupCode/);
+    assert.match(ui, /readOnly/);
+    assert.match(ui, /setup-code-auto/);
+    assert.match(ui, /TAX_FIELD_CLASS/);
+    assert.match(ui, /value\s*\?\s*value\.code\s*:\s*suggestTaxSetupCode/);
+    assert.doesNotMatch(ui, /onCode\(event\.target\.value/);
   });
 
   it("supports customReason field in UI and server functions", () => {

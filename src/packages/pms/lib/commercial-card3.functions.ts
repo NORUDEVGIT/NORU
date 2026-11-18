@@ -15,7 +15,6 @@ import {
   SEASON_TYPE_LABELS,
   SEASON_TYPES,
   evaluateCommercialCard3Readiness,
-  type CommercialOverbookingOverlay,
   type CommercialPromotionRow,
   type CommercialRestrictionRow,
   type CommercialRoomTypeRef,
@@ -89,6 +88,14 @@ const promotionSchema = z
     message: "Valid to must be on or after valid from.",
     path: ["validTo"] })
   .superRefine((data, ctx) => {
+    if (!data.id && data.promoKind === "free_night") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["promoKind"],
+        message:
+          "Free Night promotions cannot be created. Choose a percentage or fixed amount discount.",
+      });
+    }
     if (data.promoKind === "percent" && data.promoValue > 100) {
       ctx.addIssue({
         code: "custom",
@@ -206,36 +213,10 @@ function groupRoomTypeIds(
   return map;
 }
 
-async function loadOverbooking(
-  db: DbClient,
-  restaurantId: string,
-): Promise<CommercialOverbookingOverlay | null> {
-  const result = await db
-    .from("pms_inventory_rules")
-    .select(
-      "overbooking_allowed, maximum_overbooking, percentage_limit, room_type_limit_enabled, date_based_limit_enabled, manager_approval_required, override_permission_required, overbooking_reason_required, overbooking_alert_enabled",
-    )
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-  if (isMissingSchema(result.error)) return null;
-  if (result.error) unavailable(result.error);
-  if (!result.data) return null;
-  const row = result.data;
-  return {
-    overbookingAllowed: Boolean(row.overbooking_allowed),
-    maximumOverbooking:
-      row.maximum_overbooking == null ? null : Number(row.maximum_overbooking),
-    percentageLimit: row.percentage_limit == null ? null : Number(row.percentage_limit),
-    roomTypeLimitEnabled: Boolean(row.room_type_limit_enabled),
-    dateBasedLimitEnabled: Boolean(row.date_based_limit_enabled),
-    managerApprovalRequired: Boolean(row.manager_approval_required),
-    overridePermissionRequired: Boolean(row.override_permission_required),
-    overbookingReasonRequired: Boolean(row.overbooking_reason_required),
-    overbookingAlertEnabled: Boolean(row.overbooking_alert_enabled) };
-}
-
 async function loadSnapshot(db: DbClient, restaurantId: string) {
-  const [roomTypes, restrictions, promotions, seasons, restrictionMaps, promoMaps, seasonMaps, overbooking] =
+  // Restrictions remain loaded for backward-compatible consumers (e.g. revenue config).
+  // Overbooking is intentionally not loaded here — Inventory Rules is the source of truth.
+  const [roomTypes, restrictions, promotions, seasons, restrictionMaps, promoMaps, seasonMaps] =
     await Promise.all([
       db
         .from("room_types")
@@ -275,7 +256,6 @@ async function loadSnapshot(db: DbClient, restaurantId: string) {
         .from("pms_season_room_types")
         .select("season_id, room_type_id")
         .eq("restaurant_id", restaurantId),
-      loadOverbooking(db, restaurantId),
     ]);
   if (roomTypes.error) unavailable(roomTypes.error);
   if (restrictions.error) unavailable(restrictions.error);
@@ -345,7 +325,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string) {
     restrictions: restrictionRows,
     promotions: promotionRows,
     seasons: seasonRows,
-    overbooking };
+    overbooking: null };
 }
 
 export { loadSnapshot as loadCommercialCard3Snapshot };
@@ -525,7 +505,7 @@ export const saveCommercialPromotionCard3 = createServerFn({ method: "POST" })
         "That promotion doesn't belong to this property.",
       );
     }
-    const payload = {
+    const payload: Record<string, unknown> = {
       restaurant_id: data.restaurantId,
       code: data.code,
       name: data.name,
@@ -533,11 +513,33 @@ export const saveCommercialPromotionCard3 = createServerFn({ method: "POST" })
       promo_value: data.promoValue,
       valid_from: data.validFrom,
       valid_to: data.validTo,
-      conditions: data.conditions?.trim() ? data.conditions.trim() : null,
       description: data.description?.trim() ? data.description.trim() : null,
       active: data.active };
+    // Preserve legacy free-text conditions when the caller omits the field (e.g. Activate).
+    // When provided, empty string clears; otherwise write the trimmed text.
+    if (data.conditions !== undefined) {
+      payload.conditions = data.conditions.trim() ? data.conditions.trim() : null;
+    } else if (!data.id) {
+      payload.conditions = null;
+    }
     let promotionId = data.id;
     if (data.id) {
+      // Do not silently convert a stored free_night master to percent/fixed.
+      const existing = await db
+        .from("pms_promotions")
+        .select("promo_kind")
+        .eq("id", data.id)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+      if (existing.error) unavailable(existing.error);
+      if (
+        existing.data?.promo_kind === "free_night" &&
+        data.promoKind !== "free_night"
+      ) {
+        throw new Error(
+          "This Free Night promotion is legacy and cannot be converted to another discount type.",
+        );
+      }
       const updated = await db
         .from("pms_promotions")
         .update(payload)
@@ -592,16 +594,22 @@ export const saveCommercialSeasonCard3 = createServerFn({ method: "POST" })
         "That season doesn't belong to this property.",
       );
     }
-    const payload = {
+    const payload: Record<string, unknown> = {
       restaurant_id: data.restaurantId,
       code: data.code,
       name: data.name,
       season_type: data.seasonType,
       valid_from: data.validFrom,
       valid_to: data.validTo,
-      rate_adjustment_percent: data.rateAdjustmentPercent ?? null,
       description: data.description?.trim() ? data.description.trim() : null,
       active: data.active };
+    // rate_adjustment_percent is a setup hint only (not applied by price_hotel_stay).
+    // Preserve legacy values on edit when the wizard omits the field.
+    if (data.rateAdjustmentPercent !== undefined) {
+      payload.rate_adjustment_percent = data.rateAdjustmentPercent;
+    } else if (!data.id) {
+      payload.rate_adjustment_percent = null;
+    }
     let seasonId = data.id;
     if (data.id) {
       const updated = await db

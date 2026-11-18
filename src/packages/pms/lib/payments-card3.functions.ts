@@ -15,6 +15,7 @@ import {
   evaluatePaymentsCard3Readiness,
   type DepositPolicyCard3Row,
   type DepositPolicyType,
+  type PaymentIntegrationOption,
   type PaymentMethodCard3Row,
   type PaymentTypeClass,
   type PaymentsCard3Snapshot } from "./payments-card3.server";
@@ -124,7 +125,20 @@ function mapPaymentMethod(row: any): PaymentMethodCard3Row {
     typeClass,
     typeClassLabel: typeClass ? PAYMENT_TYPE_CLASS_LABELS[typeClass] : "—",
     notes: String(row.notes ?? ""),
-    active: row.active !== false };
+    active: row.active !== false,
+    // No processing_mode / provider columns on pms_payment_methods yet.
+    processingMode: "manual",
+    providerIntegrationId: null,
+    providerLabel: "—" };
+}
+
+function mapPaymentIntegration(row: any): PaymentIntegrationOption {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? "").trim() || String(row.provider ?? "Payment provider"),
+    provider: String(row.provider ?? ""),
+    status: String(row.status ?? ""),
+    enabled: row.enabled !== false };
 }
 
 function mapDepositPolicy(row: any): DepositPolicyCard3Row {
@@ -142,8 +156,35 @@ function mapDepositPolicy(row: any): DepositPolicyCard3Row {
     active: row.active !== false };
 }
 
+async function loadPaymentIntegrations(
+  db: DbClient,
+  restaurantId: string,
+): Promise<PaymentIntegrationOption[]> {
+  const result = await db
+    .from("pms_integrations")
+    .select("id, name, provider, status, enabled, category")
+    .eq("restaurant_id", restaurantId)
+    .eq("category", "payments")
+    .order("name");
+  if (result.error) {
+    // Fail soft — Payments setup still works without Connectivity tables.
+    if (
+      result.error.code === "42P01" ||
+      result.error.code === "42703" ||
+      result.error.code === "PGRST205" ||
+      result.error.code === "PGRST204"
+    ) {
+      return [];
+    }
+    return [];
+  }
+  return (result.data ?? [])
+    .map(mapPaymentIntegration)
+    .filter((row: PaymentIntegrationOption) => row.enabled);
+}
+
 async function loadSnapshot(db: DbClient, restaurantId: string): Promise<PaymentsCard3Snapshot> {
-  const [restaurant, methods, policies] = await Promise.all([
+  const [restaurant, methods, policies, paymentIntegrations] = await Promise.all([
     db.from("restaurants").select("currency_code").eq("id", restaurantId).maybeSingle(),
     db
       .from("pms_payment_methods")
@@ -157,6 +198,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Payment
       )
       .eq("restaurant_id", restaurantId)
       .order("code"),
+    loadPaymentIntegrations(db, restaurantId),
   ]);
   for (const result of [restaurant, methods, policies]) {
     if (result.error) unavailable(result.error);
@@ -165,7 +207,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<Payment
   return {
     currencyCode: String(restaurant.data?.currency_code ?? ""),
     paymentMethods: (methods.data ?? []).map(mapPaymentMethod),
-    depositPolicies: (policies.data ?? []).map(mapDepositPolicy) };
+    depositPolicies: (policies.data ?? []).map(mapDepositPolicy),
+    paymentIntegrations };
 }
 
 export { loadSnapshot as loadPaymentsCard3Snapshot };
@@ -216,6 +259,25 @@ export const getPaymentsCard3 = createServerFn({ method: "POST" })
       audit: await loadAudit(db, data.restaurantId) };
   });
 
+async function requireImmutablePaymentCode(
+  db: DbClient,
+  restaurantId: string,
+  id: string,
+  nextCode: string,
+) {
+  const existing = await db
+    .from("pms_payment_methods")
+    .select("id, code")
+    .eq("id", id)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (existing.error) unavailable(existing.error);
+  if (!existing.data) throw new Error("That payment method doesn't belong to this property.");
+  if (String(existing.data.code).toUpperCase() !== nextCode) {
+    throw new Error("Code cannot be changed after it is saved.");
+  }
+}
+
 export const savePaymentMethodCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => paymentMethodSchema.parse(input))
@@ -223,13 +285,7 @@ export const savePaymentMethodCard3 = createServerFn({ method: "POST" })
     await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
-      await requireOwnedRecord(
-        db,
-        "pms_payment_methods",
-        data.restaurantId,
-        data.id,
-        "That payment method doesn't belong to this property.",
-      );
+      await requireImmutablePaymentCode(db, data.restaurantId, data.id, data.code);
     }
     const payload = {
       restaurant_id: data.restaurantId,

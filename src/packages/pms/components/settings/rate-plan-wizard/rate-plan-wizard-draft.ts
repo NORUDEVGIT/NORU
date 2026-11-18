@@ -13,7 +13,7 @@ import {
   type RatePlanWizardStepId,
 } from "./rate-plan-wizard-types";
 
-export const CREATE_RATE_PLAN_DRAFT_VERSION = 1 as const;
+export const CREATE_RATE_PLAN_DRAFT_VERSION = 2 as const;
 
 export type CreateRatePlanWizardDraft = {
   version: typeof CREATE_RATE_PLAN_DRAFT_VERSION;
@@ -106,6 +106,15 @@ function parseForm(raw: unknown): RatePlanWizardForm | null {
     packageInclusionType: packageInclusion(row.packageInclusionType),
     active: bool(row.active, true),
     sellable: bool(row.sellable, true),
+    minStayNights: text(row.minStayNights),
+    maxStayNights: text(row.maxStayNights),
+    minAdvanceDays: text(row.minAdvanceDays),
+    maxAdvanceDays: text(row.maxAdvanceDays),
+    closedToArrival: bool(row.closedToArrival, false),
+    closedToDeparture: bool(row.closedToDeparture, false),
+    restrictionValidFrom: text(row.restrictionValidFrom) || emptyRatePlanWizardForm().restrictionValidFrom,
+    restrictionValidTo: text(row.restrictionValidTo),
+    restrictionNoEndDate: bool(row.restrictionNoEndDate, true),
   };
 }
 
@@ -196,6 +205,18 @@ export function isMeaningfulCreateRatePlanDraft(
   if (form.mealPlanId !== RATE_PLAN_NONE) return true;
   if (form.packageId !== RATE_PLAN_NONE) return true;
   if (!form.active) return true;
+  if (
+    form.minStayNights.trim() ||
+    form.maxStayNights.trim() ||
+    form.minAdvanceDays.trim() ||
+    form.maxAdvanceDays.trim() ||
+    form.closedToArrival ||
+    form.closedToDeparture ||
+    !form.restrictionNoEndDate ||
+    form.restrictionValidTo.trim()
+  ) {
+    return true;
+  }
   return false;
 }
 

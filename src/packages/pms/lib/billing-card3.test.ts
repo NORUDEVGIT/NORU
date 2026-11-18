@@ -107,7 +107,7 @@ describe("Card 3 Phase 6 billing and invoicing", () => {
     assert.match(fns, /export const saveBillingRuleCard3/);
   });
 
-  it("wires the Phase 6 workspace, inherited Card 1 values, editing, search, audit, and loading state", () => {
+  it("wires the Phase 6 workspace with rectangular fields, invoice preview, and staff-facing copy", () => {
     assert.match(section, /getBillingCard3/);
     assert.match(section, /PmsPropertySetupCard3Billing/);
     assert.match(section, /domain\?\.id === "billing-invoicing"/);
@@ -116,17 +116,29 @@ describe("Card 3 Phase 6 billing and invoicing", () => {
     assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_BILLING_TABS/);
+    assert.match(ui, /CARD3_BILLING_INTRO_COPY/);
     assert.doesNotMatch(ui, /onAuditHistory/);
     assert.match(ui, /Card3ListSection/);
     assert.match(ui, /Card3OverlapSheet/);
     assert.match(ui, /useCard3DraftSave/);
     assert.match(ui, /Search billing rules/);
-    assert.match(ui, /Inherited from Card 1/);
-    assert.match(ui, /City ledger is out of this workspace/);
-    assert.match(ui, /no reservation or folio operational changes/);
+    assert.match(ui, /invoice-number-preview/);
+    assert.match(ui, /formatInvoiceNumberPreview/);
+    assert.match(ui, /BILL_FIELD_CLASS/);
+    assert.match(ui, /"Billing Rule"/);
+    assert.match(ui, /OwnershipBadge/);
     assert.match(ui, /saveInvoiceSettingsCard3/);
     assert.match(ui, /saveBillingRuleCard3/);
-    assert.match(ui, /focus-visible:ring-\[#C89933\]/);
+    assert.doesNotMatch(ui, /pms_taxes/);
+    assert.doesNotMatch(ui, /NORU Canonical Catalogue/);
+  });
+
+  it("seeds Individual Guest as the catalogue default instead of Company Master", () => {
+    assert.match(server, /systemCode: "individual_guest"[\s\S]*?isDefault: true/);
+    assert.doesNotMatch(
+      server,
+      /systemCode: "company_master"[\s\S]*?isDefault: true/,
+    );
   });
 
   it("requires member reads, manager writes, shared audit, and migration fail-soft", () => {

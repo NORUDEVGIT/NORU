@@ -6,9 +6,12 @@ export const RATE_PLAN_WIZARD_STEPS = [
   { id: 1, title: "Rate Plan & Pricing" },
   { id: 2, title: "Policies" },
   { id: 3, title: "Meals & Packages" },
-  { id: 4, title: "Status & Availability" },
+  { id: 4, title: "Availability & Restrictions" },
   { id: 5, title: "Review" },
 ] as const;
+
+/** Sentinel used when staff choose “No end date” for restriction validity. */
+export const RATE_PLAN_RESTRICTION_OPEN_ENDED_TO = "9999-12-31";
 
 export type RatePlanWizardStepId = (typeof RATE_PLAN_WIZARD_STEPS)[number]["id"];
 
@@ -42,6 +45,21 @@ export type RatePlanWizardForm = {
   active: boolean;
   /** UI-only mirror of Active — model has no separate sellable column. */
   sellable: boolean;
+  /**
+   * Booking restrictions. Advance days persist on hotel_rate_plans.
+   * Stay / CTA / CTD seed or update hotel_rate_restrictions only when safe
+   * (no heterogeneous date-level overrides). Empty strings mean
+   * “No minimum / No maximum”. stop_sell is never owned here.
+   */
+  minStayNights: string;
+  maxStayNights: string;
+  minAdvanceDays: string;
+  maxAdvanceDays: string;
+  closedToArrival: boolean;
+  closedToDeparture: boolean;
+  restrictionValidFrom: string;
+  restrictionValidTo: string;
+  restrictionNoEndDate: boolean;
 };
 
 export function todayDateInput(): string {
@@ -80,7 +98,75 @@ export function emptyRatePlanWizardForm(defaults?: {
     packageInclusionType: RATE_PLAN_PACKAGE_INCLUSION_DEFAULT,
     active: true,
     sellable: true,
+    minStayNights: "",
+    maxStayNights: "",
+    minAdvanceDays: "",
+    maxAdvanceDays: "",
+    closedToArrival: false,
+    closedToDeparture: false,
+    restrictionValidFrom: todayDateInput(),
+    restrictionValidTo: "",
+    restrictionNoEndDate: true,
   };
+}
+
+export function parseOptionalPositiveInt(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return n;
+}
+
+export function parseOptionalNonNegativeInt(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
+export function formatAdvanceBookingSummary(minDays: string, maxDays: string): string {
+  const min = parseOptionalNonNegativeInt(minDays);
+  const max = parseOptionalNonNegativeInt(maxDays);
+  if (min == null && max == null) return "None";
+  if (min != null && max != null) return `${min}–${max} days`;
+  if (min != null) return `From ${min} days`;
+  return `Up to ${max} days`;
+}
+
+export function formatStaySummary(minNights: string, maxNights: string): {
+  minimum: string;
+  maximum: string;
+} {
+  const min = parseOptionalPositiveInt(minNights);
+  const max = parseOptionalPositiveInt(maxNights);
+  return {
+    minimum: min == null ? "No minimum" : `${min} night${min === 1 ? "" : "s"}`,
+    maximum: max == null ? "No maximum" : `${max} night${max === 1 ? "" : "s"}`,
+  };
+}
+
+export function isOpenEndedRestrictionTo(validTo: string): boolean {
+  return validTo === RATE_PLAN_RESTRICTION_OPEN_ENDED_TO;
+}
+
+/**
+ * hotel_rate_restrictions stores open-ended windows as a capped date span
+ * (not the 9999-12-31 sentinel). Treat near-max windows as “No end date”
+ * so staff never see the sentinel and edit round-trips correctly.
+ */
+export function isEffectivelyOpenEndedRestrictionWindow(
+  validFrom: string | null | undefined,
+  validTo: string | null | undefined,
+): boolean {
+  if (!validTo || isOpenEndedRestrictionTo(validTo)) return true;
+  if (!validFrom) return false;
+  const from = new Date(`${validFrom}T12:00:00.000Z`);
+  const to = new Date(`${validTo}T12:00:00.000Z`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return false;
+  const spanDays = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+  return spanDays >= 360;
 }
 
 export function derivedRefundabilityLabel(

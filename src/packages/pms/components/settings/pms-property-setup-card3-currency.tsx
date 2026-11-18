@@ -17,7 +17,6 @@ import {
 } from "@/shared/components/ui/select";
 import { cn } from "@/shared/lib/utils";
 import { COMMON_CURRENCIES } from "@/shared/lib/property-time";
-import { CARD1_HREF } from "@/packages/pms/lib/pms-property-setup-card1";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
   Card3InheritedStrip,
@@ -255,9 +254,9 @@ export function PmsPropertySetupCard3Currency({
           {(query.error as Error | undefined)?.message ?? "Currency settings are unavailable."}
         </p>
       ) : (
-        <div className="space-y-4" data-testid="pms-card3-currency">
+        <div className="space-y-3" data-testid="pms-card3-currency">
           <section
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6E1D8] bg-white px-4 py-3"
+            className="rounded-xl border border-[#E6E1D8] bg-white px-4 py-3"
             data-testid="card3-base-currency-strip"
           >
             <div className="min-w-0">
@@ -283,12 +282,6 @@ export function PmsPropertySetupCard3Currency({
                 <Card3StatusDot active />
               </div>
             </div>
-            <a
-              href={CARD1_HREF}
-              className="text-xs font-medium text-[#C89933] hover:text-[#A67C1E]"
-            >
-              Manage
-            </a>
           </section>
 
           <Card3ListSection

@@ -85,7 +85,10 @@ import {
 import {
   emptyRatePlanWizardForm,
   isRatePlanWizardStep1Valid,
+  parseOptionalNonNegativeInt,
+  parseOptionalPositiveInt,
   RATE_PLAN_NONE,
+  RATE_PLAN_RESTRICTION_OPEN_ENDED_TO,
   RATE_PLAN_WIZARD_STEPS,
   type RatePlanWizardForm,
   type RatePlanWizardStepId,
@@ -126,6 +129,14 @@ export type RatePlanWizardSavePayload = {
   includedOccupancy: number | null;
   extraAdultRate: number | null;
   extraChildRate: number | null;
+  minAdvanceDays: number | null;
+  maxAdvanceDays: number | null;
+  minStayNights: number | null;
+  maxStayNights: number | null;
+  closedToArrival: boolean;
+  closedToDeparture: boolean;
+  restrictionValidFrom: string | null;
+  restrictionValidTo: string | null;
   active: boolean;
 };
 
@@ -438,6 +449,16 @@ export function RatePlanWizard({
         extraAdult != null && Number.isFinite(extraAdult) ? extraAdult : null,
       extraChildRate:
         extraChild != null && Number.isFinite(extraChild) ? extraChild : null,
+      minAdvanceDays: parseOptionalNonNegativeInt(form.minAdvanceDays),
+      maxAdvanceDays: parseOptionalNonNegativeInt(form.maxAdvanceDays),
+      minStayNights: parseOptionalPositiveInt(form.minStayNights),
+      maxStayNights: parseOptionalPositiveInt(form.maxStayNights),
+      closedToArrival: form.closedToArrival,
+      closedToDeparture: form.closedToDeparture,
+      restrictionValidFrom: form.restrictionValidFrom.trim() || form.validFrom.trim() || null,
+      restrictionValidTo: form.restrictionNoEndDate
+        ? RATE_PLAN_RESTRICTION_OPEN_ENDED_TO
+        : form.restrictionValidTo.trim() || null,
       active: form.active,
     };
   }

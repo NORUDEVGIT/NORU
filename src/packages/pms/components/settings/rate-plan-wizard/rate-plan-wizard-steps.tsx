@@ -64,6 +64,8 @@ import {
 } from "./rate-plan-wizard-meal-options";
 import {
   derivedRefundabilityLabel,
+  formatAdvanceBookingSummary,
+  formatStaySummary,
   RATE_PLAN_NONE,
   type RatePlanWizardStepId,
 } from "./rate-plan-wizard-types";
@@ -1232,8 +1234,8 @@ export function RatePlanWizardStep4() {
 
   return (
     <div className="space-y-3">
-      <WizardCard title="Status & Availability">
-        <div className="flex items-center justify-between rounded-lg border border-[#E6E1D8] px-3 py-2.5">
+      <WizardCard title="Availability & Restrictions">
+        <div className="flex items-center justify-between rounded-[6px] border border-[#CCCCCC] px-3 py-2.5">
           <div>
             <Label htmlFor="rpw-active">Active</Label>
             <p className="text-[11px] text-[#756A5B]">Active rate plans are available for sale.</p>
@@ -1246,8 +1248,155 @@ export function RatePlanWizardStep4() {
           />
         </div>
         <p className="mt-2 text-[11px] text-[#5C5346]">
-          Sellable:{" "}
+          Available for sale:{" "}
           <span className="font-semibold text-[#251605]">{form.active ? "Yes" : "No"}</span>
+        </p>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="rpw-min-stay">Minimum stay</Label>
+            <Input
+              id="rpw-min-stay"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="No minimum"
+              value={form.minStayNights}
+              disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, minStayNights: event.target.value }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="rpw-max-stay">Maximum stay</Label>
+            <Input
+              id="rpw-max-stay"
+              type="number"
+              min={1}
+              step={1}
+              placeholder="No maximum"
+              value={form.maxStayNights}
+              disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, maxStayNights: event.target.value }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="rpw-min-advance">Minimum advance booking</Label>
+            <Input
+              id="rpw-min-advance"
+              type="number"
+              min={0}
+              step={1}
+              placeholder="No minimum"
+              value={form.minAdvanceDays}
+              disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, minAdvanceDays: event.target.value }))
+              }
+            />
+            <p className="text-[11px] text-muted-foreground">Days before arrival.</p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="rpw-max-advance">Maximum advance booking</Label>
+            <Input
+              id="rpw-max-advance"
+              type="number"
+              min={0}
+              step={1}
+              placeholder="No maximum"
+              value={form.maxAdvanceDays}
+              disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, maxAdvanceDays: event.target.value }))
+              }
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="flex items-center justify-between rounded-[6px] border border-[#CCCCCC] px-3 py-2.5">
+            <Label htmlFor="rpw-cta">Closed to Arrival</Label>
+            <Switch
+              id="rpw-cta"
+              checked={form.closedToArrival}
+              disabled={!canEdit}
+              onCheckedChange={(closedToArrival) =>
+                setForm((prev) => ({ ...prev, closedToArrival }))
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-[6px] border border-[#CCCCCC] px-3 py-2.5">
+            <Label htmlFor="rpw-ctd">Closed to Departure</Label>
+            <Switch
+              id="rpw-ctd"
+              checked={form.closedToDeparture}
+              disabled={!canEdit}
+              onCheckedChange={(closedToDeparture) =>
+                setForm((prev) => ({ ...prev, closedToDeparture }))
+              }
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="rpw-rest-from">Valid from</Label>
+            <Input
+              id="rpw-rest-from"
+              type="date"
+              value={form.restrictionValidFrom}
+              disabled={!canEdit}
+              className={WIZARD_CONTROL_CLASS}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, restrictionValidFrom: event.target.value }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="rpw-rest-to">Valid to</Label>
+              <label className="flex items-center gap-2 text-xs text-[#251605]">
+                <input
+                  type="checkbox"
+                  checked={form.restrictionNoEndDate}
+                  disabled={!canEdit}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      restrictionNoEndDate: event.target.checked,
+                      restrictionValidTo: event.target.checked ? "" : prev.restrictionValidTo,
+                    }))
+                  }
+                />
+                No end date
+              </label>
+            </div>
+            <Input
+              id="rpw-rest-to"
+              type="date"
+              value={form.restrictionNoEndDate ? "" : form.restrictionValidTo}
+              disabled={!canEdit || form.restrictionNoEndDate}
+              className={WIZARD_CONTROL_CLASS}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  restrictionValidTo: event.target.value,
+                  restrictionNoEndDate: false,
+                }))
+              }
+            />
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Stay and arrival/departure restrictions apply on this Rate Plan for the dates above.
+          Leave stay fields blank for no minimum or no maximum.
         </p>
       </WizardCard>
     </div>
@@ -1467,9 +1616,23 @@ export function RatePlanWizardStep5() {
           ) : null}
         </ReviewSection>
 
-        <ReviewSection title="Status & Availability" step={4}>
+        <ReviewSection title="Availability & Restrictions" step={4}>
           <ReviewRow label="Status" value={form.active ? "Active" : "Inactive"} />
           <ReviewRow label="Available for sale" value={form.active ? "Yes" : "No"} />
+          <ReviewRow
+            label="Minimum stay"
+            value={formatStaySummary(form.minStayNights, form.maxStayNights).minimum}
+          />
+          <ReviewRow
+            label="Maximum stay"
+            value={formatStaySummary(form.minStayNights, form.maxStayNights).maximum}
+          />
+          <ReviewRow
+            label="Advance booking"
+            value={formatAdvanceBookingSummary(form.minAdvanceDays, form.maxAdvanceDays)}
+          />
+          <ReviewRow label="Closed to Arrival" value={form.closedToArrival ? "Yes" : "No"} />
+          <ReviewRow label="Closed to Departure" value={form.closedToDeparture ? "Yes" : "No"} />
         </ReviewSection>
       </div>
     </div>

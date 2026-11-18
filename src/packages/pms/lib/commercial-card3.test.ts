@@ -10,6 +10,15 @@ import {
   evaluateCommercialCard3Readiness,
   type CommercialCard3Snapshot,
 } from "./commercial-card3.server.ts";
+import {
+  CARD2_RATES_HREF,
+  card2StepHref,
+} from "./pms-property-setup-card2.ts";
+import {
+  CARD3_INVENTORY_RULES_HREF,
+  CARD3_PROMOTIONS_HREF,
+  card3LegacyCommercialRedirectHref,
+} from "./pms-property-setup-card3.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fns = readFileSync(new URL("./commercial-card3.functions.ts", import.meta.url), "utf8");
@@ -20,6 +29,10 @@ const section = readFileSync(
 );
 const ui = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-commercial.tsx", import.meta.url),
+  "utf8",
+);
+const hub = readFileSync(
+  new URL("../components/settings/pms-set1-hub.tsx", import.meta.url),
   "utf8",
 );
 
@@ -33,20 +46,6 @@ function snapshot(partial?: Partial<CommercialCard3Snapshot>): CommercialCard3Sn
     ...partial,
   };
 }
-
-const activeRestriction = {
-  id: "rs1",
-  code: "MIN2",
-  name: "Two night stay",
-  restrictionKind: "min_stay" as const,
-  restrictionKindLabel: "Minimum stay",
-  minStayNights: 2,
-  validFrom: "2026-01-01",
-  validTo: "2026-12-31",
-  description: "",
-  active: true,
-  roomTypeIds: [],
-};
 
 const activePromotion = {
   id: "pr1",
@@ -78,32 +77,42 @@ const activeSeason = {
 };
 
 describe("Card 3 Phase 8 revenue and commercial rules", () => {
-  it("uses only not_started, in_progress, and complete for this domain", () => {
+  it("treats empty promotions and pricing seasons as optional and activation-ready", () => {
     const empty = evaluateCommercialCard3Readiness(snapshot());
-    assert.equal(empty.status, "not_started");
-    assert.equal(empty.ready, false);
+    assert.equal(empty.status, "complete");
+    assert.equal(empty.ready, true);
+    assert.deepEqual(empty.blockers, []);
 
-    const started = evaluateCommercialCard3Readiness(
-      snapshot({ restrictions: [activeRestriction] }),
+    const withPromo = evaluateCommercialCard3Readiness(
+      snapshot({ promotions: [activePromotion] }),
     );
-    assert.equal(started.status, "in_progress");
-    assert.equal(started.ready, false);
+    assert.equal(withPromo.status, "complete");
+    assert.equal(withPromo.ready, true);
+    assert.deepEqual(withPromo.blockers, []);
 
     const complete = evaluateCommercialCard3Readiness(
       snapshot({
-        restrictions: [activeRestriction],
         promotions: [activePromotion],
         seasons: [activeSeason],
       }),
     );
     assert.equal(complete.status, "complete");
     assert.equal(complete.ready, true);
+
+    const invalid = evaluateCommercialCard3Readiness(
+      snapshot({
+        promotions: [{ ...activePromotion, validTo: "2020-01-01" }],
+      }),
+    );
+    assert.equal(invalid.ready, true);
+    assert.equal(invalid.blockers.length, 0);
+    assert.ok(invalid.warnings.length > 0);
   });
 
-  it("exposes exactly the five Phase 8 tabs and the isolated API files", () => {
+  it("exposes Promotions and Pricing Seasons tabs and keeps restriction APIs", () => {
     assert.deepEqual(
       CARD3_COMMERCIAL_TABS.map((tab) => tab.label),
-      ["Overview", "Restrictions", "Promotions", "Seasons", "Overbooking"],
+      ["Promotions", "Pricing Seasons"],
     );
     assert.equal(existsSync(join(here, "commercial-card3.server.ts")), true);
     assert.equal(existsSync(join(here, "commercial-card3.functions.ts")), true);
@@ -113,43 +122,58 @@ describe("Card 3 Phase 8 revenue and commercial rules", () => {
     assert.match(fns, /export const saveCommercialSeasonCard3/);
   });
 
-  it("wires the Phase 8 workspace, inherited catalogues, editing, search, audit, and loading state", () => {
+  it("wires promotions and pricing seasons only on the consolidated workspace", () => {
     assert.match(section, /getCommercialCard3/);
     assert.match(section, /PmsPropertySetupCard3Commercial/);
     assert.match(section, /domain\?\.id === "revenue-commercial-rules"/);
-    assert.match(section, /commercialQuery\.isLoading/);
-    assert.match(section, /commercialStatus/);
-    assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_COMMERCIAL_TABS/);
-    assert.doesNotMatch(ui, /onAuditHistory/);
-    assert.match(ui, /Card3ListSection/);
-    assert.match(ui, /Card3OverlapSheet/);
-    assert.match(ui, /Search restrictions/);
+    assert.match(ui, /Optional/);
+    assert.match(ui, /not required for activation/);
+    assert.match(ui, /Pricing Seasons/);
     assert.match(ui, /Search promotions/);
-    assert.match(ui, /Search seasons/);
-    assert.match(
-      ui,
-      /Overbooking policy is inherited from Card 2 Inventory Rules\.\s+This tab does not save\s+overbooking\./,
-    );
-    assert.match(
-      ui,
-      /Empty room-type mapping means all types as a setup hint, not an\s+availability engine\./,
-    );
-    assert.match(
-      ui,
-      /This configuration does not write hotel_rate_restrictions or\s+price_hotel_stay\./,
-    );
-    assert.match(ui, /SET6 channel stop-sell stays out of this workspace./);
-    assert.match(ui, /saveCommercialRestrictionCard3/);
+    assert.match(ui, /Search pricing seasons/);
+    assert.match(ui, /No promotions configured/);
+    assert.match(ui, /No pricing seasons configured/);
+    assert.match(ui, /New Promotion/);
+    assert.match(ui, /New Pricing Season/);
+    assert.match(ui, /PromotionWizard/);
+    assert.match(ui, /PricingSeasonWizard/);
+    assert.match(ui, /Rate & Pricing owns actual price/);
+    assert.doesNotMatch(ui, /title="Restrictions"/);
+    assert.doesNotMatch(ui, /title="Overbooking"/);
+    assert.doesNotMatch(ui, /saveCommercialRestrictionCard3/);
+    assert.doesNotMatch(ui, /Add restriction/);
     assert.match(ui, /saveCommercialPromotionCard3/);
     assert.match(ui, /saveCommercialSeasonCard3/);
-    assert.match(ui, /focus-visible:ring-\[#C89933\]/);
+    assert.match(hub, /card3LegacyCommercialRedirectHref/);
   });
 
-  it("requires member reads, manager writes, shared audit, and migration fail-soft", () => {
-    assert.match(fns, /requireFrontOfficeAccess/);
-    assert.ok((fns.match(/requireRoomManager/g) ?? []).length >= 3);
+  it("redirects legacy restriction and overbooking focuses to owning domains", () => {
+    assert.equal(
+      card3LegacyCommercialRedirectHref(
+        "?card3Domain=revenue-commercial-rules&card3Focus=restrictions",
+      ),
+      CARD2_RATES_HREF,
+    );
+    assert.equal(
+      card3LegacyCommercialRedirectHref(
+        "?card3Domain=revenue-commercial-rules&card3Focus=overbooking",
+      ),
+      CARD3_INVENTORY_RULES_HREF,
+    );
+    assert.equal(CARD3_INVENTORY_RULES_HREF, card2StepHref("inventory-rules"));
+    assert.equal(
+      card3LegacyCommercialRedirectHref(
+        "?card3Domain=revenue-commercial-rules&card3Focus=promotions",
+      ),
+      CARD3_PROMOTIONS_HREF,
+    );
+    assert.equal(card3LegacyCommercialRedirectHref("?card3Domain=revenue-commercial-rules"), null);
+  });
+
+  it("requires setup actor, shared audit, and migration fail-soft", () => {
+    assert.match(fns, /requirePmsSetupActor/);
     assert.match(fns, /restaurant_staff_audit_log/);
     assert.equal(CARD3_COMMERCIAL_AUDIT_SECTION, "card3-commercial");
     assert.match(fns, /card3_commercial_restriction_saved/);
@@ -164,20 +188,20 @@ describe("Card 3 Phase 8 revenue and commercial rules", () => {
     assert.doesNotMatch(fns, /Database\[/);
   });
 
-  it("reuses room types and inventory overlay without writing engines", () => {
+  it("keeps restriction storage and does not load inventory overbooking for display", () => {
     assert.match(fns, /from\("pms_commercial_restrictions"\)/);
     assert.match(fns, /from\("pms_promotions"\)/);
     assert.match(fns, /from\("pms_seasons"\)/);
     assert.match(fns, /from\("room_types"\)/);
-    assert.match(fns, /from\("pms_inventory_rules"\)/);
+    assert.doesNotMatch(fns, /from\("pms_inventory_rules"\)/);
     assert.doesNotMatch(fns, /from\("room_types"\)\.(?:insert|update|delete)/);
-    assert.doesNotMatch(fns, /from\("pms_inventory_rules"\)\.(?:insert|update|delete)/);
     assert.doesNotMatch(fns, /from\("hotel_rate_restrictions"\)/);
     assert.doesNotMatch(fns, /from\("hotel_rate_calendar"\)/);
     assert.doesNotMatch(fns, /from\("hotel_rate_plans"\)/);
     assert.doesNotMatch(fns, /from\("price_hotel_stay"\)/);
     assert.doesNotMatch(fns, /pms_distribution_channel_posture/);
     assert.doesNotMatch(fns, /pms_property_setup_status|programme/);
+    assert.match(fns, /overbooking: null/);
   });
 
   it("keeps the approved 0076 migration byte-identical and tenant-safe", () => {

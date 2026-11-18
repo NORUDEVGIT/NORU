@@ -15,6 +15,23 @@ export type Card3BillingTabId = (typeof CARD3_BILLING_TABS)[number]["id"];
 export const CARD3_BILLING_AUDIT_SECTION = "card3-billing";
 export const CARD3_BILLING_UNAVAILABLE =
   "Billing & Invoicing are unavailable until their approved migration is applied.";
+export const CARD3_BILLING_INTRO_COPY =
+  "Configure invoice numbering and default billing arrangements used across reservations, folios and invoicing.";
+
+/** Display-only next-invoice preview. Does not allocate or persist a number. */
+export function formatInvoiceNumberPreview(
+  prefix: string,
+  startingNumber: number,
+  numberPadding: number,
+): string {
+  const safePrefix = prefix.trim() || "INV";
+  const n =
+    Number.isFinite(startingNumber) && startingNumber >= 1 ? Math.floor(startingNumber) : 1;
+  const padRaw =
+    Number.isFinite(numberPadding) && numberPadding >= 1 ? Math.floor(numberPadding) : 6;
+  const pad = Math.min(12, Math.max(1, padRaw));
+  return `${safePrefix}${String(n).padStart(pad, "0")}`;
+}
 
 export const INVOICE_TAX_DISPLAYS = ["exclusive", "inclusive", "both"] as const;
 export type InvoiceTaxDisplay = (typeof INVOICE_TAX_DISPLAYS)[number];
@@ -121,7 +138,6 @@ export const CANONICAL_BILLING_RULES: readonly CanonicalBillingRuleDef[] = [
     paymentTerms: null,
     operationalStatus: "active",
     applicableProfileTypes: ["company"],
-    isDefault: true,
   },
   {
     systemCode: "individual_guest",
@@ -133,6 +149,7 @@ export const CANONICAL_BILLING_RULES: readonly CanonicalBillingRuleDef[] = [
     paymentTerms: null,
     operationalStatus: "active",
     applicableProfileTypes: ["company", "travel_agent", "group", "individual"],
+    isDefault: true,
   },
   {
     systemCode: "split_billing",

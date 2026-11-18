@@ -15,11 +15,11 @@ describe("corporate agreement cancellation phase 3", () => {
   const rates = read("./rates.functions.ts");
   const reservations = read("./reservations.functions.ts");
 
-  it("removes cancellation management from Payments & Deposits", () => {
+  it("removes cancellation management from Payments and retires deposit policies there", () => {
     assert.match(payments, /title="Payment methods"/);
-    assert.match(payments, /title="Deposit policies"/);
     assert.match(payments, /addLabel="Add payment method"/);
-    assert.match(payments, /addLabel="Add deposit policy"/);
+    assert.doesNotMatch(payments, /title="Deposit policies"/);
+    assert.doesNotMatch(payments, /addLabel="Add deposit policy"/);
     assert.doesNotMatch(payments, /title="Cancellation policies"/);
     assert.doesNotMatch(payments, /Add cancellation policy/i);
     assert.doesNotMatch(payments, /Edit cancellation policy/i);
@@ -27,7 +27,8 @@ describe("corporate agreement cancellation phase 3", () => {
     assert.doesNotMatch(payments, /savePmsCancellationPolicy/);
     assert.doesNotMatch(payments, /setPmsCancellationPolicyActive/);
     assert.doesNotMatch(payments, /pms_cancellation_policies/);
-    assert.match(payments, /Cancellation policies are managed in Rate &amp; Pricing/);
+    assert.match(payments, /Deposit policies are managed in\s+Rate Plan/);
+    assert.match(payments, /export function DepositPolicySheet/);
   });
 
   it("keeps cancellation and no-show catalogues on Rate & Pricing", () => {

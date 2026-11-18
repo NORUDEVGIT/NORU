@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { cn } from "@/shared/lib/utils";
 import { PmsPropertySetupCard3Workspace } from "@/packages/pms/components/settings/pms-property-setup-card3-workspace";
 import {
   Card3ListSection,
@@ -25,19 +26,24 @@ import {
 } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
 import type { Card3Domain } from "@/packages/pms/lib/pms-property-setup-card3";
 import {
+  PROPERTY_SETUP_CONTROL_CLASS,
+  PROPERTY_SETUP_TEXTAREA_CLASS,
+} from "@/packages/pms/lib/pms-property-setup-ui";
+import {
   getBillingCard3,
   saveBillingRuleCard3,
   saveInvoiceSettingsCard3,
 } from "@/packages/pms/lib/billing-card3.functions";
 import {
   BILLING_PAYER_KIND_LABELS,
-  BILLING_PAYER_KINDS,
   CANONICAL_BILLING_RULES,
+  CARD3_BILLING_INTRO_COPY,
   CARD3_BILLING_TABS,
   INVOICE_FORMAT_LABELS,
   INVOICE_FORMATS,
   INVOICE_TAX_DISPLAY_LABELS,
   INVOICE_TAX_DISPLAYS,
+  formatInvoiceNumberPreview,
   type BillingPayerKind,
   type BillingRuleCard3Row,
   type BillingCard3Snapshot,
@@ -46,8 +52,23 @@ import {
   type InvoiceTaxDisplay,
 } from "@/packages/pms/lib/billing-card3.server";
 
-const goldFocus =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933] focus-visible:ring-offset-2";
+/** Rectangular NORU field — match Taxes / Payments / Rate Plan treatment. */
+const BILL_FIELD_CLASS = cn(
+  PROPERTY_SETUP_CONTROL_CLASS,
+  "h-9 rounded-[6px] shadow-none focus:border-[#C89933] focus:outline-none focus:ring-1 focus:ring-[#C89933]",
+);
+
+const BILL_SELECT_CLASS = cn(BILL_FIELD_CLASS, "justify-between [&>span]:line-clamp-1");
+
+const BILL_SELECT_CONTENT_CLASS = "z-[100] rounded-[6px] border border-[#E6E1D8]";
+
+const BILL_TEXTAREA_CLASS = cn(
+  PROPERTY_SETUP_TEXTAREA_CLASS,
+  "min-h-[4.5rem] rounded-[6px] shadow-none focus:border-[#C89933] focus:outline-none focus:ring-1 focus:ring-[#C89933]",
+);
+
+const BILL_TOGGLE_ROW_CLASS =
+  "flex items-center justify-between rounded-[6px] border border-[#E6E1D8] bg-white px-3 py-2";
 
 type InvoiceSettingsInput = {
   restaurantId: string;
@@ -74,6 +95,41 @@ type BillingRuleInput = {
 function matchesQuery(query: string, ...values: string[]) {
   const normalized = query.trim().toLowerCase();
   return !normalized || values.some((value) => value.toLowerCase().includes(normalized));
+}
+
+function SetupField({
+  label,
+  htmlFor,
+  hint,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={htmlFor} className="text-[#251605]">
+        {label}
+      </Label>
+      {children}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+function OwnershipBadge({ isSystem }: { isSystem: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        isSystem ? "bg-[#EDE6D8] text-[#5C4528]" : "bg-[#F4EDE0] text-[#756A5B]",
+      )}
+    >
+      {isSystem ? "System" : "Property"}
+    </span>
+  );
 }
 
 export function PmsPropertySetupCard3Billing({
@@ -109,6 +165,7 @@ export function PmsPropertySetupCard3Billing({
           row.description,
           row.payerKindLabel,
           row.paymentTerms,
+          row.isSystem ? "system" : "property",
         ),
       ),
     [billingRules, search],
@@ -146,7 +203,9 @@ export function PmsPropertySetupCard3Billing({
           {(query.error as Error | undefined)?.message ?? "Billing & Invoicing are unavailable."}
         </p>
       ) : (
-        <div className="space-y-4" data-testid="pms-card3-billing">
+        <div className="space-y-3" data-testid="pms-card3-billing">
+          <p className="text-sm text-muted-foreground">{CARD3_BILLING_INTRO_COPY}</p>
+
           <Card3Section title="Invoice settings" icon="document">
             <InvoiceSettingsForm
               key={
@@ -170,13 +229,27 @@ export function PmsPropertySetupCard3Billing({
             canEdit={canEdit}
             addLabel="Add billing rule"
             onAdd={() => setRuleDraft("new")}
-            columns={["Code", "Name", "Payer", "Guest %", "Payment terms", "Default", "Status"]}
+            columns={[
+              "Billing Rule",
+              "Payer",
+              "Guest Share",
+              "Payment Terms",
+              "Default",
+              "Status",
+            ]}
             empty="No billing rules saved yet."
             rows={filteredRules.map((row) => ({
               id: row.id,
               cells: [
-                row.code,
-                row.name,
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-[#251605]">{row.name}</span>
+                    <OwnershipBadge isSystem={Boolean(row.isSystem)} />
+                  </div>
+                  <p className="font-mono text-[10px] uppercase tracking-wide text-[#9A8F7E]">
+                    {row.code}
+                  </p>
+                </div>,
                 row.payerKindLabel,
                 row.splitGuestPercent == null ? "—" : `${row.splitGuestPercent}%`,
                 row.paymentTerms || "—",
@@ -236,6 +309,11 @@ function InvoiceSettingsForm({
     }),
     [prefix, startingNumber, numberPadding, taxDisplay, invoiceFormat],
   );
+  const preview = formatInvoiceNumberPreview(
+    payload.prefix,
+    payload.startingNumber,
+    payload.numberPadding,
+  );
   const dirty =
     prefix !== (value?.prefix ?? "INV") ||
     Number(startingNumber) !== (value?.startingNumber ?? 1) ||
@@ -266,31 +344,28 @@ function InvoiceSettingsForm({
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor="invoice-prefix">Prefix</Label>
+        <SetupField label="Prefix" htmlFor="invoice-prefix">
           <Input
             id="invoice-prefix"
             value={prefix}
             maxLength={12}
             disabled={!canEdit}
-            className={goldFocus}
+            className={BILL_FIELD_CLASS}
             onChange={(event) => setPrefix(event.target.value.toUpperCase())}
           />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="invoice-start">Starting number</Label>
+        </SetupField>
+        <SetupField label="Starting number" htmlFor="invoice-start">
           <Input
             id="invoice-start"
             type="number"
             min={1}
             value={startingNumber}
             disabled={!canEdit}
-            className={goldFocus}
+            className={BILL_FIELD_CLASS}
             onChange={(event) => setStartingNumber(event.target.value)}
           />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="invoice-padding">Number padding</Label>
+        </SetupField>
+        <SetupField label="Number padding" htmlFor="invoice-padding">
           <Input
             id="invoice-padding"
             type="number"
@@ -298,21 +373,20 @@ function InvoiceSettingsForm({
             max={12}
             value={numberPadding}
             disabled={!canEdit}
-            className={goldFocus}
+            className={BILL_FIELD_CLASS}
             onChange={(event) => setNumberPadding(event.target.value)}
           />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="invoice-tax-display">Tax display</Label>
+        </SetupField>
+        <SetupField label="Tax display">
           <Select
             value={taxDisplay}
             onValueChange={(next) => setTaxDisplay(next as InvoiceTaxDisplay)}
             disabled={!canEdit}
           >
-            <SelectTrigger id="invoice-tax-display" className={goldFocus}>
+            <SelectTrigger id="invoice-tax-display" className={BILL_SELECT_CLASS}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className={BILL_SELECT_CONTENT_CLASS}>
               {INVOICE_TAX_DISPLAYS.map((item) => (
                 <SelectItem key={item} value={item}>
                   {INVOICE_TAX_DISPLAY_LABELS[item]}
@@ -320,18 +394,17 @@ function InvoiceSettingsForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-1 sm:col-span-2">
-          <Label htmlFor="invoice-format">Invoice format</Label>
+        </SetupField>
+        <SetupField label="Invoice format">
           <Select
             value={invoiceFormat}
             onValueChange={(next) => setInvoiceFormat(next as InvoiceFormat)}
             disabled={!canEdit}
           >
-            <SelectTrigger id="invoice-format" className={goldFocus}>
+            <SelectTrigger id="invoice-format" className={BILL_SELECT_CLASS}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className={BILL_SELECT_CONTENT_CLASS}>
               {INVOICE_FORMATS.map((item) => (
                 <SelectItem key={item} value={item}>
                   {INVOICE_FORMAT_LABELS[item]}
@@ -339,13 +412,24 @@ function InvoiceSettingsForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </SetupField>
       </div>
+
+      <div
+        className="rounded-[6px] border border-[#E6E1D8] bg-[#FBF9F5] px-3 py-2.5"
+        data-testid="invoice-number-preview"
+      >
+        <p className="text-xs text-muted-foreground">Preview</p>
+        <p className="mt-0.5 font-mono text-sm font-medium text-[#251605]">
+          Next invoice: {preview}
+        </p>
+      </div>
+
       {canEdit ? (
         <Button
           type="submit"
           disabled={pending}
-          className={`bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 ${goldFocus}`}
+          className="rounded-[6px] bg-[#C89933] font-medium text-[#251605] hover:bg-[#C89933]/90"
         >
           Save invoice settings
         </Button>
@@ -368,15 +452,11 @@ function ActiveField({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border px-3 py-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Switch
-        id={id}
-        checked={checked}
-        disabled={!canEdit}
-        onCheckedChange={onChange}
-        className={goldFocus}
-      />
+    <div className={BILL_TOGGLE_ROW_CLASS}>
+      <Label htmlFor={id} className="text-[#251605]">
+        {label}
+      </Label>
+      <Switch id={id} checked={checked} disabled={!canEdit} onCheckedChange={onChange} />
     </div>
   );
 }
@@ -421,30 +501,39 @@ function BillingRuleSheet({
       return CANONICAL_BILLING_RULES.find((c) => c.systemCode === value.systemCode) ?? null;
     }
     if (value?.code) {
-      return CANONICAL_BILLING_RULES.find((c) => c.code.toLowerCase() === value.code.toLowerCase()) ?? null;
+      return (
+        CANONICAL_BILLING_RULES.find((c) => c.code.toLowerCase() === value.code.toLowerCase()) ??
+        null
+      );
     }
-    return CANONICAL_BILLING_RULES[0];
+    return CANONICAL_BILLING_RULES.find((c) => c.systemCode === "individual_guest") ?? null;
   }, [value]);
 
   const [selectedCanonicalCode, setSelectedCanonicalCode] = useState<CanonicalBillingRuleCode>(
-    initialCanonical?.systemCode ?? "company_master",
+    initialCanonical?.systemCode ?? "individual_guest",
   );
-  const currentCanonical = CANONICAL_BILLING_RULES.find((c) => c.systemCode === selectedCanonicalCode) ?? initialCanonical;
+  const currentCanonical =
+    CANONICAL_BILLING_RULES.find((c) => c.systemCode === selectedCanonicalCode) ?? initialCanonical;
 
   const [code, setCode] = useState(value?.code ?? currentCanonical?.code ?? "");
   const [name, setName] = useState(value?.name ?? currentCanonical?.name ?? "");
-  const [description, setDescription] = useState(value?.description ?? currentCanonical?.description ?? "");
+  const [description, setDescription] = useState(
+    value?.description ?? currentCanonical?.description ?? "",
+  );
   const [payerKind, setPayerKind] = useState<BillingPayerKind>(
     value?.payerKind ?? currentCanonical?.payerKind ?? "guest",
   );
   const [splitGuestPercent, setSplitGuestPercent] = useState(
     String(value?.splitGuestPercent ?? currentCanonical?.splitGuestPercent ?? 50),
   );
-  const [paymentTerms, setPaymentTerms] = useState(value?.paymentTerms ?? currentCanonical?.paymentTerms ?? "");
+  const [paymentTerms, setPaymentTerms] = useState(
+    value?.paymentTerms ?? currentCanonical?.paymentTerms ?? "",
+  );
   const [isDefault, setIsDefault] = useState(value?.isDefault ?? false);
   const [active, setActive] = useState(value?.active ?? true);
   const [applicableProfiles, setApplicableProfiles] = useState<string[]>(
-    value?.applicableProfileTypes ?? (currentCanonical ? [...currentCanonical.applicableProfileTypes] : ["company"]),
+    value?.applicableProfileTypes ??
+      (currentCanonical ? [...currentCanonical.applicableProfileTypes] : ["company"]),
   );
 
   const handleCanonicalSelect = (canonCode: CanonicalBillingRuleCode) => {
@@ -467,7 +556,8 @@ function BillingRuleSheet({
     <Card3OverlapSheet
       open={open}
       onClose={onClose}
-      title={value ? "Edit billing rule" : "Configure billing rule"}
+      title={value ? "Edit billing rule" : "Add billing rule"}
+      description="Choose how charges are assigned for this property."
       canEdit={canEdit}
       pending={pending}
       submitLabel="Save billing rule"
@@ -479,7 +569,10 @@ function BillingRuleSheet({
           name,
           description,
           payerKind: currentCanonical ? currentCanonical.payerKind : payerKind,
-          splitGuestPercent: (currentCanonical?.payerKind ?? payerKind) === "split" ? Number(splitGuestPercent) : null,
+          splitGuestPercent:
+            (currentCanonical?.payerKind ?? payerKind) === "split"
+              ? Number(splitGuestPercent)
+              : null,
           paymentTerms,
           isDefault,
           active,
@@ -488,96 +581,99 @@ function BillingRuleSheet({
         })
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-3">
         {!value ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="canonical-rule-type" className="font-semibold text-xs">
-              System Rule Type <span className="text-[#C89933] text-[11px]">(NORU Canonical Catalogue)</span>
-            </Label>
+          <SetupField label="Billing rule type">
             <Select
               value={selectedCanonicalCode}
               onValueChange={(val) => handleCanonicalSelect(val as CanonicalBillingRuleCode)}
               disabled={!canEdit}
             >
-              <SelectTrigger id="canonical-rule-type" className={goldFocus}>
+              <SelectTrigger id="canonical-rule-type" className={BILL_SELECT_CLASS}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={BILL_SELECT_CONTENT_CLASS}>
                 {CANONICAL_BILLING_RULES.map((canon) => (
                   <SelectItem key={canon.systemCode} value={canon.systemCode}>
-                    <span className="font-medium text-[#251605]">{canon.name}</span>
+                    {canon.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </SetupField>
         ) : (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-amber-950">System Rule: {currentCanonical?.name || value.name}</span>
-              <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 uppercase">
-                {currentCanonical?.systemCode || value.code}
-              </span>
+          <div className="rounded-[6px] border border-[#E6E1D8] bg-[#FBF9F5] px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-[#251605]">
+                {currentCanonical?.name || value.name}
+              </p>
+              <OwnershipBadge isSystem={isSystemRule} />
             </div>
-            <p className="mt-1 text-[11px] text-amber-800">
-              Rule semantics and payer assignment are system-governed. You may configure the property display label, active status, default setting, and profile applicability.
+            <p className="mt-1 text-xs text-muted-foreground">
+              You can update the display name, payment terms, default, active status, and which
+              profiles can use this rule.
             </p>
           </div>
         )}
 
-        {/* Operational Status Notices */}
         {selectedCanonicalCode === "direct_bill_city_ledger" ? (
-          <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 text-[11px] text-blue-900">
-            <strong>Direct Bill / City Ledger:</strong> Records commercial credit agreement. Operational AR / City Ledger posting engine will be activated in a future release.
-          </div>
+          <p className="rounded-[6px] border border-[#E6E1D8] bg-white px-3 py-2 text-xs text-[#756A5B]">
+            Direct Bill / City Ledger records the commercial credit arrangement. Accounts receivable
+            posting follows when city ledger is fully configured.
+          </p>
         ) : null}
 
         {selectedCanonicalCode === "split_billing" ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-2.5 text-[11px] text-amber-900">
-            <strong>Split Billing:</strong> Records financial intent for shared responsibility. Automated folio routing will apply once folio split matrices are configured.
-          </div>
+          <p className="rounded-[6px] border border-[#E6E1D8] bg-white px-3 py-2 text-xs text-[#756A5B]">
+            Split Billing records shared payment responsibility. Folio routing uses the configured
+            guest share.
+          </p>
         ) : null}
 
         {selectedCanonicalCode === "custom_other" ? (
-          <div className="rounded-xl border border-stone-200 bg-stone-50 p-2.5 text-[11px] text-stone-700">
-            <strong>Custom / Other:</strong> Descriptive instruction only. Does not alter core reservation or cashiering routing logic.
-          </div>
+          <p className="rounded-[6px] border border-[#E6E1D8] bg-white px-3 py-2 text-xs text-[#756A5B]">
+            Custom / Other is for special instructions. It does not change standard folio routing on
+            its own.
+          </p>
         ) : null}
 
-        <div className="space-y-1">
-          <Label htmlFor="rule-name">Display Name (Property Label)</Label>
+        {selectedCanonicalCode === "none" ? (
+          <p className="rounded-[6px] border border-[#E6E1D8] bg-white px-3 py-2 text-xs text-[#756A5B]">
+            None means no billing instruction is pre-assigned. Settlement details are set at
+            reservation or check-in.
+          </p>
+        ) : null}
+
+        <SetupField label="Display name" htmlFor="rule-name">
           <Input
             id="rule-name"
             value={name}
             disabled={!canEdit}
-            className={goldFocus}
+            className={BILL_FIELD_CLASS}
             onChange={(event) => setName(event.target.value)}
           />
-        </div>
+        </SetupField>
 
-        <div className="space-y-1">
-          <Label htmlFor="rule-description">Description & Instructions</Label>
+        <SetupField label="Description" htmlFor="rule-description">
           <Textarea
             id="rule-description"
             value={description}
             maxLength={500}
             rows={3}
             disabled={!canEdit}
-            className={goldFocus}
+            className={BILL_TEXTAREA_CLASS}
             onChange={(event) => setDescription(event.target.value)}
           />
-        </div>
+        </SetupField>
 
-        <div className="space-y-1">
-          <Label htmlFor="rule-payer">Payer Assignment (System Handled)</Label>
-          <div className="rounded-lg border bg-stone-50 px-3 py-2 text-xs font-medium text-stone-800">
+        <SetupField label="Payer">
+          <div className="flex h-9 items-center rounded-[6px] border border-[#CCCCCC] bg-[#F7F4EE] px-3 text-sm text-[#251605]">
             {BILLING_PAYER_KIND_LABELS[currentCanonical?.payerKind ?? payerKind]}
           </div>
-        </div>
+        </SetupField>
 
         {(currentCanonical?.payerKind ?? payerKind) === "split" ? (
-          <div className="space-y-1">
-            <Label htmlFor="rule-split">Guest default share (%)</Label>
+          <SetupField label="Guest share (%)" htmlFor="rule-split">
             <Input
               id="rule-split"
               type="number"
@@ -586,31 +682,29 @@ function BillingRuleSheet({
               step="0.01"
               value={splitGuestPercent}
               disabled={!canEdit}
-              className={goldFocus}
+              className={BILL_FIELD_CLASS}
               onChange={(event) => setSplitGuestPercent(event.target.value)}
             />
-          </div>
+          </SetupField>
         ) : null}
 
-        {/* Profile Applicability */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Applicable Profile Types</Label>
-          <p className="text-[11px] text-muted-foreground">
-            Control which guest or entity registration flows expose this billing rule.
-          </p>
-          <div className="grid grid-cols-2 gap-2 pt-1">
+        <SetupField
+          label="Applicable profiles"
+          hint="Choose which registration types can use this billing rule."
+        >
+          <div className="grid grid-cols-2 gap-2">
             {PROFILE_TYPE_OPTIONS.map((profile) => {
               const checked = applicableProfiles.includes(profile.id);
               return (
                 <label
                   key={profile.id}
-                  className="flex items-center gap-2 rounded-lg border border-[#E0D8CB] bg-white p-2 text-xs cursor-pointer hover:bg-stone-50"
+                  className="flex items-center gap-2 rounded-[6px] border border-[#E6E1D8] bg-white px-3 py-2 text-sm text-[#251605]"
                 >
                   <input
                     type="checkbox"
                     checked={checked}
                     disabled={!canEdit}
-                    className="accent-[#C89933]"
+                    className="size-4 rounded-[3px] border-[#CCCCCC] accent-[#C89933]"
                     onChange={(e) => {
                       if (e.target.checked) {
                         setApplicableProfiles((prev) => [...prev, profile.id]);
@@ -624,19 +718,22 @@ function BillingRuleSheet({
               );
             })}
           </div>
-        </div>
+        </SetupField>
 
-        <div className="space-y-1">
-          <Label htmlFor="rule-terms">Payment terms (Optional hint)</Label>
+        <SetupField
+          label="Payment terms"
+          htmlFor="rule-terms"
+          hint="Optional. Example: Due at checkout."
+        >
           <Input
             id="rule-terms"
             value={paymentTerms}
             maxLength={80}
             disabled={!canEdit}
-            className={goldFocus}
+            className={BILL_FIELD_CLASS}
             onChange={(event) => setPaymentTerms(event.target.value)}
           />
-        </div>
+        </SetupField>
 
         <ActiveField
           id="rule-default"

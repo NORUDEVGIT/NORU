@@ -89,6 +89,14 @@ const planSchema = z
     includedOccupancy: z.number().int().min(1).max(20).nullable().optional(),
     extraAdultRate: z.number().min(0).max(10_000_000).nullable().optional(),
     extraChildRate: z.number().min(0).max(10_000_000).nullable().optional(),
+    minAdvanceDays: z.number().int().min(0).max(3650).nullable().optional(),
+    maxAdvanceDays: z.number().int().min(0).max(3650).nullable().optional(),
+    minStayNights: z.number().int().min(1).max(365).nullable().optional(),
+    maxStayNights: z.number().int().min(1).max(365).nullable().optional(),
+    closedToArrival: z.boolean().optional(),
+    closedToDeparture: z.boolean().optional(),
+    restrictionValidFrom: dateSchema,
+    restrictionValidTo: dateSchema,
     active: z.boolean() })
   .superRefine((value, ctx) => {
     if (value.validFrom && value.validTo && value.validTo < value.validFrom) {
@@ -97,7 +105,296 @@ const planSchema = z
         path: ["validTo"],
         message: "Valid until cannot be before valid from." });
     }
+    if (
+      value.minAdvanceDays != null &&
+      value.maxAdvanceDays != null &&
+      value.maxAdvanceDays < value.minAdvanceDays
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxAdvanceDays"],
+        message: "Maximum advance booking must be at least the minimum." });
+    }
+    if (
+      value.minStayNights != null &&
+      value.maxStayNights != null &&
+      value.maxStayNights < value.minStayNights
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxStayNights"],
+        message: "Maximum stay must be at least the minimum stay." });
+    }
+    if (
+      value.restrictionValidFrom &&
+      value.restrictionValidTo &&
+      value.restrictionValidTo < value.restrictionValidFrom
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["restrictionValidTo"],
+        message: "Restriction end date cannot be before the start date." });
+    }
   });
+
+const RATE_PLAN_RESTRICTION_MAX_DAYS = 366;
+const RATE_PLAN_RESTRICTION_OPEN_ENDED = "9999-12-31";
+
+function addDaysIso(isoDate: string, days: number): string {
+  const date = new Date(`${isoDate}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function eachIsoDateInclusive(from: string, to: string, maxDays = RATE_PLAN_RESTRICTION_MAX_DAYS): string[] {
+  if (!from || !to || to < from) return [];
+  const out: string[] = [];
+  let cursor = from;
+  while (cursor <= to && out.length < maxDays) {
+    out.push(cursor);
+    cursor = addDaysIso(cursor, 1);
+  }
+  return out;
+}
+
+function resolveRestrictionWindow(input: {
+  restrictionValidFrom?: string | null;
+  restrictionValidTo?: string | null;
+  planValidFrom?: string | null;
+}): { from: string; to: string } | null {
+  const from =
+    input.restrictionValidFrom ||
+    input.planValidFrom ||
+    new Date().toISOString().slice(0, 10);
+  if (!from) return null;
+  const rawTo = input.restrictionValidTo;
+  const to =
+    !rawTo || rawTo === RATE_PLAN_RESTRICTION_OPEN_ENDED
+      ? addDaysIso(from, RATE_PLAN_RESTRICTION_MAX_DAYS - 1)
+      : rawTo;
+  return { from, to: to < from ? from : to };
+}
+
+type PlanRestrictionDefaults = {
+  minStayNights: number | null;
+  maxStayNights: number | null;
+  closedToArrival: boolean;
+  closedToDeparture: boolean;
+  restrictionValidFrom: string | null;
+  restrictionValidTo: string | null;
+  restrictionHasDateOverrides: boolean;
+  restrictionCalendarWritable: boolean;
+};
+
+type HotelRateRestrictionRow = {
+  rate_plan_id: string;
+  restriction_date: string;
+  min_stay: number | null;
+  max_stay: number | null;
+  closed_to_arrival: boolean;
+  closed_to_departure: boolean;
+  stop_sell: boolean;
+};
+
+/** Stay/CTA/CTD signature only — stop_sell is owned by date-level revenue controls. */
+function restrictionStaySignature(row: {
+  min_stay: number | null;
+  max_stay: number | null;
+  closed_to_arrival: boolean;
+  closed_to_departure: boolean;
+}): string {
+  return [
+    row.min_stay == null ? "" : String(row.min_stay),
+    row.max_stay == null ? "" : String(row.max_stay),
+    row.closed_to_arrival ? "1" : "0",
+    row.closed_to_departure ? "1" : "0",
+  ].join("|");
+}
+
+function emptyPlanRestrictionDefaults(): PlanRestrictionDefaults {
+  return {
+    minStayNights: null,
+    maxStayNights: null,
+    closedToArrival: false,
+    closedToDeparture: false,
+    restrictionValidFrom: null,
+    restrictionValidTo: null,
+    restrictionHasDateOverrides: false,
+    restrictionCalendarWritable: true,
+  };
+}
+
+function summarizePlanRestrictionRows(rows: HotelRateRestrictionRow[]): PlanRestrictionDefaults {
+  if (rows.length === 0) return emptyPlanRestrictionDefaults();
+
+  const signatures = new Set(rows.map((row) => restrictionStaySignature(row)));
+  const hasStopSell = rows.some((row) => row.stop_sell === true);
+  const heterogeneous = signatures.size > 1;
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+
+  if (heterogeneous) {
+    return {
+      ...emptyPlanRestrictionDefaults(),
+      restrictionHasDateOverrides: true,
+      restrictionCalendarWritable: false,
+    };
+  }
+
+  return {
+    minStayNights: first.min_stay == null ? null : Number(first.min_stay),
+    maxStayNights: first.max_stay == null ? null : Number(first.max_stay),
+    closedToArrival: first.closed_to_arrival === true,
+    closedToDeparture: first.closed_to_departure === true,
+    restrictionValidFrom: first.restriction_date ? String(first.restriction_date) : null,
+    restrictionValidTo: last?.restriction_date ? String(last.restriction_date) : null,
+    restrictionHasDateOverrides: hasStopSell,
+    restrictionCalendarWritable: true,
+  };
+}
+
+async function loadPlanRestrictionRows(
+  db: DbClient,
+  restaurantId: string,
+  planIds: string[],
+): Promise<Map<string, HotelRateRestrictionRow[]>> {
+  const byPlan = new Map<string, HotelRateRestrictionRow[]>();
+  if (planIds.length === 0) return byPlan;
+  const result = await db
+    .from("hotel_rate_restrictions")
+    .select(
+      "rate_plan_id, restriction_date, min_stay, max_stay, closed_to_arrival, closed_to_departure, stop_sell",
+    )
+    .eq("restaurant_id", restaurantId)
+    .in("rate_plan_id", planIds)
+    .order("restriction_date", { ascending: true });
+  if (result.error) return byPlan;
+  for (const row of (result.data ?? []) as HotelRateRestrictionRow[]) {
+    const planId = String(row.rate_plan_id);
+    const list = byPlan.get(planId) ?? [];
+    list.push(row);
+    byPlan.set(planId, list);
+  }
+  return byPlan;
+}
+
+async function loadPlanRestrictionDefaults(
+  db: DbClient,
+  restaurantId: string,
+  planIds: string[],
+): Promise<Map<string, PlanRestrictionDefaults>> {
+  const map = new Map<string, PlanRestrictionDefaults>();
+  const byPlan = await loadPlanRestrictionRows(db, restaurantId, planIds);
+  for (const planId of planIds) {
+    map.set(planId, summarizePlanRestrictionRows(byPlan.get(planId) ?? []));
+  }
+  return map;
+}
+
+/**
+ * Non-destructive Rate Plan base sync.
+ * - Never deletes rows (preserves date-level overrides and history outside the window).
+ * - Never writes when stay/CTA/CTD values are heterogeneous across dates.
+ * - Never resets stop_sell (revenue/date-level ownership).
+ * - Inserts only missing dates in the configured window; updates stay/CTA/CTD in place.
+ */
+async function syncRatePlanRestrictionDefaults(
+  db: DbClient,
+  input: {
+    restaurantId: string;
+    ratePlanId: string;
+    minStayNights: number | null;
+    maxStayNights: number | null;
+    closedToArrival: boolean;
+    closedToDeparture: boolean;
+    restrictionValidFrom?: string | null;
+    restrictionValidTo?: string | null;
+    planValidFrom?: string | null;
+  },
+) {
+  const existingByPlan = await loadPlanRestrictionRows(db, input.restaurantId, [input.ratePlanId]);
+  const existing = existingByPlan.get(input.ratePlanId) ?? [];
+  const summary = summarizePlanRestrictionRows(existing);
+  if (!summary.restrictionCalendarWritable) {
+    // Heterogeneous date-level stay/CTA/CTD — Rate Plan Step 4 cannot safely represent or rewrite them.
+    return;
+  }
+
+  const window = resolveRestrictionWindow({
+    restrictionValidFrom: input.restrictionValidFrom,
+    restrictionValidTo: input.restrictionValidTo,
+    planValidFrom: input.planValidFrom,
+  });
+  if (!window) return;
+
+  const dates = eachIsoDateInclusive(window.from, window.to);
+  if (dates.length === 0) return;
+
+  const empty =
+    input.minStayNights == null &&
+    input.maxStayNights == null &&
+    !input.closedToArrival &&
+    !input.closedToDeparture;
+
+  const byDate = new Map(existing.map((row) => [String(row.restriction_date), row]));
+  const toUpsert: Array<{
+    restaurant_id: string;
+    rate_plan_id: string;
+    restriction_date: string;
+    min_stay: number | null;
+    max_stay: number | null;
+    closed_to_arrival: boolean;
+    closed_to_departure: boolean;
+    stop_sell: boolean;
+  }> = [];
+
+  for (const restriction_date of dates) {
+    const current = byDate.get(restriction_date);
+    if (!current) {
+      if (empty) continue;
+      toUpsert.push({
+        restaurant_id: input.restaurantId,
+        rate_plan_id: input.ratePlanId,
+        restriction_date,
+        min_stay: input.minStayNights,
+        max_stay: input.maxStayNights,
+        closed_to_arrival: input.closedToArrival,
+        closed_to_departure: input.closedToDeparture,
+        stop_sell: false,
+      });
+      continue;
+    }
+
+    const nextStay = {
+      min_stay: input.minStayNights,
+      max_stay: input.maxStayNights,
+      closed_to_arrival: input.closedToArrival,
+      closed_to_departure: input.closedToDeparture,
+    };
+    const unchanged =
+      restrictionStaySignature(current) === restrictionStaySignature(nextStay);
+    if (unchanged) continue;
+
+    // Preserve stop_sell — Step 4 does not own date-level stop sell.
+    toUpsert.push({
+      restaurant_id: input.restaurantId,
+      rate_plan_id: input.ratePlanId,
+      restriction_date,
+      min_stay: nextStay.min_stay,
+      max_stay: nextStay.max_stay,
+      closed_to_arrival: nextStay.closed_to_arrival,
+      closed_to_departure: nextStay.closed_to_departure,
+      stop_sell: current.stop_sell === true,
+    });
+  }
+
+  if (toUpsert.length === 0) return;
+
+  const upserted = await db.from("hotel_rate_restrictions").upsert(toUpsert, {
+    onConflict: "rate_plan_id,restriction_date",
+  });
+  if (upserted.error) unavailable(upserted.error);
+}
 
 const cancellationSchema = z
   .object({
@@ -266,7 +563,8 @@ export async function loadRatesCard2Snapshot(
 ): Promise<RatesCard2Snapshot> {
   const legacyPlanSelect =
     "id, code, name, description, rate_category_id, room_type_id, currency, base_rate, valid_from, valid_to, active";
-  const basePlanSelect = `${legacyPlanSelect}, included_occupancy, extra_adult_rate, extra_child_rate`;
+  const advancePlanSelect = `${legacyPlanSelect}, min_advance_days, max_advance_days`;
+  const basePlanSelect = `${advancePlanSelect}, included_occupancy, extra_adult_rate, extra_child_rate`;
   const compositionPlanSelect = `${basePlanSelect}, meal_plan_id, cancellation_policy_id, refundability_id, deposit_policy_id, no_show_policy_id, early_departure_policy_id`;
 
   let typesQuery = await db
@@ -462,6 +760,9 @@ export async function loadRatesCard2Snapshot(
   const noShowById = new Map(noShowPolicies.map((row) => [row.id, row]));
   const earlyDepartureById = new Map(earlyDeparturePolicies.map((row) => [row.id, row]));
 
+  const planIds = (planData ?? []).map((row: any) => String(row.id)).filter(Boolean);
+  const restrictionDefaults = await loadPlanRestrictionDefaults(db, restaurantId, planIds);
+
   const planRows: RatePlanRow[] = (planData ?? []).map((row: any) => {
     const type = typeById.get(row.room_type_id);
     const category = categoryById.get(row.rate_category_id);
@@ -475,6 +776,7 @@ export async function loadRatesCard2Snapshot(
     const earlyDeparture = row.early_departure_policy_id
       ? earlyDepartureById.get(row.early_departure_policy_id)
       : undefined;
+    const restrictions = restrictionDefaults.get(String(row.id));
     return {
       id: row.id,
       code: String(row.code ?? "").toUpperCase(),
@@ -507,6 +809,16 @@ export async function loadRatesCard2Snapshot(
         row.included_occupancy == null ? null : Number(row.included_occupancy),
       extraAdultRate: row.extra_adult_rate == null ? null : Number(row.extra_adult_rate),
       extraChildRate: row.extra_child_rate == null ? null : Number(row.extra_child_rate),
+      minAdvanceDays: row.min_advance_days == null ? null : Number(row.min_advance_days),
+      maxAdvanceDays: row.max_advance_days == null ? null : Number(row.max_advance_days),
+      minStayNights: restrictions?.minStayNights ?? null,
+      maxStayNights: restrictions?.maxStayNights ?? null,
+      closedToArrival: restrictions?.closedToArrival ?? false,
+      closedToDeparture: restrictions?.closedToDeparture ?? false,
+      restrictionValidFrom: restrictions?.restrictionValidFrom ?? null,
+      restrictionValidTo: restrictions?.restrictionValidTo ?? null,
+      restrictionHasDateOverrides: restrictions?.restrictionHasDateOverrides ?? false,
+      restrictionCalendarWritable: restrictions?.restrictionCalendarWritable ?? true,
       active: row.active !== false };
   });
 
@@ -741,6 +1053,8 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
       included_occupancy: data.includedOccupancy ?? null,
       extra_adult_rate: data.extraAdultRate ?? null,
       extra_child_rate: data.extraChildRate ?? null,
+      min_advance_days: data.minAdvanceDays ?? null,
+      max_advance_days: data.maxAdvanceDays ?? null,
       active: data.active };
 
     const occupancyConfigured =
@@ -749,12 +1063,19 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
       "Rate Plan occupancy pricing is unavailable until migration 0191 is applied.";
 
     async function writePlan(body: typeof payload | Record<string, unknown>) {
-      return data.id
-        ? db.from("hotel_rate_plans").update(body).eq("id", data.id).eq("restaurant_id", data.restaurantId)
-        : db.from("hotel_rate_plans").insert(body);
+      if (data.id) {
+        return db
+          .from("hotel_rate_plans")
+          .update(body)
+          .eq("id", data.id)
+          .eq("restaurant_id", data.restaurantId)
+          .select("id")
+          .single();
+      }
+      return db.from("hotel_rate_plans").insert(body).select("id").single();
     }
 
-    const written = await writePlan(payload);
+    let written = await writePlan(payload);
     if (written.error && (written.error.code === "42703" || written.error.code === "PGRST204")) {
       const {
         meal_plan_id: _meal,
@@ -763,30 +1084,70 @@ export const saveRatePlanCard2 = createServerFn({ method: "POST" })
         deposit_policy_id: _deposit,
         no_show_policy_id: _noShow,
         early_departure_policy_id: _earlyDeparture,
+        min_advance_days: _minAdvance,
+        max_advance_days: _maxAdvance,
         ...withoutComposition
       } = payload;
-      const retryOccupancy = await writePlan(withoutComposition);
-      if (retryOccupancy.error && (retryOccupancy.error.code === "42703" || retryOccupancy.error.code === "PGRST204")) {
-        if (occupancyConfigured) throw new Error(occupancyUnavailable);
-        const {
-          included_occupancy: _included,
-          extra_adult_rate: _extraAdult,
-          extra_child_rate: _extraChild,
-          ...basePayload
-        } = withoutComposition;
-        const retry = await writePlan(basePayload);
-        if (retry.error) unavailable(retry.error);
-      } else if (retryOccupancy.error) {
-        unavailable(retryOccupancy.error);
+      // Retry with advance if composition columns were the problem.
+      const withAdvance = {
+        ...withoutComposition,
+        min_advance_days: data.minAdvanceDays ?? null,
+        max_advance_days: data.maxAdvanceDays ?? null,
+      };
+      written = await writePlan(withAdvance);
+      if (written.error && (written.error.code === "42703" || written.error.code === "PGRST204")) {
+        const retryOccupancy = await writePlan(withoutComposition);
+        if (retryOccupancy.error && (retryOccupancy.error.code === "42703" || retryOccupancy.error.code === "PGRST204")) {
+          if (occupancyConfigured) throw new Error(occupancyUnavailable);
+          const {
+            included_occupancy: _included,
+            extra_adult_rate: _extraAdult,
+            extra_child_rate: _extraChild,
+            ...basePayload
+          } = withoutComposition;
+          written = await writePlan(basePayload);
+          if (written.error) unavailable(written.error);
+        } else if (retryOccupancy.error) {
+          unavailable(retryOccupancy.error);
+        } else {
+          written = retryOccupancy;
+        }
+      } else if (written.error) {
+        unavailable(written.error);
       }
     } else if (written.error) {
       unavailable(written.error);
     }
 
+    const planId = String(written.data?.id ?? data.id ?? "");
+    const shouldSyncRestrictions =
+      data.closedToArrival !== undefined ||
+      data.closedToDeparture !== undefined ||
+      data.minStayNights !== undefined ||
+      data.maxStayNights !== undefined ||
+      data.restrictionValidFrom !== undefined;
+    if (planId && shouldSyncRestrictions) {
+      await syncRatePlanRestrictionDefaults(db, {
+        restaurantId: data.restaurantId,
+        ratePlanId: planId,
+        minStayNights: data.minStayNights ?? null,
+        maxStayNights: data.maxStayNights ?? null,
+        closedToArrival: data.closedToArrival === true,
+        closedToDeparture: data.closedToDeparture === true,
+        restrictionValidFrom: data.restrictionValidFrom,
+        restrictionValidTo: data.restrictionValidTo,
+        planValidFrom: data.validFrom,
+      });
+    }
+
     await writeAudit(db, data.restaurantId, context.userId, "card2_rate_plan_saved", {
       detail: `${data.code} ${data.name}` });
     const snapshot = await loadRatesCard2Snapshot(db, data.restaurantId);
-    return { snapshot, readiness: evaluateRatesCard2Readiness(snapshot) };
+    return {
+      planId,
+      snapshot,
+      readiness: evaluateRatesCard2Readiness(snapshot),
+    };
   });
 
 export const saveRateCancellationPolicyCard2 = createServerFn({ method: "POST" })
