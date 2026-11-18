@@ -32,7 +32,7 @@ export function GuestTaxIdentitiesCard({
   guest: GuestProfile;
 }) {
   const actions = useOptionalGuestProfileActions();
-  const canManage = actions?.canManage ?? false;
+  const canManage = actions?.canEdit ?? false;
   const queryClient = useQueryClient();
   const load = useServerFn(listGuestTaxIdentities);
   const setDefault = useServerFn(setDefaultGuestTaxIdentity);

@@ -18,6 +18,7 @@ import {
   GUEST_BOOKINGS_SELECT_EMPTY,
   GUEST_BOOKINGS_TITLE,
   bookingRowActions,
+  canCreateGuestStayReservation,
   filterGuestBookings,
   guestBookingsCsv,
   paginateGuestBookings,
@@ -36,7 +37,9 @@ import {
   type GuestStay,
 } from "@/packages/pms/lib/guest-profile-wave3";
 import { getGuestBookingDetail, listGuestStays } from "@/packages/pms/lib/guests.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { RESERVATION_STATUSES, propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -66,7 +69,9 @@ export function GuestStayHistoryCard({
   const fetchStays = useServerFn(listGuestStays);
   const fetchDetail = useServerFn(getGuestBookingDetail);
   const profileActions = useOptionalGuestProfileActions();
+  const permissions = usePmsPermissions(restaurantId);
   const canPrintExport = profileActions?.canPrintExport ?? false;
+  const canOpenGuestServices = permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
   const today = propertyToday(timezone);
   const [filters, setFilters] = useState<GuestBookingFilters>({
     search: "",
@@ -150,14 +155,14 @@ export function GuestStayHistoryCard({
     );
   }
 
-  const newReservation = (
+  const newReservation = canCreateGuestStayReservation(access) ? (
     <Button asChild>
       <Link to="/restaurant/pms/reservations" search={{ create: "new", guestId }} data-testid="guest-bookings-new">
         <CalendarPlus className="mr-2 size-4" />
         New Reservation
       </Link>
     </Button>
-  );
+  ) : null;
 
   return (
     <div className="space-y-4" data-testid="guest-stay-history">
@@ -464,9 +469,11 @@ export function GuestStayHistoryCard({
                   </Link>
                 </Button>
               ) : null}
-              <Button asChild variant="outline">
-                <Link to="/restaurant/pms/guest-services">Guest Services</Link>
-              </Button>
+              {canOpenGuestServices ? (
+                <Button asChild variant="outline">
+                  <Link to="/restaurant/pms/guest-services">Guest Services</Link>
+                </Button>
+              ) : null}
               {canPrintExport ? (
                 <Button variant="outline" onClick={printHistory} data-testid="guest-bookings-print">
                   Print Stay/Booking History

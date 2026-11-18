@@ -130,6 +130,8 @@ export function GuestDetailWorkspace({
   const canManage = ownerBypass || (accessQuery.data?.canManage ?? false);
   const canEdit = ownerBypass || (accessQuery.data?.canEdit ?? false);
   const canActivate = ownerBypass || (accessQuery.data?.canActivate ?? false);
+  const canAuthorizeRestriction =
+    ownerBypass || (accessQuery.data?.canAuthorizeRestriction ?? false);
 
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, guestId],
@@ -384,13 +386,15 @@ export function GuestDetailWorkspace({
               <Row label="Set by" value={guest.restrictionSetByName} />
               <Row label="Set at" value={guest.restrictionSetAt} />
               <Row label="Until" value={guest.restrictionUntil} />
-              <Button
-                variant="outline"
-                data-testid="individual-restriction-lift"
-                onClick={() => setLiftOpen(true)}
-              >
-                Lift restriction…
-              </Button>
+              {canAuthorizeRestriction ? (
+                <Button
+                  variant="outline"
+                  data-testid="individual-restriction-lift"
+                  onClick={() => setLiftOpen(true)}
+                >
+                  Lift restriction…
+                </Button>
+              ) : null}
             </Panel>
           ) : null}
           <Panel title="Notes">
@@ -404,18 +408,23 @@ export function GuestDetailWorkspace({
             restaurantId={restaurantId}
             guestId={guestId}
             consent={guest.consent}
+            canEdit={canEdit}
             onSaved={refresh}
           />
           <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-5 py-4">
             <div>
               <p className="font-medium">VIP guest</p>
-              <p className="text-sm text-muted-foreground">Flag this guest for priority service.</p>
+              <p className="text-sm text-muted-foreground">
+                {guest.vipStatus ? "Flagged for priority service." : "Not flagged for priority service."}
+              </p>
             </div>
-            <Switch
-              checked={guest.vipStatus}
-              disabled={vipMutation.isPending}
-              onCheckedChange={(v) => vipMutation.mutate(v)}
-            />
+            {canEdit ? (
+              <Switch
+                checked={guest.vipStatus}
+                disabled={vipMutation.isPending}
+                onCheckedChange={(v) => vipMutation.mutate(v)}
+              />
+            ) : null}
           </div>
         </TabsContent>
 
@@ -429,6 +438,7 @@ export function GuestDetailWorkspace({
             guestId={guestId}
             guest={guestQuery.data.guest}
             preferences={guestQuery.data.preferences}
+            canEdit={canEdit}
             onSaved={refresh}
           />
         </TabsContent>

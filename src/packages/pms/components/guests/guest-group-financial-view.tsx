@@ -32,6 +32,8 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { getGroupFinancials } from "@/packages/pms/lib/guest-group-detail.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 export function GuestGroupFinancialView({
   restaurantId,
@@ -41,6 +43,7 @@ export function GuestGroupFinancialView({
   groupId: string;
 }) {
   const load = useServerFn(getGroupFinancials);
+  const canViewFolio = usePmsPermissions(restaurantId).can(PMS_PERMISSIONS.CASHIERING_VIEW);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
@@ -271,14 +274,20 @@ export function GuestGroupFinancialView({
                     </TableCell>
                     <TableCell>
                       {row.folioId ? (
-                        <Link
-                          to="/restaurant/pms/cashiering/folios/$folioId"
-                          params={{ folioId: row.folioId }}
-                          className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
-                        >
-                          Folio {row.folioId.slice(0, 8)}
-                          <ExternalLink className="h-3 w-3 opacity-60" />
-                        </Link>
+                        canViewFolio ? (
+                          <Link
+                            to="/restaurant/pms/cashiering/folios/$folioId"
+                            params={{ folioId: row.folioId }}
+                            className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+                          >
+                            Folio {row.folioId.slice(0, 8)}
+                            <ExternalLink className="h-3 w-3 opacity-60" />
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-xs text-muted-foreground">
+                            Folio {row.folioId.slice(0, 8)}
+                          </span>
+                        )
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}

@@ -875,6 +875,13 @@ export const getGuestsAccess = createServerFn({ method: "POST" })
       canActivate: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_ACTIVATE),
       canPrintExport: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_PRINT),
       canCreateReservation: hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_CREATE),
+      canPrivacyExport: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT),
+      canPrivacyDelete: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE),
+      canMerge: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE),
+      canAuthorizeRestriction: hasEffectivePermission(
+        resolved,
+        PMS_PERMISSIONS.GUEST_RESTRICTION_AUTHORIZE,
+      ),
       canPrivacy:
         hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT) ||
         hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE),

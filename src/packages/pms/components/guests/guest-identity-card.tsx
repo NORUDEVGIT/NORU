@@ -38,6 +38,8 @@ import {
   PREFERENCE_SETUP_HREF,
   STAFF_VERIFY_COPY,
 } from "@/packages/pms/lib/guest-profile-wave2";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   clearGuestDocumentImage,
   createGuestDocumentUpload,
@@ -188,6 +190,7 @@ export function GuestIdentityCard({
   const queryClient = useQueryClient();
   const profileActions = useOptionalGuestProfileActions();
   const canEdit = profileActions?.canEdit ?? false;
+  const canOpenSetup = usePmsPermissions(restaurantId).can(PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
   const canPrintExport = profileActions?.canPrintExport ?? false;
   const { dateTime, timezone } = useRestaurantTime();
   const today = propertyToday(timezone);
@@ -700,10 +703,15 @@ export function GuestIdentityCard({
         </div>
         {creatableTypes.length === 0 ? (
           <p className="mt-3 text-xs text-[#756A5B]">
-            {IDENTITY_DOCUMENTS_NO_ACTIVE_TYPES}{" "}
-            <a className="underline text-[#8A641A] font-medium" href={PREFERENCE_SETUP_HREF}>
-              Open Property Setup
-            </a>
+            {IDENTITY_DOCUMENTS_NO_ACTIVE_TYPES}
+            {canOpenSetup ? (
+              <>
+                {" "}
+                <a className="underline text-[#8A641A] font-medium" href={PREFERENCE_SETUP_HREF}>
+                  Open Property Setup
+                </a>
+              </>
+            ) : null}
           </p>
         ) : null}
       </section>

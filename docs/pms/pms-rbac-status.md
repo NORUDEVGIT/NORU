@@ -283,3 +283,35 @@ Printing stays available to anyone who can view the folio or invoice.
 - Some internal components still accept unused `canOperate` / `canManage` props; they no longer gate anything.
 - Legacy `requireCashier*` role helpers in `cashiering.server.ts` remain exported but are not called.
 - Pre-existing source-text test failures in the cashiering suites were not fixed (for example `DebitNoteSection`, `canManage ?`, `Issue invoice` in `guest-folio-page.tsx`, settlement `canClose: input.canManage`).
+
+## Guest Profile action gates (uncommitted, no migration)
+
+Rule: no permission hides the action; a blocking business state shows it disabled with a reason. Server writers were already exact and were not weakened. `canManage` on `getGuestsAccess` stays the view alias (`guest.profile.view`).
+
+### Client gates
+
+| Action | Permission |
+| --- | --- |
+| Add Note, Add Tax Identity, VIP switch, consent save, preference save | `guest.profile.edit` |
+| Lift restriction | `guest.restriction.authorize` |
+| Export held data | `guest.privacy.export` |
+| Anonymise | `guest.privacy.delete` |
+| Unmerge | `guest.merge.authorize` |
+| New Service Request, Start, Complete, Cancel, Assign (Guest Profile screens) | `guest.profile.edit` |
+| Print service history / guest-services print | `guest.profile.print` |
+| Company billing reservation link | `reservation.reservation.view` |
+| Company billing and group folio links | `cashiering.folio.view` (plain folio id when absent) |
+| Open Current Stay | `reservation.reservation.view` |
+| New Reservation on stay history | stay-access create grant (`reservation.reservation.create`) |
+| Guest Services links | `front_office.desk.view` |
+| Review Setup Rules, Open Property Setup, Review Property Setup | `configuration.guest_setup.view` |
+
+Guest Services has no view permission. Its module key is `front_office`, so outbound links use `front_office.desk.view`. The server still accepts `front_office.guest_service.create` for Front Office callers through `moduleOrDesk`. The Guest Profile buttons do not use that code.
+
+`GuestConsentPanel` defaults to read-only. Callers that may edit pass `canEdit`.
+
+### Left on purpose
+
+- `canPrivacy` remains the export-or-delete flag. The privacy card no longer uses it to show Export, Anonymise, and Unmerge together.
+- `resolveGuestWorkspaceAccess`, `guestStayAccessForRole`, `requireGuestManager`, and `requireGuestPrivacyOfficer` stay. They are not the live profile button gates.
+- Guest agreement owner/manager stays in Property Setup. It is not a profile-screen action.

@@ -26,7 +26,7 @@ export function GuestConsentPanel({
   guestId,
   consent,
   onSaved,
-  canEdit = true,
+  canEdit = false,
 }: {
   restaurantId: string;
   guestId: string;
