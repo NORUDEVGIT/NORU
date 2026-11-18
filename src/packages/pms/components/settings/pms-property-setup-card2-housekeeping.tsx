@@ -111,7 +111,7 @@ function RuleToggle({
 }
 
 function SectionCard({
-  number,
+  number: _number,
   title,
   description,
   action,
@@ -123,21 +123,17 @@ function SectionCard({
   action?: ReactNode;
   children: ReactNode;
 }) {
+  void _number;
   return (
-    <section className="scroll-mb-32 rounded-2xl border border-[#CCCCCC] bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-[#E6E1D8] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#C89933]/15 text-sm font-semibold text-[#7A5511]">
-            {number}
-          </span>
-          <div>
-            <h2 className="font-display text-xl text-[#251605]">{title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          </div>
+        <div className="min-w-0">
+          <h2 className="font-sans text-lg font-semibold text-[#251605]">{title}</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
         </div>
-        {action}
+        {action ? <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div> : null}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 space-y-4">{children}</div>
     </section>
   );
 }
@@ -827,13 +823,13 @@ export function PmsPropertySetupCard2Housekeeping({
 
   return (
     <div
-      className="space-y-5"
+      className="space-y-3"
       data-testid="pms-card2-housekeeping-form"
     >
       <SectionCard
         number={1}
-        title="Housekeeping Settings & Availability"
-        description="Configure property rules. Daily room work remains in the Housekeeping module."
+        title="Housekeeping Settings"
+        description="Configure property housekeeping rules. Daily room work remains in the Housekeeping module."
       >
         <div className="grid gap-3 lg:grid-cols-2">
           <RuleToggle
@@ -1472,15 +1468,9 @@ export function PmsPropertySetupCard2Housekeeping({
       </SectionCard>
 
       <div className="rounded-xl border border-[#E5DED1] bg-white px-4 py-3 text-sm text-muted-foreground">
-        Daily cleaning tasks, inspections, assignments and room
-        actions remain in{" "}
-        <a
-          className="font-medium text-[#7A5511] underline"
-          href="/restaurant/pms/housekeeping"
-        >
-          Housekeeping Operations
-        </a>
-        .
+        This screen configures housekeeping rules and statuses. Daily cleaning
+        tasks, inspections and assignments open in Housekeeping Operations after
+        the property is activated.
       </div>
 
       <Dialog

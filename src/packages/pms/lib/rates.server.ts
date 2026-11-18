@@ -7,12 +7,11 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
-import { withPmsPackage } from "./pms-package.server";
+import { withPmsLive } from "./pms-package.server";
 import {
   PAIR_WRITE_ERRORS,
   REQUIREMENT_WRITE_ERRORS,
-  pairWriteErrorMessage,
-} from "./room-requirement-rejection";
+  pairWriteErrorMessage } from "./room-requirement-rejection";
 
 export const RATE_MANAGE_ROLES = ["owner", "manager"] as const;
 
@@ -27,7 +26,7 @@ export async function requireRateManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -163,8 +162,7 @@ const RATE_ERRORS: Record<string, string> = {
   REVENUE_ANALYTICS_SALES_CHANNEL_UNSUPPORTED:
     "Sales channel analytics is not currently supported.",
   AUDIT_EXPORT_TOO_LARGE:
-    "Audit export exceeds the maximum allowed limit of 10,000 records. Filter by date or domain.",
-};
+    "Audit export exceeds the maximum allowed limit of 10,000 records. Filter by date or domain." };
 
 /** Map RAISE EXCEPTION codes from the pricing functions to user-facing text. */
 export function rateError(message: string): Error {
@@ -235,8 +233,7 @@ export function toQuote(raw: unknown): StayQuote {
     nights: Number(p.nights),
     rooms: Number(p.rooms ?? 1),
     subtotal: Number(p.subtotal),
-    nightly: (p.nightly ?? []).map((n) => ({ date: n.date, rate: Number(n.rate) })),
-  };
+    nightly: (p.nightly ?? []).map((n) => ({ date: n.date, rate: Number(n.rate) })) };
 }
 
 /** Parse a stored nightly snapshot column into typed nights. */

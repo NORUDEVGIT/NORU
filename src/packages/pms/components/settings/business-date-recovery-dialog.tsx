@@ -31,18 +31,32 @@ import { PROPERTY_BUSINESS_DATE_KEY } from "@/packages/pms/lib/use-property-busi
 export function BusinessDateRecoveryControl({
   restaurantId,
   currentBusinessDate,
+  pmsSet1Live = false,
 }: {
   restaurantId: string;
   role?: string;
   /** Stored restaurants.business_date. Null before initialization. */
   currentBusinessDate: string | null;
+  /** Recovery uses Night Audit operational access; hide until Activate. */
+  pmsSet1Live?: boolean;
 }) {
   const permissions = usePmsPermissions(restaurantId);
   const canRecover =
+    pmsSet1Live &&
     !permissions.isLoading &&
     !permissions.isError &&
     permissions.can(PMS_PERMISSIONS.NIGHT_AUDIT_RECOVER_DATE);
   const [open, setOpen] = useState(false);
+  if (!pmsSet1Live) {
+    return (
+      <p
+        className="mt-1 text-xs text-muted-foreground"
+        data-testid="card1-business-date-setup-note"
+      >
+        Business date recovery is available after this property is activated.
+      </p>
+    );
+  }
   if (!canRecover) return null;
   return (
     <>

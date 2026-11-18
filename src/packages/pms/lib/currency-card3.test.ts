@@ -111,7 +111,8 @@ describe("Card 3 Phase 1 currency readiness", () => {
       ["Overview", "Currencies", "Exchange Rates", "Financial Calendar", "Settings"],
     );
     assert.match(section, /PmsPropertySetupCard3Currency/);
-    assert.match(ui, /CARD1_HREF/);
+    assert.doesNotMatch(ui, /CARD1_HREF/);
+    assert.doesNotMatch(ui, />\s*Manage\s*</);
     assert.match(ui, /FX_DIRECTION_COPY/);
     assert.match(ui, /Card3ListSection/);
     assert.match(ui, /Save Rate/);

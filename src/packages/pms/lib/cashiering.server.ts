@@ -14,16 +14,14 @@ import {
   CASHIER_ALLOCATE_ROLES,
   CASHIER_MANAGE_ROLES,
   canAllocateAccountPayments,
-  canManageCashiering,
-} from "@/core/lib/cashiering-roles";
-import { withPmsPackage } from "./pms-package.server";
+  canManageCashiering } from "@/core/lib/cashiering-roles";
+import { withPmsLive } from "./pms-package.server";
 
 export {
   CASHIER_ALLOCATE_ROLES,
   CASHIER_MANAGE_ROLES,
   canAllocateAccountPayments,
-  canManageCashiering,
-};
+  canManageCashiering };
 
 /** Roles that may open Accounting & Finance and run day-to-day cashiering. */
 export const CASHIER_ACCESS_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
@@ -64,7 +62,7 @@ export async function requireCashieringAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(context, restaurantId, "accounting_finance", CASHIER_ACCESS_ROLES, NO_ACCESS),
   );
@@ -75,7 +73,7 @@ export async function requireCashierOperator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -92,7 +90,7 @@ export async function requireCashierAllocator(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -137,8 +135,7 @@ export async function cashieringPermissionFlags(context: AuthedCtx, restaurantId
     writeOff: has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF),
     close: has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE),
     createInvoice: has(PMS_PERMISSIONS.CASHIERING_INVOICE_EDIT),
-    authorizeInvoice: has(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE),
-  };
+    authorizeInvoice: has(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE) };
 }
 
 /** Sensitive corrections and night audit: owner/manager only. */
@@ -146,7 +143,7 @@ export async function requireCashierManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -295,8 +292,7 @@ const CASHIER_ERRORS: Record<string, string> = {
   BILLING_DEPARTMENT_REQUIRED: "That guest service needs one billing department.",
   BILLING_DEPARTMENT_AMBIGUOUS: "That guest service has more than one billing department.",
   INVALID_QUANTITY: "Quantity must be a whole number from 1 to 99.",
-  INVALID_NATURE_OF_SUPPLIES: "Choose goods or service for this manual charge.",
-};
+  INVALID_NATURE_OF_SUPPLIES: "Choose goods or service for this manual charge." };
 
 /** Map RAISE EXCEPTION codes from the cashiering functions to user-facing text. */
 export function cashierError(message: string): Error {
@@ -439,8 +435,7 @@ export async function callPostFolioTransaction(input: {
     _idempotency_key: assertIdempotencyKey(input.idempotencyKey),
     ...(input.originalTransactionId
       ? { _original_transaction_id: input.originalTransactionId }
-      : {}),
-  });
+      : {}) });
   if (error) throw cashierError(error.message);
   return { id: (data as { id: string }).id };
 }

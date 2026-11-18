@@ -10,6 +10,7 @@ import {
   evaluatePaymentsCard3Readiness,
   type PaymentsCard3Snapshot,
 } from "./payments-card3.server.ts";
+import { suggestPaymentMethodCode } from "./payments-card3-code.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fns = readFileSync(new URL("./payments-card3.functions.ts", import.meta.url), "utf8");
@@ -22,12 +23,14 @@ const ui = readFileSync(
   new URL("../components/settings/pms-property-setup-card3-payments.tsx", import.meta.url),
   "utf8",
 );
+const card3 = readFileSync(new URL("./pms-property-setup-card3.ts", import.meta.url), "utf8");
 
 function snapshot(partial?: Partial<PaymentsCard3Snapshot>): PaymentsCard3Snapshot {
   return {
     currencyCode: "ETB",
     paymentMethods: [],
     depositPolicies: [],
+    paymentIntegrations: [],
     ...partial,
   };
 }
@@ -40,53 +43,27 @@ const activeMethod = {
   typeClassLabel: "Cash",
   notes: "",
   active: true,
+  processingMode: "manual" as const,
+  providerIntegrationId: null,
+  providerLabel: "—",
 };
 
-const defaultPolicy = {
-  id: "dp1",
-  code: "STD",
-  name: "Standard deposit",
-  description: "One night",
-  required: true,
-  depositType: "first_night" as const,
-  depositTypeLabel: "First night",
-  depositValue: 0,
-  isDefault: true,
-  active: true,
-};
-
-describe("Card 3 Phase 5 payments and deposits", () => {
-  it("uses only not_started, in_progress, and complete for this domain", () => {
+describe("Card 3 Phase 5 payments", () => {
+  it("completes from active payment methods without deposit policies on this page", () => {
     const empty = evaluatePaymentsCard3Readiness(snapshot());
     assert.equal(empty.status, "not_started");
     assert.equal(empty.ready, false);
 
-    const started = evaluatePaymentsCard3Readiness(snapshot({ paymentMethods: [activeMethod] }));
-    assert.equal(started.status, "in_progress");
-    assert.equal(started.ready, false);
-
-    const noDefault = evaluatePaymentsCard3Readiness(
-      snapshot({
-        paymentMethods: [activeMethod],
-        depositPolicies: [{ ...defaultPolicy, isDefault: false }],
-      }),
-    );
-    assert.equal(noDefault.status, "in_progress");
-
-    const complete = evaluatePaymentsCard3Readiness(
-      snapshot({
-        paymentMethods: [activeMethod],
-        depositPolicies: [defaultPolicy],
-      }),
-    );
+    const complete = evaluatePaymentsCard3Readiness(snapshot({ paymentMethods: [activeMethod] }));
     assert.equal(complete.status, "complete");
     assert.equal(complete.ready, true);
+    assert.equal(complete.blockers.length, 0);
   });
 
-  it("exposes exactly the three Phase 5 tabs and the isolated API files", () => {
+  it("exposes Payments tabs without Deposit Policies and keeps isolated API files", () => {
     assert.deepEqual(
       CARD3_PAYMENTS_TABS.map((tab) => tab.label),
-      ["Overview", "Payment Methods", "Deposit Policies"],
+      ["Overview", "Payment Methods"],
     );
     assert.equal(existsSync(join(here, "payments-card3.server.ts")), true);
     assert.equal(existsSync(join(here, "payments-card3.functions.ts")), true);
@@ -95,37 +72,39 @@ describe("Card 3 Phase 5 payments and deposits", () => {
     assert.match(fns, /export const saveDepositPolicyCard3/);
   });
 
-  it("wires the Phase 5 workspace, inherited currency, editing, search, audit, and loading state", () => {
+  it("wires the Payments workspace with auto code, rectangular fields, and no deposit section", () => {
     assert.match(section, /getPaymentsCard3/);
     assert.match(section, /PmsPropertySetupCard3Payments/);
     assert.match(section, /domain\?\.id === "payments-deposits"/);
-    assert.match(section, /paymentsQuery\.isLoading/);
-    assert.match(section, /currencyStatus/);
-    assert.match(section, /taxesStatus/);
-    assert.match(section, /mealsStatus/);
-    assert.match(section, /paymentsStatus/);
-    assert.match(section, /Loading configuration readiness/);
     assert.match(ui, /PmsPropertySetupCard3Workspace/);
     assert.match(ui, /CARD3_PAYMENTS_TABS/);
-    assert.doesNotMatch(ui, /onAuditHistory/);
     assert.match(ui, /Card3ListSection/);
     assert.match(ui, /Card3OverlapSheet/);
     assert.match(ui, /Search payment methods/);
-    assert.match(ui, /Search deposit policies/);
-    assert.match(ui, /SET1 restaurants\.deposit_\* columns are not written\s+here/);
-    assert.match(ui, /no reservation or folio\s+operational changes/);
-    assert.match(ui, /savePaymentMethodCard3/);
-    assert.match(ui, /saveDepositPolicyCard3/);
-    assert.match(ui, /focus-visible:ring-\[#C89933\]/);
+    assert.match(ui, /suggestPaymentMethodCode/);
+    assert.match(ui, /payment-code-auto/);
+    assert.match(ui, /No payment provider is connected yet/);
+    assert.match(ui, /Manage integrations/);
+    assert.match(ui, /CARD6_HREF/);
+    assert.match(ui, /PAY_FIELD_CLASS/);
+    assert.match(ui, /"Name", "Code", "Type", "Processing", "Provider", "Status"/);
+    assert.doesNotMatch(ui, /title="Deposit policies"/);
+    assert.doesNotMatch(ui, /addLabel="Add deposit policy"/);
+    assert.doesNotMatch(ui, /Search deposit policies/);
+    assert.match(ui, /export function DepositPolicySheet/);
+    assert.match(card3, /title: "Payments"/);
+    assert.doesNotMatch(card3, /Payments & Deposits/);
   });
 
-  it("requires member reads, manager writes, shared audit, and migration fail-soft", () => {
-    assert.match(fns, /requireFrontOfficeAccess/);
-    assert.ok((fns.match(/requireRoomManager/g) ?? []).length >= 2);
+  it("requires financial configure writes, immutable codes, shared audit, and migration fail-soft", () => {
+    assert.match(fns, /requirePmsSetupActor/);
+    assert.match(fns, /CONFIG_FINANCIAL_CONFIGURE/);
     assert.match(fns, /restaurant_staff_audit_log/);
     assert.equal(CARD3_PAYMENTS_AUDIT_SECTION, "card3-payments");
     assert.match(fns, /card3_payment_method_saved/);
     assert.match(fns, /card3_deposit_policy_saved/);
+    assert.match(fns, /Code cannot be changed after it is saved/);
+    assert.match(fns, /category", "payments"/);
     assert.match(fns, /42P01/);
     assert.match(fns, /42703/);
     assert.match(fns, /PGRST205/);
@@ -135,14 +114,14 @@ describe("Card 3 Phase 5 payments and deposits", () => {
     assert.doesNotMatch(fns, /Database\[/);
   });
 
-  it("reuses tenders and writes deposit policies without SET1 or operational engines", () => {
+  it("reuses tenders and keeps deposit policy API for Rate Plan without operational engines", () => {
     assert.match(fns, /from\("pms_payment_methods"\)/);
     assert.match(fns, /from\("pms_deposit_policies"\)/);
     assert.match(fns, /currency_code/);
     assert.match(fns, /is_default: false/);
     assert.doesNotMatch(fns, /deposit_required/);
     assert.doesNotMatch(fns, /folio_transactions|post_folio_transaction|fo_checkin_progress/);
-    assert.doesNotMatch(fns, /pms_integrations|hotel_reservations|guarantee_method/);
+    assert.doesNotMatch(fns, /hotel_reservations|guarantee_method/);
     assert.doesNotMatch(fns, /pms_property_setup_status|programme/);
     assert.doesNotMatch(fns, /from\("restaurants"\)\.(?:insert|update|delete)/);
   });
@@ -169,5 +148,12 @@ describe("Card 3 Phase 5 payments and deposits", () => {
     assert.doesNotMatch(sql, /INSERT INTO public\.pms_payment_methods/);
     assert.doesNotMatch(sql, /ALTER TABLE public\.restaurants/);
     assert.doesNotMatch(sql, /\breservation_id\b|\bfolio_id\b/);
+  });
+
+  it("generates underscore payment codes from names", () => {
+    assert.equal(suggestPaymentMethodCode("Cash"), "CASH");
+    assert.equal(suggestPaymentMethodCode("Bank Transfer"), "BANK_TRANSFER");
+    assert.equal(suggestPaymentMethodCode("CBE Birr"), "CBE_BIRR");
+    assert.equal(suggestPaymentMethodCode("Front Desk Card"), "FRONT_DESK_CARD");
   });
 });

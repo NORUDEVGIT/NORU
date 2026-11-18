@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Check } from "lucide-react";
 
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
@@ -21,13 +22,22 @@ export function PropertySetupStepNav({
   onSelect: (id: string) => void;
   marked?: boolean;
 }) {
+  const markedColumns = Math.max(steps.length, 1);
+
   return (
     <ol
       className={cn(
         marked
-          ? "flex w-full min-w-0 gap-1.5 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[-ms-overflow-style:none] max-lg:[&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-x-hidden lg:[grid-template-columns:repeat(5,minmax(0,1fr))]"
+          ? "flex w-full min-w-0 gap-1.5 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[-ms-overflow-style:none] max-lg:[&::-webkit-scrollbar]:hidden lg:grid lg:overflow-x-hidden"
           : "flex w-full gap-1 overflow-x-auto pb-0.5",
       )}
+      style={
+        marked
+          ? ({
+              gridTemplateColumns: `repeat(${markedColumns}, minmax(0, 1fr))`,
+            } as CSSProperties)
+          : undefined
+      }
       data-testid="property-setup-step-nav"
     >
       {steps.map((row) => {

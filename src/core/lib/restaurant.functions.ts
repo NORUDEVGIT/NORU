@@ -5,6 +5,7 @@ import { deriveStatus } from "./restaurant-status";
 import {
   DEFAULT_CURRENCY,
   DEFAULT_TIMEZONE,
+  currencyForCountry,
   isValidTimeZone,
   timezoneForCountry,
 } from "@/shared/lib/property-time";
@@ -73,7 +74,7 @@ export const registerRestaurant = createServerFn({ method: "POST" })
       return {
         ok: false as const,
         message: /already|registered|exists/i.test(signUpError.message)
-          ? "An account with that email already exists. Log in to add a restaurant."
+          ? "An account with that email already exists. Log in to add a property."
           : /password/i.test(signUpError.message)
             ? "Please choose a stronger password."
             : "We couldn't create your account. Please try again.",
@@ -85,7 +86,7 @@ export const registerRestaurant = createServerFn({ method: "POST" })
     if (!user || (Array.isArray(user.identities) && user.identities.length === 0)) {
       return {
         ok: false as const,
-        message: "An account with that email already exists. Log in to add a restaurant.",
+        message: "An account with that email already exists. Log in to add a property.",
       };
     }
 
@@ -123,6 +124,7 @@ export const registerRestaurant = createServerFn({ method: "POST" })
             postcode: data.postcode?.trim() || null,
             country: data.country,
             timezone: timezoneForCountry(data.country),
+            currency_code: currencyForCountry(data.country),
             active: true,
             approved: false,
           })
@@ -167,7 +169,7 @@ export const registerRestaurant = createServerFn({ method: "POST" })
       await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => undefined);
       return {
         ok: false as const,
-        message: "We couldn't finish setting up your restaurant. Nothing was saved — please try again.",
+        message: "We couldn't finish setting up your property. Nothing was saved — please try again.",
       };
     }
   });
@@ -193,6 +195,12 @@ export interface RestaurantMembership {
     status: "pending" | "approved" | "suspended" | "rejected";
     rejectionReason: string | null;
     suspensionReason: string | null;
+    /** Registration time, when the property row exposes it. */
+    createdAt?: string | null;
+    /** Set when NORU approves the property, when that column is present. */
+    approvedAt?: string | null;
+    /** Owner Activate flag. This is the go-live switch; setup-card status is not. */
+    pmsSet1Live: boolean;
   };
 }
 
@@ -224,18 +232,33 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
     // email/phone are private contact columns: not readable by the anon or
     // authenticated roles at all. They are re-read with the privileged client
     // only for restaurants this user is already a verified member of.
-    const contacts = new Map<string, { email: string | null; phone: string | null }>();
+    const contacts = new Map<
+      string,
+      {
+        email: string | null;
+        phone: string | null;
+        createdAt: string | null;
+        approvedAt: string | null;
+        pmsSet1Live: boolean;
+      }
+    >();
     if (rows.length > 0) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: contactRows } = await supabaseAdmin
         .from("restaurants")
-        .select("id, email, phone")
+        .select("id, email, phone, created_at, approved_at, pms_set1_live")
         .in(
           "id",
           rows.map((row) => row.restaurant_id),
         );
       for (const c of contactRows ?? []) {
-        contacts.set(c.id, { email: c.email, phone: c.phone });
+        contacts.set(c.id, {
+          email: c.email,
+          phone: c.phone,
+          createdAt: c.created_at,
+          approvedAt: c.approved_at,
+          pmsSet1Live: c.pms_set1_live === true,
+        });
       }
     }
 
@@ -264,6 +287,9 @@ export const getMyRestaurants = createServerFn({ method: "GET" })
             status: deriveStatus(r.approved, r.active),
             rejectionReason: r.rejection_reason,
             suspensionReason: r.suspension_reason,
+            createdAt: contact?.createdAt ?? null,
+            approvedAt: contact?.approvedAt ?? null,
+            pmsSet1Live: contact?.pmsSet1Live === true,
           },
         };
       });

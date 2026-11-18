@@ -4,7 +4,7 @@
  * Profile consent and email signatures are not this record.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
@@ -217,7 +217,7 @@ export const publishCheckInAgreementVersion = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(
+    const me = await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_GUEST_SETUP_CONFIGURE,

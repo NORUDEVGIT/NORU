@@ -32,6 +32,40 @@ export async function requirePmsPackage(restaurantId: string): Promise<void> {
   if (!(await pmsAvailable(restaurantId))) throw new Error(PMS_DENIED);
 }
 
+/** Staff wording when an approved property has not been activated yet. */
+export const PMS_NOT_LIVE = "Operations open after this property is activated in Settings.";
+
+/** Fail-closed read of the single go-live flag written by Activate. */
+export async function pmsPropertyLive(restaurantId: string): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("restaurants")
+    .select("pms_set1_live")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  if (error) {
+    console.error("[pmsPropertyLive]", error.message);
+    return false;
+  }
+  return data?.pms_set1_live === true;
+}
+
+/**
+ * Operational gate: approval and package (via `requirePmsPackage`), then go-live.
+ * Settings / setup APIs must not call this; they stay on `requirePmsPackage`.
+ */
+export async function requirePmsLive(restaurantId: string): Promise<void> {
+  await requirePmsPackage(restaurantId);
+  if (!(await pmsPropertyLive(restaurantId))) throw new Error(PMS_NOT_LIVE);
+}
+
+/** `withPmsPackage` for operational guards: membership/role first, then live. */
+export async function withPmsLive<T>(restaurantId: string, guarded: Promise<T>): Promise<T> {
+  const result = await guarded;
+  await requirePmsLive(restaurantId);
+  return result;
+}
+
 /**
  * Public (unauthenticated) gate. The property must already have been resolved
  * safely from its slug or reference.

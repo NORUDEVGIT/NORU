@@ -1,22 +1,27 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { suggestRatePlanCode } from "./rates-card2-code.ts";
+import {
+  isValidRatePlanCode,
+  suggestRatePlanCode,
+} from "./rates-card2-code.ts";
 
 describe("suggestRatePlanCode", () => {
-  it("maps known rate plan phrases to standard codes", () => {
-    assert.equal(suggestRatePlanCode("Best Available Rate"), "BAR");
-    assert.equal(suggestRatePlanCode("Standard Rate"), "STD-RATE");
-    assert.equal(suggestRatePlanCode("Non-Refundable"), "NON-REF");
-    assert.equal(suggestRatePlanCode("Bed and Breakfast"), "BB");
+  it("builds codes from category + room type with underscores", () => {
+    assert.equal(suggestRatePlanCode("BAR", "Standard King Room"), "BAR_STD_KING");
+    assert.equal(suggestRatePlanCode("CORPORATE", "Deluxe Twin Room"), "CORPORATE_DLX_TWIN");
+    assert.equal(suggestRatePlanCode("PROMOTIONAL", "Junior Suite"), "PROMO_JR_SUITE");
   });
 
-  it("converts unknown words to uppercase abbreviation", () => {
-    assert.equal(suggestRatePlanCode("Summer Promo"), "SUM-PROMO");
-    assert.equal(suggestRatePlanCode("Corporate Special"), "CORP-SPE");
+  it("never emits hyphens and stays within 30 chars", () => {
+    const code = suggestRatePlanCode("BAR", "Standard King Room");
+    assert.equal(code.includes("-"), false);
+    assert.ok(code.length <= 30);
+    assert.ok(isValidRatePlanCode(code));
   });
 
-  it("handles empty or blank string gracefully", () => {
-    assert.equal(suggestRatePlanCode(""), "");
-    assert.equal(suggestRatePlanCode("   "), "");
+  it("handles empty inputs gracefully", () => {
+    assert.equal(suggestRatePlanCode("", ""), "");
+    assert.equal(suggestRatePlanCode("BAR", ""), "BAR");
+    assert.equal(suggestRatePlanCode("", "Standard King Room"), "STD_KING");
   });
 });

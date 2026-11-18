@@ -7,8 +7,8 @@ export const PACKAGE_INCLUSION_TYPES = ["included", "optional"] as const;
 export type PackageInclusionType = (typeof PACKAGE_INCLUSION_TYPES)[number];
 
 export const PACKAGE_INCLUSION_TYPE_LABELS: Record<PackageInclusionType, string> = {
-  included: "Included in rate",
-  optional: "Optional add-on",
+  included: "Included in Rate",
+  optional: "Optional Add-on",
 };
 
 export type RatePlanPackageComponent = {

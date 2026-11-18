@@ -6,24 +6,26 @@
  * columns never crash the hub. Completing Card 1 never flips pms_set1_live.
  * Audit insert failure does not roll back the save.
  */
-import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
+import { hasEffectivePermission, resolveEffectivePermissions, requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/shared/lib/property-time";
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_TIMEZONE,
+  suggestedPropertyLocale,
+} from "@/shared/lib/property-time";
 import type { Database, Json } from "@/integrations/supabase/types";
 import {
   countryCodeFromInput,
   isValidLatitude,
-  isValidLongitude,
-} from "./pms-geography";
+  isValidLongitude } from "./pms-geography";
 import { nightAuditWindowConfigProblem } from "./night-audit-window";
 import {
 isMissingColumnError,
   normalizeClock,
   optionalNumber } from "./pms-set1-foundation";
-import { persistCard2RoomTypesReadiness } from "./rooms.functions";
 import { loadSet2Snapshot } from "./pms-set2-structure.functions";
 import type { Set2Snapshot } from "./pms-set2-structure";
 import {
@@ -146,8 +148,7 @@ const draftSchema = z.object({
     chainProperty: z.boolean(),
     independentProperty: z.boolean().optional(),
     displayPublicly: z.boolean().optional(),
-    timeFormat: z.enum(["12h", "24h"]).optional(),
-  }),
+    timeFormat: z.enum(["12h", "24h"]).optional() }),
   brandName: z.string().trim().max(160).optional().nullable(),
   brandCode: z.string().trim().max(40).optional().nullable(),
   chainName: z.string().trim().max(160).optional().nullable(),
@@ -168,8 +169,7 @@ const draftSchema = z.object({
     .optional()
     .nullable()
     .refine((val) => isValidLatitude(val), {
-      message: "Latitude must be between -90 and 90.",
-    }),
+      message: "Latitude must be between -90 and 90." }),
   longitude: z
     .string()
     .trim()
@@ -177,8 +177,7 @@ const draftSchema = z.object({
     .optional()
     .nullable()
     .refine((val) => isValidLongitude(val), {
-      message: "Longitude must be between -180 and 180.",
-    }),
+      message: "Longitude must be between -180 and 180." }),
   locationExtras: z.object({
     googleMapsLink: z.string().trim().max(300),
     nearbyLandmark: z.string().trim().max(200),
@@ -315,8 +314,7 @@ function localTime(timezone: string, timeFormat: Card1TimeFormat = "24h"): strin
       timeZone: timezone,
       hour: timeFormat === "12h" ? "numeric" : "2-digit",
       minute: "2-digit",
-      hour12: timeFormat === "12h",
-    }).format(new Date());
+      hour12: timeFormat === "12h" }).format(new Date());
   } catch {
     return new Date().toISOString().slice(11, 16);
   }
@@ -525,8 +523,7 @@ async function withFunctionalHardening(
     id: row.id,
     name: row.name,
     active: row.active !== false,
-    code: row.code ?? null,
-  }));
+    code: row.code ?? null }));
 
   const contactTable = "pms_property_department_contacts" as keyof Database["public"]["Tables"];
   const areaTable = "pms_property_areas" as keyof Database["public"]["Tables"];
@@ -679,6 +676,24 @@ async function loadRestaurantRow(
     foundationColumnsAvailable: false };
 }
 
+/**
+ * Until Property & Business has been saved once, the registration country
+ * suggests timezone and currency in place of the column defaults. Only the
+ * editor draft changes; nothing is written until the owner saves.
+ */
+function withRegistrationLocaleSuggestion(snapshot: Card1Snapshot): void {
+  const status = snapshot.status;
+  const neverSaved =
+    Object.keys(status.card1Steps).length === 0 && status.cards["property-business"] == null;
+  if (!neverSaved) return;
+  const suggested = suggestedPropertyLocale({
+    country: snapshot.draft.country,
+    timezone: snapshot.draft.timezone,
+    currencyCode: snapshot.draft.currencyCode });
+  snapshot.draft.timezone = suggested.timezone;
+  snapshot.draft.currencyCode = suggested.currencyCode;
+}
+
 /** Read-only Card 1 source loader for Card 8 System Validation. */
 export async function loadCard1ValidationSnapshot(
   supabaseAdmin: Admin,
@@ -783,8 +798,7 @@ function draftFromSave(data: z.infer<typeof draftSchema>, propertyCode: string):
     timeFormat,
     identityToggles: {
       ...data.identityToggles,
-      timeFormat,
-    },
+      timeFormat },
     propertyCode,
     tradingName: data.tradingName ?? "",
     propertyType: data.propertyType ?? "",
@@ -855,8 +869,7 @@ function card1Patch(
     short_description: draft.shortDescription.trim() || null,
     identity_toggles: {
       ...draft.identityToggles,
-      timeFormat: draft.timeFormat,
-    } as unknown as Json,
+      timeFormat: draft.timeFormat } as unknown as Json,
     brand_name: draft.brandName.trim() || null,
     brand_code: draft.brandCode.trim() || null,
     chain_name: draft.chainName.trim() || null,
@@ -931,7 +944,7 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
+    const me = await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
     const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
     const canEdit = hasEffectivePermission(resolved, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -952,15 +965,7 @@ export const getPmsPropertySetupCard1 = createServerFn({ method: "POST" })
         ),
       ),
     );
-    if (canEdit && loaded.card1ColumnsAvailable) {
-      await persistCard2RoomTypesReadiness(supabaseAdmin, data.restaurantId);
-      const { data: refreshed } = await supabaseAdmin
-        .from("restaurants")
-        .select("pms_property_setup_status")
-        .eq("id", data.restaurantId)
-        .maybeSingle();
-      snapshot.status = parsePropertySetupStatus(refreshed?.pms_property_setup_status);
-    }
+    withRegistrationLocaleSuggestion(snapshot);
     return {
       snapshot,
       set2,
@@ -972,7 +977,7 @@ export const savePmsPropertySetupCard1 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadRestaurantRow(supabaseAdmin, data.restaurantId);
@@ -1129,7 +1134,7 @@ export const createPropertyBrandImageUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const ext = IMAGE_EXT_BY_TYPE[data.contentType];
     if (!ext)
       return { ok: false as const, message: "Only PNG, JPG, JPEG and WEBP images are allowed." };
@@ -1171,7 +1176,7 @@ export const createPropertyComplianceDocumentUpload = createServerFn({ method: "
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const ext = COMPLIANCE_EXTENSIONS[data.contentType];
     const path = `${data.restaurantId}/compliance/${data.kind}-${crypto.randomUUID()}.${ext}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -1192,7 +1197,7 @@ export const deletePropertyComplianceDocument = createServerFn({ method: "POST" 
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     if (!data.storagePath.startsWith(`${data.restaurantId}/compliance/`)) {
       throw new Error("Document path does not belong to this property.");
     }
@@ -1214,7 +1219,7 @@ export const saveCard1PropertyArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => propertyAreaSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const table = "pms_property_areas" as keyof Database["public"]["Tables"];
     const payload = {
@@ -1259,7 +1264,7 @@ export const deleteCard1PropertyArea = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema, id: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const table = "pms_property_areas" as keyof Database["public"]["Tables"];
     const before = await supabaseAdmin
@@ -1328,12 +1333,11 @@ export const createCard1Department = createServerFn({ method: "POST" })
       .object({
         restaurantId: idSchema,
         name: z.string().trim().min(1).max(80),
-        code: z.string().trim().max(20).optional().nullable(),
-      })
+        code: z.string().trim().max(20).optional().nullable() })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: existing, error: fetchErr } = await supabaseAdmin
@@ -1356,8 +1360,7 @@ export const createCard1Department = createServerFn({ method: "POST" })
         name: data.name.trim(),
         code: finalCode,
         active: true,
-        department_type: "operations",
-      })
+        department_type: "operations" })
       .select("id, name, code, active")
       .single();
 
@@ -1378,8 +1381,7 @@ export const createCard1Department = createServerFn({ method: "POST" })
       id: row.id,
       name: row.name,
       active: row.active !== false,
-      code: (row as { code?: string | null }).code ?? null,
-    }));
+      code: (row as { code?: string | null }).code ?? null }));
 
     await writeAudit(supabaseAdmin, {
       restaurantId: data.restaurantId,
@@ -1387,21 +1389,19 @@ export const createCard1Department = createServerFn({ method: "POST" })
       action: CARD1_AUDIT_DRAFT,
       section: "create-department",
       before: null,
-      after: insertResult.data,
-    });
+      after: insertResult.data });
 
     return {
       ok: true as const,
       created: insertResult.data as { id: string; name: string; code: string; active: boolean },
-      departmentOptions,
-    };
+      departmentOptions };
   });
 
 export const seedCard1StandardDepartments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: existing, error: fetchErr } = await supabaseAdmin
@@ -1423,8 +1423,7 @@ export const seedCard1StandardDepartments = createServerFn({ method: "POST" })
         code: dept.code,
         name: dept.name,
         active: true,
-        department_type: dept.department_type,
-      }));
+        department_type: dept.department_type }));
 
       const { error: insertErr } = await supabaseAdmin
         .from("pms_departments")
@@ -1442,8 +1441,7 @@ export const seedCard1StandardDepartments = createServerFn({ method: "POST" })
       id: row.id,
       name: row.name,
       active: row.active !== false,
-      code: (row as { code?: string | null }).code ?? null,
-    }));
+      code: (row as { code?: string | null }).code ?? null }));
 
     await writeAudit(supabaseAdmin, {
       restaurantId: data.restaurantId,
@@ -1451,14 +1449,12 @@ export const seedCard1StandardDepartments = createServerFn({ method: "POST" })
       action: CARD1_AUDIT_DRAFT,
       section: "seed-departments",
       before: null,
-      after: { seededCount: missing.length },
-    });
+      after: { seededCount: missing.length } });
 
     return {
       ok: true as const,
       seededCount: missing.length,
-      departmentOptions,
-    };
+      departmentOptions };
   });
 
 export type { Card1Snapshot };

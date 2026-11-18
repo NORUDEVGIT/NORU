@@ -7,14 +7,13 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
-import { withPmsPackage } from "./pms-package.server";
+import { withPmsLive } from "./pms-package.server";
 import type { GuestAccountEventType } from "./guest-profile-wave4";
 import { GUEST_PRIVACY_ROLES } from "./guest-profile-wave5";
 import {
   canTransitionGuestService,
   isGuestServiceStatus,
-  type GuestServiceStatus,
-} from "./guest-services-workspace";
+  type GuestServiceStatus } from "./guest-services-workspace";
 
 export const GUEST_MANAGE_ROLES = ["owner", "manager", "receptionist"] as const;
 
@@ -102,8 +101,7 @@ export const GUEST_IMAGE_EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
-  "application/pdf": "pdf",
-};
+  "application/pdf": "pdf" };
 
 /** Storage object path inside this property's guest namespace. */
 export function guestDocumentPath(restaurantId: string, guestId: string, ext: string): string {
@@ -127,7 +125,7 @@ export async function requireGuestManager(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(
       context,
@@ -191,8 +189,7 @@ export async function recordGuestAccountEvent(entry: {
     previous_values: (entry.previousValues ?? null) as never,
     new_values: (entry.newValues ?? null) as never,
     notes: entry.notes ?? null,
-    actor_membership_id: entry.actorMembershipId,
-  });
+    actor_membership_id: entry.actorMembershipId });
 }
 
 /** Append-only history row. Written with the service role: the table has no INSERT policy. */
@@ -213,8 +210,7 @@ export async function recordGuestEvent(entry: {
     previous_values: (entry.previousValues ?? null) as never,
     new_values: (entry.newValues ?? null) as never,
     notes: entry.notes ?? null,
-    actor_membership_id: entry.actorMembershipId,
-  });
+    actor_membership_id: entry.actorMembershipId });
 }
 
 /** Canonical guest_service_history status/assign/notes write. Callers must already authorize. */
@@ -281,11 +277,9 @@ export async function applyGuestServiceRequestUpdate(params: {
       eventType: "service_request_updated",
       previousValues: {
         status: current.status,
-        assigned_membership_id: current.assigned_membership_id,
-      },
+        assigned_membership_id: current.assigned_membership_id },
       newValues: patch,
-      actorMembershipId: params.actorMembershipId,
-    });
+      actorMembershipId: params.actorMembershipId });
   } catch {
     /* History event types land with 0089; the request row is the source of truth. */
   }

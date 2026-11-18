@@ -8,7 +8,12 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { assertIdempotencyKey } from "../cashiering.server";
-import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "../pms-permissions.server";
+import {
+  hasEffectivePermission,
+  requirePmsActor,
+  resolveEffectivePermissions,
+  requirePmsSetupActor,
+} from "../pms-permissions.server";
 import { PMS_PERMISSIONS } from "../pms-permissions";
 import { loadFiscalRegistrationExchange } from "./fiscal-exchange.server.ts";
 import { fiscalInvoiceListStatus } from "./fiscal-invoice-list-status.ts";
@@ -263,7 +268,7 @@ export const getFiscalIntegrationStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     const db = await admin();
     const [row, property] = await Promise.all([
       loadFiscalRow(db, data.restaurantId),
@@ -409,7 +414,7 @@ export const saveFiscalIntegrationConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => connectionSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const config = normalizeFiscalConnection(data);
       const db = await admin();
@@ -476,7 +481,7 @@ export const saveFiscalCredentials = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const db = await admin();
       const row = await requireFiscalRow(db, data.restaurantId);
@@ -508,7 +513,7 @@ export const getFiscalCredentialStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW);
     const db = await admin();
     const row = await loadFiscalRow(db, data.restaurantId);
     return { configured: row ? await hasFiscalCredentials(db, row.id) : false };
@@ -518,7 +523,7 @@ export const testFiscalConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     const db = await admin();
     const row = await loadFiscalRow(db, data.restaurantId);
     if (!row) throw new Error(FISCAL_SAFE_MESSAGES.FISCAL_CONFIG_MISSING);
@@ -629,7 +634,7 @@ export const saveFiscalTaxMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const code = providerTaxCode(
         requireExternalCode(data.externalTaxCode, "External tax code"),
@@ -794,7 +799,7 @@ export const saveFiscalItemMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const chosen = [
         data.serviceTypeId,
@@ -883,7 +888,7 @@ export const ensureFiscalItemMappings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }): Promise<{ created: number; pendingConnection: boolean }> => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE,
@@ -963,7 +968,7 @@ export const saveFiscalModeMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const db = await admin();
       const row = await requireFiscalRow(db, data.restaurantId);
@@ -1006,7 +1011,7 @@ export const saveFiscalBuyerCodeMapping = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_INTEGRATION_CONFIGURE);
     try {
       const internalValue = requireExternalCode(data.internalValue, "Internal value");
       const db = await admin();

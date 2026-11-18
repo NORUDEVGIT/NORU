@@ -45,7 +45,7 @@ describe("Rate & Revenue permission hotfix — trusted reads", () => {
     );
     assert.match(requireFn, /requireModuleRole/);
     assert.match(requireFn, /RATE_MANAGE_ROLES/);
-    assert.match(requireFn, /withPmsPackage/);
+    assert.match(requireFn, /withPmsLive/);
   });
 
   it("C. foreign restaurantId is rejected", () => {

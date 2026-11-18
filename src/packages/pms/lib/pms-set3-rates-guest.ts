@@ -77,7 +77,7 @@ export type TaxPosture = (typeof TAX_POSTURES)[number];
 export const TAX_POSTURE_LABELS: Record<TaxPosture, string> = {
   inclusive: "Inclusive",
   exclusive: "Exclusive",
-  inherit: "Inherit property tax",
+  inherit: "Use property tax settings",
 };
 
 export type PmsMealPlan = {

@@ -5,7 +5,7 @@
  */
 import type { AuthedCtx, Membership } from "@/core/lib/workforce.server";
 import { callerMembership } from "@/core/lib/workforce.server";
-import { requirePmsPackage } from "./pms-package.server";
+import { PMS_NOT_LIVE, pmsPropertyLive, requirePmsPackage } from "./pms-package.server";
 import {
   PMS_PERMISSION_CROSS_TENANT,
   PMS_PERMISSION_DENIED,
@@ -14,8 +14,7 @@ import {
   isPmsPermissionCode,
   normalizePermissionCodes,
   PMS_PERMISSIONS,
-  type PmsPermissionCode,
-} from "./pms-permissions";
+  type PmsPermissionCode } from "./pms-permissions";
 
 export type EffectivePmsPermissions = {
   membershipId: string;
@@ -192,8 +191,7 @@ export async function listPermissionGrantSources(
     if (!code || !isPmsPermissionCode(code)) continue;
     const current = granted.get(code) ?? {
       roleIds: new Set<string>(),
-      roleNames: new Set<string>(),
-    };
+      roleNames: new Set<string>() };
     current.roleIds.add(row.role_id);
     const name = roleName.get(row.role_id);
     if (name) current.roleNames.add(name);
@@ -202,8 +200,7 @@ export async function listPermissionGrantSources(
   return [...granted.entries()].map(([code, value]) => ({
     code,
     roleIds: [...value.roleIds],
-    roleNames: [...value.roleNames],
-  }));
+    roleNames: [...value.roleNames] }));
 }
 
 export function permissionsFromMembership(
@@ -215,8 +212,7 @@ export function permissionsFromMembership(
     membershipId: membership.id,
     restaurantId: membership.restaurant_id,
     isOwner,
-    codes: membership.active && !isOwner ? new Set(codes) : new Set(),
-  };
+    codes: membership.active && !isOwner ? new Set(codes) : new Set() };
 }
 
 export async function resolveMembershipPermissions(
@@ -231,8 +227,7 @@ export async function resolveMembershipPermissions(
       membershipId: membership.id,
       restaurantId: membership.restaurant_id,
       isOwner: true,
-      codes: new Set(),
-    };
+      codes: new Set() };
   }
   const codes = await loadUnionPermissionCodes(client, membership.restaurant_id, membership.id);
   return permissionsFromMembership(membership, codes);
@@ -249,8 +244,7 @@ export async function resolveEffectivePermissions(
     id: membership.id,
     role: membership.role,
     restaurant_id: membership.restaurantId,
-    active: true,
-  });
+    active: true });
   return remember(context, resolved);
 }
 
@@ -295,17 +289,29 @@ export function assertAllEffectivePermissions(
   throw new Error(PMS_PERMISSION_DENIED);
 }
 
+/**
+ * Package + go-live. Call sites choose setup vs operational by which export they use.
+ * Permission codes never decide the live requirement.
+ */
+async function requireOperationalPackage(restaurantId: string): Promise<void> {
+  await requirePmsPackage(restaurantId);
+  if (!(await pmsPropertyLive(restaurantId))) throw new Error(PMS_NOT_LIVE);
+}
+
+async function requireSetupPackage(restaurantId: string): Promise<void> {
+  await requirePmsPackage(restaurantId);
+}
+
+/** Operational: approved + package + live + permission. */
 export async function requirePermission(
   context: AuthedCtx,
   restaurantId: string,
   permission: string,
 ): Promise<EffectivePmsPermissions> {
   assertKnownPermission(permission);
-  await requirePmsPackage(restaurantId);
-  return assertEffectivePermission(
-    await resolveEffectivePermissions(context, restaurantId),
-    permission,
-  );
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  await requireOperationalPackage(restaurantId);
+  return assertEffectivePermission(resolved, permission);
 }
 
 export async function requireAnyPermission(
@@ -313,11 +319,9 @@ export async function requireAnyPermission(
   restaurantId: string,
   permissions: readonly string[],
 ): Promise<EffectivePmsPermissions> {
-  await requirePmsPackage(restaurantId);
-  return assertAnyEffectivePermission(
-    await resolveEffectivePermissions(context, restaurantId),
-    permissions,
-  );
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  await requireOperationalPackage(restaurantId);
+  return assertAnyEffectivePermission(resolved, permissions);
 }
 
 export async function requireAllPermissions(
@@ -325,14 +329,47 @@ export async function requireAllPermissions(
   restaurantId: string,
   permissions: readonly string[],
 ): Promise<EffectivePmsPermissions> {
-  await requirePmsPackage(restaurantId);
-  return assertAllEffectivePermissions(
-    await resolveEffectivePermissions(context, restaurantId),
-    permissions,
-  );
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  await requireOperationalPackage(restaurantId);
+  return assertAllEffectivePermissions(resolved, permissions);
 }
 
-/** Permission gate that still returns the caller's membership for actor ids. */
+/**
+ * Setup: approved + package + permission. No live requirement.
+ * Only Settings / configuration callers may use these.
+ */
+export async function requireSetupPermission(
+  context: AuthedCtx,
+  restaurantId: string,
+  permission: string,
+): Promise<EffectivePmsPermissions> {
+  assertKnownPermission(permission);
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  await requireSetupPackage(restaurantId);
+  return assertEffectivePermission(resolved, permission);
+}
+
+export async function requireAnySetupPermission(
+  context: AuthedCtx,
+  restaurantId: string,
+  permissions: readonly string[],
+): Promise<EffectivePmsPermissions> {
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  await requireSetupPackage(restaurantId);
+  return assertAnyEffectivePermission(resolved, permissions);
+}
+
+export async function requireAllSetupPermissions(
+  context: AuthedCtx,
+  restaurantId: string,
+  permissions: readonly string[],
+): Promise<EffectivePmsPermissions> {
+  const resolved = await resolveEffectivePermissions(context, restaurantId);
+  await requireSetupPackage(restaurantId);
+  return assertAllEffectivePermissions(resolved, permissions);
+}
+
+/** Operational permission gate that still returns the caller's membership. */
 export async function requirePmsActor(
   context: AuthedCtx,
   restaurantId: string,
@@ -360,6 +397,34 @@ export async function requirePmsActorAll(
   return callerMembership(context, restaurantId);
 }
 
+/** Settings / setup APIs only. Same checks as requirePmsActor*, without go-live. */
+export async function requirePmsSetupActor(
+  context: AuthedCtx,
+  restaurantId: string,
+  permission: string,
+): Promise<Membership> {
+  await requireSetupPermission(context, restaurantId, permission);
+  return callerMembership(context, restaurantId);
+}
+
+export async function requirePmsSetupActorAny(
+  context: AuthedCtx,
+  restaurantId: string,
+  permissions: readonly string[],
+): Promise<Membership> {
+  await requireAnySetupPermission(context, restaurantId, permissions);
+  return callerMembership(context, restaurantId);
+}
+
+export async function requirePmsSetupActorAll(
+  context: AuthedCtx,
+  restaurantId: string,
+  permissions: readonly string[],
+): Promise<Membership> {
+  await requireAllSetupPermissions(context, restaurantId, permissions);
+  return callerMembership(context, restaurantId);
+}
+
 /**
  * Own cashier shift uses shift.edit. Another cashier's shift uses shift.authorize.
  * Authorize also covers the caller's own shift. Owner bypass covers both.
@@ -380,8 +445,8 @@ export async function requireCashierShiftActor(
   restaurantId: string,
   targetMembershipId: string,
 ): Promise<Membership> {
-  await requirePmsPackage(restaurantId);
   const resolved = await resolveEffectivePermissions(context, restaurantId);
+  await requireOperationalPackage(restaurantId);
   if (!cashierShiftAllowed(resolved, targetMembershipId)) throw new Error(PMS_PERMISSION_DENIED);
   return callerMembership(context, restaurantId);
 }
@@ -417,8 +482,7 @@ export async function listMembershipRoles(
   return (data ?? []).map((row: { id: string; role_id: string; created_at: string }) => ({
     id: row.id,
     roleId: row.role_id,
-    createdAt: row.created_at,
-  }));
+    createdAt: row.created_at }));
 }
 
 export async function assignMembershipRole(
@@ -437,8 +501,7 @@ export async function assignMembershipRole(
       restaurant_id: input.restaurantId,
       membership_id: input.membershipId,
       role_id: input.roleId,
-      assigned_by_membership_id: input.assignedByMembershipId ?? null,
-    })
+      assigned_by_membership_id: input.assignedByMembershipId ?? null })
     .select("id")
     .single();
   if (error) {

@@ -7,7 +7,7 @@
  */
 import { type AuthedCtx, type Membership } from "@/core/lib/workforce.server";
 import { requireModuleRole } from "@/core/lib/module-access.server";
-import { withPmsPackage } from "./pms-package.server";
+import { withPmsLive, withPmsPackage } from "./pms-package.server";
 import { FRONT_OFFICE_ROLES } from "@/core/lib/module-access";
 
 /** Room & room-type configuration stays with owners and managers. */
@@ -51,8 +51,7 @@ export const DEFAULT_AMENITIES = [
 export const IMAGE_EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
-  "image/webp": "webp",
-};
+  "image/webp": "webp" };
 
 export function canManageRooms(role: string): boolean {
   return (ROOM_MANAGE_ROLES as readonly string[]).includes(role);
@@ -84,7 +83,7 @@ export async function requireFrontOfficeAccess(
   context: AuthedCtx,
   restaurantId: string,
 ): Promise<Membership> {
-  return withPmsPackage(
+  return withPmsLive(
     restaurantId,
     requireModuleRole(
       context,

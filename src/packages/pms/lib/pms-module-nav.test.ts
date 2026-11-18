@@ -9,7 +9,7 @@ import {
 } from "./pms-module-nav.ts";
 
 describe("PMS module nav contract", () => {
-  it("locks exactly ten modules in product order", () => {
+  it("locks the operational modules in product order, without Settings", () => {
     assert.deepEqual(
       PMS_MODULE_NAV.map((item) => item.label),
       [
@@ -22,11 +22,10 @@ describe("PMS module nav contract", () => {
         "Rate & Revenue",
         "Night Audit",
         "Reports",
-        "Settings",
       ],
     );
-    assert.equal(PMS_MODULE_NAV.length, 10);
-    assert.equal(PMS_MODULE_NAV.find((item) => item.id === "settings")?.to, "/restaurant/settings");
+    assert.equal(PMS_MODULE_NAV.length, 9);
+    assert.equal(PMS_MODULE_NAV.some((item) => item.to === "/restaurant/settings"), false);
     assert.equal(
       PMS_MODULE_NAV.some((item) => item.label === "F&B" || item.to.includes("restaurant-management")),
       false,
@@ -51,7 +50,6 @@ describe("PMS module nav contract", () => {
       "Rate & Revenue",
       "Night Audit",
       "Reports",
-      "Settings",
     ]) {
       assert.match(home, new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }

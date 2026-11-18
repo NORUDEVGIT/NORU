@@ -1,4 +1,4 @@
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsSetupActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -35,8 +35,11 @@ import {
   PACKAGE_COVER_MAX_BYTES,
   parsePackageChargeBasis,
   previousPackageCoverToRemove,
+  serviceTypeIdsFromPackageInclusion,
   type Card3DepartmentRef,
   type Card3FoServiceRef,
+  type Card3GuestServiceCategoryRef,
+  type Card3GuestServiceTypeRef,
   type Card3RatePlanRef,
   type Card3RoomAmenityRef,
   type Card3RoomTypeRef,
@@ -85,6 +88,11 @@ const packageSchema = z.object({
   packagePrice: z.number().min(0, "Package price cannot be negative.").max(10_000_000),
   chargeBasis: z.enum(PACKAGE_CHARGE_BASES),
   active: z.boolean(),
+  /**
+   * Guest Service Type IDs → persisted on pms_packages.inclusion JSON.
+   * Omit to leave existing inclusion unchanged (e.g. Rate Plan link updates).
+   */
+  serviceTypeIds: z.array(idSchema).max(40).optional(),
   roomTypeIds: z.array(idSchema).max(200),
   ratePlanIds: z.array(idSchema).max(200),
   ratePlanLinks: z
@@ -245,6 +253,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     ratePlans,
     foServices,
     departments,
+    guestServiceCategories,
+    guestServiceTypes,
     mealPolicy,
   ] = await Promise.all([
     db.from("restaurants").select("currency_code").eq("id", restaurantId).maybeSingle(),
@@ -258,7 +268,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     db
       .from("pms_packages")
       .select(
-        "id, code, name, type, description, package_price, active, cover_image_path, charge_basis",
+        "id, code, name, type, description, package_price, active, cover_image_path, charge_basis, inclusion",
       )
       .eq("restaurant_id", restaurantId)
       .order("code"),
@@ -303,6 +313,18 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       .eq("restaurant_id", restaurantId)
       .order("name"),
     db
+      .from("pms_guest_service_categories")
+      .select("id, code, name, active, display_order")
+      .eq("restaurant_id", restaurantId)
+      .order("display_order"),
+    db
+      .from("pms_guest_service_types")
+      .select(
+        "id, category_id, name, code, description, active, display_order",
+      )
+      .eq("restaurant_id", restaurantId)
+      .order("display_order"),
+    db
       .from("pms_meal_applicability_policies")
       .select(
         "restaurant_id, breakfast_include_arrival, breakfast_include_stay, breakfast_include_departure, lunch_include_arrival, lunch_include_stay, lunch_include_departure, dinner_include_arrival, dinner_include_stay, dinner_include_departure, count_infants, breakfast_department_id, lunch_department_id, dinner_department_id",
@@ -324,6 +346,9 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   ]) {
     if (result.error) unavailable(result.error);
   }
+  // Guest Service Types catalogue is optional for meals card readiness — soft-fail if unset.
+  const guestCategoriesData = guestServiceCategories.error ? [] : (guestServiceCategories.data ?? []);
+  const guestTypesData = guestServiceTypes.error ? [] : (guestServiceTypes.data ?? []);
 
   let packageResult = packages;
   if (
@@ -332,9 +357,19 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
   ) {
     packageResult = await db
       .from("pms_packages")
-      .select("id, code, name, type, description, package_price, active")
+      .select("id, code, name, type, description, package_price, active, inclusion")
       .eq("restaurant_id", restaurantId)
       .order("code");
+    if (
+      packageResult.error &&
+      (packageResult.error.code === "42703" || packageResult.error.code === "PGRST204")
+    ) {
+      packageResult = await db
+        .from("pms_packages")
+        .select("id, code, name, type, description, package_price, active")
+        .eq("restaurant_id", restaurantId)
+        .order("code");
+    }
   }
   if (packageResult.error) unavailable(packageResult.error);
 
@@ -384,6 +419,32 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     .filter((path: string) => path.length > 0);
   const signedCovers = await signRoomImages(coverPaths);
 
+  const guestServiceCategoryRows: Card3GuestServiceCategoryRef[] = guestCategoriesData.map(
+    (row: any) => ({
+      id: String(row.id),
+      code: String(row.code ?? "").toUpperCase(),
+      name: String(row.name ?? ""),
+      active: row.active !== false,
+      displayOrder: Number(row.display_order ?? 0),
+    }),
+  );
+  const categoryById = new Map(guestServiceCategoryRows.map((row) => [row.id, row]));
+  const guestServiceTypeRows: Card3GuestServiceTypeRef[] = guestTypesData.map((row: any) => {
+    const categoryId = String(row.category_id ?? "");
+    const category = categoryById.get(categoryId);
+    return {
+      id: String(row.id),
+      categoryId,
+      categoryCode: category?.code ?? "",
+      categoryName: category?.name ?? "",
+      name: String(row.name ?? ""),
+      code: String(row.code ?? "").toUpperCase(),
+      description: String(row.description ?? ""),
+      active: row.active !== false,
+      displayOrder: Number(row.display_order ?? 0),
+    };
+  });
+
   const packageRows: PackageCard3Row[] = packageSource.map((row: any) => {
     const type = asPackageType(row.type);
     const ratePlanLinks = ratePlanLinksByPackage.get(row.id) ?? [];
@@ -407,6 +468,7 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
       roomTypeIds: roomTypeIdsByPackage.get(row.id) ?? [],
       ratePlanIds: ratePlanLinks.map((link) => link.ratePlanId),
       ratePlanLinks,
+      serviceTypeIds: serviceTypeIdsFromPackageInclusion(row.inclusion),
       coverImagePath,
       coverUrl: coverImagePath ? (signedCovers.get(coverImagePath) ?? null) : null };
   });
@@ -446,6 +508,8 @@ async function loadSnapshot(db: DbClient, restaurantId: string): Promise<MealsCa
     ratePlans: ratePlanRows,
     foServices: foServiceRows,
     departments: (departments.data ?? []).map(mapDepartment),
+    guestServiceCategories: guestServiceCategoryRows,
+    guestServiceTypes: guestServiceTypeRows,
     mealPolicy: mealApplicabilityFromRow(mealPolicy.data) };
 }
 
@@ -501,7 +565,7 @@ export const getMealsCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return {
@@ -514,7 +578,7 @@ export const saveMealPlanCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealPlanSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(
@@ -554,10 +618,12 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const roomTypeIds = [...new Set(data.roomTypeIds)];
     const ratePlanIds = [...new Set(data.ratePlanIds)];
+    const serviceTypeIdsProvided = data.serviceTypeIds !== undefined;
+    const serviceTypeIds = [...new Set(data.serviceTypeIds ?? [])];
     const inclusionByPlan = new Map(
       (data.ratePlanLinks ?? []).map((link) => [link.ratePlanId, link.inclusionType]),
     );
@@ -576,6 +642,15 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
         ratePlanIds,
         "Package rate plans must belong to this property.",
       ),
+      serviceTypeIdsProvided
+        ? requireOwnedIds(
+            db,
+            "pms_guest_service_types",
+            data.restaurantId,
+            serviceTypeIds,
+            "Package services must belong to this property's Guest Service Types.",
+          )
+        : Promise.resolve(),
       data.id
         ? requireOwnedRecord(
             db,
@@ -595,7 +670,8 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
       description: data.description?.trim() ? data.description.trim() : null,
       package_price: data.packagePrice,
       charge_basis: data.chargeBasis,
-      active: data.active };
+      active: data.active,
+      ...(serviceTypeIdsProvided ? { inclusion: serviceTypeIds } : {}) };
     let packageId = data.id;
     if (data.id) {
       const updated = await db
@@ -603,9 +679,15 @@ export const savePackageCard3 = createServerFn({ method: "POST" })
         .update(payload)
         .eq("id", data.id)
         .eq("restaurant_id", data.restaurantId);
+      if (updated.error?.code === "23505") {
+        throw new Error("That package code is already used for this property.");
+      }
       if (updated.error) unavailable(updated.error);
     } else {
       const inserted = await db.from("pms_packages").insert(payload).select("id").maybeSingle();
+      if (inserted.error?.code === "23505") {
+        throw new Error("That package code is already used for this property.");
+      }
       if (inserted.error) unavailable(inserted.error);
       packageId = inserted.data?.id;
     }
@@ -668,7 +750,7 @@ export const savePackageComponentCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => componentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const source =
       data.kind === "meal_plan"
@@ -750,7 +832,7 @@ export const deletePackageComponentCard3 = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, id: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedRecord(
       db,
@@ -810,7 +892,7 @@ export const createPackageCoverUpload = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageCoverUploadSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await requireOwnedRecord(
       db,
@@ -835,7 +917,7 @@ export const setPackageCoverImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => packageCoverPathSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     if (!isOwnedPackageCoverPath(data.restaurantId, data.packageId, data.storagePath)) {
       throw new Error("Invalid image reference.");
     }
@@ -859,7 +941,7 @@ export const removePackageCoverImage = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, packageId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const current = await loadPackageCover(db, data.restaurantId, data.packageId);
     if (!current.cover_image_path) return { ok: true as const };
@@ -913,21 +995,23 @@ async function refreshOperationalLists(db: DbClient, restaurantId: string) {
   }
 }
 
+/** @deprecated Meal Service Rules UI retired from Meal Plans & Packages. Policy storage retained. */
 export const getMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_VIEW);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const snapshot = await loadSnapshot(db, data.restaurantId);
     return { policy: snapshot.mealPolicy, departments: snapshot.departments };
   });
 
+/** @deprecated Meal Service Rules UI retired from Meal Plans & Packages. Do not clear existing rows. */
 export const saveMealApplicabilityPolicyCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mealPolicySchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     await Promise.all([
       assertActiveDepartment(db, data.restaurantId, data.breakfast.departmentId),
@@ -969,7 +1053,7 @@ export const saveFoServiceCard3 = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => foServiceSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_FINANCIAL_CONFIGURE);
     const db = pmsDb((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     if (data.id) {
       await requireOwnedRecord(

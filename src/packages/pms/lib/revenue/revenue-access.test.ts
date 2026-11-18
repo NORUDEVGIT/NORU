@@ -70,7 +70,7 @@ describe("Rate & Revenue Phase 1 Prompt 5 — access model", () => {
     const access = resolveRevenueAccess("owner", { packageEnabled: false });
     assert.deepEqual(access, deniedRevenueAccess());
     const server = readRel("./revenue-access.server.ts");
-    assert.match(server, /requirePmsPackage/);
+    assert.match(server, /requirePmsLive/);
     assert.match(server, /packageEnabled: false/);
   });
 

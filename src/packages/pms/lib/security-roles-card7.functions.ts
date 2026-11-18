@@ -15,7 +15,7 @@ import {
   actorMayGrantPermissions,
   isPmsPermissionCode,
 } from "./pms-permissions";
-import { requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
+import { resolveEffectivePermissions, requirePmsSetupActor } from "./pms-permissions.server";
 import { isMissingSchemaError } from "./pms-set2-structure";
 import { persistCard7Overall } from "./card7-readiness.functions";
 import {
@@ -285,7 +285,7 @@ export const getCard7SecurityRoles = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
+    const me = await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const snapshot = await loadCard7SecuritySnapshot(pmsDb(supabaseAdmin), data.restaurantId);
     const resolved = await resolveEffectivePermissions(context as never, data.restaurantId);
@@ -324,12 +324,12 @@ export const saveCard7HotelRole = createServerFn({ method: "POST" })
       (previous.departmentId ?? null) !== (data.departmentId ?? null);
     const activeChanged = Boolean(previous && previous.active !== data.active);
     if (creating) {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_CREATE);
+      await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_CREATE);
     } else if (detailsChanged || !activeChanged) {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_EDIT);
+      await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_EDIT);
     }
     if (activeChanged) {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_ACTIVATE);
+      await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_ACTIVATE);
     }
     const departmentId = data.departmentId ?? null;
     assertDepartment(before.departments, departmentId);
@@ -392,7 +392,7 @@ export const saveCard7RolePermissions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => mappingsSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(
+    await requirePmsSetupActor(
       context as never,
       data.restaurantId,
       PMS_PERMISSIONS.ROLES_ASSIGN_PERMISSIONS,
@@ -460,7 +460,7 @@ export const saveCard7ApprovalRule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => approvalSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_EDIT);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_EDIT);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = pmsDb(supabaseAdmin);
     const before = await loadCard7SecuritySnapshot(db, data.restaurantId);
@@ -513,6 +513,6 @@ export const saveCard7MembershipHotelRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => assignmentSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
+    await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.ROLES_VIEW);
     throw new Error("Moved to Staff & Access.");
   });

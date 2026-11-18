@@ -21,7 +21,11 @@ import {
   SettingsDashboardChrome,
   SettingsSetupProgressPanel,
 } from "@/packages/pms/components/settings/pms-settings-dashboard";
-import { settingsDashboardStatusLabel } from "@/packages/pms/lib/pms-settings-dashboard";
+import { getPmsSetupProgress } from "@/packages/pms/lib/pms-setup-progress.functions";
+import {
+  setupProgressStatusLabel,
+  type SetupProgressStatus,
+} from "@/packages/pms/lib/pms-setup-progress";
 
 import { Check, Menu, RefreshCw } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
@@ -87,14 +91,12 @@ import {
   CARD1_HASH,
   CARD1_STEPS,
   PROPERTY_SETUP_CARDS,
-  evaluateCard1Status,
-  evaluateProgrammeCardStatus,
   isCard1WorkspaceHash,
-  type PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import { CARD2_HASH, isCard2WorkspaceHash } from "@/packages/pms/lib/pms-property-setup-card2";
 import {
   CARD3_HASH,
+  card3LegacyCommercialRedirectHref,
   card3LegacyMealsRedirectHref,
   isCard3WorkspaceHash,
 } from "@/packages/pms/lib/pms-property-setup-card3";
@@ -109,9 +111,6 @@ import { PmsPropertySetupCard4Section } from "@/packages/pms/components/settings
 import { PmsPropertySetupCard6Section } from "@/packages/pms/components/settings/pms-property-setup-card6-section";
 import { PmsPropertySetupCard7Section } from "@/packages/pms/components/settings/pms-property-setup-card7-section";
 import { PmsPropertySetupCard8Section } from "@/packages/pms/components/settings/pms-property-setup-card8-section";
-import { getFiscalIntegrationStatus } from "@/packages/pms/lib/fiscal/fiscal.functions";
-import { getPmsCard6Integrations } from "@/packages/pms/lib/integrations-card6.functions";
-import { getPmsCard4Status } from "@/packages/pms/lib/card4-readiness.functions";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 
 function currentSection(): Set1SectionId | null {
@@ -204,6 +203,10 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       if (mealsRedirect) {
         window.history.replaceState(null, "", mealsRedirect);
       }
+      const commercialRedirect = card3LegacyCommercialRedirectHref(window.location.search);
+      if (commercialRedirect) {
+        window.history.replaceState(null, "", commercialRedirect);
+      }
       if (raw === "card-5" || raw === "card5") {
         window.history.replaceState(null, "", `${SET1_HUB_HREF}#${CARD5_HASH}`);
       }
@@ -241,29 +244,21 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
     return () => window.removeEventListener("hashchange", apply);
   }, []);
 
-  const loadFiscalStatus = useServerFn(getFiscalIntegrationStatus);
-  const loadCard6Integrations = useServerFn(getPmsCard6Integrations);
-  const loadCard4Status = useServerFn(getPmsCard4Status);
-
-  const card4StatusQuery = useQuery({
-    queryKey: ["pms-card4-status", restaurantId],
-    queryFn: () => loadCard4Status({ data: { restaurantId } }),
+  const loadSetupProgress = useServerFn(getPmsSetupProgress);
+  const progressQuery = useQuery({
+    queryKey: ["pms-setup-progress", restaurantId],
+    queryFn: () => loadSetupProgress({ data: { restaurantId } }),
     retry: false,
-    staleTime: 60_000,
   });
 
-  const card6FiscalQuery = useQuery({
-    queryKey: ["fiscal-integration", restaurantId],
-    queryFn: () => loadFiscalStatus({ data: { restaurantId } }),
-    retry: false,
-    staleTime: 60_000,
-  });
-  const card6IntegrationsQuery = useQuery({
-    queryKey: ["pms-card6-integrations", restaurantId],
-    queryFn: () => loadCard6Integrations({ data: { restaurantId } }),
-    retry: false,
-    staleTime: 60_000,
-  });
+  // Any successful Settings save can change a live check, so recompute.
+  useEffect(() => {
+    return qc.getMutationCache().subscribe((event) => {
+      if (event.type === "updated" && event.mutation.state.status === "success") {
+        void qc.invalidateQueries({ queryKey: ["pms-setup-progress", restaurantId] });
+      }
+    });
+  }, [qc, restaurantId]);
 
   const query = useQuery({
     queryKey: ["pms-set1-foundation", restaurantId],
@@ -286,45 +281,11 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   }
 
   const { snapshot, checklist, canActivate, role, set2, set3, set4, set5, set6, polish1 } = query.data;
-  const card1Status = card1Query.data
-    ? evaluateCard1Status(
-        card1Query.data.snapshot.draft,
-        card1Query.data.snapshot.status,
-        card1Query.data.set2,
-      )
-    : "not_started";
-  const dashboardStatuses: PropertySetupCardStatus[] = PROPERTY_SETUP_CARDS.map((card) => {
-    if (!card1Query.data) return "not_started";
-    const status = evaluateProgrammeCardStatus(
-      card.id,
-      card1Query.data.snapshot.status,
-      card1Status,
-    );
-    if (card.number === 3 && status === "not_started") {
-      const hasPaymentMethods = (polish1?.paymentMethods?.length ?? 0) > 0;
-      const hasRatePlans = (set3?.activeRatePlanCount ?? 0) > 0;
-      if (hasPaymentMethods || hasRatePlans) {
-        return "in_progress";
-      }
-    }
-    if (card.number === 4) {
-      if (card4StatusQuery.data?.status && card4StatusQuery.data.status !== "not_started") {
-        return card4StatusQuery.data.status;
-      }
-      if (status !== "not_started") {
-        return status;
-      }
-    }
-    if (card.number === 6 && status === "not_started") {
-      const hasFiscal =
-        card6FiscalQuery.data?.status && card6FiscalQuery.data.status !== "not_configured";
-      const hasIntegrations = (card6IntegrationsQuery.data?.integrations.length ?? 0) > 0;
-      if (hasFiscal || hasIntegrations) {
-        return "in_progress";
-      }
-    }
-    return status;
-  });
+  const dashboardStatuses: SetupProgressStatus[] = PROPERTY_SETUP_CARDS.map(
+    (card) =>
+      progressQuery.data?.areas.find((row) => row.cardId === card.id)?.status ?? "not_started",
+  );
+  const card2Status = dashboardStatuses[1] ?? "not_started";
 
   const openCardNumber = card1Open
     ? 1
@@ -390,10 +351,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
   const visibleCardIds = PROPERTY_SETUP_CARDS.filter((card, index) => {
     if (!permittedCardIds.includes(card.id)) return false;
     const status = dashboardStatuses[index] ?? "not_started";
-    if (statusFilter !== "all") {
-      if (statusFilter === "needs_attention" && status !== "in_progress") return false;
-      if (statusFilter !== "needs_attention" && status !== statusFilter) return false;
-    }
+    if (statusFilter !== "all" && status !== statusFilter) return false;
     if (areaFilter !== "all" && card.id !== areaFilter) return false;
     const needle = searchQuery.trim().toLowerCase();
     if (!needle) return true;
@@ -484,22 +442,16 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               label="Status"
               value={statusFilter}
               current={
-                statusFilter === "complete"
-                  ? "Ready"
-                  : statusFilter === "in_progress"
-                    ? "In Progress"
-                    : statusFilter === "needs_attention"
-                      ? "Needs Attention"
-                      : statusFilter === "not_started"
-                        ? "Not Started"
-                        : ""
+                statusFilter === "all"
+                  ? ""
+                  : setupProgressStatusLabel(statusFilter as SetupProgressStatus)
               }
               options={[
                 ["all", "All statuses"],
-                ["complete", "Ready"],
-                ["in_progress", "In Progress"],
-                ["needs_attention", "Needs Attention"],
-                ["not_started", "Not Started"],
+                ["complete", setupProgressStatusLabel("complete")],
+                ["in_progress", setupProgressStatusLabel("in_progress")],
+                ["needs_attention", setupProgressStatusLabel("needs_attention")],
+                ["not_started", setupProgressStatusLabel("not_started")],
               ]}
               onChange={setStatusFilter}
             />
@@ -516,11 +468,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
               onChange={setAreaFilter}
             />
           </PmsFilterMenu>
-          <SettingsSetupProgressPanel
-            statuses={dashboardStatuses.filter((_, index) =>
-              permittedCardIds.includes(PROPERTY_SETUP_CARDS[index]?.id ?? ""),
-            )}
-          />
+          <SettingsSetupProgressPanel progress={progressQuery.data} />
           <Button
             type="button"
             variant="outline"
@@ -531,6 +479,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
             onClick={() => {
               void qc.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
               void qc.invalidateQueries({ queryKey: ["pms-card1", restaurantId] });
+              void qc.invalidateQueries({ queryKey: ["pms-setup-progress", restaurantId] });
             }}
           >
             <RefreshCw className="size-4" />
@@ -568,19 +517,7 @@ export function PmsSet1Hub({ membership }: { membership: RestaurantMembership })
       ) : card2Open ? (
         <PmsPropertySetupCard2Section
           restaurantId={restaurantId}
-          cardStatus={
-            card1Query.data
-              ? evaluateProgrammeCardStatus(
-                  "rooms-inventory",
-                  card1Query.data.snapshot.status,
-                  evaluateCard1Status(
-                    card1Query.data.snapshot.draft,
-                    card1Query.data.snapshot.status,
-                    card1Query.data.set2,
-                  ),
-                )
-              : "not_started"
-          }
+          cardStatus={card2Status === "needs_attention" ? "in_progress" : card2Status}
           card2Steps={card1Query.data?.snapshot.status.card2Steps ?? {}}
           canEdit={pmsSettingsCardEditable(accessSnapshot, 2)}
         />
@@ -783,7 +720,7 @@ function SettingsBurger({
   active: string;
   onSelect: (hash: string) => void;
   allowedIds: readonly string[];
-  statuses: readonly PropertySetupCardStatus[];
+  statuses: readonly SetupProgressStatus[];
 }) {
   const [open, setOpen] = useState(false);
   const items = PROPERTY_SETUP_CARDS.filter((card) => allowedIds.includes(card.id));
@@ -854,10 +791,11 @@ function SettingsBurger({
                     "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                     status === "complete" && "bg-emerald-50 text-emerald-800",
                     status === "in_progress" && "bg-amber-50 text-amber-800",
+                    status === "needs_attention" && "bg-red-50 text-red-800",
                     status === "not_started" && "bg-[#ECEAE4] text-[#756A5B]",
                   )}
                 >
-                  {settingsDashboardStatusLabel(status)}
+                  {setupProgressStatusLabel(status)}
                 </span>
               </button>
             );

@@ -9,8 +9,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   hasEffectivePermission,
-  requirePmsActor,
   resolveEffectivePermissions,
+  requirePmsSetupActor,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import {
@@ -89,7 +89,7 @@ export const getFoFeeDefaults = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ defaults: FoFeeDefaults; cancelFeeBasis: FeeBasis | ""; noshowFeeBasis: FeeBasis | ""; canEdit: boolean }> => {
-      await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
+      await requirePmsSetupActor(context as never, data.restaurantId, PMS_PERMISSIONS.CONFIG_PROPERTY_VIEW);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const loaded = await loadFeeRow(supabaseAdmin, data.restaurantId);
       return {
@@ -110,7 +110,7 @@ export const saveFoFeeDefaults = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ ok: true; defaults: FoFeeDefaults; cancelFeeBasis: FeeBasis | ""; noshowFeeBasis: FeeBasis | ""; auditWritten: boolean }> => {
-      await requirePmsActor(
+      await requirePmsSetupActor(
         context as never,
         data.restaurantId,
         PMS_PERMISSIONS.CONFIG_PROPERTY_CONFIGURE,

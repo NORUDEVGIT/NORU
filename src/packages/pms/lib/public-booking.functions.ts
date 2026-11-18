@@ -3,14 +3,15 @@ import { z } from "zod";
 import {
   BOOKING_UNAVAILABLE,
   LOOKUP_FAILED,
+  PUBLIC_BOOKING_NOT_ACCEPTING,
   admin,
   directChannelId,
   logDistribution,
   matchOrCreateGuest,
+  publicBookingAcceptingReservations,
   resolveStayProperty,
   type StayProperty,
-  type StayPropertyStatus,
-} from "./public-booking.server";
+  type StayPropertyStatus } from "./public-booking.server";
 import { cancelDirectBookingUnits, type CancelRpcClient } from "./direct-booking-cancel";
 import { signRoomImages } from "./rooms.server";
 import { parseSnapshot, rateError, toQuote, type StayQuote } from "./rates.server";
@@ -33,8 +34,7 @@ const staySchema = z.object({
   arrival: dateSchema,
   departure: dateSchema,
   adults: z.number().int().min(1).max(10),
-  children: z.number().int().min(0).max(10),
-});
+  children: z.number().int().min(0).max(10) });
 
 /* ------------------------------------------------------------------- types */
 
@@ -89,8 +89,7 @@ export const getStayProperty = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ slug: slugSchema }).parse(input))
   .handler(
     async ({
-      data,
-    }): Promise<{ status: StayPropertyStatus; property: StayProperty | null }> => {
+      data }): Promise<{ status: StayPropertyStatus; property: StayProperty | null }> => {
       const { resolveStayPropertyPublic } = await import("./public-booking.server");
       return resolveStayPropertyPublic(data.slug);
     },
@@ -102,16 +101,17 @@ export const searchStay = createServerFn({ method: "POST" })
   .validator((input: unknown) => staySchema.parse(input))
   .handler(
     async ({
-      data,
-    }): Promise<{ ok: false; message: string } | { ok: true; offers: PublicRoomTypeOffer[]; nights: number }> => {
+      data }): Promise<{ ok: false; message: string } | { ok: true; offers: PublicRoomTypeOffer[]; nights: number }> => {
       const property = await resolveStayProperty(data.slug);
-      if (!property) return { ok: false, message: "This property isn't taking direct bookings right now." };
+      if (!property) return { ok: false, message: PUBLIC_BOOKING_NOT_ACCEPTING };
+      if (!(await publicBookingAcceptingReservations(property.id))) {
+        return { ok: false, message: PUBLIC_BOOKING_NOT_ACCEPTING };
+      }
       if (data.departure <= data.arrival) return { ok: false, message: "Check-out must be after check-in." };
       if (property.openingDate && data.arrival < property.openingDate) {
         return {
           ok: false,
-          message: `Arrival date cannot be before the property opening date (${property.openingDate}).`,
-        };
+          message: `Arrival date cannot be before the property opening date (${property.openingDate}).` };
       }
       if (data.arrival < propertyToday(property.timezone)) {
         return { ok: false, message: "Check-in can't be in the past." };
@@ -173,8 +173,7 @@ export const searchStay = createServerFn({ method: "POST" })
         list.push({
           bed_type: String(bed.bed_type ?? ""),
           bed_size: bed.bed_size ?? null,
-          bed_count: bed.bed_count == null ? null : Number(bed.bed_count),
-        });
+          bed_count: bed.bed_count == null ? null : Number(bed.bed_count) });
         bedsByType.set(bed.room_type_id, list);
       }
 
@@ -184,8 +183,7 @@ export const searchStay = createServerFn({ method: "POST" })
           restaurantId: property.id,
           roomTypeId: type.id,
           arrival: data.arrival,
-          departure: data.departure,
-        });
+          departure: data.departure });
         const available = availability.available;
         if (available <= 0) continue;
 
@@ -199,15 +197,13 @@ export const searchStay = createServerFn({ method: "POST" })
             _departure: data.departure,
             _adults: data.adults,
             _children: data.children,
-            _infants: 0,
-          });
+            _infants: 0 });
           plans.push({
             ratePlanId: plan.id,
             name: plan.name,
             description: plan.description,
             quote: error ? null : toQuote(pricing),
-            unavailableReason: error ? rateError(error.message).message : null,
-          });
+            unavailableReason: error ? rateError(error.message).message : null });
         }
 
         const typeImages = (imageRows ?? []).filter((i) => i.room_type_id === type.id);
@@ -245,8 +241,7 @@ export const searchStay = createServerFn({ method: "POST" })
           images: typeImages.map((i) => signed.get(i.storage_path) ?? "").filter(Boolean),
           coverUrl: cover ? (signed.get(cover.storage_path) ?? null) : null,
           available,
-          plans,
-        });
+          plans });
       }
 
       return { ok: true, offers, nights: nightsBetween(data.arrival, data.departure) };
@@ -266,22 +261,22 @@ export const submitDirectBooking = createServerFn({ method: "POST" })
         email: z.string().trim().email().max(160),
         phone: z.string().trim().min(5).max(40),
         nationality: z.string().trim().max(80).optional(),
-        specialRequests: z.string().trim().max(1000).optional(),
-      })
+        specialRequests: z.string().trim().max(1000).optional() })
       .parse(input),
   )
   .handler(
     async ({
-      data,
-    }): Promise<{ ok: false; message: string } | { ok: true; confirmationNumber: string }> => {
+      data }): Promise<{ ok: false; message: string } | { ok: true; confirmationNumber: string }> => {
       const property = await resolveStayProperty(data.slug);
-      if (!property) return { ok: false, message: "This property isn't taking direct bookings right now." };
+      if (!property) return { ok: false, message: PUBLIC_BOOKING_NOT_ACCEPTING };
+      if (!(await publicBookingAcceptingReservations(property.id))) {
+        return { ok: false, message: PUBLIC_BOOKING_NOT_ACCEPTING };
+      }
       if (data.departure <= data.arrival) return { ok: false, message: "Check-out must be after check-in." };
       if (property.openingDate && data.arrival < property.openingDate) {
         return {
           ok: false,
-          message: `Arrival date cannot be before the property opening date (${property.openingDate}).`,
-        };
+          message: `Arrival date cannot be before the property opening date (${property.openingDate}).` };
       }
       if (data.arrival < propertyToday(property.timezone)) {
         return { ok: false, message: "Check-in can't be in the past." };
@@ -322,8 +317,7 @@ export const submitDirectBooking = createServerFn({ method: "POST" })
         lastName: data.lastName?.trim() || null,
         email: data.email.trim().toLowerCase(),
         phone: data.phone.trim(),
-        nationality: data.nationality?.trim() || null,
-      });
+        nationality: data.nationality?.trim() || null });
 
       // The locked database function is the authority on availability and price.
       const { data: created, error } = await db.rpc("create_direct_booking", {
@@ -335,8 +329,7 @@ export const submitDirectBooking = createServerFn({ method: "POST" })
         _adults: data.adults,
         _children: data.children,
         _special_requests: (data.specialRequests?.trim() || null) as unknown as string,
-        _rate_plan_id: ratePlanId as unknown as string,
-      });
+        _rate_plan_id: ratePlanId as unknown as string });
 
       if (error) {
         const message = /NO_AVAILABILITY/.test(error.message)
@@ -348,8 +341,7 @@ export const submitDirectBooking = createServerFn({ method: "POST" })
           eventType: "direct_booking_failed",
           status: "failed",
           message,
-          summary: { arrival: data.arrival, departure: data.departure, room_type_id: data.roomTypeId },
-        });
+          summary: { arrival: data.arrival, departure: data.departure, room_type_id: data.roomTypeId } });
         return { ok: false, message };
       }
 
@@ -361,8 +353,7 @@ export const submitDirectBooking = createServerFn({ method: "POST" })
         message: `Direct booking ${row.confirmation_number}`,
         referenceType: "reservation",
         referenceId: row.id,
-        summary: { arrival: data.arrival, departure: data.departure, nights: nightsBetween(data.arrival, data.departure) },
-      });
+        summary: { arrival: data.arrival, departure: data.departure, nights: nightsBetween(data.arrival, data.departure) } });
 
       return { ok: true, confirmationNumber: row.confirmation_number };
     },
@@ -373,8 +364,7 @@ export const submitDirectBooking = createServerFn({ method: "POST" })
 const lookupSchema = z.object({
   slug: slugSchema,
   confirmationNumber: z.string().trim().min(3).max(40),
-  contact: z.string().trim().min(3).max(160),
-});
+  contact: z.string().trim().min(3).max(160) });
 
 const RESERVATION_PUBLIC_SELECT = `
   id, confirmation_number, status, arrival_date, departure_date, adults, children,
@@ -445,8 +435,7 @@ function publicPenalty(property: StayProperty, row: PublicRow) {
     now: new Date(),
     roomSubtotal: Number.isFinite(subtotal) ? subtotal : null,
     nightlyRates: parseSnapshot(row.nightly_rate_snapshot),
-    currency: row.currency ?? property.currency,
-  });
+    currency: row.currency ?? property.currency });
 }
 
 function toPublicDetail(property: StayProperty, row: PublicRow): PublicBookingDetail {
@@ -470,8 +459,7 @@ function toPublicDetail(property: StayProperty, row: PublicRow): PublicBookingDe
     canCancel:
       ["pending", "confirmed"].includes(row.status) &&
       row.arrival_date >= propertyToday(property.timezone) &&
-      publicCancelAllowed(publicPenalty(property, row)),
-  };
+      publicCancelAllowed(publicPenalty(property, row)) };
 }
 
 export const lookupDirectBooking = createServerFn({ method: "POST" })
@@ -500,8 +488,7 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
       const {
         applySettlementAndRecord,
         loadCancellationPenaltyQuote,
-        propertyLedgerMembershipId,
-      } = await import("./reservation-cancellation.server");
+        propertyLedgerMembershipId } = await import("./reservation-cancellation.server");
       const penalty = await loadCancellationPenaltyQuote(db, found.property.id, found.row.id);
       if (!publicCancelAllowed(penalty)) {
         return { ok: false, message: CANCEL_PENALTY_MESSAGE };
@@ -523,8 +510,7 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
         reservationId: found.row.id,
         kind: "cancel",
         ledgerMembershipId: await propertyLedgerMembershipId(db, found.property.id),
-        actorMembershipId: null,
-      });
+        actorMembershipId: null });
 
       const actor = await db
         .from("restaurant_memberships")
@@ -546,8 +532,7 @@ export const cancelDirectBooking = createServerFn({ method: "POST" })
         eventType: "direct_booking_cancelled",
         message: `Guest cancelled ${found.row.confirmation_number}`,
         referenceType: "reservation",
-        referenceId: found.row.id,
-      });
+        referenceId: found.row.id });
 
       return { ok: true, booking: { ...detail, status: "cancelled", canCancel: false } };
     },

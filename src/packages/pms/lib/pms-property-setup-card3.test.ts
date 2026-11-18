@@ -59,7 +59,7 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.equal(CARD3_HREF, `${SET1_HUB_HREF}#financial-commercial`);
     assert.equal(CARD3_PROMOTIONS_HREF, card3DomainHref("revenue-commercial-rules"));
     assert.equal(CARD3_TAXES_HREF, card3DomainHref("taxes-fees"));
-    assert.equal(CARD3_PACKAGES_HREF, `${SET1_HUB_HREF}?card2Step=meal-plans-packages#rooms-inventory`);
+    assert.equal(CARD3_PACKAGES_HREF, `${SET1_HUB_HREF}?card2Step=rates-pricing#rooms-inventory`);
     assert.equal(card3DomainFromSearch("?card3Domain=revenue-commercial-rules"), "revenue-commercial-rules");
     assert.equal(card3DomainFromSearch("?card3Domain=unknown"), null);
     assert.match(section, /card3DomainFromSearch/);
@@ -73,7 +73,7 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
       [
         "Currency & Financial Settings",
         "Taxes & Fees",
-        "Payments & Deposits",
+        "Payments",
         "Billing & Invoicing",
         "Corporate & Contract Rates",
         "Revenue & Commercial Rules",
@@ -114,12 +114,16 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.match(section, /currency-financial-settings/);
     assert.doesNotMatch(section, /pms-card3-top-nav/);
     assert.doesNotMatch(section, /CARD1_PMS_NAV/);
-    assert.match(section, /CARD3_SUBTITLE/);
+    assert.match(section, /CARD3_TITLE/);
+    assert.match(section, /\bfill\b/);
+    assert.match(section, /\bmarked\b/);
+    assert.match(section, /continueLabel/);
     assert.doesNotMatch(section, /Configuration Progress/);
     assert.doesNotMatch(section, /pms-card3-domain-grid/);
     assert.doesNotMatch(section, />\s*Open\s*</);
     assert.doesNotMatch(section, /CARD3_DOMAIN_PLACEHOLDER/);
     assert.doesNotMatch(section, /percent=\{/);
+    assert.doesNotMatch(section, /footer=\{null\}/);
     assert.equal(CARD3_DOMAIN_PLACEHOLDER, "This workspace will be implemented in Phase 1.");
     assert.equal(CARD3_BACK_LABEL, "Financial & Commercial");
     assert.doesNotMatch(workspace, /pms-card3-tabs-slot/);
@@ -127,7 +131,7 @@ describe("PMS Property Setup Card 3 Phase 0 shell", () => {
     assert.match(workspace, /pms-card3-content-slot/);
     assert.doesNotMatch(workspace, /CARD3_AUDIT_HISTORY_LABEL/);
     assert.doesNotMatch(workspace, /onAuditHistory/);
-    assert.match(workspace, /PropertySetupSectionHeader/);
+    assert.doesNotMatch(workspace, /PropertySetupSectionHeader/);
     assert.match(settings, /isCard3WorkspaceHash/);
     assert.match(settings, /hidePackageRail/);
     assert.doesNotMatch(section, /PmsPropertySetupWorkspace/);
