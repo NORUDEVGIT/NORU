@@ -73,7 +73,22 @@ export function CashieringWorkspace({
   const qc = useQueryClient();
   const money = useMoney();
   const businessDate = usePropertyBusinessDate(restaurantId, membership.restaurant.timezone);
-  const tab = resolveCashieringTab(search.tab);
+  const fetchAccess = useServerFn(getCashieringAccess);
+  const accessQuery = useQuery({
+    queryKey: ["cashiering-access", restaurantId],
+    queryFn: () => fetchAccess({ data: { restaurantId } }),
+    retry: false,
+  });
+  const canShift = Boolean(
+    accessQuery.data?.canShiftView ||
+      accessQuery.data?.canShiftEdit ||
+      accessQuery.data?.canShiftAuthorize,
+  );
+  const requestedTab = resolveCashieringTab(search.tab);
+  const tab: CashieringTabId =
+    requestedTab === "cashier-shift" && accessQuery.data && !canShift
+      ? "folios"
+      : requestedTab;
   const [moduleSearch, setModuleSearch] = useState(search.q ?? "");
   const { hasPrevious, computedLabel, handleReturn } = resolveCashieringReturnTo({
     returnTo: search.returnTo,
@@ -85,11 +100,15 @@ export function CashieringWorkspace({
   );
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [shellSlots, setShellSlots] = useState<CashieringShellSlots>({
+    dates: null,
     search: null,
     filter: null,
     export: null,
     cta: null,
   });
+  const setDatesSlot = useCallback((node: HTMLDivElement | null) => {
+    setShellSlots((current) => (current.dates === node ? current : { ...current, dates: node }));
+  }, []);
   const setSearchSlot = useCallback((node: HTMLDivElement | null) => {
     setShellSlots((current) => (current.search === node ? current : { ...current, search: node }));
   }, []);
@@ -124,13 +143,7 @@ export function CashieringWorkspace({
     });
   }, [navigate, onCashieringDesk, search, tab]);
 
-  const fetchAccess = useServerFn(getCashieringAccess);
   const fetchDashboard = useServerFn(getCashieringDashboard);
-  const accessQuery = useQuery({
-    queryKey: ["cashiering-access", restaurantId],
-    queryFn: () => fetchAccess({ data: { restaurantId } }),
-    retry: false,
-  });
   const dashboardQuery = useQuery({
     queryKey: ["cashiering-dashboard", restaurantId, businessDate],
     queryFn: () => fetchDashboard({ data: { restaurantId, today: businessDate } }),
@@ -292,13 +305,22 @@ export function CashieringWorkspace({
           >
             <div className="flex w-full min-w-0 items-center gap-1.5">
               <div className="relative size-8 shrink-0">
-                <CashieringBurger active={tab} toolbarSlot={null} onSelect={(id) => go(id, null)} />
+                <CashieringBurger
+                  active={tab}
+                  toolbarSlot={null}
+                  showShift={canShift}
+                  onSelect={(id) => go(id, null)}
+                />
               </div>
-              <CashieringWeekControl
-                weekStart={weekStart}
-                onShiftWeek={shiftCashieringWeek}
-                onPickDate={pickCashieringWeek}
-              />
+              {tab === "reports" ? (
+                <div ref={setDatesSlot} className="shrink-0 empty:hidden" />
+              ) : (
+                <CashieringWeekControl
+                  weekStart={weekStart}
+                  onShiftWeek={shiftCashieringWeek}
+                  onPickDate={pickCashieringWeek}
+                />
+              )}
               <div ref={setSearchSlot} className="min-w-0 flex-1 overflow-hidden" />
               <div className="relative z-10 flex shrink-0 items-center gap-1.5">
                 <div ref={setFilterSlot} className="shrink-0 empty:hidden" />
@@ -436,10 +458,12 @@ function CashieringWeekControl({
 function CashieringBurger({
   active,
   toolbarSlot,
+  showShift,
   onSelect,
 }: {
   active: CashieringTabId;
   toolbarSlot: HTMLElement | null;
+  showShift: boolean;
   onSelect: (id: CashieringTabId) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -480,7 +504,7 @@ function CashieringBurger({
             Cashiering
           </p>
           <div className="flex flex-col gap-0.5">
-            {CASHIERING_TABS.map((item) => {
+            {CASHIERING_TABS.filter((item) => showShift || item.id !== "cashier-shift").map((item) => {
               const Icon = BURGER_ICONS[item.id];
               const isActive = item.id === active;
               return (

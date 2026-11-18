@@ -22,6 +22,8 @@ import {
 } from "@/packages/pms/lib/guest-profile-wave1";
 import type { GuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import type { GuestWorkspaceAccess } from "@/packages/pms/lib/guest-workspace-access.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 export function GuestProfileChrome({
   membership,
@@ -51,6 +53,9 @@ export function GuestProfileChrome({
   children: ReactNode;
 }) {
   const navigate = useNavigate();
+  const canOpenSetup = usePmsPermissions(membership?.restaurantId).can(
+    PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW,
+  );
   const currentSectionDef =
     GUEST_WORKSPACE_SECTIONS.find((s) => s.id === activeSection) ?? GUEST_WORKSPACE_SECTIONS[0];
   const typeConfig = config?.types.find((t) => t.domain === currentSectionDef.domain);
@@ -90,13 +95,15 @@ export function GuestProfileChrome({
               Existing historical records remain visible, but new record creation is blocked.
             </span>
           </div>
-          <Link
-            to="/restaurant/settings"
-            hash="guest-services"
-            className="ml-4 font-semibold text-[#8C6D23] underline hover:text-[#251605]"
-          >
-            Review Setup Rules
-          </Link>
+          {canOpenSetup ? (
+            <Link
+              to="/restaurant/settings"
+              hash="guest-services"
+              className="ml-4 font-semibold text-[#8C6D23] underline hover:text-[#251605]"
+            >
+              Review Setup Rules
+            </Link>
+          ) : null}
         </div>
       ) : null}
 

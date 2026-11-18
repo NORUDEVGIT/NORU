@@ -92,6 +92,7 @@ describe("who can open the existing shift screen", () => {
     );
     assert.equal(OPEN_SHIFT_UNAUTHORIZED_COPY, "This shift must be closed by an authorized staff member.");
     assert.match(parts, /OPEN_SHIFT_UNAUTHORIZED_COPY/);
+    assert.match(parts, /end-of-day-close-shift/);
     assert.equal(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE, "cashiering.shift.authorize");
   });
 });

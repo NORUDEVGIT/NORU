@@ -78,7 +78,7 @@ describe("FO folio tab — Open Folio stays on the selected stay", () => {
     assert.match(workspace, /if \(action === "open_folio"\) \{\s*openFolioWorkspace\(stay\);/s);
     assert.match(checkIn, /setTab\("folio"\)/);
     assert.match(inHouse, /setTab\("folio"\)/);
-    assert.match(checkIn, /canReadFolio: canOpenCashiering/);
+    assert.match(checkIn, /const canReadFolio = desk\.canReadStayFolio/);
     assert.match(inHouse, /foGuestWorkspaceTabs\(qv\.stay\.status, \{ canReadFolio \}\)/);
     assert.doesNotMatch(checkIn, /cashieringRefundHref/);
   });

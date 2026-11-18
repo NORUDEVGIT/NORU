@@ -15,7 +15,7 @@ import {
   updateInvoiceCreditNoteDraft,
 } from "@/packages/pms/lib/cashiering-credit-notes.functions";
 import { Button } from "@/shared/components/ui/button";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 import { CashieringDocumentLetterhead } from "@/packages/pms/components/cashiering/cashiering-document-letterhead";
 import { CompanyCreditNoteFiscalSection } from "@/packages/pms/components/cashiering/company-credit-note-fiscal-section";
@@ -29,6 +29,86 @@ import { getCashieringDocumentProperty } from "@/packages/pms/lib/cashiering-inv
 import { cashieringInvoiceAccess } from "@/packages/pms/lib/cashiering-invoice-access";
 import { fiscalDeskAccess } from "@/packages/pms/lib/fiscal-desk-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+
+function CreditAmountField({
+  value,
+  remaining,
+  filled,
+  disabled,
+  money,
+  onChange,
+}: {
+  value: string;
+  remaining: number;
+  filled: number;
+  disabled: boolean;
+  money: (value: number) => string;
+  onChange: (next: string | null) => void;
+}) {
+  const share = remaining > 0 ? Math.min(100, Math.round((filled / remaining) * 100)) : 0;
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2">
+        <Input
+          inputMode="decimal"
+          disabled={disabled}
+          value={value}
+          aria-label="Credit amount"
+          placeholder="0"
+          className="h-9 text-right tabular-nums"
+          onChange={(event) => {
+            const raw = event.target.value;
+            if (!raw.trim()) {
+              onChange(null);
+              return;
+            }
+            const amount = Number(raw);
+            if (Number.isFinite(amount) && amount > remaining) {
+              onChange(String(remaining));
+              return;
+            }
+            onChange(raw);
+          }}
+          onBlur={() => {
+            const amount = roundCredit(Number(value));
+            if (!value.trim() || !Number.isFinite(amount) || amount <= 0) {
+              onChange(null);
+              return;
+            }
+            onChange(String(Math.min(amount, remaining)));
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-9 shrink-0 border-[#DDD4C5]"
+          disabled={disabled}
+          onClick={() => onChange(String(remaining))}
+        >
+          Full
+        </Button>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={remaining}
+        step={0.01}
+        disabled={disabled}
+        value={disabled ? 0 : filled}
+        aria-label="Credit amount slider"
+        className="mt-2 h-1.5 w-full cursor-pointer accent-[#C89933] disabled:cursor-not-allowed"
+        onChange={(event) => {
+          const amount = roundCredit(Number(event.target.value));
+          onChange(amount > 0 ? String(amount) : null);
+        }}
+      />
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {disabled ? "Nothing left to credit" : `${money(filled)} of ${money(remaining)} · ${share}%`}
+      </p>
+    </div>
+  );
+}
 
 const CARD = "rounded-xl border border-[#E8E1D7] bg-white";
 const HEAD =
@@ -289,146 +369,85 @@ export function CreditNoteSection({
         <div className={cn(CARD, "overflow-hidden")}>
           <div className="border-b border-[#E8E1D7] px-4 py-3">
             <h3 className="font-display text-lg">Create credit note</h3>
-            <p className="text-sm">
-              {board.invoiceNumber} · {board.billToName} · {dateTime(board.issuedAt)} ·{" "}
-              {board.currency}
+            <p className="text-sm text-muted-foreground">
+              {board.invoiceNumber} · {board.billToName} · {money(board.remaining)} still available
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className={HEAD}>
-                <tr>
-                  <th className="px-3 py-2" />
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2 text-right">Original</th>
-                  <th className="px-3 py-2 text-right">Credited</th>
-                  <th className="px-3 py-2 text-right">Remaining</th>
-                  <th className="px-3 py-2 text-right">Credit amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {board.groups.map((group) => {
-                  const disabled = group.remaining <= 0.009;
-                  const selected =
-                    amounts[group.sourceGroupId] != null && amounts[group.sourceGroupId] !== "";
-                  const source = group.sourceGuest
-                    ? `${group.sourceGuest}${group.sourceFolioNumber ? ` · ${group.sourceFolioNumber}` : ""}`
-                    : "—";
-                  return (
-                    <tr key={group.sourceGroupId} className="border-b border-[#E8E1D7]">
-                      <td className="px-3 py-2">
-                        <Checkbox
-                          checked={selected}
-                          disabled={disabled}
-                          onCheckedChange={(value) =>
-                            setAmounts((current) => {
-                              const next = { ...current };
-                              if (value) next[group.sourceGroupId] = String(group.remaining);
-                              else delete next[group.sourceGroupId];
-                              return next;
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="px-3 py-2">{group.description}</td>
-                      <td className="px-3 py-2 text-xs">{source}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {money(group.originalGross)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {money(group.previouslyCredited)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {money(group.remaining)}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <input
-                          className="h-8 w-24 rounded-md border border-[#E8E1D7] px-2 text-right text-sm"
-                          inputMode="decimal"
-                          disabled={disabled || !selected}
-                          value={amounts[group.sourceGroupId] ?? ""}
-                          onChange={(event) =>
-                            setAmounts((current) => ({
-                              ...current,
-                              [group.sourceGroupId]: event.target.value,
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="ml-2 text-[11px] text-[#8a6a1d] underline"
-                          disabled={disabled}
-                          onClick={() =>
-                            setAmounts((current) => ({
-                              ...current,
-                              [group.sourceGroupId]: String(group.remaining),
-                            }))
-                          }
-                        >
-                          Full
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="grid gap-4 border-t border-[#E8E1D7] p-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-            <label className="block text-xs text-muted-foreground">
-              Reason
+          <ul className="divide-y divide-[#E8E1D7]">
+            {board.groups.map((group) => {
+              const disabled = group.remaining <= 0.009;
+              const raw = amounts[group.sourceGroupId] ?? "";
+              const typed = Number(raw);
+              const filled = Number.isFinite(typed) ? Math.min(Math.max(typed, 0), group.remaining) : 0;
+              const source = group.sourceGuest
+                ? `${group.sourceGuest}${group.sourceFolioNumber ? ` · ${group.sourceFolioNumber}` : ""}`
+                : null;
+              return (
+                <li key={group.sourceGroupId} className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
+                  <div className="min-w-0">
+                    <p className="font-medium">{group.description}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {source ? `${source} · ` : ""}
+                      Original {money(group.originalGross)}
+                      {group.previouslyCredited > 0.009
+                        ? ` · Credited ${money(group.previouslyCredited)}`
+                        : ""}
+                      {" · "}
+                      Left {money(group.remaining)}
+                    </p>
+                  </div>
+                  <CreditAmountField
+                    value={raw}
+                    remaining={group.remaining}
+                    filled={filled}
+                    disabled={disabled}
+                    money={money}
+                    onChange={(next) =>
+                      setAmounts((current) => {
+                        const copy = { ...current };
+                        if (next == null) delete copy[group.sourceGroupId];
+                        else copy[group.sourceGroupId] = next;
+                        return copy;
+                      })
+                    }
+                  />
+                </li>
+              );
+            })}
+          </ul>
+          <div className="grid gap-4 border-t border-[#E8E1D7] p-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <label className="block text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Reason</span>
               <textarea
-                className="mt-1 w-full rounded-md border border-[#E8E1D7] px-2 py-1 text-sm text-foreground"
-                rows={3}
+                className="mt-1 w-full rounded-md border border-[#E8E1D7] px-2 py-1.5 text-sm"
+                rows={2}
                 maxLength={500}
+                placeholder="Why this amount is being credited"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />
             </label>
             <div className="space-y-1 text-sm">
               <p className="flex justify-between">
-                <span>Subtotal</span>
-                <span>{money(-(preview?.subtotal ?? 0))}</span>
+                <span className="text-muted-foreground">Credit</span>
+                <span className="font-semibold tabular-nums">{money(-(preview?.total ?? 0))}</span>
               </p>
-              <p className="flex justify-between">
-                <span>Tax</span>
-                <span>{money(-(preview?.tax ?? 0))}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>Service</span>
-                <span>{money(-(preview?.serviceCharge ?? 0))}</span>
-              </p>
-              <p className="flex justify-between font-medium">
-                <span>Total credit</span>
-                <span>{money(-(preview?.total ?? 0))}</span>
-              </p>
-              <p className="flex justify-between">
-                <span>Net invoice</span>
-                <span>{money(preview?.netAfter ?? board.netInvoice)}</span>
+              <p className="flex justify-between text-xs text-muted-foreground">
+                <span>Invoice after credit</span>
+                <span className="tabular-nums">{money(preview?.netAfter ?? board.netInvoice)}</span>
               </p>
               {preview && !preview.ok && preview.code ? (
                 <p className="text-xs text-amber-800">{preview.code}</p>
               ) : null}
               {preview?.creditBalance != null ? (
                 <p className="text-xs text-amber-800">
-                  This credit will create a credit balance of {money(preview.creditBalance)}. Refund
-                  is a separate action.
+                  This leaves a credit balance of {money(preview.creditBalance)}. A refund is separate.
                 </p>
               ) : null}
-              {(preview?.groups ?? []).flatMap((group) =>
-                group.components.map((component) => (
-                  <p
-                    key={`${group.description}-${component.kind}-${component.description}`}
-                    className="text-[11px] text-muted-foreground"
-                  >
-                    {component.description} {money(-component.credited)}
-                  </p>
-                )),
-              )}
             </div>
           </div>
           <div className="flex justify-end gap-2 border-t border-[#E8E1D7] px-4 py-3">
+            {canEditDraft ? (
             <Button
               size="sm"
               variant="outline"
@@ -438,11 +457,12 @@ export function CreditNoteSection({
             >
               Save draft
             </Button>
+            ) : null}
+            {canAuthorize ? (
             <Button
               size="sm"
               className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
               disabled={
-                !canAuthorize ||
                 issueMut.isPending ||
                 items.length === 0 ||
                 reason.trim().length === 0
@@ -452,6 +472,7 @@ export function CreditNoteSection({
             >
               Issue credit note
             </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

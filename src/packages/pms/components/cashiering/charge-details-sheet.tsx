@@ -252,6 +252,8 @@ export function ChargeDetailsSheet({
   onClose,
   onCorrectCharge,
   onTransferCharge,
+  canViewGuest,
+  canViewReservation,
 }: {
   group: FolioChargeGroup | null;
   workspace: FolioWorkspace;
@@ -260,6 +262,8 @@ export function ChargeDetailsSheet({
   onClose: () => void;
   onCorrectCharge: () => void;
   onTransferCharge: () => void;
+  canViewGuest: boolean;
+  canViewReservation: boolean;
 }) {
   const [tab, setTab] = useState<DetailTab>("overview");
   const rowId = group?.parent.id ?? null;
@@ -271,9 +275,9 @@ export function ChargeDetailsSheet({
   const row = group?.parent ?? null;
   const folio = workspace.folio;
   const rows = folio.transactions;
-  const canAdjust = Boolean(
+  const canCorrectCharge = Boolean(
     row &&
-      workspace.capabilities.canAdjust &&
+      (workspace.capabilities.canAdjust || workspace.capabilities.canDiscount) &&
       isParentTransferCharge(row) &&
       correctableGroupRemainder(row.id, rows).grossRemaining > 0.009,
   );
@@ -354,7 +358,7 @@ export function ChargeDetailsSheet({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              {canAdjust ? (
+              {canCorrectCharge ? (
                 <DropdownMenuItem onSelect={onCorrectCharge}>
                   <SlidersHorizontal className="size-4 text-amber-700" /> Correct Charge
                 </DropdownMenuItem>
@@ -364,7 +368,7 @@ export function ChargeDetailsSheet({
                   <ArrowLeftRight className="size-4" /> Transfer Charge
                 </DropdownMenuItem>
               ) : null}
-              {canAdjust || canTransfer ? <DropdownMenuSeparator /> : null}
+              {canCorrectCharge || canTransfer ? <DropdownMenuSeparator /> : null}
               <DropdownMenuItem onSelect={() => setTab("history")}>
                 <History className="size-4" /> History
               </DropdownMenuItem>
@@ -513,7 +517,7 @@ export function ChargeDetailsSheet({
                 <div className="flex items-start justify-between gap-4 py-1.5">
                   <dt className="text-muted-foreground">Guest</dt>
                   <dd className="text-right font-medium">
-                    {folio.guestId ? (
+                    {folio.guestId && canViewGuest ? (
                       <Link
                         to="/restaurant/pms/guests/$guestId"
                         params={{ guestId: folio.guestId }}
@@ -529,7 +533,7 @@ export function ChargeDetailsSheet({
                 <div className="flex items-start justify-between gap-4 py-1.5">
                   <dt className="text-muted-foreground">Reservation</dt>
                   <dd className="text-right font-medium">
-                    {folio.reservationId ? (
+                    {folio.reservationId && canViewReservation ? (
                       <Link
                         to="/restaurant/pms/reservations/$reservationId"
                         params={{ reservationId: folio.reservationId }}
@@ -538,7 +542,7 @@ export function ChargeDetailsSheet({
                         {folio.confirmationNumber ?? "Reservation"}
                       </Link>
                     ) : (
-                      "—"
+                      (folio.confirmationNumber ?? "—")
                     )}
                   </dd>
                 </div>
@@ -591,7 +595,7 @@ export function ChargeDetailsSheet({
                 </p>
               ) : null}
               <div className="flex flex-col gap-2">
-                {canAdjust ? (
+                {canCorrectCharge ? (
                   <Button type="button" variant="outline" className="justify-start" onClick={onCorrectCharge}>
                     <SlidersHorizontal className="size-4 text-amber-700" /> Correct Charge
                   </Button>

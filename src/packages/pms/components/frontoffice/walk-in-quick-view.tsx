@@ -10,6 +10,8 @@ import { isPermissionDeniedMessage } from "@/packages/pms/lib/front-office-shell
 import { getFrontOfficeWalkInQuickView, type FoWalkInQuickView } from "@/packages/pms/lib/fo-walkin.functions";
 import { FoGuestServicesPanel } from "@/packages/pms/components/frontoffice/fo-guest-services-panel";
 import { walkInMenuItems, type FoWalkInActionId } from "@/packages/pms/lib/fo-walkin";
+import { foDeskMenuAllowed } from "@/packages/pms/lib/front-office-desk-access";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { useMoney } from "@/core/state/property-format";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -49,6 +51,7 @@ export function WalkInQuickViewSheet({
   onAction: (action: FoWalkInActionId, qv: FoWalkInQuickView) => void;
 }) {
   const money = useMoney();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const fetchQv = useServerFn(getFrontOfficeWalkInQuickView);
   const qvQuery = useQuery({
     queryKey: ["front-office", "walkin-qv", restaurantId, reservationId],
@@ -59,7 +62,11 @@ export function WalkInQuickViewSheet({
 
   const qv = qvQuery.data;
   const denied = qvQuery.isError && isPermissionDeniedMessage(qvQuery.error);
-  const menu = qv ? walkInMenuItems({ status: qv.stay.status, hints: qv.hints }) : [];
+  const menu = qv
+    ? walkInMenuItems({ status: qv.stay.status, hints: qv.hints }).filter((item) =>
+        foDeskMenuAllowed(desk, item.id),
+      )
+    : [];
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -99,11 +106,13 @@ export function WalkInQuickViewSheet({
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
+                {desk.canOpenReservation ? (
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: qv.stay.id }}>
                     Open Reservation
                   </Link>
                 </Button>
+                ) : null}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button type="button" variant="outline" size="icon" aria-label="More stay actions">
@@ -131,7 +140,7 @@ export function WalkInQuickViewSheet({
                   value={qv.verification.complete ? "Complete" : qv.verification.missing.join(", ") || "Incomplete"}
                 />
               </dl>
-              {qv.hints.canViewGuest ? (
+              {desk.canViewGuest && qv.hints.canViewGuest ? (
                 <Button type="button" variant="link" className="h-auto px-0" onClick={() => onAction("open_guest", qv)}>
                   Guest Profile
                 </Button>

@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { useServerFn } from "@tanstack/react-start";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { CheckCircle2, Pencil } from "lucide-react";
@@ -125,6 +126,7 @@ export const FoCheckInV2Review = forwardRef<
   ref,
 ) {
   const { user } = useAuth();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const fetchRestaurants = useServerFn(getMyRestaurants);
   const fetchReadiness = useServerFn(getCheckInReadiness);
   const fetchRegistration = useServerFn(getCheckInRegistration);
@@ -534,7 +536,11 @@ export const FoCheckInV2Review = forwardRef<
               summary=""
               testId="fo-ci-v2-review-step-1"
               editLabel="Edit Guest & Reservation"
-              onEdit={() => onEdit("guest_reservation")}
+              onEdit={
+                desk.canEditGuest || desk.canEditReservation
+                  ? () => onEdit("guest_reservation")
+                  : undefined
+              }
             >
               <dl className="grid gap-2 sm:grid-cols-2">
                 <Fact label="Guest" value={unit.primaryGuestName} />
@@ -561,7 +567,7 @@ export const FoCheckInV2Review = forwardRef<
               summary=""
               testId="fo-ci-v2-review-step-3"
               editLabel="Edit Payment & Guarantee"
-              onEdit={() => onEdit("payment_guarantee")}
+              onEdit={desk.canCheckIn || desk.canDeposit ? () => onEdit("payment_guarantee") : undefined}
             >
               {deposit ? (
                 <DepositFacts deposit={deposit} />
@@ -577,7 +583,7 @@ export const FoCheckInV2Review = forwardRef<
               summary=""
               testId="fo-ci-v2-review-step-2"
               editLabel="Edit Registration"
-              onEdit={() => onEdit("registration")}
+              onEdit={desk.canEditGuest ? () => onEdit("registration") : undefined}
             >
               <RegistrationCompletionCopy readiness={readiness} unit={unit} />
               <IdentityTone readiness={readiness} />
@@ -587,7 +593,7 @@ export const FoCheckInV2Review = forwardRef<
               summary=""
               testId="fo-ci-v2-review-step-4"
               editLabel="Edit Agreement & Signature"
-              onEdit={() => onEdit("agreement_signature")}
+              onEdit={desk.canCheckIn ? () => onEdit("agreement_signature") : undefined}
             >
               <dl className="grid gap-2 sm:grid-cols-2">
                 <Fact
@@ -742,7 +748,7 @@ function ReviewCard({
   summary: string;
   testId: string;
   editLabel: string;
-  onEdit: () => void;
+  onEdit?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -755,6 +761,7 @@ function ReviewCard({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">{title}</h3>
           {summary ? <p className="mt-0.5 text-xs text-[#6B5E4E]">{summary}</p> : null}
         </div>
+        {onEdit ? (
         <Button
           type="button"
           variant="ghost"
@@ -766,6 +773,7 @@ function ReviewCard({
           <Pencil className="mr-1 size-3" aria-hidden="true" />
           Edit
         </Button>
+        ) : null}
       </div>
       {children}
     </section>

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 
 import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -51,6 +52,7 @@ export function FoMaintenanceActionModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const resolvedRoomId = stay?.roomId ?? roomId ?? null;
   const resolvedRoomNumber = stay?.roomNumber ?? roomNumber ?? null;
   const resolvedGuest = stay?.guestName ?? guestName ?? "Vacant";
@@ -132,9 +134,9 @@ export function FoMaintenanceActionModal({
       roomLabel={foActionRoomChip(resolvedRoomNumber)}
       size="medium"
       confirmLabel="Create Work Order"
-      confirmDisabled={!canCreate}
+      confirmDisabled={!canCreate || !desk.canCreateMaintenance}
       pending={mutation.isPending}
-      hideConfirm={Boolean(createdId)}
+      hideConfirm={Boolean(createdId) || !desk.canCreateMaintenance}
       onConfirm={() => mutation.mutate()}
     >
       {createdId && workOrderLabel ? (

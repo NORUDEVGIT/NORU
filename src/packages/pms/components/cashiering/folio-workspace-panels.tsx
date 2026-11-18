@@ -94,8 +94,8 @@ import {
   type TenderTypeFilter,
 } from "@/packages/pms/lib/folio-workspace";
 import { formatStayDate } from "@/packages/pms/lib/reservation-dates";
+import { FolioChromeSlot, FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
-import { ReportFilterDate } from "@/packages/pms/components/reports/report-filter-bar";
 import { CashieringToolbarSearch } from "@/packages/pms/components/cashiering/cashiering-shell-slots";
 import { useMoney } from "@/core/state/property-format";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
@@ -217,96 +217,55 @@ const KPI_TINT = {
   adjustment: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
 };
 
-function KpiCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tint,
-  className,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tint: string;
-  className?: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div className={cn(CARD, "px-3 py-3", className)}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", tint)}>
-          <Icon className="size-3.5" />
-        </span>
-      </div>
-      <p
-        className={cn(
-          "mt-1 truncate text-lg font-semibold tabular-nums tracking-tight",
-          valueClassName,
-        )}
-      >
-        {value}
-      </p>
-      <p className="truncate text-[10px] text-muted-foreground">{detail}</p>
-    </div>
-  );
-}
-
 export function FolioKpiRow({ summary, money }: { summary: FolioFinancialSummary; money: Money }) {
   const balance = BALANCE_META[balanceTone(summary.currentBalance)];
   const netAdjustments = roundFolioMoney(summary.adjustments - summary.discounts + summary.refunds);
+  const cards = [
+    { label: "Net Charges", value: money(summary.netCharges), icon: Coins, tone: "bg-[#F7F4EE] text-[#5C5346]" },
+    {
+      label: "Tax & Service",
+      value: money(roundFolioMoney(summary.tax + summary.serviceCharge)),
+      icon: Percent,
+      tone: "bg-blue-50 text-blue-700",
+    },
+    { label: "Payments", value: money(summary.payments), icon: CreditCard, tone: "bg-emerald-50 text-emerald-700" },
+    { label: "Deposits", value: money(summary.deposits), icon: Landmark, tone: "bg-teal-50 text-teal-700" },
+    {
+      label: "Adjustments",
+      value: money(netAdjustments),
+      icon: SlidersHorizontal,
+      tone: "bg-amber-50 text-amber-800",
+    },
+    {
+      label: "Current Balance",
+      value: formatBalance(money, summary.currentBalance),
+      icon: Wallet,
+      tone: balance.tint,
+    },
+  ] as const;
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" data-testid="folio-kpis">
-      <KpiCard
-        label="Net Charges"
-        value={money(summary.netCharges)}
-        detail="Before tax & service"
-        icon={Coins}
-        tint={KPI_TINT.neutral}
-      />
-      <KpiCard
-        label="Tax & Service"
-        value={money(roundFolioMoney(summary.tax + summary.serviceCharge))}
-        detail={`Tax ${money(summary.tax)} · Service ${money(summary.serviceCharge)}`}
-        icon={Percent}
-        tint={KPI_TINT.tax}
-      />
-      <KpiCard
-        label="Payments"
-        value={money(summary.payments)}
-        detail="Received on folio"
-        icon={CreditCard}
-        tint={KPI_TINT.payment}
-      />
-      <KpiCard
-        label="Deposits"
-        value={money(summary.deposits)}
-        detail="Deposit credits"
-        icon={Landmark}
-        tint={KPI_TINT.deposit}
-      />
-      <KpiCard
-        label="Adjustments"
-        value={money(netAdjustments)}
-        detail="Adjustments, discounts, refunds"
-        icon={SlidersHorizontal}
-        tint={KPI_TINT.adjustment}
-      />
-      <KpiCard
-        label="Current Balance"
-        value={formatBalance(money, summary.currentBalance)}
-        detail={balance.label}
-        icon={Wallet}
-        tint={balance.tint}
-        className={cn("border-l-[3px]", balance.border)}
-        valueClassName={cn("text-xl", balance.text)}
-      />
-    </div>
+    <section
+      className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
+      aria-label="Folio KPIs"
+      data-testid="folio-kpis"
+    >
+      {cards.map((card) => (
+        <div
+          key={card.label}
+          className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
+        >
+          <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
+            <card.icon className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
+            <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+              {card.value}
+            </p>
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -469,7 +428,7 @@ function RowMenu({
             <ArrowLeftRight className="size-4" /> Transfer Charge
           </DropdownMenuItem>
         ) : null}
-        {workspace.capabilities.canAdjust &&
+        {(workspace.capabilities.canAdjust || workspace.capabilities.canDiscount) &&
         isParentTransferCharge(row) &&
         correctableGroupRemainder(row.id, rows).grossRemaining > 0.009 ? (
           <DropdownMenuItem onSelect={() => actions.onCorrectCharge(row)}>
@@ -829,55 +788,53 @@ export function ChargesTab({
         title="Charges"
         description="Review posted charges, tax and service amounts for this folio."
         testId="folio-charges"
-        action={
-          <div className="flex items-center gap-2">
-            {hasAnyTaxes ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 border-[#E8E1D7] bg-white text-xs font-medium text-[#251605] hover:bg-[#FAF8F5] gap-1.5 shadow-2xs"
-                onClick={() => {
-                  setExpandAllTaxes((prev) => !prev);
-                  setExpandedIds(new Set());
-                }}
-              >
-                <Percent className="size-3.5 text-[#C89933]" />
-                {expandAllTaxes ? "Hide Tax Breakdown" : "Show All Taxes"}
-              </Button>
-            ) : null}
-            {caps.canPostCharge ? (
-              <Button
-                size="sm"
-                className="h-8 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-                onClick={onPostCharge}
-              >
-                + Post Charge
-              </Button>
-            ) : null}
-            {hasMore ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="h-8">
-                    More ▾
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {caps.canAdjust ? (
-                    <DropdownMenuItem onSelect={onPostAdjustment}>
-                      <SlidersHorizontal className="size-4 text-amber-700" /> Post adjustment
-                    </DropdownMenuItem>
-                  ) : null}
-                  {caps.canTransfer && groups.length > 0 ? (
-                    <DropdownMenuItem onSelect={onTransferCharge}>
-                      <ArrowLeftRight className="size-4" /> Transfer a charge
-                    </DropdownMenuItem>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-          </div>
-        }
       >
+        <FolioChromeSlot name="cta">
+          {hasAnyTaxes ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 border-[#DDD4C5] bg-white text-xs font-medium text-[#251605] hover:bg-[#F7F4EE]"
+              onClick={() => {
+                setExpandAllTaxes((prev) => !prev);
+                setExpandedIds(new Set());
+              }}
+            >
+              <Percent className="size-3.5 text-[#C89933]" />
+              {expandAllTaxes ? "Hide taxes" : "Show taxes"}
+            </Button>
+          ) : null}
+          {caps.canPostCharge ? (
+            <Button
+              size="sm"
+              className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+              onClick={onPostCharge}
+            >
+              Post Charge
+            </Button>
+          ) : null}
+          {hasMore ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-9 border-[#DDD4C5]">
+                  More
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {caps.canAdjust ? (
+                  <DropdownMenuItem onSelect={onPostAdjustment}>
+                    <SlidersHorizontal className="size-4 text-amber-700" /> Post adjustment
+                  </DropdownMenuItem>
+                ) : null}
+                {caps.canTransfer && groups.length > 0 ? (
+                  <DropdownMenuItem onSelect={onTransferCharge}>
+                    <ArrowLeftRight className="size-4" /> Transfer a charge
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </FolioChromeSlot>
         {groups.length === 0 ? (
           <div className="p-4">
             <InventoryState
@@ -1110,69 +1067,70 @@ export function PaymentsDepositsTab({
 
   return (
     <div className="space-y-4" data-testid="payments-deposits">
+      <FolioChromeSlot name="dates">
+        <FolioDateRange
+          from={from}
+          to={to}
+          onFrom={setFrom}
+          onTo={setTo}
+          onRange={(nextFrom, nextTo) => {
+            setFrom(nextFrom);
+            setTo(nextTo);
+          }}
+          fromTestId="tender-from"
+          toTestId="tender-to"
+        />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="search">
+        <CashieringToolbarSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Notes, method, or posted by"
+          testId="tender-search"
+        />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="filter">
+        <PmsFilterMenu
+          activeCount={type !== "all" ? 1 : 0}
+          onClear={() => setType("all")}
+          buttonTestId="tender-filters-button"
+          menuTestId="tender-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Type"
+            value={type}
+            current={
+              type === "all"
+                ? ""
+                : type === "payment"
+                  ? "Payments"
+                  : type === "deposit"
+                    ? "Deposits"
+                    : "Refunds"
+            }
+            options={[
+              ["all", "All types"],
+              ["payment", "Payments"],
+              ["deposit", "Deposits"],
+              ["refund", "Refunds"],
+            ]}
+            onChange={(value) => setType(value as TenderTypeFilter)}
+          />
+        </PmsFilterMenu>
+      </FolioChromeSlot>
+      <FolioChromeSlot name="cta">
+        {caps.canPostPayment ? (
+          <Button size="sm" className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]" onClick={onReceivePayment}>
+            Receive Payment
+          </Button>
+        ) : null}
+        {caps.canPostDeposit ? (
+          <Button size="sm" variant="outline" className="h-9 border-[#DDD4C5]" onClick={onAddDeposit}>
+            Record Deposit
+          </Button>
+        ) : null}
+      </FolioChromeSlot>
       <section className={cn(CARD, "overflow-hidden")}>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] px-4 py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <CashieringToolbarSearch
-              value={search}
-              onChange={setSearch}
-              placeholder="Notes, method, or posted by"
-              testId="tender-search"
-            />
-            <div className="shrink-0">
-              <PmsFilterMenu
-                activeCount={(type !== "all" ? 1 : 0) + (from ? 1 : 0) + (to ? 1 : 0)}
-                onClear={() => {
-                  setType("all");
-                  setFrom("");
-                  setTo("");
-                }}
-                buttonTestId="tender-filters-button"
-                menuTestId="tender-filters-menu"
-              >
-                <PmsFilterChoiceRow
-                  label="Type"
-                  value={type}
-                  current={
-                    type === "all"
-                      ? ""
-                      : type === "payment"
-                        ? "Payments"
-                        : type === "deposit"
-                          ? "Deposits"
-                          : "Refunds"
-                  }
-                  options={[
-                    ["all", "All types"],
-                    ["payment", "Payments"],
-                    ["deposit", "Deposits"],
-                    ["refund", "Refunds"],
-                  ]}
-                  onChange={(value) => setType(value as TenderTypeFilter)}
-                />
-                <ReportFilterDate
-                  label="From"
-                  testId="tender-from"
-                  value={from}
-                  onChange={setFrom}
-                />
-                <ReportFilterDate label="To" testId="tender-to" value={to} onChange={setTo} />
-              </PmsFilterMenu>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {caps.canPostPayment ? (
-              <Button size="sm" className="h-8" onClick={onReceivePayment}>
-                Receive Payment
-              </Button>
-            ) : null}
-            {caps.canPostDeposit ? (
-              <Button size="sm" variant="outline" className="h-8" onClick={onAddDeposit}>
-                Record Deposit
-              </Button>
-            ) : null}
-          </div>
-        </div>
         {rows.length === 0 ? (
           <EmptyCompact icon={CreditCard} title="No payments, deposits, or refunds match." />
         ) : (
@@ -1468,14 +1426,14 @@ export function TransfersTab({
     <SectionCard
       title="Transfers"
       description="Charges moved between guest folios."
-      action={
-        workspace.capabilities.canTransfer && workspace.chargeGroups.length > 0 ? (
-          <Button size="sm" variant="outline" className="h-8" onClick={onTransferCharge}>
+    >
+      <FolioChromeSlot name="cta">
+        {workspace.capabilities.canTransfer && workspace.chargeGroups.length > 0 ? (
+          <Button size="sm" variant="outline" className="h-9 border-[#DDD4C5]" onClick={onTransferCharge}>
             <ArrowLeftRight className="size-4" /> Transfer a charge
           </Button>
-        ) : null
-      }
-    >
+        ) : null}
+      </FolioChromeSlot>
       {rows.length === 0 ? (
         <EmptyCompact icon={ArrowLeftRight} title="No transfers on this folio." />
       ) : (
@@ -1743,9 +1701,11 @@ export function SettlementTab({
                     Settlement actions
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" onClick={onIssueInvoice}>
-                      <FileText className="size-4" /> Issue final invoice
-                    </Button>
+                    {caps.canIssueInvoice && workspace.grants.invoiceAuthorize ? (
+                      <Button type="button" size="sm" onClick={onIssueInvoice}>
+                        <FileText className="size-4" /> Issue final invoice
+                      </Button>
+                    ) : null}
                     {workspace.canAllocateInvoices ? (
                       <Button
                         type="button"
@@ -1772,7 +1732,7 @@ export function SettlementTab({
                         <CreditCard className="size-4" /> Post payment
                       </Button>
                     ) : null}
-                    {workspace.canManage && balance > 0.009 ? (
+                    {caps.canTransfer && balance > 0.009 ? (
                       <Button type="button" size="sm" variant="outline" onClick={onTransfer}>
                         <ArrowLeftRight className="size-4" /> Transfer charges
                       </Button>
@@ -1832,7 +1792,7 @@ export function SettlementTab({
               </p>
             </SectionCard>
           ) : null}
-          {open && !workspace.canOperate ? (
+          {open && !caps.canPostCharge && !caps.canPostPayment && !caps.canPostDeposit ? (
             <p className="text-sm text-muted-foreground">Read-only access for your role.</p>
           ) : null}
         </div>
@@ -1851,7 +1811,7 @@ export function SettlementTab({
             money={money}
             dateTime={dateTime}
             canAllocate={workspace.canAllocateInvoices}
-            canReceive={open && workspace.canOperate}
+            canReceive={open && workspace.canReceiveInvoicePayment}
             onAllocate={onAllocateInvoice}
             onReceive={setReceiveInvoice}
             filter={invoiceFilter}
@@ -2200,6 +2160,8 @@ export function FolioSidebar({
   onClose,
   onViewGuest,
   onViewReservation,
+  canViewGuest,
+  canViewReservation,
 }: {
   workspace: FolioWorkspace;
   money: Money;
@@ -2208,6 +2170,8 @@ export function FolioSidebar({
   onClose?: () => void;
   onViewGuest?: (guestId: string) => void;
   onViewReservation?: (reservationId: string) => void;
+  canViewGuest: boolean;
+  canViewReservation: boolean;
 }) {
   const folio = workspace.folio;
   const s = workspace.financialSummary;
@@ -2320,7 +2284,7 @@ export function FolioSidebar({
             </p>
           ) : null}
         </div>
-        {folio.guestId ? (
+        {folio.guestId && canViewGuest ? (
           onViewGuest ? (
             <Button
               type="button"
@@ -2393,7 +2357,7 @@ export function FolioSidebar({
             <Field label="Market Segment" value={folio.marketSegment ?? "Not configured"} />
             <Field label="Booking Source" value={folio.bookingSource ?? "Not configured"} />
           </div>
-          {onViewReservation ? (
+          {!canViewReservation ? null : onViewReservation ? (
             <Button
               type="button"
               variant="outline"

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requirePmsActor, requirePmsActorAny } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -196,10 +197,10 @@ export const issueGuestFolioChargeInvoice = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<InvoiceActionResult> => {
-    const me = await requirePmsActor(
+    const me = await requirePmsActorAny(
       context as never,
       data.restaurantId,
-      PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE,
+      moduleOrDesk(PMS_PERMISSIONS.CASHIERING_INVOICE_AUTHORIZE, PMS_PERMISSIONS.FRONT_OFFICE_INVOICE_AUTHORIZE),
     );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: board, error: boardError } = await supabaseAdmin.rpc(

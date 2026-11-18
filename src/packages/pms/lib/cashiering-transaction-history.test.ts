@@ -42,7 +42,7 @@ function input(
     allocations: [],
     counterparts: {},
     coverage: { legacyInvoice: null, invoices: [], debitNotes: [], creditNotes: [] },
-    access: { canManage: true, open: true },
+    access: { canCorrect: true, canTransfer: true, canRefund: true, canApplyDeposit: true, open: true },
     ...extra,
   };
 }
@@ -382,14 +382,14 @@ test("guest folio transaction history", async (t) => {
 
       const cashier = buildFinancialHistory(
         input([row({ id: "pay", type: "payment", amount: -20, paymentMethod: "cash" })], {
-          access: { canManage: false, open: true },
+          access: { canCorrect: true, canTransfer: true, canRefund: false, canApplyDeposit: true, open: true },
         }),
       );
       assert.equal(cashier[0]?.actions.refund, false);
 
       const closed = buildFinancialHistory(
         input([row({ id: "pay", type: "payment", amount: -20, paymentMethod: "cash" })], {
-          access: { canManage: true, open: false },
+          access: { canCorrect: true, canTransfer: true, canRefund: true, canApplyDeposit: true, open: false },
         }),
       );
       assert.equal(closed[0]?.actions.refund, false);

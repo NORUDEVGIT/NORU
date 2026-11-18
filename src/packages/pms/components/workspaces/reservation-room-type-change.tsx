@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -45,6 +45,7 @@ export function RoomTypeChangeDialog({
   reservation,
   unit,
   money,
+  canChangeRatePlan,
   onSaved,
 }: {
   open: boolean;
@@ -53,6 +54,8 @@ export function RoomTypeChangeDialog({
   reservation: ReservationDetail;
   unit: ReservationRoomUnit | null;
   money: (value: number) => string;
+  /** Without reservation.rate.override only the current plan may be kept. */
+  canChangeRatePlan: boolean;
   onSaved: () => void;
 }) {
   const fetchAvailability = useServerFn(getRoomTypeAvailability);
@@ -103,13 +106,21 @@ export function RoomTypeChangeDialog({
     enabled: open && Boolean(roomTypeId),
   });
 
+  const currentPlanId = unit?.ratePlanId ?? reservation.ratePlanId ?? null;
+  const planChoices = useMemo(
+    () =>
+      canChangeRatePlan
+        ? (plansQuery.data ?? [])
+        : (plansQuery.data ?? []).filter((plan) => plan.id === currentPlanId),
+    [plansQuery.data, canChangeRatePlan, currentPlanId],
+  );
+
   useEffect(() => {
-    const plans = plansQuery.data;
-    if (!plans) return;
+    if (!plansQuery.data) return;
     setRatePlanId((current) =>
-      plans.some((plan) => plan.id === current) ? current : (plans[0]?.id ?? ""),
+      planChoices.some((plan) => plan.id === current) ? current : (planChoices[0]?.id ?? ""),
     );
-  }, [plansQuery.data]);
+  }, [plansQuery.data, planChoices]);
 
   const review = useMutation({
     mutationFn: () => {
@@ -206,6 +217,7 @@ export function RoomTypeChangeDialog({
             <Label htmlFor="room-type-change-plan">Eligible Rate Plan</Label>
             <Select
               value={ratePlanId || undefined}
+              disabled={!canChangeRatePlan}
               onValueChange={(value) => {
                 setRatePlanId(value);
                 setImpact(null);
@@ -215,13 +227,19 @@ export function RoomTypeChangeDialog({
                 <SelectValue placeholder="Select a rate plan" />
               </SelectTrigger>
               <SelectContent>
-                {(plansQuery.data ?? []).map((plan) => (
+                {planChoices.map((plan) => (
                   <SelectItem key={plan.id} value={plan.id}>
                     {plan.code} · {plan.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {!canChangeRatePlan && plansQuery.data && planChoices.length === 0 ? (
+              <p className="text-xs text-[#A45B4A]" data-testid="room-type-change-plan-locked">
+                The current rate plan does not apply to this room type. Changing the rate plan
+                needs rate override permission.
+              </p>
+            ) : null}
           </div>
           {reviewed && impact ? (
             <div

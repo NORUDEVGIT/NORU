@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import {
   hasEffectivePermission,
   requirePmsActor,
+  requirePmsActorAny,
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import {
@@ -9,6 +10,7 @@ import {
   requireGuestWorkspaceViewActor,
 } from "./guest-master-guards.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -873,6 +875,13 @@ export const getGuestsAccess = createServerFn({ method: "POST" })
       canActivate: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_ACTIVATE),
       canPrintExport: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PROFILE_PRINT),
       canCreateReservation: hasEffectivePermission(resolved, PMS_PERMISSIONS.RESERVATION_CREATE),
+      canPrivacyExport: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT),
+      canPrivacyDelete: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE),
+      canMerge: hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_MERGE_AUTHORIZE),
+      canAuthorizeRestriction: hasEffectivePermission(
+        resolved,
+        PMS_PERMISSIONS.GUEST_RESTRICTION_AUTHORIZE,
+      ),
       canPrivacy:
         hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_EXPORT) ||
         hasEffectivePermission(resolved, PMS_PERMISSIONS.GUEST_PRIVACY_DELETE),
@@ -1907,7 +1916,11 @@ export const updateGuest = createServerFn({ method: "POST" })
     z.object({ restaurantId: idSchema, guestId: idSchema, guest: guestInputSchema }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const me = await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT),
+    );
 
     let beforeResult = await fromTable(context.supabase, "guest_profiles")
       .select(GUEST_COLUMNS_OVERVIEW)
@@ -3472,7 +3485,11 @@ export const createGuestServiceRequest = createServerFn({ method: "POST" })
       data,
       context,
     }): Promise<{ ok: true; id: string } | { ok: false; message: string }> => {
-      const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+      const me = await requirePmsActorAny(
+        context as never,
+        data.restaurantId,
+        moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_SERVICE_CREATE),
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       if (data.reservationId) {
         await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
@@ -4099,7 +4116,11 @@ export const createGuestDocumentUpload = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT),
+    );
     const { data: guest, error } = await context.supabase
       .from("guest_profiles")
       .select("id")
@@ -4143,7 +4164,11 @@ export const registerGuestDocument = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const me = await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT),
+    );
     const prefix = `${data.restaurantId}/guests/${data.guestId}/`;
     if (!data.storagePath.startsWith(prefix)) {
       return { ok: false as const, message: "Invalid document reference." };
@@ -4243,7 +4268,11 @@ export const reviewGuestDocument = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const me = await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT),
+    );
     const now = new Date().toISOString();
     const { data: updated, error } = await context.supabase
       .from("guest_documents")
@@ -4498,7 +4527,11 @@ export const saveGuestDocumentImage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.GUEST_PROFILE_EDIT);
+    const me = await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT),
+    );
     const prefix = `${data.restaurantId}/guests/${data.guestId}/`;
     if (!data.storagePath.startsWith(prefix)) {
       return { ok: false as const, message: "Invalid document reference." };

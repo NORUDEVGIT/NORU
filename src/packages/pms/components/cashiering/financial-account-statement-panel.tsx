@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Calendar, ChevronLeft, ChevronRight, FileSpreadsheet, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileSpreadsheet, Printer } from "lucide-react";
 
+import { FolioChromeSlot, FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
 import { formatBalance } from "@/packages/pms/components/cashiering/folio-workspace-panels";
 import { accountBalanceLabel } from "@/packages/pms/lib/cashiering-account-workspace";
 import { getFinancialAccountStatement } from "@/packages/pms/lib/cashiering-account-history.functions";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import { localDateInZone } from "@/shared/lib/property-time";
 import { cn } from "@/shared/lib/utils";
 
@@ -71,53 +71,46 @@ export function FinancialAccountStatement({
 
   return (
     <section className="space-y-4" data-testid="account-tab-statement">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl text-[#251605]">Account statement</h2>
-          <p className="text-sm text-muted-foreground">
-            Ledger movement for a property-local date range. This is not a Night Audit business
-            date.
-          </p>
-        </div>
+      <FolioChromeSlot name="dates">
+        <FolioDateRange
+          from={fromDate}
+          to={toDate}
+          allowClear={false}
+          onFrom={(value) => {
+            if (!value) return;
+            setFromDate(value);
+            setPage(1);
+          }}
+          onTo={(value) => {
+            if (!value) return;
+            setToDate(value);
+            setPage(1);
+          }}
+          onRange={(nextFrom, nextTo) => {
+            if (!nextFrom || !nextTo) return;
+            setFromDate(nextFrom);
+            setToDate(nextTo);
+            setPage(1);
+          }}
+          fromTestId="account-statement-from"
+          toTestId="account-statement-to"
+        />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="cta">
         <Button
           type="button"
+          size="sm"
           variant="outline"
-          className="border-[#E8E1D7] hover:bg-[#FAF8F4]"
+          className="h-9 border-[#DDD4C5]"
           disabled={!statement?.reconciled}
           onClick={printStatement}
         >
-          <Printer className="size-4 mr-1.5 text-[#C89933]" /> Print
+          <Printer className="size-3.5 text-[#8A6A24]" /> Print
         </Button>
-      </div>
-
-      <div className={cn(CARD, "p-3")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-[#736B5E] flex items-center gap-1.5 mr-1">
-            <Calendar className="size-3.5 text-[#C89933]" /> Date range:
-          </span>
-          <Input
-            type="date"
-            aria-label="Statement from"
-            value={fromDate}
-            className="h-9 w-38 text-xs border-[#E8E1D7] bg-white"
-            onChange={(event) => {
-              setFromDate(event.target.value);
-              setPage(1);
-            }}
-          />
-          <span className="text-xs text-muted-foreground">to</span>
-          <Input
-            type="date"
-            aria-label="Statement to"
-            value={toDate}
-            className="h-9 w-38 text-xs border-[#E8E1D7] bg-white"
-            onChange={(event) => {
-              setToDate(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-      </div>
+      </FolioChromeSlot>
+      <p className="text-xs text-muted-foreground">
+        Ledger movement for a property-local date range. This is not a Night Audit business date.
+      </p>
 
       {query.isLoading ? <p className="text-sm text-muted-foreground">Loading statement…</p> : null}
       {statement?.invalidRange ? (
@@ -140,7 +133,7 @@ export function FinancialAccountStatement({
       ) : null}
       {statement?.reconciled ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Summary label="Opening balance" value={balanceText(money, statement.openingBalance)} />
             <Summary label="Increases" value={money(statement.increases)} />
             <Summary label="Decreases" value={money(statement.decreases)} />
@@ -343,10 +336,12 @@ export function FinancialAccountStatement({
 
 function Summary({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className={cn(CARD, "p-3.5 transition-shadow hover:shadow-md")}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">{label}</p>
-      <p className="mt-1 font-display text-lg font-semibold text-[#251605] tabular-nums">{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
+    <div className="min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-3 py-2 shadow-sm">
+      <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
+      <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605] tabular-nums">
+        {value}
+      </p>
+      {hint ? <p className="truncate text-[10px] text-[#756A5B]">{hint}</p> : null}
     </div>
   );
 }

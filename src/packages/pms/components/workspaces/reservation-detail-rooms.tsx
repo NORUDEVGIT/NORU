@@ -1,3 +1,4 @@
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { ConnectingPairsSummary } from "@/packages/pms/components/bookings/reservation-room-pair-controls";
@@ -99,8 +100,22 @@ const FIELD =
   "h-8 w-full rounded-md border border-[#DDD4C5] bg-white px-2 text-sm text-[#251605] disabled:cursor-not-allowed disabled:bg-[#F7F2EA]";
 const ALL = "__all";
 
+function grantedRoomActions(
+  actions: RoomMenuAction[],
+  status: string,
+  grants: ReservationDetailGrants,
+): RoomMenuAction[] {
+  return actions.filter((action) => {
+    if (action === "change_room_type") return grants.edit;
+    if (action === "change_room" && status === "checked_in") return grants.stayEdit;
+    return grants.assignRoom;
+  });
+}
+
 export function ReservationDetailRoomsTab({
   restaurantId,
+  grants,
+  stayOpen,
   reservation,
   assignableRooms,
   canManage,
@@ -120,6 +135,8 @@ export function ReservationDetailRoomsTab({
   onOperate,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  stayOpen: boolean;
   reservation: ReservationDetail;
   assignableRooms: AssignableRoom[];
   canManage: boolean;
@@ -271,13 +288,17 @@ export function ReservationDetailRoomsTab({
     canManage,
   };
   const editable = reservationDetailEditable(lifecycle);
-  const menuActions = roomMenuActions({
-    status: activeStatus,
-    arrivalDate: reservation.arrivalDate,
-    businessDate,
-    canManage,
-    roomId: activeRoomId,
-  });
+  const menuActions = grantedRoomActions(
+    roomMenuActions({
+      status: activeStatus,
+      arrivalDate: reservation.arrivalDate,
+      businessDate,
+      canManage: stayOpen,
+      roomId: activeRoomId,
+    }),
+    activeStatus,
+    grants,
+  );
   const savedPrefs = useMemo(
     () => buildRoomPrefDraft(reservation.specialRequests),
     [reservation.specialRequests],
@@ -432,6 +453,7 @@ export function ReservationDetailRoomsTab({
         reservation={reservation}
         unit={activeUnit ?? null}
         money={money}
+        canChangeRatePlan={grants.rateOverride}
         onSaved={onSaved}
       />
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
@@ -459,6 +481,7 @@ export function ReservationDetailRoomsTab({
             restaurantId={restaurantId}
             reservation={reservation}
             canManage={canManage}
+            canCheckIn={grants.checkIn}
             onChanged={onSaved}
             onOperate={onOperate}
             money={money}
@@ -471,13 +494,17 @@ export function ReservationDetailRoomsTab({
                     setRoomTypeOpen(false);
                   },
                   roomActionsFor: (unit: ReservationRoomUnit) =>
-                    roomMenuActions({
-                      status: unit.status ?? reservation.status,
-                      arrivalDate: unit.arrivalDate,
-                      businessDate,
-                      canManage,
-                      roomId: unit.roomId,
-                    }),
+                    grantedRoomActions(
+                      roomMenuActions({
+                        status: unit.status ?? reservation.status,
+                        arrivalDate: unit.arrivalDate,
+                        businessDate,
+                        canManage: stayOpen,
+                        roomId: unit.roomId,
+                      }),
+                      unit.status ?? reservation.status,
+                      grants,
+                    ),
                   onRoomAction: runRoomAction,
                 }
               : {})}
@@ -564,28 +591,32 @@ export function ReservationDetailRoomsTab({
               Unsaved changes
             </span>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
-            disabled={!editable || !isDirty}
-            onClick={() => {
-              setPrefs(buildRoomPrefDraft(reservation.specialRequests));
-              setNotes(savedNotes);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
-            disabled={!editable || saveDraft.isPending}
-            onClick={() => saveDraft.mutate()}
-          >
-            {saveDraft.isPending ? "Saving…" : "Save Changes"}
-          </Button>
+          {grants.edit ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
+                disabled={!editable || !isDirty}
+                onClick={() => {
+                  setPrefs(buildRoomPrefDraft(reservation.specialRequests));
+                  setNotes(savedNotes);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
+                disabled={!editable || saveDraft.isPending}
+                onClick={() => saveDraft.mutate()}
+              >
+                {saveDraft.isPending ? "Saving…" : "Save Changes"}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
     </div>

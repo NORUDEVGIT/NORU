@@ -14,14 +14,55 @@ export type CompanyCreditSummary = {
   exceeded: boolean;
 };
 
+/** `show*` follows permission only; `can*` also needs the account state to allow it. */
 export type AccountWorkspaceCapabilities = {
+  showReceivePayment: boolean;
   canReceivePayment: boolean;
+  showReceiveDeposit: boolean;
+  canReceiveDeposit: boolean;
+  canReceiveInvoicePayment: boolean;
   canRefund: boolean;
   canCreateInvoice: boolean;
   canWriteOff: boolean;
+  showClose: boolean;
   canClose: boolean;
   canViewProfile: boolean;
 };
+
+export type AccountWorkspaceGrants = {
+  receivePayment: boolean;
+  receiveDeposit: boolean;
+  receiveInvoicePayment: boolean;
+  refund: boolean;
+  createInvoice: boolean;
+  writeOff: boolean;
+  close: boolean;
+  viewGuestProfile: boolean;
+};
+
+export const NO_ACCOUNT_WORKSPACE_GRANTS: AccountWorkspaceGrants = {
+  receivePayment: false,
+  receiveDeposit: false,
+  receiveInvoicePayment: false,
+  refund: false,
+  createInvoice: false,
+  writeOff: false,
+  close: false,
+  viewGuestProfile: false,
+};
+
+export function accountWorkspaceGrants(flags: AccountWorkspaceGrants): AccountWorkspaceGrants {
+  return {
+    receivePayment: flags.receivePayment,
+    receiveDeposit: flags.receiveDeposit,
+    receiveInvoicePayment: flags.receiveInvoicePayment,
+    refund: flags.refund,
+    createInvoice: flags.createInvoice,
+    writeOff: flags.writeOff,
+    close: flags.close,
+    viewGuestProfile: flags.viewGuestProfile,
+  };
+}
 
 export function roundAccountMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -58,30 +99,26 @@ export function companyCreditSummary(
 }
 
 export function accountWorkspaceCapabilities(input: {
-  role: string;
   status: "open" | "closed";
   balance: number;
   accountKind: AccountWorkspaceKind;
-  granted?: {
-    receivePayment: boolean;
-    refund: boolean;
-    createInvoice: boolean;
-    writeOff: boolean;
-    close: boolean;
-  };
+  granted: AccountWorkspaceGrants;
 }): AccountWorkspaceCapabilities {
-  const manage = input.role === "owner" || input.role === "manager";
-  const operate = manage || input.role === "cashier";
   const open = input.status === "open";
   const profile = input.accountKind === "company" || input.accountKind === "group";
   const granted = input.granted;
   return {
-    canReceivePayment: open && (granted ? granted.receivePayment : operate),
-    canRefund: open && (granted ? granted.refund : manage),
-    canCreateInvoice: open && (granted ? granted.createInvoice : manage),
-    canWriteOff: open && (granted ? granted.writeOff : manage) && input.balance > 0.009,
-    canClose: open && (granted ? granted.close : manage) && Math.abs(input.balance) < 0.01,
-    canViewProfile: profile,
+    showReceivePayment: granted.receivePayment,
+    canReceivePayment: open && granted.receivePayment,
+    showReceiveDeposit: granted.receiveDeposit,
+    canReceiveDeposit: open && granted.receiveDeposit,
+    canReceiveInvoicePayment: open && granted.receiveInvoicePayment,
+    canRefund: open && granted.refund,
+    canCreateInvoice: open && granted.createInvoice,
+    canWriteOff: open && granted.writeOff && input.balance > 0.009,
+    showClose: open && granted.close,
+    canClose: open && granted.close && Math.abs(input.balance) < 0.01,
+    canViewProfile: profile && granted.viewGuestProfile,
   };
 }
 

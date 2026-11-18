@@ -1,3 +1,4 @@
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import {
@@ -126,6 +127,8 @@ const NONE = "__none";
 
 export function ReservationDetailRequestsTab({
   restaurantId,
+  grants,
+  stayOpen,
   reservation,
   guest,
   preferences,
@@ -142,6 +145,8 @@ export function ReservationDetailRequestsTab({
   onSaved,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  stayOpen: boolean;
   reservation: ReservationDetail;
   guest: GuestProfile | null;
   preferences: GuestPreferences | null;
@@ -165,6 +170,7 @@ export function ReservationDetailRequestsTab({
   const submitAmend = useServerFn(amendReservation);
   const cancelled = reservation.status === "cancelled";
   const editable = canManage && !cancelled;
+  const serviceOpen = stayOpen && !cancelled;
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
 
   const [section, setSection] = useState<RequestSectionTab>("all");
@@ -367,15 +373,17 @@ export function ReservationDetailRequestsTab({
                   Manage guest preferences and service requests for this reservation.
                 </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                disabled={!editable || activeTypes.length === 0}
-                onClick={() => setCreateOpen(true)}
-              >
-                <Plus className="mr-1 size-3.5" />
-                Add Request
-              </Button>
+              {grants.guestServiceCreate ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!serviceOpen || activeTypes.length === 0}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <Plus className="mr-1 size-3.5" />
+                  Add Request
+                </Button>
+              ) : null}
             </div>
             <div className="mb-3 flex flex-wrap items-end gap-2">
               <label className="grid min-w-48 flex-1 gap-1 text-[11px] text-muted-foreground">
@@ -388,15 +396,17 @@ export function ReservationDetailRequestsTab({
                   onChange={(event) => setOccasion(event.target.value)}
                 />
               </label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!editable || saveStay.isPending}
-                onClick={() => saveStay.mutate({ specialOccasion: occasion.trim() || null })}
-              >
-                Save occasion
-              </Button>
+              {grants.edit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={!editable || saveStay.isPending}
+                  onClick={() => saveStay.mutate({ specialOccasion: occasion.trim() || null })}
+                >
+                  Save occasion
+                </Button>
+              ) : null}
             </div>
             {servicesQuery.error instanceof Error ? (
               <p className="mb-2 text-sm text-destructive">{servicesQuery.error.message}</p>
@@ -436,15 +446,17 @@ export function ReservationDetailRequestsTab({
                   chips={profileChips}
                   empty="No guest profile preferences recorded."
                   edit={
-                    <Button asChild size="sm" variant="ghost">
-                      <Link
-                        to="/restaurant/pms/guests/$guestId"
-                        params={{ guestId: reservation.guestId }}
-                        search={{ card: "preferences" }}
-                      >
-                        Edit
-                      </Link>
-                    </Button>
+                    grants.guestEdit ? (
+                      <Button asChild size="sm" variant="ghost">
+                        <Link
+                          to="/restaurant/pms/guests/$guestId"
+                          params={{ guestId: reservation.guestId }}
+                          search={{ card: "preferences" }}
+                        >
+                          Edit
+                        </Link>
+                      </Button>
+                    ) : null
                   }
                 />
               ) : null}
@@ -455,15 +467,17 @@ export function ReservationDetailRequestsTab({
                   chips={section === "room" ? roomChips : section === "vip" ? vipChips : stayChips}
                   empty="No reservation-specific preferences recorded."
                   edit={
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      disabled={!editable}
-                      onClick={() => setPrefOpen(true)}
-                    >
-                      Edit
-                    </Button>
+                    grants.edit ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={!editable}
+                        onClick={() => setPrefOpen(true)}
+                      >
+                        Edit
+                      </Button>
+                    ) : null
                   }
                 />
               ) : null}
@@ -480,7 +494,8 @@ export function ReservationDetailRequestsTab({
               dateTime={dateTime}
               statusFilter={statusFilter}
               search={search}
-              editable={editable}
+              showUpdate={grants.guestEdit}
+              editable={serviceOpen}
               updating={updateMutation.isPending}
               onStatus={setStatusFilter}
               onSearch={setSearch}
@@ -562,32 +577,38 @@ export function ReservationDetailRequestsTab({
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
-        <Button type="button" variant="outline" size="sm" onClick={onBackToFolio}>
-          Back to Folio & Payments
-        </Button>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!editable || saveStay.isPending}
-            onClick={() => saveStay.mutate({ notes })}
-          >
-            Save Changes
+        {grants.openFolio ? (
+          <Button type="button" variant="outline" size="sm" onClick={onBackToFolio}>
+            Back to Folio & Payments
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setNotes(reservation.notes ?? "");
-              setPrefDraft(buildRoomPrefDraft(reservation.specialRequests));
-              setStatusFilter("all");
-              setSearch("");
-            }}
-          >
-            Cancel
-          </Button>
-        </div>
+        ) : (
+          <span />
+        )}
+        {grants.edit ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={!editable || saveStay.isPending}
+              onClick={() => saveStay.mutate({ notes })}
+            >
+              Save Changes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setNotes(reservation.notes ?? "");
+                setPrefDraft(buildRoomPrefDraft(reservation.specialRequests));
+                setStatusFilter("all");
+                setSearch("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <Dialog open={prefOpen} onOpenChange={setPrefOpen}>
@@ -793,6 +814,7 @@ function ServiceRequestsCard({
   dateTime,
   statusFilter,
   search,
+  showUpdate,
   editable,
   updating,
   onStatus,
@@ -807,6 +829,7 @@ function ServiceRequestsCard({
   dateTime: (iso: string | null | undefined) => string;
   statusFilter: GuestServiceStatus | "all";
   search: string;
+  showUpdate: boolean;
   editable: boolean;
   updating: boolean;
   onStatus: (status: GuestServiceStatus | "all") => void;
@@ -906,6 +929,7 @@ function ServiceRequestsCard({
                       {item.preferredAt ? dateTime(item.preferredAt) : DETAIL_DASH}
                     </td>
                     <td className="py-2">
+                      {showUpdate ? (
                       <div className="flex gap-1">
                         {actions.start ? (
                           <Button
@@ -964,6 +988,7 @@ function ServiceRequestsCard({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
+                      ) : null}
                     </td>
                   </tr>
                 );

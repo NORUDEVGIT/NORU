@@ -11,6 +11,8 @@ import {
   getCompanyInvoiceFiscal,
   registerCompanyInvoiceFiscal,
 } from "@/packages/pms/lib/fiscal/fiscal.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -38,6 +40,9 @@ export function CompanyInvoiceFiscalSection({
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(getCompanyInvoiceFiscal);
+  const canOpenFiscalSettings = usePmsPermissions(restaurantId).can(
+    PMS_PERMISSIONS.CONFIG_INTEGRATION_VIEW,
+  );
   const register = useServerFn(registerCompanyInvoiceFiscal);
   const [open, setOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
@@ -114,12 +119,14 @@ export function CompanyInvoiceFiscalSection({
             <p key={item}>Item mapping: {item} → Missing</p>
           ))}
           {state.missingDevice ? <p>Device ID is missing.</p> : null}
-          <a
+          {canOpenFiscalSettings ? (
+            <a
             className="inline-block text-sm font-medium text-[#8a6a1f] underline"
             href={SETTINGS_HREF}
           >
             Open fiscal settings
           </a>
+          ) : null}
         </div>
       ) : null}
       {state?.status === "registered" && state.registration ? (

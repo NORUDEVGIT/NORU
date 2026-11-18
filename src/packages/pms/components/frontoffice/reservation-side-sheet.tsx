@@ -36,6 +36,8 @@ import {
   stayQuickViewMenuItems,
   type StayQuickViewMenuItem,
 } from "@/packages/pms/lib/front-office-shell";
+import { foDeskMenuAllowed } from "@/packages/pms/lib/front-office-desk-access";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { liveStayBadges, onRackDrop } from "@/packages/pms/lib/fo-rack-power";
 import type { FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import { useMoney } from "@/core/state/property-format";
@@ -81,6 +83,7 @@ export function ReservationSideSheet({
   onAction: (action: SideSheetAction, stay: FrontOfficeStay) => void;
 }) {
   const money = useMoney();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const queryClient = useQueryClient();
   const fetchDetail = useServerFn(getReservation);
   const fetchFolio = useServerFn(getReservationFolio);
@@ -137,8 +140,10 @@ export function ReservationSideSheet({
 
   if (!stay) return null;
 
-  const menuItems = stayQuickViewMenuItems({ status: stay.status, assigned: Boolean(stay.roomId) });
-  const amendItems = stayQuickViewAmendItems(stay.status);
+  const menuItems = stayQuickViewMenuItems({ status: stay.status, assigned: Boolean(stay.roomId) }).filter(
+    (item) => foDeskMenuAllowed(desk, item.id),
+  );
+  const amendItems = stayQuickViewAmendItems(stay.status).filter((item) => foDeskMenuAllowed(desk, item.id));
   const reservation = detailQuery.data?.reservation;
   const folioDenied = folioQuery.isError && isPermissionDeniedMessage(folioQuery.error);
 
@@ -163,6 +168,7 @@ export function ReservationSideSheet({
               </SheetDescription>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
+              {desk.canOpenReservation ? (
               <Button
                 size="sm"
                 className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
@@ -173,6 +179,7 @@ export function ReservationSideSheet({
                   Open Reservation
                 </Link>
               </Button>
+              ) : null}
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -185,7 +192,7 @@ export function ReservationSideSheet({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52" data-testid="fo-stay-qv-menu">
-                  {stayQuickViewCanAmend(stay.status) ? (
+                  {desk.canStayEdit && stayQuickViewCanAmend(stay.status) ? (
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger data-testid="fo-stay-qv-amend">Amend Stay</DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
@@ -308,6 +315,7 @@ export function ReservationSideSheet({
                       <p className="text-sm">{row.requestText}</p>
                       <p className="text-xs capitalize text-muted-foreground">{row.status}</p>
                     </div>
+                    {desk.canStayEdit ? (
                     <Button
                       size="sm"
                       variant="outline"
@@ -320,6 +328,7 @@ export function ReservationSideSheet({
                     >
                       {row.status === "open" ? "Done" : "Open"}
                     </Button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -389,7 +398,7 @@ export function ReservationSideSheet({
                   message="Only a supervisor, manager or property admin can edit cancel and no-show fee defaults."
                 />
               ) : null}
-              {isStayCancellable(stay.status) ? (
+              {desk.canCancel && isStayCancellable(stay.status) ? (
                 <Button
                   variant="outline"
                   size="sm"

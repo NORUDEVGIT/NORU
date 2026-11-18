@@ -151,8 +151,8 @@ describe("Police stay report screen", () => {
     assert.equal(ranged.from, "2026-10-18");
     assert.equal(ranged.to, "2026-10-22");
     assert.match(screen, /police-stay-date/);
-    assert.match(screen, /testId="police-from"/);
-    assert.match(screen, /testId="police-to"/);
+    assert.match(screen, /fromTestId="police-from"/);
+    assert.match(screen, /toTestId="police-to"/);
     assert.match(screen, /policeClearedSearch\(businessDate\)/);
     assert.match(screen, /ReportToolbarSearch/);
     const searchBar = read("../components/reports/report-filter-bar.tsx");

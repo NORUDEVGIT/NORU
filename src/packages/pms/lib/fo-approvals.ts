@@ -1,8 +1,8 @@
 /**
  * FO Phase 8 — authorization/override (pure).
- * Model B: live staff-role authorization. pms_approval_rules is setup config, not an inbox.
+ * Live authorization is the catalogue permission. pms_approval_rules is setup config, not an inbox.
+ * Role names do not authorize.
  */
-export const FO_LIVE_AUTHORIZER_ROLES = ["owner", "manager"] as const;
 
 export const FO_AUTHORIZATION_KEYS = [
   "front_office.check_in.override",
@@ -33,28 +33,28 @@ export const FO_AUTHORIZATION_META: Record<
     ownerModule: "front_office",
     foCommand: true,
     title: "Waive check-in step",
-    reason: "Registration, deposit, or key waiver uses the live owner/manager staff role.",
+    reason: "Registration, deposit, or key waiver uses Check-In Override.",
   },
   "front_office.check_out.override": {
     permissionCode: "front_office.check_out.override",
     ownerModule: "front_office",
     foCommand: true,
     title: "Override checkout settlement",
-    reason: "Leaving the folio open at check-out requires owner or manager authorization.",
+    reason: "Leaving the folio open at check-out uses Check-Out Override.",
   },
   "front_office.fee.override": {
     permissionCode: "front_office.fee.override",
     ownerModule: "front_office",
     foCommand: true,
     title: "Waive cancel / no-show fee",
-    reason: "Fee waiver uses the live owner/manager staff role. Cashiering still owns posting.",
+    reason: "Fee waiver uses Fee Override. Posting the fee is a separate permission.",
   },
   "late_checkout.authorize": {
     permissionCode: null,
     ownerModule: "front_office",
     foCommand: true,
     title: "Late checkout authorization",
-    reason: "When the property policy requires approval, late checkout uses the owner/manager staff role.",
+    reason: "When the property policy requires approval, late checkout uses Fee Override.",
   },
   "cashiering.room_charge.override": {
     permissionCode: "cashiering.room_charge.override",
@@ -102,8 +102,7 @@ export type FoApprovalRequirement = {
   reason: string;
   ownerModule: string;
   foCommand: boolean;
-  liveAuthz: "staff_role";
-  liveAuthorizerRoles: readonly string[];
+  liveAuthz: "permission";
   catalogueConfigured: boolean;
   ruleConfigured: boolean;
   ruleActive: boolean;
@@ -120,13 +119,11 @@ export type FoApprovalRequirement = {
   unavailableMessage: string | null;
 };
 
-export function isFoLiveAuthorizer(role: string): boolean {
-  return (FO_LIVE_AUTHORIZER_ROLES as readonly string[]).includes(role);
-}
-
 export function evaluateFoApprovalRequirement(input: {
   actionKey: FoAuthorizationKey;
-  staffRole: string;
+  staffRole?: string;
+  /** True when the caller holds the permission for this action. */
+  canAuthorize?: boolean;
   catalogueConfigured: boolean;
   ruleActive: boolean;
   approverRoleName: string | null;
@@ -138,7 +135,7 @@ export function evaluateFoApprovalRequirement(input: {
   unavailableMessage?: string | null;
 }): FoApprovalRequirement {
   const meta = FO_AUTHORIZATION_META[input.actionKey];
-  const canAuthorize = isFoLiveAuthorizer(input.staffRole);
+  const canAuthorize = input.canAuthorize === true;
   const policyNeeds = input.actionKey === "late_checkout.authorize" ? input.policyNeedsApproval === true : true;
   const liveRequired = meta.foCommand && policyNeeds;
   const approvalRequired = liveRequired && !canAuthorize;
@@ -158,7 +155,7 @@ export function evaluateFoApprovalRequirement(input: {
         ? `Configured threshold ${input.thresholdAmount}% (setup only — not live-enforced)`
         : `Configured threshold ${input.thresholdAmount} (setup only — not live-enforced)`;
   } else if (input.ruleActive) {
-    thresholdSummary = "Approval rule is configured. Live authorization still uses the staff role.";
+    thresholdSummary = "Approval rule is configured. Live authorization uses the permission.";
   }
 
   return {
@@ -168,8 +165,7 @@ export function evaluateFoApprovalRequirement(input: {
     reason: meta.reason,
     ownerModule: meta.ownerModule,
     foCommand: meta.foCommand,
-    liveAuthz: "staff_role",
-    liveAuthorizerRoles: FO_LIVE_AUTHORIZER_ROLES,
+    liveAuthz: "permission",
     catalogueConfigured: input.catalogueConfigured,
     ruleConfigured: input.ruleActive,
     ruleActive: input.ruleActive,
@@ -195,8 +191,8 @@ export function foAuthorizationButtonLabel(requirement: FoApprovalRequirement): 
   return "Not authorized";
 }
 
-export function foLateCheckoutRequiresApproval(needsApproval: boolean, staffRole: string): boolean {
-  return needsApproval && !isFoLiveAuthorizer(staffRole);
+export function foLateCheckoutRequiresApproval(needsApproval: boolean, canAuthorize: boolean): boolean {
+  return needsApproval && !canAuthorize;
 }
 
 export function foRequiresApprovalLabel(base: string, required: boolean): string {

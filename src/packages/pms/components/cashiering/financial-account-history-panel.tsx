@@ -2,8 +2,11 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight, History, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, History } from "lucide-react";
 
+import { useAccountToolbarSearch } from "@/packages/pms/components/cashiering/financial-account-chrome";
+import { FolioChromeSlot, FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { formatBalance } from "@/packages/pms/components/cashiering/folio-workspace-panels";
 import { listFinancialAccountHistory } from "@/packages/pms/lib/cashiering-account-history.functions";
 import type {
@@ -11,7 +14,6 @@ import type {
   AccountHistoryFilter,
 } from "@/packages/pms/lib/cashiering-account-history";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -94,14 +96,89 @@ export function FinancialAccountHistory({
   const result = query.data;
   const pageCount = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
 
+  useAccountToolbarSearch({
+    value: search,
+    placeholder: "Search folio, guest, document, description, or actor",
+    testId: "account-history-search",
+    onChange: (value) => {
+      setSearch(value);
+      setPage(1);
+    },
+  });
+
   return (
     <section className="space-y-4" data-testid="account-tab-history">
-      <div>
-        <h2 className="font-display text-xl text-[#251605]">History</h2>
-        <p className="text-sm text-muted-foreground">
-          Financial events and account activity. Dates use the property&apos;s local time.
-        </p>
-      </div>
+      <FolioChromeSlot name="dates">
+        <FolioDateRange
+          from={from}
+          to={to}
+          onFrom={(value) => {
+            setFrom(value);
+            setPage(1);
+          }}
+          onTo={(value) => {
+            setTo(value);
+            setPage(1);
+          }}
+          onRange={(nextFrom, nextTo) => {
+            setFrom(nextFrom);
+            setTo(nextTo);
+            setPage(1);
+          }}
+          fromTestId="account-history-from"
+          toTestId="account-history-to"
+        />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="filter">
+        <PmsFilterMenu
+          activeCount={
+            (eventType !== "all" ? 1 : 0) + (actorId ? 1 : 0) + (sort !== "newest" ? 1 : 0)
+          }
+          onClear={() => {
+            setEventType("all");
+            setActorId("");
+            setSort("newest");
+            setPage(1);
+          }}
+          buttonTestId="account-history-filters-button"
+          menuTestId="account-history-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Event type"
+            value={eventType}
+            current={FILTERS.find(([id]) => id === eventType)?.[1] ?? ""}
+            options={FILTERS}
+            onChange={(value) => {
+              setEventType(value as AccountHistoryFilter);
+              setPage(1);
+            }}
+          />
+          <PmsFilterChoiceRow
+            label="Actor"
+            value={actorId || "all"}
+            current={(result?.actors ?? []).find((actor) => actor.id === actorId)?.name ?? ""}
+            options={[
+              ["all", "All actors"],
+              ...(result?.actors ?? []).map((actor) => [actor.id, actor.name] as const),
+            ]}
+            onChange={(value) => {
+              setActorId(value === "all" ? "" : value);
+              setPage(1);
+            }}
+          />
+          <PmsFilterChoiceRow
+            label="Order"
+            value={sort}
+            neutralValue="newest"
+            current={sort === "oldest" ? "Oldest first" : ""}
+            options={[
+              ["newest", "Newest first"],
+              ["oldest", "Oldest first"],
+            ]}
+            onChange={(value) => setSort(value as "newest" | "oldest")}
+          />
+        </PmsFilterMenu>
+      </FolioChromeSlot>
       {result && !result.hasBalanceActivity ? (
         <div className="rounded-lg border border-[#E8E1D7] bg-[#FAF8F4] p-4 text-center">
           <p className="text-sm text-muted-foreground">
@@ -110,74 +187,6 @@ export function FinancialAccountHistory({
         </div>
       ) : null}
       <div className={cn(CARD, "space-y-3 p-3")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[220px] max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Search folio, guest, document, description, or actor"
-              className="h-9 pl-8 text-sm border-[#E8E1D7] bg-white focus-visible:ring-1 focus-visible:ring-[#C89933]"
-              aria-label="Search history"
-            />
-          </div>
-          <Select
-            value={eventType}
-            label="Event type"
-            onChange={(value) => {
-              setEventType(value as AccountHistoryFilter);
-              setPage(1);
-            }}
-            options={FILTERS}
-          />
-          <Select
-            value={actorId}
-            label="Actor"
-            onChange={(value) => {
-              setActorId(value);
-              setPage(1);
-            }}
-            options={[
-              ["", "All actors"],
-              ...(result?.actors ?? []).map((actor) => [actor.id, actor.name] as [string, string]),
-            ]}
-          />
-          <Select
-            value={sort}
-            label="Order"
-            onChange={(value) => setSort(value as "newest" | "oldest")}
-            options={[
-              ["newest", "Newest first"],
-              ["oldest", "Oldest first"],
-            ]}
-          />
-          <div className="flex items-center gap-1.5">
-            <Input
-              type="date"
-              value={from}
-              aria-label="From date"
-              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
-              onChange={(event) => {
-                setFrom(event.target.value);
-                setPage(1);
-              }}
-            />
-            <span className="text-xs text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={to}
-              aria-label="To date"
-              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
-              onChange={(event) => {
-                setTo(event.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-        </div>
         <div className="rounded-lg border border-[#E8E1D7] overflow-hidden">
           {query.isLoading ? (
             <p className="px-4 py-8 text-sm text-center text-muted-foreground">Loading history…</p>

@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
@@ -379,6 +380,20 @@ export function PoliceStayReportScreen({
       {...(failure === "load" || failure === "too-large"
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
+      dates={
+        <FolioDateRange
+          from={search.from ?? stayDate}
+          to={search.to ?? stayDate}
+          fromTestId="police-from"
+          toTestId="police-to"
+          allowClear={Boolean(search.from || search.to)}
+          onFrom={(next) => writeFilters({ from: next || null, resetPage: true })}
+          onTo={(next) => writeFilters({ to: next || null, resetPage: true })}
+          onRange={(nextFrom, nextTo) =>
+            writeFilters({ from: nextFrom || null, to: nextTo || null, resetPage: true })
+          }
+        />
+      }
       search={
         <ReportToolbarSearch
           value={search.name ?? ""}
@@ -391,8 +406,6 @@ export function PoliceStayReportScreen({
         <PmsFilterMenu
           activeCount={
             (stayDate !== businessDate ? 1 : 0) +
-            (search.from ? 1 : 0) +
-            (search.to ? 1 : 0) +
             (presence === "HISTORICAL" ? 1 : 0) +
             (search.nationality ? 1 : 0) +
             (search.room ? 1 : 0)
@@ -411,18 +424,6 @@ export function PoliceStayReportScreen({
             testId="police-stay-date"
             value={stayDate}
             onChange={(next) => writeFilters({ stayDate: next, resetPage: true })}
-          />
-          <ReportFilterDate
-            label="From"
-            testId="police-from"
-            value={search.from ?? ""}
-            onChange={(next) => writeFilters({ from: next || null, resetPage: true })}
-          />
-          <ReportFilterDate
-            label="To"
-            testId="police-to"
-            value={search.to ?? ""}
-            onChange={(next) => writeFilters({ to: next || null, resetPage: true })}
           />
           <PmsFilterChoiceRow
             label="Presence"

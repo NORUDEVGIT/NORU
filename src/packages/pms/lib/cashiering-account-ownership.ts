@@ -552,9 +552,13 @@ export function currentSourceFolioIds(groups: readonly AccountChargeGroup[]): st
 }
 
 export function chargeCapabilities(input: {
-  role: string;
   accountStatus: "open" | "closed";
-  canMutate?: boolean;
+  /** `cashiering.adjustment.post`, used by amount, quantity, and reversal corrections. */
+  canAdjust: boolean;
+  /** `cashiering.discount.post`, used by the discount correction mode. */
+  canDiscount: boolean;
+  /** `cashiering.transfer.post`, used by the return-to-guest transfer. */
+  canTransfer: boolean;
   group: Pick<
     AccountChargeGroup,
     | "sourceKind"
@@ -565,19 +569,18 @@ export function chargeCapabilities(input: {
     | "correctionSourceId"
   >;
 }): ChargeCapabilities {
-  const manage = input.canMutate ?? (input.role === "owner" || input.role === "manager");
   const open = input.accountStatus === "open";
   const blocked = input.group.coverage === "invoiced" || input.group.coverage === "partial";
   const mutable =
-    manage &&
     open &&
     !blocked &&
     input.group.remainingAmount > 0.009 &&
-    input.group.sourceKind === "direct";
+    input.group.sourceKind === "direct" &&
+    Boolean(input.group.correctionSourceId);
   return {
     canView: true,
-    canCorrect: mutable && Boolean(input.group.correctionSourceId),
-    canReturnToGuest: mutable && Boolean(input.group.correctionSourceId),
+    canCorrect: (input.canAdjust || input.canDiscount) && mutable,
+    canReturnToGuest: input.canTransfer && mutable,
     canViewInvoice: Boolean(input.group.invoiceId),
     canViewSourceFolio: Boolean(input.group.sourceFolioId),
   };

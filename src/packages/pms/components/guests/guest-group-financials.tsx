@@ -23,6 +23,8 @@ import {
 } from "@/shared/components/ui/table";
 import { getGroupFinancials } from "@/packages/pms/lib/guest-group-detail.functions";
 import { GROUP_FINANCIAL_COPY, GROUP_INVOICE_SERVICE_UNAVAILABLE } from "@/packages/pms/lib/guest-group-detail-workspace";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 export function GuestGroupFinancials({
   restaurantId,
@@ -32,6 +34,7 @@ export function GuestGroupFinancials({
   groupId: string;
 }) {
   const load = useServerFn(getGroupFinancials);
+  const canViewFolio = usePmsPermissions(restaurantId).can(PMS_PERMISSIONS.CASHIERING_VIEW);
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
   const query = useQuery({
@@ -173,14 +176,20 @@ export function GuestGroupFinancials({
                       <TableCell>{row.folioStatus}</TableCell>
                       <TableCell>
                         {row.folioId ? (
-                          <Button asChild size="sm" variant="outline">
-                            <Link
-                              to="/restaurant/pms/cashiering/folios/$folioId"
-                              params={{ folioId: row.folioId }}
-                            >
-                              Open folio
-                            </Link>
-                          </Button>
+                          canViewFolio ? (
+                            <Button asChild size="sm" variant="outline">
+                              <Link
+                                to="/restaurant/pms/cashiering/folios/$folioId"
+                                params={{ folioId: row.folioId }}
+                              >
+                                Open folio
+                              </Link>
+                            </Button>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              Folio {row.folioId.slice(0, 8)}
+                            </span>
+                          )
                         ) : null}
                       </TableCell>
                     </TableRow>

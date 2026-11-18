@@ -57,6 +57,7 @@ import { RestaurantSettingsProvider } from "@/core/state/property-format";
 import { PmsHeadingProvider } from "@/core/state/pms-context";
 import { shouldSuppressRestaurantPmsRail } from "@/packages/pms/lib/front-office-shell";
 import { pmsModuleVisible, pmsSettingsHubVisible } from "@/packages/pms/lib/pms-client-access";
+import { PMS_PERMISSIONS, type PmsPermissionCode } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   CARD6_HASH,
@@ -116,7 +117,6 @@ const HK_ALL = [
 const HK_SUP = ["owner", "manager", "housekeeping", "housekeeping_supervisor"];
 const HK_CLEAN = [...HK_SUP, "housekeeper"];
 const HK_MAINT = [...HK_SUP, "maintenance"];
-const CASH = ["owner", "manager", "cashier", "accountant"];
 const AUDIT = ["owner", "manager", "accountant"];
 const INV = ["owner", "manager", "kitchen", "storekeeper"];
 const PROC = ["owner", "manager", "storekeeper"];
@@ -131,6 +131,8 @@ type NavEntry = {
   icon: typeof LayoutDashboard;
   /** When set, only these membership roles see the entry. */
   roles?: string[];
+  /** When set, the entry shows only if the user holds at least one of these PMS permissions. */
+  permissions?: readonly PmsPermissionCode[];
   /** Optional group heading, used by the Configuration workspace. */
   section?: string;
 };
@@ -293,27 +295,31 @@ const CASHIERING_NAV: NavEntry[] = [
     tab: "folios",
     label: "Folios",
     icon: ReceiptText,
-    roles: CASH,
+    permissions: [PMS_PERMISSIONS.CASHIERING_VIEW],
   },
   {
     to: "/restaurant/pms/cashiering",
     tab: "payments",
     label: "Payments",
     icon: Wallet,
-    roles: CASH,
+    permissions: [PMS_PERMISSIONS.CASHIERING_VIEW],
   },
   {
     to: "/restaurant/pms/cashiering",
     tab: "cashier-shift",
     label: "Cashier Shift",
     icon: ClipboardCheck,
-    roles: CASH,
+    permissions: [
+      PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW,
+      PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT,
+      PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE,
+    ],
   },
   {
     to: "/restaurant/pms/night-audit",
     label: "Night Audit",
     icon: MoonStar,
-    roles: AUDIT,
+    permissions: [PMS_PERMISSIONS.NIGHT_AUDIT_VIEW],
   },
 ];
 
@@ -545,6 +551,9 @@ export function RestaurantShell({
         if (item.to.startsWith("/restaurant/restaurant-management")) return false;
         if (item.to.startsWith("/restaurant/pos")) return false;
         if (item.to.startsWith("/restaurant/back-office")) return false;
+        if (item.permissions) {
+          return !pmsAccess.isLoading && !pmsAccess.isError && pmsAccess.canAny(item.permissions);
+        }
         return !item.roles || (membership ? item.roles.includes(membership.role) : false);
       });
   const activeItem = items.find((i) => i.label === active);

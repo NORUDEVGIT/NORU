@@ -19,10 +19,11 @@ import {
 import {
   hasEffectivePermission,
   requirePmsActor,
-  requirePmsActorAll,
+  requirePmsActorAny,
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { FO_CHECK_IN_FOLIO_READ, moduleOrDesk } from "./fo-desk-permissions";
 import { callPostFolioTransaction, cashierError } from "./cashiering.server";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
@@ -550,6 +551,11 @@ export const saveCheckInRegistration = createServerFn({ method: "POST" })
       data.restaurantId,
       PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
     );
+    await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT),
+    );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const loaded = await loadStay(supabaseAdmin, data.restaurantId, data.reservationId);
     const names = splitName(data.fullName);
@@ -801,7 +807,7 @@ export const getReservationCashieringSummary = createServerFn({ method: "POST" }
     z.object({ restaurantId: idSchema, reservationId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<ReservationCashieringSummary> => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    await requirePmsActorAny(context as never, data.restaurantId, FO_CHECK_IN_FOLIO_READ);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: stay, error: stayError } = await supabaseAdmin
       .from("hotel_reservations")
@@ -895,10 +901,12 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<CheckInFolioStrip> => {
-    const me = await requirePmsActorAll(context as never, data.restaurantId, [
-      PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
-      PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST,
-    ]);
+    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN);
+    await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST, PMS_PERMISSIONS.FRONT_OFFICE_DEPOSIT_POST),
+    );
     const target = await loadCheckInUnitTarget({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
@@ -1185,12 +1193,18 @@ export const completeFoCheckIn = createServerFn({ method: "POST" })
       });
       if (error) throw reservationError(error.message);
 
-      const servicePosting = await postPendingReservationServices(
-        supabaseAdmin as never,
-        data.restaurantId,
-        data.reservationId,
-        me.id,
-      );
+      const postingGrants = await resolveEffectivePermissions(context as never, data.restaurantId);
+      const canPostServices =
+        hasEffectivePermission(postingGrants, PMS_PERMISSIONS.CASHIERING_CHARGE_POST) ||
+        hasEffectivePermission(postingGrants, PMS_PERMISSIONS.FRONT_OFFICE_CHARGE_POST);
+      const servicePosting = canPostServices
+        ? await postPendingReservationServices(
+            supabaseAdmin as never,
+            data.restaurantId,
+            data.reservationId,
+            me.id,
+          )
+        : { posted: 0, skipped: 0, failed: false };
 
       try {
         await writeCheckInUnitProgress({

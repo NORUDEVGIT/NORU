@@ -371,7 +371,7 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
     assert.match(header, /<FoGuestWorkspaceTabBar tabs=\{tabs\}/);
     assert.match(
       sheet,
-      /const tabs = foGuestWorkspaceTabs\(stay\.status, \{ canReadFolio: canOpenCashiering \}\)/,
+      /const canReadFolio = desk\.canReadStayFolio/,
     );
     assert.doesNotMatch(header, /<Button/);
     assert.doesNotMatch(sheet, /More actions/);
@@ -445,12 +445,12 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
   it("workflow tabs keep amend, no-show, cancellation and folio on existing handlers", () => {
     const sheet = readRel("../components/frontoffice/fo-check-in-workspace-sheet.tsx");
     assert.match(sheet, /stayQuickViewMenuItems/);
-    assert.match(sheet, /const canNoShow = menuItems\.some\(\(item\) => item\.id === "no_show"\)/);
+    assert.match(sheet, /const canNoShow = desk\.canNoShow && menuItems\.some\(\(item\) => item\.id === "no_show"\)/);
     assert.match(
       sheet,
-      /const canCheckIn = menuItems\.some\(\(item\) => item\.id === "check_in"\)/,
+      /const canCheckIn = desk\.canCheckIn && menuItems\.some\(\(item\) => item\.id === "check_in"\)/,
     );
-    assert.match(sheet, /const canCancel = isStayCancellable\(stay\.status\)/);
+    assert.match(sheet, /const canCancel = desk\.canCancel && isStayCancellable\(stay\.status\)/);
     assert.match(sheet, /onAction\("no_show", stay\)/);
     assert.match(sheet, /setCancelOpen\(true\)/);
     assert.match(sheet, /enabled: open && tab === "cancel_no_show"/);

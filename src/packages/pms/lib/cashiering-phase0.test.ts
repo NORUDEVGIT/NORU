@@ -68,9 +68,14 @@ describe("Cashiering Phase 0 ledger safety", () => {
   });
 
   it("uses the Cashiering manager gate for FO charges", () => {
-    const fee = cancel.slice(cancel.indexOf("export const postCancelOrNoShowFee"));
-    // FO charge posts are outside this cashiering migration; they now require the charge permission.
-    assert.match(fee, /CASHIERING_CHARGE_POST/);
+    const fee = cancel.slice(
+      cancel.indexOf("export const postCancelOrNoShowFee"),
+      cancel.indexOf("export const", cancel.indexOf("export const postCancelOrNoShowFee") + 1),
+    );
+    // The cancellation/no-show fee is part of the cancel or no-show action, not a separate charge grant.
+    assert.match(fee, /CANCEL_PERMISSIONS/);
+    assert.match(fee, /FRONT_OFFICE_NO_SHOW/);
+    assert.doesNotMatch(fee, /CASHIERING_CHARGE_POST/);
     assert.doesNotMatch(fee, /requireCashierOperator/);
     const service = amend.slice(amend.indexOf("export const addStayService"));
     assert.match(service, /CASHIERING_CHARGE_POST/);

@@ -10,9 +10,11 @@ import { addDays } from "./reservation-dates";
 import {
   hasEffectivePermission,
   requirePmsActor,
+  requirePmsActorAny,
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { FO_DESK_BALANCE_READ } from "./fo-desk-permissions";
 import { netPaymentTowardRequirement, snapshotRequiredAmount } from "./fo-check-in";
 import {
   EXCEPTION_FEED_ROW_CAP,
@@ -67,7 +69,7 @@ export async function loadFoStaySignals(params: {
 
   if (ids.length === 0) {
     try {
-      await requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+      await requirePmsActorAny(context as never, restaurantId, FO_DESK_BALANCE_READ);
       return { folioLane: "live", byStay };
     } catch (error) {
       return {
@@ -126,7 +128,7 @@ export async function loadFoStaySignals(params: {
 
   let folioLane: FolioSignalLane = "live";
   try {
-    await requirePmsActor(context as never, restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    await requirePmsActorAny(context as never, restaurantId, FO_DESK_BALANCE_READ);
   } catch (error) {
     folioLane = isPermissionDeniedMessage(error) ? "permission_denied" : "coming_soon";
     return { folioLane, byStay };

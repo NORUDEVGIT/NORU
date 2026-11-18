@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsActorAny } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 
@@ -108,7 +108,11 @@ export const getCashierShiftActivity = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, shiftId: idSchema }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW);
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.CASHIERING_SHIFT_VIEW,
+      PMS_PERMISSIONS.CASHIERING_SHIFT_EDIT,
+      PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE,
+    ]);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: txns, error } = await supabaseAdmin

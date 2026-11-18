@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -6,7 +6,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
   BedDouble,
-  Building2,
   CalendarDays,
   ChevronDown,
   ChevronRight,
@@ -19,7 +18,6 @@ import {
   Network,
   Printer,
   Receipt,
-  ReceiptText,
   Tag,
   UsersRound,
 } from "lucide-react";
@@ -29,8 +27,6 @@ import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { CashieringChrome } from "@/packages/pms/components/cashiering/cashiering-chrome";
 import {
-  FolioSearchFolioStatusBadge,
-  FolioSearchStayStatusBadge,
   isTaxRelatedCategory,
   labelTransactionCategory,
   labelTransactionType,
@@ -56,8 +52,17 @@ import { PostChargeDialog } from "@/packages/pms/components/cashiering/post-char
 import { FolioInvoicePanel } from "@/packages/pms/components/cashiering/folio-invoice-panel";
 import { GuestPaymentAllocationDrawer } from "@/packages/pms/components/cashiering/guest-payment-allocation-drawer";
 import { CashieringPrintLayer } from "@/packages/pms/components/cashiering/cashiering-print-layer";
+import {
+  FOLIO_TABS_WITH_SEARCH,
+  FolioChromeProvider,
+  FolioDetailsSearch,
+  FolioSectionBurger,
+  type FolioChromeSlots,
+} from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { FolioReservationQuickView } from "@/packages/pms/components/cashiering/folio-reservation-quick-view";
 import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { ReservationWorkspaceOverlay } from "@/packages/pms/components/reservations/reservation-workspace-overlay";
 import { ReservationDetailWorkspace } from "@/packages/pms/components/workspaces/reservation-detail-workspace";
 import {
@@ -74,10 +79,7 @@ import {
   formatBalance,
   type RowActions,
 } from "@/packages/pms/components/cashiering/folio-workspace-panels";
-import {
-  InventoryState,
-  InventoryStatusBadge,
-} from "@/packages/pms/components/rooms/room-inventory-shared";
+import { InventoryState } from "@/packages/pms/components/rooms/room-inventory-shared";
 import { GuestInvoiceWorkspace } from "@/packages/pms/components/cashiering/guest-invoice-builder";
 import { InvoiceReceivePaymentDialog } from "@/packages/pms/components/cashiering/invoice-receive-payment-dialog";
 import { getGuestInvoiceSettlement } from "@/packages/pms/lib/cashiering-guest-allocation.functions";
@@ -178,7 +180,7 @@ export function GuestFolioPage({
   const fetchCorrectionNotice = useServerFn(getCashieringCorrectionNotice);
   const query = useQuery({
     queryKey: ["folio", restaurantId, folioId, "workspace"],
-    queryFn: () => fetchWorkspace({ data: { restaurantId, folioId } }),
+    queryFn: () => fetchWorkspace({ data: { restaurantId, folioId, scope: "cashiering" } }),
     retry: false,
   });
   const correctionNoticeQuery = useQuery({
@@ -200,6 +202,8 @@ export function GuestFolioPage({
     void queryClient.invalidateQueries({
       queryKey: ["guest-invoice-settlement", restaurantId, folioId],
     });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-board", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-preview", restaurantId] });
     invalidateFrontOfficeOwnerReads(queryClient);
   }
 
@@ -389,9 +393,31 @@ function FolioWorkspaceBody({
   });
   const folio = workspace.folio;
   const caps = workspace.capabilities;
+  const permissions = usePmsPermissions(restaurantId);
+  const canViewGuest = permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+  const canViewReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
 
   const [tab, setTab] = useState<FolioWorkspaceTabId>(() => resolveTab(initialTab));
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [chrome, setChrome] = useState<FolioChromeSlots>({
+    dates: null,
+    search: null,
+    filter: null,
+    cta: null,
+  });
+  const setDatesSlot = useCallback((node: HTMLDivElement | null) => {
+    setChrome((current) => (current.dates === node ? current : { ...current, dates: node }));
+  }, []);
+  const setSearchSlot = useCallback((node: HTMLDivElement | null) => {
+    setChrome((current) => (current.search === node ? current : { ...current, search: node }));
+  }, []);
+  const setFilterSlot = useCallback((node: HTMLDivElement | null) => {
+    setChrome((current) => (current.filter === node ? current : { ...current, filter: node }));
+  }, []);
+  const setCtaSlot = useCallback((node: HTMLDivElement | null) => {
+    setChrome((current) => (current.cta === node ? current : { ...current, cta: node }));
+  }, []);
+  const tabHasSearch = FOLIO_TABS_WITH_SEARCH.has(tab);
   const [guestPreviewId, setGuestPreviewId] = useState<string | null>(null);
   const [reservationQuickId, setReservationQuickId] = useState<string | null>(null);
   const [viewReservationId, setViewReservationId] = useState<string | null>(null);
@@ -457,6 +483,7 @@ function FolioWorkspaceBody({
 
   useEffect(() => {
     if (initialAction === "allocate" || initialPaymentId) {
+      if (!workspace.canAllocateInvoices) return;
       if (initialPaymentId) setAllocatePaymentId(initialPaymentId);
       if (initialInvoiceId) setAllocateInvoiceId(initialInvoiceId);
       setAllocateOpen(true);
@@ -476,7 +503,7 @@ function FolioWorkspaceBody({
       adjustment: caps.canAdjust,
     };
     if (allowed[initialAction]) openEntry(initialAction);
-  }, [initialAction, initialPaymentId, initialInvoiceId, caps]);
+  }, [initialAction, initialPaymentId, initialInvoiceId, caps, workspace.canAllocateInvoices]);
 
   function selectTab(next: FolioWorkspaceTabId) {
     setTab(next);
@@ -539,7 +566,9 @@ function FolioWorkspaceBody({
   async function printPostedTender(transactionId: string) {
     onChanged();
     try {
-      const fresh = await fetchWorkspace({ data: { restaurantId, folioId: folio.id } });
+      const fresh = await fetchWorkspace({
+        data: { restaurantId, folioId: folio.id, scope: "cashiering" },
+      });
       const row = fresh?.folio.transactions.find((line) => line.id === transactionId);
       if (!fresh || !row) return;
       const receipt = buildTenderReceiptFromFolioRow(row, fresh, tenderReceiptContext);
@@ -618,82 +647,58 @@ function FolioWorkspaceBody({
   ];
 
   return (
-    <div className="space-y-4" data-testid="guest-folio-page">
-      <div className="space-y-4 print:hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <nav
-            className="flex items-center gap-1 text-xs text-muted-foreground"
-            aria-label="Breadcrumb"
+    <FolioChromeProvider value={chrome}>
+    <div className="space-y-3" data-testid="guest-folio-page">
+      <div className="space-y-3 print:hidden">
+        <nav
+          className="flex items-center gap-1 text-xs text-muted-foreground"
+          aria-label="Breadcrumb"
+        >
+          <Link
+            to="/restaurant/pms/cashiering"
+            search={cashieringTabSearch("folios")}
+            className="hover:text-foreground"
           >
-            <Link
-              to="/restaurant/pms/cashiering"
-              search={cashieringTabSearch("folios")}
-              className="hover:text-foreground"
-            >
-              Cashiering
-            </Link>
-            <ChevronRight className="size-3" />
-            <Link
-              to="/restaurant/pms/cashiering"
-              search={{ tab: "folios" }}
-              className="hover:text-foreground"
-            >
-              Folio Search
-            </Link>
-            <ChevronRight className="size-3" />
-            <span className="font-medium text-foreground">{folio.folioNumber}</span>
-          </nav>
-        </div>
+            Cashiering
+          </Link>
+          <ChevronRight className="size-3" />
+          <Link
+            to="/restaurant/pms/cashiering"
+            search={{ tab: "folios" }}
+            className="hover:text-foreground"
+          >
+            Folio Search
+          </Link>
+          <ChevronRight className="size-3" />
+          <span className="font-medium text-foreground">{folio.folioNumber}</span>
+        </nav>
 
-        <header className={cn(CARD, "overflow-hidden")} data-testid="folio-header">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#C89933]/12 text-[#8a6a1f]">
-                <ReceiptText className="size-5" />
-              </span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-display text-xl font-semibold leading-tight tracking-tight">
-                    {folio.folioNumber}
-                  </h2>
-                  <FolioSearchFolioStatusBadge status={folio.status} />
-                  {folio.reservationStatus ? (
-                    <FolioSearchStayStatusBadge status={folio.reservationStatus} />
-                  ) : null}
-                  {folio.unsettledCheckout ? (
-                    <InventoryStatusBadge tone="warning">Unsettled</InventoryStatusBadge>
-                  ) : null}
-                </div>
-                <p className="mt-0.5 truncate text-sm font-medium">{folio.guestName}</p>
-                {subline ? (
-                  <p className="truncate text-xs text-muted-foreground">{subline}</p>
-                ) : null}
-              </div>
+        <FolioKpiRow summary={workspace.financialSummary} money={money} />
+
+        <section
+          className="relative w-full min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-2 py-1.5 shadow-sm"
+          data-testid="folio-workspace-toolbar"
+        >
+          <div className="flex w-full min-w-0 items-center gap-1.5">
+            <FolioSectionBurger active={tab} onSelect={selectTab} />
+            <div ref={setDatesSlot} className="shrink-0 empty:hidden" />
+            <div ref={setSearchSlot} className="flex min-w-0 flex-1 items-center gap-1.5">
+              {tabHasSearch ? null : (
+                <FolioDetailsSearch
+                  folioNumber={folio.folioNumber}
+                  guestName={folio.guestName}
+                  room={folio.roomNumber}
+                  onOpen={() => setDetailsOpen(true)}
+                />
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 border-[#E8E1D7] px-3 text-xs"
-                onClick={() => setDetailsOpen(true)}
-                data-testid="folio-details"
-              >
-                <BedDouble className="size-3.5 text-[#8A6A24]" />
-                Details
-              </Button>
-              <div className="hidden items-center gap-3 text-[11px] text-muted-foreground md:flex">
-                <span className="flex items-center gap-1">
-                  <Building2 className="size-3.5" />
-                  {propertyName}
-                </span>
-                <span>Business date · {formatStayDate(businessDate)}</span>
-              </div>
+            <div className="relative z-10 flex shrink-0 items-center gap-1.5">
+              <div ref={setFilterSlot} className="shrink-0 empty:hidden" />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    className="inline-flex size-9 items-center justify-center rounded-md border border-[#DDD4C5] bg-white text-[#4a2c1a] hover:bg-[#F7F4EE]"
                     aria-label="About this folio"
                   >
                     <Info className="size-4" />
@@ -701,16 +706,16 @@ function FolioWorkspaceBody({
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs text-xs leading-5">
                   Each posting records a ledger line; posted lines are never edited. Corrections
-                  post as adjustments, discounts or refunds. Add deposit credit records a folio
-                  credit. Tax and service lines reflect Settings at post time. Issue invoice from
-                  this folio. Print statement is not an issued invoice.
+                  post as adjustments, discounts or refunds. Business date {formatStayDate(businessDate)}
+                  · {propertyName}.
                 </TooltipContent>
               </Tooltip>
+              <div ref={setCtaSlot} className="flex shrink-0 items-center gap-1.5 empty:hidden" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
-                    className="h-8 bg-[#C89933] px-3 text-[#251605] hover:bg-[#B5882D]"
+                    className="h-9 bg-[#C89933] px-3 text-[#251605] hover:bg-[#B5882D]"
                     data-testid="folio-actions"
                   >
                     Actions <ChevronDown className="ml-1 size-3.5" />
@@ -768,7 +773,7 @@ function FolioWorkspaceBody({
               </DropdownMenu>
             </div>
           </div>
-        </header>
+        </section>
 
         <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
           <SheetContent
@@ -795,6 +800,8 @@ function FolioWorkspaceBody({
                 workspace={workspace}
                 money={money}
                 dateTime={dateTime}
+                canViewGuest={canViewGuest}
+                canViewReservation={canViewReservation}
                 onViewInvoice={() => {
                   setDetailsOpen(false);
                   selectTab("invoices");
@@ -812,39 +819,7 @@ function FolioWorkspaceBody({
           </SheetContent>
         </Sheet>
 
-        <FolioKpiRow summary={workspace.financialSummary} money={money} />
-
         <div className="min-w-0 space-y-4">
-            <div className="border-b border-[#E8E1D7] pb-0.5">
-              <nav
-                className="flex items-end gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                role="tablist"
-                aria-label="Folio sections"
-              >
-                {FOLIO_WORKSPACE_TABS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === item.id}
-                    data-testid={`folio-tab-${item.id}`}
-                    onClick={() => selectTab(item.id)}
-                    className={cn(
-                      "relative flex h-10 shrink-0 items-center whitespace-nowrap px-3 text-xs font-medium transition-colors",
-                      tab === item.id
-                        ? "font-semibold text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {item.label}
-                    {tab === item.id ? (
-                      <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#C89933]" />
-                    ) : null}
-                  </button>
-                ))}
-              </nav>
-            </div>
-
             {tab === "charges" ? (
               <ChargesTab
                 workspace={workspace}
@@ -959,7 +934,13 @@ function FolioWorkspaceBody({
                     debitNotes: [],
                     creditNotes: [],
                   }}
-                  access={{ canManage: workspace.canManage, open: folio.status === "open" }}
+                  access={{
+                    canCorrect: workspace.grants.adjustment || workspace.grants.discount,
+                    canTransfer: workspace.grants.transfer,
+                    canRefund: workspace.grants.refund,
+                    canApplyDeposit: workspace.canAllocateInvoices,
+                    open: folio.status === "open",
+                  }}
                   searchExtras={[folio.folioNumber, folio.guestName]}
                   documents={workspace.folio.issuedInvoices.flatMap((invoice) => {
                     const issued = {
@@ -1228,7 +1209,9 @@ function FolioWorkspaceBody({
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap gap-2">
-            {open && workspace.canOperate && (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
+            {open &&
+            workspace.canReceiveInvoicePayment &&
+            (issuedOutstanding == null || issuedOutstanding > 0.01) ? (
               <Button
                 type="button"
                 disabled={issuedOutstanding == null}
@@ -1263,7 +1246,9 @@ function FolioWorkspaceBody({
               This invoice is already covered. A manager can register it.
             </p>
           ) : null}
-          {issuedOutstanding != null && issuedOutstanding > 0.01 && !workspace.canOperate ? (
+          {issuedOutstanding != null &&
+          issuedOutstanding > 0.01 &&
+          !workspace.canReceiveInvoicePayment ? (
             <p className="text-sm text-muted-foreground">A cashier receives the payment.</p>
           ) : null}
           {issuedOutstanding != null &&
@@ -1332,6 +1317,8 @@ function FolioWorkspaceBody({
         workspace={workspace}
         money={money}
         dateTime={dateTime}
+        canViewGuest={canViewGuest}
+        canViewReservation={canViewReservation}
         onClose={() => setChargeId(null)}
         onCorrectCharge={() => {
           if (!chargeGroup) return;
@@ -1394,6 +1381,7 @@ function FolioWorkspaceBody({
         ) : null}
       </ReservationWorkspaceOverlay>
     </div>
+    </FolioChromeProvider>
   );
 }
 

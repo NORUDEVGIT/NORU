@@ -515,6 +515,7 @@ export function NightAuditWorkspace({
             fiscalMutation.mutate({ exceptionId, reason, reasonCategory, scope, confirmPersistent }),
           onRevoke: (overrideId, reason) => revokeFiscalMutation.mutate({ overrideId, reason }),
         },
+        restaurantId,
         dateTime: (value) => dateTime(value),
         time: (value) => time(value),
         money,

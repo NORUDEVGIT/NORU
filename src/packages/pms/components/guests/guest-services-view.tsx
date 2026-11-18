@@ -103,6 +103,8 @@ export function GuestServicesView({
 }) {
   const queryClient = useQueryClient();
   const profileActions = useOptionalGuestProfileActions();
+  const canEdit = profileActions?.canEdit ?? false;
+  const canPrint = profileActions?.canPrintExport ?? false;
   const fetchWorkspace = useServerFn(listGuestServiceWorkspace);
   const fetchStays = useServerFn(listGuestStays);
   const createRequest = useServerFn(createGuestServiceRequest);
@@ -407,22 +409,26 @@ export function GuestServicesView({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.print()}
-            className="h-8 text-xs border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#F7F4EE]"
-          >
-            <Printer className="mr-1.5 size-3.5" /> Print
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => setCreateDrawerOpen(true)}
-            className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
-            data-testid="guest-services-new-button"
-          >
-            <Plus className="mr-1.5 size-3.5" /> + New Service Request
-          </Button>
+          {canPrint ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              className="h-8 text-xs border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#F7F4EE]"
+            >
+              <Printer className="mr-1.5 size-3.5" /> Print
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <Button
+              size="sm"
+              onClick={() => setCreateDrawerOpen(true)}
+              className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
+              data-testid="guest-services-new-button"
+            >
+              <Plus className="mr-1.5 size-3.5" /> + New Service Request
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -523,7 +529,7 @@ export function GuestServicesView({
                         </Badge>
                       </td>
                       <td className="px-3.5 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                        {rowActions.start ? (
+                        {canEdit && rowActions.start ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -537,7 +543,7 @@ export function GuestServicesView({
                           >
                             Start
                           </Button>
-                        ) : rowActions.complete ? (
+                        ) : canEdit && rowActions.complete ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -794,7 +800,7 @@ export function GuestServicesView({
                   ) : null}
                 </div>
 
-                {/* Status Update Actions */}
+                {canEdit ? (
                 <div className="rounded-lg border border-[#DDD4C5] p-3 space-y-2">
                   <h4 className="font-semibold text-[#251605]">Update Status</h4>
                   <div className="flex flex-wrap gap-1.5 pt-1">
@@ -822,6 +828,7 @@ export function GuestServicesView({
                     ))}
                   </div>
                 </div>
+                ) : null}
               </div>
 
               <div className="border-t border-[#DDD4C5] p-4 bg-[#FAF8F5] flex items-center justify-end">

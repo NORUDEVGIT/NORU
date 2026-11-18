@@ -13,8 +13,9 @@ import {
   recordReservationEvent,
   reservationError,
 } from "./reservations.server";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsActorAny } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import { callPostFolioTransaction, cashierError } from "./cashiering.server";
 import { parseSnapshot } from "./rates.server";
 import { nightsBetween } from "./reservation-dates";
@@ -971,10 +972,10 @@ export const addStayService = createServerFn({ method: "POST" })
     let transactionId: string | null = null;
     if (servicePostsToFolio(lineTotal)) {
       if (!data.idempotencyKey) throw new Error("The posting key is invalid. Try the action again.");
-      const cashier = await requirePmsActor(
+      const cashier = await requirePmsActorAny(
         context as never,
         data.restaurantId,
-        PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
+        moduleOrDesk(PMS_PERMISSIONS.CASHIERING_CHARGE_POST, PMS_PERMISSIONS.FRONT_OFFICE_CHARGE_POST),
       );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {

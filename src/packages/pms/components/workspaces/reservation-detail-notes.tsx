@@ -1,3 +1,4 @@
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
 import { useEffect, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -94,6 +95,7 @@ const FIELD =
 
 export function ReservationDetailNotesTab({
   restaurantId,
+  grants,
   reservation,
   guest,
   guestHistory,
@@ -110,6 +112,8 @@ export function ReservationDetailNotesTab({
   onSaved,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  stayOpen?: boolean;
   reservation: ReservationDetail;
   guest: GuestProfile | null;
   guestHistory: GuestHistoryEntry[];
@@ -135,6 +139,10 @@ export function ReservationDetailNotesTab({
   const submitGuestNote = useServerFn(addGuestNote);
   const cancelled = reservation.status === "cancelled";
   const editable = canManage && !cancelled;
+  const noteKinds: Array<"internal" | "guest"> = [
+    ...(grants.edit && editable ? (["internal"] as const) : []),
+    ...(grants.guestEdit ? (["guest"] as const) : []),
+  ];
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
 
   const [noteTab, setNoteTab] = useState<NoteTabId>("all");
@@ -292,8 +300,9 @@ export function ReservationDetailNotesTab({
   });
 
   function openAddNote() {
-    setNoteKind("internal");
-    setNoteText(internalDraft);
+    const kind = noteKinds[0] ?? "internal";
+    setNoteKind(kind);
+    setNoteText(kind === "internal" ? internalDraft : "");
     setNoteOpen(true);
   }
 
@@ -313,26 +322,35 @@ export function ReservationDetailNotesTab({
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button type="button" size="sm" disabled={!editable} onClick={openAddNote}>
-                  <Plus className="mr-1 size-3.5" />
-                  Add Note
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={!editable}
-                  onClick={() => {
-                    if (!reservation.roomId) {
-                      toast.message(TRACE_NO_ROOM_COPY);
-                      return;
-                    }
-                    setTraceOpen(true);
-                  }}
-                >
-                  <Plus className="mr-1 size-3.5" />
-                  Add Trace
-                </Button>
+                {grants.edit || grants.guestEdit ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={noteKinds.length === 0}
+                    onClick={openAddNote}
+                  >
+                    <Plus className="mr-1 size-3.5" />
+                    Add Note
+                  </Button>
+                ) : null}
+                {grants.edit ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!editable}
+                    onClick={() => {
+                      if (!reservation.roomId) {
+                        toast.message(TRACE_NO_ROOM_COPY);
+                        return;
+                      }
+                      setTraceOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-1 size-3.5" />
+                    Add Trace
+                  </Button>
+                ) : null}
               </div>
             </div>
             <div>
@@ -412,7 +430,7 @@ export function ReservationDetailNotesTab({
                         <td className="py-2 pr-2">{row.visibility}</td>
                         <td className="py-2">
                           <div className="flex gap-1">
-                            {row.editable ? (
+                            {row.editable && grants.edit ? (
                               <Button
                                 type="button"
                                 size="icon"
@@ -428,18 +446,20 @@ export function ReservationDetailNotesTab({
                                 <Pencil className="size-3.5" />
                               </Button>
                             ) : null}
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              aria-label="Pin note"
-                              disabled={
-                                !editable || pinNote.isPending || row.source !== "reservation"
-                              }
-                              onClick={() => pinNote.mutate()}
-                            >
-                              <Pin className="size-3.5" />
-                            </Button>
+                            {grants.edit ? (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Pin note"
+                                disabled={
+                                  !editable || pinNote.isPending || row.source !== "reservation"
+                                }
+                                onClick={() => pinNote.mutate()}
+                              >
+                                <Pin className="size-3.5" />
+                              </Button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -536,6 +556,7 @@ export function ReservationDetailNotesTab({
                           {task.completedAt ? dateTime(task.completedAt) : DETAIL_DASH}
                         </td>
                         <td className="py-2">
+                          {grants.edit ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -580,6 +601,7 @@ export function ReservationDetailNotesTab({
                               ) : null}
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          ) : null}
                         </td>
                       </tr>
                     ))}
@@ -645,24 +667,26 @@ export function ReservationDetailNotesTab({
         <Button type="button" variant="outline" size="sm" onClick={onBackToRequests}>
           Back to Requests & Preferences
         </Button>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!editable || saveInternal.isPending}
-            onClick={() => saveInternal.mutate(internalDraft)}
-          >
-            Save Changes
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setInternalDraft(reservation.notes ?? "")}
-          >
-            Cancel
-          </Button>
-        </div>
+        {grants.edit ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={!editable || saveInternal.isPending}
+              onClick={() => saveInternal.mutate(internalDraft)}
+            >
+              Save Changes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setInternalDraft(reservation.notes ?? "")}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
@@ -681,8 +705,12 @@ export function ReservationDetailNotesTab({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="internal">Reservation internal note</SelectItem>
-                  <SelectItem value="guest">Guest profile note</SelectItem>
+                  {noteKinds.includes("internal") ? (
+                    <SelectItem value="internal">Reservation internal note</SelectItem>
+                  ) : null}
+                  {noteKinds.includes("guest") ? (
+                    <SelectItem value="guest">Guest profile note</SelectItem>
+                  ) : null}
                 </SelectContent>
               </Select>
             </div>

@@ -11,6 +11,7 @@ import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/shared/lib/utils";
 
 export type CashieringShellSlots = {
+  dates: HTMLElement | null;
   search: HTMLElement | null;
   filter: HTMLElement | null;
   export: HTMLElement | null;
@@ -53,7 +54,7 @@ export function CashieringToolbarSearch({
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 min-w-0 pl-8 pr-8 text-xs"
+        className="h-9 w-full min-w-0 pl-8 pr-8 text-xs"
         placeholder={placeholder}
         aria-label="Search"
         data-testid={testId}

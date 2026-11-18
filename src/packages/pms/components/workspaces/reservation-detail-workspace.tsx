@@ -156,6 +156,8 @@ import {
 } from "@/packages/pms/lib/reservation-actions";
 import {
   reservationDetailActionAccess,
+  reservationDetailGrants,
+  NO_RESERVATION_DETAIL_GRANTS,
   reservationDetailActionInput,
   reservationDetailActionIsDestructive,
   reservationDetailActionLabel,
@@ -246,8 +248,10 @@ export function ReservationDetailWorkspace({
         codes: permissions.permissions,
       })
     : null;
-  const canEditReservation =
-    permissionsReady && permissions.can(PMS_PERMISSIONS.RESERVATION_EDIT);
+  const detailGrants = permissionsReady
+    ? reservationDetailGrants({ isOwner: permissions.isOwner, codes: permissions.permissions })
+    : NO_RESERVATION_DETAIL_GRANTS;
+  const canEditReservation = detailGrants.edit;
   const canViewReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
   const canPrintReservation =
     permissionsReady && permissions.can(PMS_PERMISSIONS.RESERVATION_PRINT);
@@ -460,6 +464,12 @@ export function ReservationDetailWorkspace({
     businessDate,
     canManage: canEditReservation,
   });
+  const stayOpen = reservationDetailEditable({
+    status: reservation.status,
+    arrivalDate: reservation.arrivalDate,
+    businessDate,
+    canManage: true,
+  });
   const createdBy =
     reservation.createdByName ??
     history.find((entry) => entry.eventType === "created")?.actorName ??
@@ -591,6 +601,7 @@ export function ReservationDetailWorkspace({
         amend={submitAmend}
         fetchAvailability={fetchAvailability}
         fetchRooms={fetchRooms}
+        canAssign={detailGrants.assignRoom}
       />
       <FoCancelStepper
         restaurantId={restaurantId}
@@ -865,6 +876,8 @@ export function ReservationDetailWorkspace({
     const stayPanel = (
       <ReservationDetailStayTab
         restaurantId={restaurantId}
+        grants={detailGrants}
+        stayOpen={stayOpen}
         reservation={reservation}
         editable={(detailActions?.editable ?? false) && stayMutable}
         canManage={stayMutable}
@@ -886,6 +899,8 @@ export function ReservationDetailWorkspace({
     const guestPanel = (
       <ReservationDetailGuestTab
         restaurantId={restaurantId}
+        grants={detailGrants}
+        stayOpen={stayOpen}
         reservation={reservation}
         guest={guestQuery.data?.guest ?? null}
         preferences={guestQuery.data?.preferences ?? null}
@@ -906,6 +921,8 @@ export function ReservationDetailWorkspace({
     const ratesPanel = (
       <ReservationDetailRatesTab
         restaurantId={restaurantId}
+        grants={detailGrants}
+        stayOpen={stayOpen}
         reservation={reservation}
         canManage={stayMutable}
         money={money}
@@ -925,6 +942,8 @@ export function ReservationDetailWorkspace({
     const roomsPanel = (
       <ReservationDetailRoomsTab
         restaurantId={restaurantId}
+        grants={detailGrants}
+        stayOpen={stayOpen}
         reservation={reservation}
         assignableRooms={rooms}
         canManage={stayMutable}
@@ -952,6 +971,8 @@ export function ReservationDetailWorkspace({
     const packagesPanel = (
       <ReservationDetailPackagesTab
         restaurantId={restaurantId}
+        grants={detailGrants}
+        stayOpen={stayOpen}
         reservation={reservation}
         canManage={stayMutable}
         money={money}
@@ -966,6 +987,7 @@ export function ReservationDetailWorkspace({
     const folioPanel = (
       <ReservationDetailFolioTab
         restaurantId={restaurantId}
+        grants={detailGrants}
         reservation={reservation}
         money={money}
         paymentReceived={paymentReceived}
@@ -981,6 +1003,8 @@ export function ReservationDetailWorkspace({
     const requestsPanel = (
       <ReservationDetailRequestsTab
         restaurantId={restaurantId}
+        grants={detailGrants}
+        stayOpen={stayOpen}
         reservation={reservation}
         guest={guestQuery.data?.guest ?? null}
         preferences={guestQuery.data?.preferences ?? null}
@@ -1000,6 +1024,8 @@ export function ReservationDetailWorkspace({
     const notesPanel = (
       <ReservationDetailNotesTab
         restaurantId={restaurantId}
+        grants={detailGrants}
+        stayOpen={stayOpen}
         reservation={reservation}
         guest={guestQuery.data?.guest ?? null}
         guestHistory={guestQuery.data?.history ?? []}
@@ -1084,7 +1110,9 @@ export function ReservationDetailWorkspace({
             data-testid="reservation-detail-sidebar"
           >
             <ul role="tablist" className="flex min-w-max items-center gap-0.5 px-3 sm:px-4">
-              {DETAIL_PRIMARY_TABS.map((tab) => {
+              {DETAIL_PRIMARY_TABS.filter(
+                (tab) => tab.id !== "folio" || detailGrants.openFolio,
+              ).map((tab) => {
                 const active = detailPrimaryTab(detailTab).id === tab.id;
                 return (
                   <li key={tab.id} role="presentation">
@@ -1180,7 +1208,7 @@ export function ReservationDetailWorkspace({
               {detailTab === "guest" ? guestPanel : null}
               {detailTab === "rates" ? ratesPanel : null}
               {detailTab === "packages" ? packagesPanel : null}
-              {detailTab === "folio" ? folioPanel : null}
+              {detailTab === "folio" && detailGrants.openFolio ? folioPanel : null}
               {detailTab === "requests" ? requestsPanel : null}
               {detailTab === "notes" ? notesPanel : null}
               {detailTab === "communication"
@@ -1610,6 +1638,7 @@ function AmendDialog({
   amend,
   fetchAvailability,
   fetchRooms,
+  canAssign,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1619,6 +1648,8 @@ function AmendDialog({
   amend: ReturnType<typeof useServerFn<typeof amendReservation>>;
   fetchAvailability: ReturnType<typeof useServerFn<typeof getRoomTypeAvailability>>;
   fetchRooms: ReturnType<typeof useServerFn<typeof listAssignableRooms>>;
+  /** Room changes need reservation.assignment.edit; a room type change clears the room. */
+  canAssign: boolean;
 }) {
   const [arrival, setArrival] = useState(reservation.arrivalDate);
   const [departure, setDeparture] = useState(reservation.departureDate);
@@ -1905,6 +1936,7 @@ function AmendDialog({
               <Label>Room type</Label>
               <Select
                 value={roomTypeId}
+                disabled={!canAssign && reservation.roomId != null}
                 onValueChange={(v) => {
                   setRoomTypeId(v);
                   setRoomId(UNASSIGNED);
@@ -1925,7 +1957,7 @@ function AmendDialog({
 
             <div className="space-y-1">
               <Label>Room</Label>
-              <Select value={roomId} onValueChange={setRoomId}>
+              <Select value={roomId} onValueChange={setRoomId} disabled={!canAssign}>
                 <SelectTrigger>
                   <SelectValue placeholder="Assign later" />
                 </SelectTrigger>

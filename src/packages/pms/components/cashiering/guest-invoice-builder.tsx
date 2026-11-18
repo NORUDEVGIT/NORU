@@ -141,7 +141,8 @@ export function GuestInvoiceWorkspace({
   initialModalTab?: string | undefined;
 }) {
   const folio = workspace.folio;
-  const canManage = workspace.canManage && workspace.capabilities.canIssueInvoice;
+  const canManage = workspace.capabilities.canIssueInvoice;
+  const canAuthorize = workspace.grants.invoiceAuthorize;
   const fetchBoard = useServerFn(getGuestFolioInvoiceBoard);
   const previewSelection = useServerFn(previewGuestFolioInvoiceSelection);
   const createDraft = useServerFn(createGuestFolioInvoiceDraft);
@@ -673,15 +674,17 @@ export function GuestInvoiceWorkspace({
                 >
                   Save draft
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
-                  disabled={issueMut.isPending || selectedIds.length === 0}
-                  onClick={() => issueMut.mutate()}
-                  data-testid="issue-invoice"
-                >
-                  Issue invoice
-                </Button>
+                {canAuthorize ? (
+                  <Button
+                    size="sm"
+                    className="h-8 bg-[#C89933] text-white hover:bg-[#b7892d]"
+                    disabled={issueMut.isPending || selectedIds.length === 0}
+                    onClick={() => issueMut.mutate()}
+                    data-testid="issue-invoice"
+                  >
+                    Issue invoice
+                  </Button>
+                ) : null}
               </div>
             </div>
             <div className={cn("space-y-2 p-4 text-sm lg:hidden", pane !== "tax" && "hidden")}>

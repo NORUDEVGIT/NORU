@@ -118,6 +118,8 @@ export function foInHouseActionHints(params: {
   guestId: string | null;
   blockingKeys: FoInHouseExceptionKey[];
   lateCheckoutNeedsApproval?: boolean;
+  /** Caller holds Fee Override. Role names do not authorize late checkout. */
+  canAuthorizeLateCheckout?: boolean;
   staffRole?: string;
 }): FoInHouseActionHints {
   const inHouse = params.status === "checked_in";
@@ -133,7 +135,11 @@ export function foInHouseActionHints(params: {
     canGuestRequest: inHouse,
     hasOperationalException: params.blockingKeys.length > 0,
     lateCheckoutRequiresApproval:
-      inHouse && foLateCheckoutRequiresApproval(params.lateCheckoutNeedsApproval === true, params.staffRole ?? ""),
+      inHouse &&
+      foLateCheckoutRequiresApproval(
+        params.lateCheckoutNeedsApproval === true,
+        params.canAuthorizeLateCheckout === true,
+      ),
   };
 }
 

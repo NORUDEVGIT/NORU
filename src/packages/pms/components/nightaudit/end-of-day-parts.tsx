@@ -29,6 +29,7 @@ import {
   type EndOfDayStepView,
 } from "@/packages/pms/lib/night-audit-steps";
 import { FISCAL_OVERRIDE_REASON_CATEGORIES } from "@/packages/pms/lib/night-audit-workflow";
+import { EndOfDayCloseShiftDialog } from "@/packages/pms/components/nightaudit/end-of-day-close-shift";
 import { PMS_PERMISSIONS, type PmsPermissionCode } from "@/packages/pms/lib/pms-permissions";
 import {
   CARD6_DISTRIBUTION_HREF,
@@ -506,15 +507,22 @@ export function ConditionCard({
   fiscal,
   dateTime,
   arrival,
+  shiftClose,
 }: {
   condition: EndOfDayCondition;
   permissions: ConditionPermissions;
   fiscal: FiscalOverrideControl;
   dateTime: (value: string) => string;
   arrival?: ArrivalStayActions;
+  shiftClose?: {
+    restaurantId: string;
+    businessDate: string;
+    money: (value: number) => string;
+  };
 }) {
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [revokeOpen, setRevokeOpen] = useState(false);
+  const [closeShiftOpen, setCloseShiftOpen] = useState(false);
   const blocker = condition.kind === "blocker";
   const canRevoke = Boolean(condition.persistentOverrideId && fiscal.canPersistent && fiscal.onRevoke);
   const canManageShift =
@@ -616,6 +624,29 @@ export function ConditionCard({
           {dateTime(condition.fiscalOverride.overriddenAt)} · {condition.fiscalOverride.reason}. The
           fiscal document is still unresolved.
         </p>
+      ) : null}
+
+      {blocker && condition.code === "open_cashier_shift" && canManageShift && shiftClose && condition.referenceId ? (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            className="mt-2 h-8 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+            onClick={() => setCloseShiftOpen(true)}
+            data-testid="end-of-day-close-shift"
+          >
+            Close Shift
+          </Button>
+          <EndOfDayCloseShiftDialog
+            open={closeShiftOpen}
+            restaurantId={shiftClose.restaurantId}
+            shiftId={condition.referenceId}
+            businessDate={shiftClose.businessDate}
+            money={shiftClose.money}
+            dateTime={(iso) => (iso ? dateTime(iso) : "—")}
+            onClose={() => setCloseShiftOpen(false)}
+          />
+        </>
       ) : null}
 
       {blocker && condition.code === "open_cashier_shift" && !canManageShift ? (
@@ -870,6 +901,7 @@ export function ConditionList({
   dateTime,
   emptyCopy,
   arrival,
+  shiftClose,
 }: {
   conditions: readonly EndOfDayCondition[];
   permissions: ConditionPermissions;
@@ -877,6 +909,11 @@ export function ConditionList({
   dateTime: (value: string) => string;
   emptyCopy: string;
   arrival?: ArrivalStayActions;
+  shiftClose?: {
+    restaurantId: string;
+    businessDate: string;
+    money: (value: number) => string;
+  };
 }) {
   if (conditions.length === 0) {
     return <p className="text-xs text-muted-foreground">{emptyCopy}</p>;
@@ -891,6 +928,7 @@ export function ConditionList({
           fiscal={fiscal}
           dateTime={dateTime}
           {...(arrival ? { arrival } : {})}
+          {...(shiftClose ? { shiftClose } : {})}
         />
       ))}
     </ul>

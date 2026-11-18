@@ -1,3 +1,4 @@
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
 import { useEffect, useState } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import {
@@ -57,6 +58,7 @@ const ALL = "__all";
 
 export function ReservationDetailPackagesTab({
   restaurantId,
+  grants,
   reservation,
   canManage,
   money,
@@ -68,6 +70,8 @@ export function ReservationDetailPackagesTab({
   coverUrl,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  stayOpen?: boolean;
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
@@ -248,6 +252,7 @@ export function ReservationDetailPackagesTab({
             unitPackageTotal={unitPackageTotal}
             stayPackageTotal={stayPackageTotal}
             loading={unitQuery.isLoading}
+            showEdit={grants.edit}
             editable={editable}
             packageRules={packageRules}
             onRemove={(row) => releasePackage.mutate(row)}
@@ -258,6 +263,7 @@ export function ReservationDetailPackagesTab({
             options={options}
             money={money}
             currency={unitRead?.currency || currency}
+            showEdit={grants.edit}
             editable={editable}
             loading={Boolean(unitId) && unitQuery.isLoading}
             packageRules={packageRules}
@@ -296,6 +302,7 @@ function AppliedPackagesCard({
   unitPackageTotal,
   stayPackageTotal,
   loading,
+  showEdit,
   editable,
   packageRules,
   onRemove,
@@ -310,6 +317,7 @@ function AppliedPackagesCard({
   unitPackageTotal: number;
   stayPackageTotal: number;
   loading: boolean;
+  showEdit: boolean;
   editable: boolean;
   packageRules: RoomChargeRules | null;
   onRemove: (row: UnitPackageManagementRow) => void;
@@ -406,16 +414,20 @@ function AppliedPackagesCard({
                       {formatStayDate(arrival)} – {formatStayDate(departure)}
                     </td>
                     <td className="py-2">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        disabled={!editable || !row.removeAllowed}
-                        onClick={() => onRemove(row)}
-                        aria-label={row.scope === "stay" ? "Remove stay package" : "Remove package"}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      {showEdit ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={!editable || !row.removeAllowed}
+                          onClick={() => onRemove(row)}
+                          aria-label={
+                            row.scope === "stay" ? "Remove stay package" : "Remove package"
+                          }
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      ) : null}
                     </td>
                   </tr>
                 );
@@ -442,6 +454,7 @@ function AvailablePackagesCard({
   options,
   money,
   currency,
+  showEdit,
   editable,
   loading,
   packageRules,
@@ -453,6 +466,7 @@ function AvailablePackagesCard({
   options: ReturnType<typeof uniquePackageFilterOptions>;
   money: (value: number) => string;
   currency: string;
+  showEdit: boolean;
   editable: boolean;
   loading: boolean;
   packageRules: RoomChargeRules | null;
@@ -520,17 +534,19 @@ function AvailablePackagesCard({
           money={money}
           packageRules={packageRules}
           emptyCopy="No packages are listed for this room."
-          renderFooter={(card) => (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!editable || card.addAllowed !== true}
-              onClick={() => onAdd(card)}
-            >
-              Add Package
-            </Button>
-          )}
+          renderFooter={(card) =>
+            showEdit ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!editable || card.addAllowed !== true}
+                onClick={() => onAdd(card)}
+              >
+                Add Package
+              </Button>
+            ) : null
+          }
         />
       )}
     </section>

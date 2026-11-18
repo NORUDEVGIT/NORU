@@ -15,7 +15,7 @@ import {
   type AccountPaymentRow,
   type AccountTenderMethod,
 } from "./cashiering-account-payments";
-import type { AccountWorkspaceKind } from "./cashiering-account-workspace";
+import { accountWorkspaceGrants, type AccountWorkspaceKind } from "./cashiering-account-workspace";
 import { allocationCapabilities } from "./cashiering-account-allocation";
 import { cashierError, cashieringPermissionFlags } from "./cashiering.server";
 
@@ -61,15 +61,8 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       data.accountId,
     );
     const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
-    const granted = {
-      receivePayment: flags.receivePayment,
-      refund: flags.refund,
-      createInvoice: flags.createInvoice,
-      writeOff: flags.writeOff,
-      close: flags.close,
-    };
+    const granted = accountWorkspaceGrants(flags);
     const capabilities = accountPaymentCapabilities({
-      role: me.role,
       status: account.status,
       balance,
       accountKind: account.accountKind,
@@ -119,7 +112,6 @@ export const listFinancialAccountPayments = createServerFn({ method: "GET" })
       capabilities: {
         ...capabilities,
         ...allocationCapabilities({
-          role: me.role,
           status: account.status,
           granted: { view: true, allocate: flags.allocate },
         }),
@@ -150,22 +142,14 @@ export const getFinancialAccountPaymentDetail = createServerFn({ method: "GET" }
       data.accountId,
     );
     const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
-    const granted = {
-      receivePayment: flags.receivePayment,
-      refund: flags.refund,
-      createInvoice: flags.createInvoice,
-      writeOff: flags.writeOff,
-      close: flags.close,
-    };
+    const granted = accountWorkspaceGrants(flags);
     const capabilities = accountPaymentCapabilities({
-      role: me.role,
       status: account.status,
       balance,
       accountKind: account.accountKind,
       granted,
     });
     const allocationRights = allocationCapabilities({
-      role: me.role,
       status: account.status,
       granted: { view: true, allocate: flags.allocate },
     });

@@ -179,9 +179,9 @@ function seedGrant(
 }
 
 describe("PMS RBAC Phase 1 catalogue", () => {
-  it("locks 102 distinct typed permission codes with parent View and risk metadata", () => {
-    assert.equal(PMS_PERMISSION_CODES.length, 102);
-    assert.equal(new Set(PMS_PERMISSION_CODES).size, 102);
+  it("locks 118 distinct typed permission codes with parent View and risk metadata", () => {
+    assert.equal(PMS_PERMISSION_CODES.length, 118);
+    assert.equal(new Set(PMS_PERMISSION_CODES).size, 118);
     for (const code of PMS_PERMISSION_CODES) {
       assert.equal(PMS_PERMISSION_PARENT_VIEW[code], parentViewPermission(code));
       assert.ok(["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(PMS_PERMISSION_RISK[code]));
@@ -651,8 +651,21 @@ describe("PMS RBAC Phase 1 migration 0193", () => {
     );
     assert.equal(upserted.length, 98);
     assert.equal(new Set(upserted).size, 98);
+    const seeded = new Set(upserted);
+    for (const file of [
+      "supabase/migrations/0085_pms_card7_permission_catalogue.sql",
+      "supabase/migrations/0196_guest_profile_print_permission.sql",
+      "supabase/migrations/0203_night_audit_end_of_day.sql",
+      "supabase/migrations/0209_night_audit_persistent_fiscal_override.sql",
+      "supabase/migrations/0211_front_office_desk_actions.sql",
+    ]) {
+      const quoted = readFileSync(join(process.cwd(), file), "utf8").matchAll(
+        /'((?:[a-z][a-z0-9_]*)(?:\.[a-z0-9_]+)+)'/g,
+      );
+      for (const match of quoted) seeded.add(match[1] ?? "");
+    }
     for (const code of PMS_PERMISSION_CODES) {
-      assert.equal(upserted.includes(code), true, code);
+      assert.equal(seeded.has(code), true, code);
     }
     for (const code of RETIRED_PMS_PERMISSION_CODES) {
       assert.match(sql, new RegExp(`'${code}'`));

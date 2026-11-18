@@ -672,6 +672,7 @@ export function ArrivalsDeparturesWorkspace({
               selectedId={selectedId}
               timezone={timezone}
               currencyCode={currencyCode}
+              canCheckOut={foAccess.canCheckOut}
               onSelect={selectDeparture}
               onOpen={openStay}
               onCheckOut={(row) => setFoAction({ kind: "check_out", stay: stayFromDeparture(row) })}
@@ -1073,6 +1074,7 @@ function DeparturesTable({
   selectedId,
   timezone,
   currencyCode,
+  canCheckOut,
   onSelect,
   onOpen,
   onCheckOut,
@@ -1081,6 +1083,7 @@ function DeparturesTable({
   selectedId: string | null;
   timezone: string;
   currencyCode: string;
+  canCheckOut: boolean;
   onSelect: (row: DepartureRow) => void;
   onOpen: (id: string) => void;
   onCheckOut: (row: DepartureRow) => void;
@@ -1141,7 +1144,7 @@ function DeparturesTable({
               </td>
               <td className="px-3 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
                 <div className="flex justify-end gap-1.5">
-                  {row.hints.canCheckOut ? (
+                  {canCheckOut && row.hints.canCheckOut ? (
                     <Button
                       size="sm"
                       className="rounded-full bg-[#C89933] text-xs font-bold text-[#251605] hover:bg-[#B98B2D]"
