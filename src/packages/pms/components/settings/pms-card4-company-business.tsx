@@ -75,6 +75,7 @@ import {
   type BusinessProfileTypeRecord,
 } from "@/packages/pms/lib/company-business-card4.server";
 import { cn } from "@/shared/lib/utils";
+import { draftWithGeneratedCode, friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: BusinessProfileTypeRecord): BusinessProfileTypeDraft {
   return {
@@ -172,12 +173,14 @@ export function PmsCard4CompanyBusiness({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<BusinessProfileTypeDraft>(emptyBusinessTypeDraft());
+  const [codeTouched, setCodeTouched] = useState(false);
   const [settings, setSettings] = useState<BusinessProfileSettings>(emptyBusinessSettings());
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BusinessProfileTypeRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
   const [roleDraft, setRoleDraft] = useState<BusinessContactRoleDraft>(emptyContactRoleDraft());
+  const [roleCodeTouched, setRoleCodeTouched] = useState(false);
   const [roleEditorOpen, setRoleEditorOpen] = useState(false);
   const [roleAttempted, setRoleAttempted] = useState(false);
   const requiredFieldsRef = useRef<HTMLDivElement>(null);
@@ -225,7 +228,7 @@ export function PmsCard4CompanyBusiness({
       setDocTypeDraft(null);
       toast.success("Document type saved.");
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to save document type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to save document type.")),
   });
 
   const docTypeActiveMutation = useMutation({
@@ -235,7 +238,7 @@ export function PmsCard4CompanyBusiness({
       await invalidateDocumentTypeQueries();
       toast.success(input.active ? "Document type enabled." : "Document type disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const docTypeRequiredMutation = useMutation({
@@ -245,7 +248,7 @@ export function PmsCard4CompanyBusiness({
       await invalidateDocumentTypeQueries();
       toast.success(input.required ? "Document marked as required." : "Document marked as optional.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const docTypeDeleteMutation = useMutation({
@@ -255,7 +258,7 @@ export function PmsCard4CompanyBusiness({
       setPendingDeleteDocType(null);
       toast.success("Document type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to delete document type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to delete document type.")),
   });
 
   const filteredDocTypes = useMemo(() => {
@@ -337,7 +340,7 @@ export function PmsCard4CompanyBusiness({
       if (result.id) setSelectedId(result.id);
       toast.success("Business type saved.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save business type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save business type.")),
   });
 
   const settingsMutation = useMutation({
@@ -357,7 +360,7 @@ export function PmsCard4CompanyBusiness({
       toast.success("Company & Business saved.");
       onSaved(thenNextRef.current);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save business settings."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save business settings.")),
   });
 
   const roleMutation = useMutation({
@@ -378,7 +381,7 @@ export function PmsCard4CompanyBusiness({
       setRoleEditorOpen(false);
       toast.success("Contact role saved.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save contact role."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save contact role.")),
   });
 
   const roleActiveMutation = useMutation({
@@ -388,7 +391,7 @@ export function PmsCard4CompanyBusiness({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Contact role enabled." : "Contact role disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const toggleMutation = useMutation({
@@ -399,7 +402,7 @@ export function PmsCard4CompanyBusiness({
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       toast.success(input.active ? "Business type enabled." : "Business type disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -411,7 +414,7 @@ export function PmsCard4CompanyBusiness({
       setSelectedId(null);
       toast.success("Business type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const busy = typeMutation.isPending || settingsMutation.isPending || toggleMutation.isPending;
@@ -468,7 +471,14 @@ export function PmsCard4CompanyBusiness({
     key: K,
     value: BusinessProfileTypeDraft[K],
   ) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    if (key === "code") setCodeTouched(true);
+    setDraft((prev) =>
+      draftWithGeneratedCode(prev, key, value, {
+        codeTouched: key === "code" ? true : codeTouched,
+        style: "compact",
+        max: 12,
+      }),
+    );
     setDraftDirty(true);
   }
 
@@ -481,6 +491,7 @@ export function PmsCard4CompanyBusiness({
   }
 
   function openCreate() {
+    setCodeTouched(false);
     setDraft(emptyBusinessTypeDraft());
     setDraftDirty(true);
     setEditorFocus("details");
@@ -488,6 +499,7 @@ export function PmsCard4CompanyBusiness({
   }
 
   function openEdit(row: BusinessProfileTypeRecord, focus: "details" | "fields" = "details") {
+    setCodeTouched(true);
     setSelectedId(row.id);
     setDraft(recordToDraft(row));
     setDraftDirty(false);
@@ -496,12 +508,14 @@ export function PmsCard4CompanyBusiness({
   }
 
   function openAddRole() {
+    setRoleCodeTouched(false);
     setRoleDraft(emptyContactRoleDraft());
     setRoleAttempted(false);
     setRoleEditorOpen(true);
   }
 
   function openEditRole(row: { id: string; name: string; code: string; active: boolean }) {
+    setRoleCodeTouched(true);
     setRoleDraft({
       id: row.id,
       name: row.name,
@@ -1297,7 +1311,16 @@ export function PmsCard4CompanyBusiness({
             id="cr-name"
             value={roleDraft.name}
             disabled={!canEdit}
-            onChange={(event) => setRoleDraft((current) => ({ ...current, name: event.target.value }))}
+            onChange={(event) =>
+              setRoleDraft((current) => ({
+                ...current,
+                name: event.target.value,
+                code:
+                  current.id || roleCodeTouched
+                    ? current.code
+                    : setupCodeFromName(event.target.value, { style: "compact", max: 12 }),
+              }))
+            }
           />
           {roleErrorFor("name") ? (
             <p className="text-xs text-destructive">{roleErrorFor("name")}</p>
@@ -1309,7 +1332,10 @@ export function PmsCard4CompanyBusiness({
             id="cr-code"
             value={roleDraft.code}
             disabled={!canEdit}
-            onChange={(event) => setRoleDraft((current) => ({ ...current, code: event.target.value }))}
+            onChange={(event) => {
+              setRoleCodeTouched(true);
+              setRoleDraft((current) => ({ ...current, code: event.target.value.toUpperCase() }));
+            }}
           />
           {roleErrorFor("code") ? (
             <p className="text-xs text-destructive">{roleErrorFor("code")}</p>
@@ -1415,6 +1441,7 @@ function CompanyDocumentTypeSheet({
 }) {
   const [name, setName] = useState(value?.name ?? "");
   const [code, setCode] = useState(value?.code ?? "");
+  const [codeTouched, setCodeTouched] = useState(Boolean(value?.code));
   const [description, setDescription] = useState(value?.description ?? "");
   const [required, setRequired] = useState(Boolean(value?.required));
   const [appliesToCompany, setAppliesToCompany] = useState(value?.appliesToCompany ?? true);
@@ -1426,6 +1453,7 @@ function CompanyDocumentTypeSheet({
     if (open) {
       setName(value?.name ?? "");
       setCode(value?.code ?? "");
+      setCodeTouched(Boolean(value?.code));
       setDescription(value?.description ?? "");
       setRequired(Boolean(value?.required));
       setAppliesToCompany(value?.appliesToCompany ?? true);
@@ -1473,7 +1501,11 @@ function CompanyDocumentTypeSheet({
           value={name}
           disabled={!canEdit}
           placeholder="e.g. Tax Registration Certificate"
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setName(next);
+            if (!value && !codeTouched) setCode(setupCodeFromName(next));
+          }}
         />
       </div>
       <div className="space-y-1">
@@ -1483,7 +1515,10 @@ function CompanyDocumentTypeSheet({
           value={code}
           disabled={!canEdit}
           placeholder="e.g. TAX_CERT, TRADE_LIC"
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onChange={(e) => {
+            setCodeTouched(true);
+            setCode(e.target.value.toUpperCase());
+          }}
         />
       </div>
       <div className="space-y-1">

@@ -10,6 +10,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/shared/lib/utils";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function Requirement({ pass, children }: { pass: boolean; children: React.ReactNode }) {
   return (
@@ -53,7 +54,7 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
       void queryClient.invalidateQueries({ queryKey: ["pms-card1", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const live = eligibility?.canonicalLive === true;
   const eligible = eligibility?.eligible === true;

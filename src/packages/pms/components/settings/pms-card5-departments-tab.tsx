@@ -70,6 +70,8 @@ import {
   type Card5HoursWindow,
   type Card5OperatingHours,
 } from "@/packages/pms/lib/departments-card5.server";
+import { generateDepartmentCode } from "@/packages/pms/lib/pms-property-setup-card1.functions";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const DRAWER_TABS = [
   { id: "basic", label: "Basic" },
@@ -158,6 +160,7 @@ export function Card5DepartmentsTab({
   const [typeFilter, setTypeFilter] = useState<"all" | Card5Department["departmentType"]>("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState<Card5Department | null>(null);
+  const [codeTouched, setCodeTouched] = useState(false);
   const [drawerTab, setDrawerTab] = useState<(typeof DRAWER_TABS)[number]["id"]>("basic");
   const [parentLocked, setParentLocked] = useState(false);
   const [routingKey, setRoutingKey] = useState("guest_request");
@@ -244,7 +247,7 @@ export function Card5DepartmentsTab({
       setDraft(null);
       setValidated(null);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const routingMutation = useMutation({
@@ -265,10 +268,11 @@ export function Card5DepartmentsTab({
         role: query.data?.role,
       });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function openCreate(parentId: string | null) {
+    setCodeTouched(false);
     setDraft(
       emptyDepartmentDraft({ parentId, operatingHours: emptyOperatingHours({ is24Hours: true }) }),
     );
@@ -278,6 +282,7 @@ export function Card5DepartmentsTab({
   }
 
   function openEdit(row: Card5Department) {
+    setCodeTouched(true);
     setDraft({ ...row, operatingHours: emptyOperatingHours(row.operatingHours) });
     setParentLocked(false);
     setDrawerTab("basic");
@@ -510,7 +515,22 @@ export function Card5DepartmentsTab({
                   <Label>Department name</Label>
                   <Input
                     value={draft.name}
-                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                    onChange={(event) => {
+                      const name = event.target.value;
+                      setDraft({
+                        ...draft,
+                        name,
+                        code:
+                          draft.id || codeTouched
+                            ? draft.code
+                            : name.trim()
+                              ? generateDepartmentCode(
+                                  name,
+                                  snapshot.departments.map((row) => row.code),
+                                )
+                              : "",
+                      });
+                    }}
                     disabled={!editor}
                   />
                 </div>
@@ -518,7 +538,10 @@ export function Card5DepartmentsTab({
                   <Label>Code</Label>
                   <Input
                     value={draft.code}
-                    onChange={(event) => setDraft({ ...draft, code: event.target.value })}
+                    onChange={(event) => {
+                      setCodeTouched(true);
+                      setDraft({ ...draft, code: event.target.value.toUpperCase() });
+                    }}
                     disabled={!editor}
                   />
                 </div>

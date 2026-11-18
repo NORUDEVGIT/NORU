@@ -77,6 +77,7 @@ import {
   type PreferenceTypeRecord,
   type PreferenceValueType,
 } from "@/packages/pms/lib/preferences-card4.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function categoryToDraft(row: PreferenceCategoryRecord): PreferenceCategoryDraft {
   return {
@@ -195,7 +196,7 @@ export function PmsCard4Preferences({
       toast.success("Preference saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save preference configuration."),
+      toast.error(friendlySetupError(error, "Unable to save preference configuration.")),
   });
 
   const typeMutation = useMutation({
@@ -221,21 +222,21 @@ export function PmsCard4Preferences({
       toast.success("Preference saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save preference configuration."),
+      toast.error(friendlySetupError(error, "Unable to save preference configuration.")),
   });
 
   const categoryActiveMutation = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setCategoryActive({ data: { restaurantId, ...input } }),
     onSuccess: invalidate,
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const typeFlagsMutation = useMutation({
     mutationFn: (input: { id: string; required?: boolean; active?: boolean }) =>
       setTypeFlags({ data: { restaurantId, ...input } }),
     onSuccess: invalidate,
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -245,19 +246,19 @@ export function PmsCard4Preferences({
       setPendingDelete(null);
       toast.success("Preference type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const reorderCategoriesMutation = useMutation({
     mutationFn: (ids: string[]) => reorderCategories({ data: { restaurantId, ids } }),
     onSuccess: invalidate,
-    onError: (error: Error) => toast.error(error.message || "Failed to reorder categories."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to reorder categories.")),
   });
 
   const reorderTypesMutation = useMutation({
     mutationFn: (ids: string[]) => reorderTypes({ data: { restaurantId, ids } }),
     onSuccess: invalidate,
-    onError: (error: Error) => toast.error(error.message || "Failed to reorder preferences."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to reorder preferences.")),
   });
 
   const handleMoveCategory = (index: number, direction: -1 | 1) => {

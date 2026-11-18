@@ -75,6 +75,7 @@ import {
   type Card5SalesItem,
   type Card5SalesReadiness,
 } from "../../lib/sales-events-card5.server";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 type Draft =
   | {
@@ -174,6 +175,7 @@ export function Card5SalesEventsTab({
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [codeTouched, setCodeTouched] = useState(false);
   const [validated, setValidated] = useState<Card5SalesReadiness | null>(null);
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<Card5PipelineStage | null>(null);
@@ -210,6 +212,12 @@ export function Card5SalesEventsTab({
       } else {
         toast.success("Pipeline stage created successfully.");
       }
+    } catch (error) {
+      toast.error(
+        friendlySetupError(
+          error instanceof Error ? error : new Error("Could not save the pipeline stage."),
+        ),
+      );
     } finally {
       setIsSavingPipelineStage(false);
     }
@@ -300,7 +308,7 @@ export function Card5SalesEventsTab({
       setDraft(null);
       setValidated(null);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const rows = useMemo(() => {
@@ -327,7 +335,13 @@ export function Card5SalesEventsTab({
     );
   }, [catalogue, search, status, snapshot]);
 
+  function namedValue<T extends { id: string; name: string; code: string }>(value: T, name: string): T {
+    if (value.id || codeTouched) return { ...value, name };
+    return { ...value, name, code: setupCodeFromName(name) };
+  }
+
   function openCreate() {
+    setCodeTouched(false);
     if (catalogue === "event_statuses") setDraft({ kind: "status", value: emptyOrderedItem() });
     else if (catalogue === "pipeline_stages") {
       setSelectedPipelineStage(null);
@@ -562,7 +576,7 @@ export function Card5SalesEventsTab({
                       value={draft.value.name}
                       disabled={!editor}
                       onChange={(event) =>
-                        setDraft({ ...draft, value: { ...draft.value, name: event.target.value } })
+                        setDraft({ ...draft, value: namedValue(draft.value, event.target.value) })
                       }
                     />
                   </div>
@@ -571,9 +585,13 @@ export function Card5SalesEventsTab({
                     <Input
                       value={draft.value.code}
                       disabled={!editor}
-                      onChange={(event) =>
-                        setDraft({ ...draft, value: { ...draft.value, code: event.target.value } })
-                      }
+                      onChange={(event) => {
+                        setCodeTouched(true);
+                        setDraft({
+                          ...draft,
+                          value: { ...draft.value, code: event.target.value.toUpperCase() },
+                        });
+                      }}
                     />
                   </div>
                   <div className="space-y-1">
@@ -745,7 +763,7 @@ export function Card5SalesEventsTab({
                       value={draft.value.name}
                       disabled={!editor}
                       onChange={(event) =>
-                        setDraft({ ...draft, value: { ...draft.value, name: event.target.value } })
+                        setDraft({ ...draft, value: namedValue(draft.value, event.target.value) })
                       }
                     />
                   </div>
@@ -754,9 +772,13 @@ export function Card5SalesEventsTab({
                     <Input
                       value={draft.value.code}
                       disabled={!editor}
-                      onChange={(event) =>
-                        setDraft({ ...draft, value: { ...draft.value, code: event.target.value } })
-                      }
+                      onChange={(event) => {
+                        setCodeTouched(true);
+                        setDraft({
+                          ...draft,
+                          value: { ...draft.value, code: event.target.value.toUpperCase() },
+                        });
+                      }}
                     />
                   </div>
                   {"description" in draft.value ? (
@@ -955,6 +977,7 @@ export function Card5SalesEventsTab({
                           ? title(row.pricingMethod)
                           : "";
                 const open = () => {
+                  setCodeTouched(true);
                   if (catalogue === "event_statuses")
                     setDraft({ kind: "status", value: row as Card5OrderedItem });
                   else if (catalogue === "pipeline_stages")

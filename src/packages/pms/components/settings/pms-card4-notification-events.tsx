@@ -26,6 +26,7 @@ import {
   testPmsCard4NotificationEvent,
 } from "@/packages/pms/lib/notification-events-card4.functions";
 import {
+  generateNotificationEventCode,
   NOTIFICATION_EVENT_MODULE_LABELS,
   NOTIFICATION_EVENT_MODULES,
   type NotificationEventModule,
@@ -76,6 +77,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const PAGE_SIZE = 8;
 
@@ -216,6 +218,7 @@ export function PmsCard4NotificationEvents({
   const [page, setPage] = useState(1);
   const [editorOpen, setEditorOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [codeTouched, setCodeTouched] = useState(false);
   const [draft, setDraft] = useState<NotificationEventDraft>(() => emptyDraft([]));
   const [dirty, setDirty] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
@@ -286,7 +289,7 @@ export function PmsCard4NotificationEvents({
       toast.success("Notification event saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save notification event."),
+      toast.error(friendlySetupError(error, "Unable to save notification event.")),
   });
   const toggleMutation = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
@@ -295,7 +298,7 @@ export function PmsCard4NotificationEvents({
       await queryClient.invalidateQueries({ queryKey: eventsQueryKey });
       toast.success(input.active ? "Notification event activated." : "Notification event deactivated.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
@@ -307,7 +310,7 @@ export function PmsCard4NotificationEvents({
       setEditorOpen(false);
       toast.success("Notification event deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const testMutation = useMutation({
     mutationFn: (id: string) => sendTest({ data: { restaurantId, id } }),
@@ -320,7 +323,7 @@ export function PmsCard4NotificationEvents({
         toast.error(outcome.message);
       }
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to test notification event."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to test notification event.")),
   });
 
   const busy =
@@ -371,12 +374,19 @@ export function PmsCard4NotificationEvents({
     key: K,
     value: NotificationEventDraft[K],
   ) {
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "name" && !current.id && !codeTouched) {
+        next.code = generateNotificationEventCode(String(value ?? ""));
+      }
+      return next;
+    });
     setDirty(true);
   }
 
   function selectEvent(row: NotificationEventRecord) {
     setCreating(false);
+    setCodeTouched(true);
     setDraft(eventToDraft(row));
     setDirty(false);
     setAttemptedSave(false);
@@ -385,6 +395,7 @@ export function PmsCard4NotificationEvents({
 
   function startAdd() {
     setCreating(true);
+    setCodeTouched(false);
     setDraft(emptyDraft(channels));
     setDirty(true);
     setAttemptedSave(false);

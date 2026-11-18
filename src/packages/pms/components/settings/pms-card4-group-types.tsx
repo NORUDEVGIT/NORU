@@ -48,6 +48,7 @@ import {
   type GroupTypeRecord,
 } from "@/packages/pms/lib/group-types-card4.server";
 import { Card3OverlapSheet } from "@/packages/pms/components/settings/pms-property-setup-card3-primitives";
+import { draftWithGeneratedCode, friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: GroupTypeRecord): GroupTypeDraft {
   return {
@@ -89,6 +90,7 @@ export function PmsCard4GroupTypes({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<GroupTypeDraft>(emptyGroupTypeDraft());
+  const [codeTouched, setCodeTouched] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<GroupTypeRecord | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null);
@@ -99,11 +101,19 @@ export function PmsCard4GroupTypes({
   function applyRecord(row: GroupTypeRecord | null) {
     setSelectedId(row?.id ?? null);
     setDraft(row ? recordToDraft(row) : emptyGroupTypeDraft());
+    setCodeTouched(Boolean(row));
     setDirty(false);
   }
 
   function mark<K extends keyof GroupTypeDraft>(key: K, value: GroupTypeDraft[K]) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    if (key === "code") setCodeTouched(true);
+    setDraft((prev) =>
+      draftWithGeneratedCode(prev, key, value, {
+        codeTouched: key === "code" ? true : codeTouched,
+        style: "compact",
+        max: 12,
+      }),
+    );
     setDirty(true);
   }
 
@@ -135,7 +145,7 @@ export function PmsCard4GroupTypes({
       toast.success("Group type saved successfully.");
       onSaved(thenNextRef.current);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save group type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save group type.")),
   });
 
   const toggleMutation = useMutation({
@@ -149,7 +159,7 @@ export function PmsCard4GroupTypes({
       setDraft((prev) => (prev.id === input.id ? { ...prev, active: input.active } : prev));
       toast.success(input.active ? "Group type activated." : "Group type deactivated.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -163,7 +173,7 @@ export function PmsCard4GroupTypes({
       applyRecord(null);
       toast.success("Group type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const canSave = canEdit && errors.length === 0 && !saveMutation.isPending;
@@ -189,6 +199,7 @@ export function PmsCard4GroupTypes({
     }
     setSelectedId(null);
     setDraft(emptyGroupTypeDraft());
+    setCodeTouched(false);
     setDirty(false);
     setEditorOpen(true);
   }
@@ -426,6 +437,7 @@ export function PmsCard4GroupTypes({
                 if (next === "__new__") {
                   setSelectedId(null);
                   setDraft(emptyGroupTypeDraft());
+                  setCodeTouched(false);
                   setEditorOpen(true);
                   return;
                 }

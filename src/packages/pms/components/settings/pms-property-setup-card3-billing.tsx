@@ -51,6 +51,7 @@ import {
   type InvoiceFormat,
   type InvoiceTaxDisplay,
 } from "@/packages/pms/lib/billing-card3.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 /** Rectangular NORU field — match Taxes / Payments / Rate Plan treatment. */
 const BILL_FIELD_CLASS = cn(
@@ -181,7 +182,7 @@ export function PmsPropertySetupCard3Billing({
       toast.success("Invoice settings saved.");
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const ruleMutation = useMutation({
     mutationFn: (input: BillingRuleInput) => saveRule({ data: input }),
@@ -190,7 +191,7 @@ export function PmsPropertySetupCard3Billing({
       setRuleDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   void CARD3_BILLING_TABS;
 

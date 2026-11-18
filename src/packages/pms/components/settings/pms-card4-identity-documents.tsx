@@ -60,6 +60,7 @@ import {
   type IdentityDocumentTypeRecord,
 } from "@/packages/pms/lib/identity-documents-card4.server";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const PAGE_SIZE = 8;
 
@@ -162,7 +163,7 @@ export function PmsCard4IdentityDocuments({
       await invalidateCatalogues();
       toast.success("Identity document settings updated.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to update settings."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to update settings.")),
   });
 
   const saveMutation = useMutation({
@@ -198,14 +199,14 @@ export function PmsCard4IdentityDocuments({
       setDirty(false);
       toast.success("Document type saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save document type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save document type.")),
   });
 
   const activeMutation = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
       setActive({ data: { restaurantId, ...input } }),
     onSuccess: invalidateCatalogues,
-    onError: (error: Error) => toast.error(error.message || "Unable to update document type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to update document type.")),
   });
 
   const deleteMutation = useMutation({
@@ -215,7 +216,7 @@ export function PmsCard4IdentityDocuments({
       setPendingDelete(null);
       toast.success("Document type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const busy =

@@ -54,6 +54,7 @@ import {
   StructureStep,
 } from "@/packages/pms/components/settings/pms-property-setup-card1-steps";
 import { BusinessDateRecoveryControl } from "@/packages/pms/components/settings/business-date-recovery-dialog";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 export function PmsPropertySetupCard1Section({
   restaurantId,
@@ -196,7 +197,7 @@ export function PmsPropertySetupCard1Section({
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(friendlySetupError(error));
     },
     onSettled: () => setSaveIntent(null),
   });

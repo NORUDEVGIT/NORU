@@ -56,6 +56,7 @@ import {
   savePmsSet6Catalogue,
 } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import { listPurposeOfStay, savePurposeOfStay } from "@/packages/pms/lib/purpose-of-stay.functions";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function refreshSet6(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -145,12 +146,14 @@ function CatalogueDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [active, setActive] = useState(true);
   useEffect(() => {
     if (!open) return;
     setName(row?.name ?? "");
     setCode(row?.code ?? "");
+    setCodeTouched(Boolean(row));
     setDescription(row?.description ?? "");
     setActive(row?.active ?? true);
   }, [open, row]);
@@ -163,11 +166,26 @@ function CatalogueDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor={`set6-cat-name-${title}`}>Name</Label>
-            <Input id={`set6-cat-name-${title}`} value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id={`set6-cat-name-${title}`}
+              value={name}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!row && !codeTouched) setCode(setupCodeFromName(next));
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`set6-cat-code-${title}`}>Code</Label>
-            <Input id={`set6-cat-code-${title}`} value={code} onChange={(event) => setCode(event.target.value)} />
+            <Input
+              id={`set6-cat-code-${title}`}
+              value={code}
+              onChange={(event) => {
+                setCodeTouched(true);
+                setCode(event.target.value.toUpperCase());
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`set6-cat-desc-${title}`}>Description (optional)</Label>
@@ -221,7 +239,7 @@ function SalesCatalogueBlock({
       setOpen(false);
       refreshSet6(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -308,7 +326,7 @@ function PurposeOfStayCatalogueBlock({
       setOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["pms-purpose-of-stay", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -485,7 +503,7 @@ export function Set6DistributionSection({
       toast.success("Channel-class posture saved.");
       refreshSet6(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const mappingMutation = useMutation({
     mutationFn: () =>
@@ -501,7 +519,7 @@ export function Set6DistributionSection({
       toast.success("Mapping posture saved.");
       refreshSet6(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains.distribution;
@@ -659,7 +677,7 @@ export function Set6ReportsSection({
       toast.success("Report catalogue saved.");
       refreshSet6(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const scheduleMutation = useMutation({
     mutationFn: () =>
@@ -674,7 +692,7 @@ export function Set6ReportsSection({
       toast.success("Schedule and access posture saved.");
       refreshSet6(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains.reports;
@@ -802,7 +820,7 @@ export function Set6OfflineSyncSection({
       toast.success("Offline enablement saved.");
       refreshSet6(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const syncMutation = useMutation({
     mutationFn: () => saveSync({ data: { restaurantId, conflictLabel: sync.conflictLabel } }),
@@ -810,7 +828,7 @@ export function Set6OfflineSyncSection({
       toast.success("Sync posture saved.");
       refreshSet6(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["offline-sync"];

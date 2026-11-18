@@ -13,6 +13,7 @@ import {
   saveOverbookingDateLimit,
   type OverbookingDateLimit,
 } from "@/packages/pms/lib/overbooking.functions";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const emptyDraft = {
   id: undefined as string | undefined,
@@ -72,7 +73,7 @@ export function OverbookingDateLimitsEditor({
       setDraft(emptyDraft);
       await refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const discard = useMutation({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
@@ -80,7 +81,7 @@ export function OverbookingDateLimitsEditor({
       toast.success("Date overbooking limit removed.");
       await refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function edit(limit: OverbookingDateLimit) {

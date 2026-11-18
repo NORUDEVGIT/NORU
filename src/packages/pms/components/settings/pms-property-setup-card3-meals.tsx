@@ -145,6 +145,7 @@ import {
   type TaxPosture,
 
 } from "@/packages/pms/lib/pms-set3-rates-guest";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 
 
@@ -517,7 +518,7 @@ export function PmsPropertySetupCard3Meals({
 
     },
 
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
 
   });
 
@@ -541,7 +542,7 @@ export function PmsPropertySetupCard3Meals({
 
     },
 
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
 
   });
 
@@ -557,7 +558,7 @@ export function PmsPropertySetupCard3Meals({
 
     },
 
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
 
   });
 
@@ -1797,7 +1798,10 @@ export function PackageMasterEditor({
     if (/23505|already used|duplicate/i.test(message)) {
       return "That package code is already used for this property.";
     }
-    return message || "Failed to save package.";
+    return friendlySetupError(
+      error instanceof Error ? error : new Error(message),
+      "Failed to save package.",
+    );
   }
 
   async function handleSubmit() {

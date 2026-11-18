@@ -52,6 +52,7 @@ import {
   RatePlanPricingSetup,
 } from "@/packages/pms/components/settings/rate-plan-pricing-setup";
 import { suggestRatePlanCode } from "@/packages/pms/lib/rates-card2-code";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function matchesQuery(query: string, ...values: string[]) {
   const q = query.trim().toLowerCase();
@@ -143,7 +144,7 @@ export function PmsPropertySetupCard3Rates({
       setCategoryDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const planMut = useMutation({
     mutationFn: (input: Parameters<typeof savePlan>[0]["data"]) => savePlan({ data: input }),
@@ -152,7 +153,7 @@ export function PmsPropertySetupCard3Rates({
       setPlanDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const calendarMut = useMutation({
     mutationFn: (input: Parameters<typeof saveOverride>[0]["data"]) =>
@@ -162,7 +163,7 @@ export function PmsPropertySetupCard3Rates({
       setCalendarDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const refundabilityMut = useMutation({
     mutationFn: (input: Parameters<typeof saveRefundability>[0]["data"]) =>
@@ -172,7 +173,7 @@ export function PmsPropertySetupCard3Rates({
       setRefundabilityDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const pricedTypes = new Set(
@@ -893,6 +894,7 @@ function RefundabilityDrawer({
   }) => void;
 }) {
   const [code, setCode] = useState(value?.code ?? "");
+  const [codeTouched, setCodeTouched] = useState(Boolean(value?.code));
   const [name, setName] = useState(value?.name ?? "");
   const [kind, setKind] = useState<RateRefundabilityRow["kind"]>(value?.kind ?? "refundable");
   const [active, setActive] = useState(value?.active ?? true);
@@ -924,7 +926,10 @@ function RefundabilityDrawer({
             id="rf-code"
             value={code}
             disabled={!canEdit}
-            onChange={(event) => setCode(event.target.value.toUpperCase())}
+            onChange={(event) => {
+              setCodeTouched(true);
+              setCode(event.target.value.toUpperCase());
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -933,7 +938,11 @@ function RefundabilityDrawer({
             id="rf-name"
             value={name}
             disabled={!canEdit}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setName(next);
+              if (!value && !codeTouched) setCode(setupCodeFromName(next));
+            }}
           />
         </div>
         <div className="space-y-1">

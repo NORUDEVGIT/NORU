@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
+
 import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
@@ -108,7 +110,10 @@ function staffFacingRatePlanSaveError(error: unknown): string {
   if (/23505|already used|duplicate/i.test(message)) {
     return "That rate plan code is already used for this property.";
   }
-  return message || "Failed to save rate plan.";
+  return friendlySetupError(
+    error instanceof Error ? error : new Error(message),
+    "Failed to save rate plan.",
+  );
 }
 
 export type RatePlanWizardSavePayload = {
