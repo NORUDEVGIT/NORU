@@ -54,7 +54,7 @@ import { RateDetailDrawer, type DrawerTab } from "../rate-detail/rate-detail-dra
 import { RateCalendarGrid } from "./rate-calendar-grid";
 import { RateCalendarLegend } from "./rate-calendar-legend";
 import { useRateRevenueExtras } from "@/packages/pms/components/rates/rate-revenue-shell-slots";
-import { RateCalendarToolbar } from "./rate-calendar-toolbar";
+import { rateCalendarWindowGroup } from "./rate-calendar-toolbar";
 
 function CalendarSkeleton() {
   return (
@@ -520,6 +520,14 @@ export function RateCalendarView({
 
   useRateRevenueExtras({
     filters: [],
+    buttonGroups: [
+      rateCalendarWindowGroup({
+        context,
+        businessDate,
+        rangeClamped: query.data?.rangeClamped === true,
+        onRangeChange,
+      }),
+    ],
     actions:
       access.canViewRates && selectedPlanIds.length > 0
         ? [
@@ -534,12 +542,6 @@ export function RateCalendarView({
 
   return (
     <div className="space-y-3">
-      <RateCalendarToolbar
-        context={context}
-        businessDate={businessDate}
-        rangeClamped={query.data?.rangeClamped === true}
-        onRangeChange={onRangeChange}
-      />
 
       {selectedPlanIds.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#C89933]/60 bg-[#FDF7EB] px-4 py-3 shadow-sm">

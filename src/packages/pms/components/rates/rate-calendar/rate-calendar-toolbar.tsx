@@ -1,14 +1,12 @@
-import { ChevronLeft, ChevronRight, Info } from "lucide-react";
-
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import {
-  RATE_CALENDAR_CLAMP_NOTE,
   RATE_CALENDAR_DEFAULT_DAYS,
   defaultRateCalendarRange,
   shiftRateCalendarRange,
 } from "@/packages/pms/lib/revenue/rate-calendar";
+import type { RateRevenueExtraButtonGroup } from "../rate-revenue-shell-slots";
 
-export function RateCalendarToolbar({
+export function rateCalendarWindowGroup({
   context,
   businessDate,
   rangeClamped,
@@ -18,62 +16,36 @@ export function RateCalendarToolbar({
   businessDate: string;
   rangeClamped: boolean;
   onRangeChange: (fromDate: string, toDate: string) => void;
-}) {
+}): RateRevenueExtraButtonGroup {
   const week = RATE_CALENDAR_DEFAULT_DAYS;
-
-  return (
-    <div className="flex flex-col gap-3 rounded-xl border border-[#DDD4C5] bg-white p-3.5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap items-center gap-3">
-        {rangeClamped ? (
-          <span
-            title={RATE_CALENDAR_CLAMP_NOTE}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#E8D5A7] bg-[#FBF6EA] px-3 py-1 text-xs font-medium text-[#6B4A0A]"
-          >
-            <Info className="size-3.5 shrink-0 text-[#8A641A]" />
-            <span>Showing 14-day window</span>
-          </span>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center rounded-lg border border-[#DED7CD] bg-[#FAF6F0] p-0.5">
-          <button
-            type="button"
-            title="Move window to previous period"
-            className="inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs font-medium text-[#251605] transition-colors hover:bg-white"
-            onClick={() => {
-              const next = shiftRateCalendarRange(context.fromDate, context.toDate, -week);
-              onRangeChange(next.fromDate, next.toDate);
-            }}
-          >
-            <ChevronLeft className="size-3.5 text-[#756A5B]" />
-            <span>Previous</span>
-          </button>
-          <button
-            type="button"
-            title="Reset window to today"
-            className="inline-flex h-8 items-center rounded-md border-x border-[#E8E1D7] px-3 text-xs font-semibold text-[#251605] transition-colors hover:bg-white"
-            onClick={() => {
-              const today = defaultRateCalendarRange(businessDate);
-              onRangeChange(today.fromDate, today.toDate);
-            }}
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            title="Move window to next period"
-            className="inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs font-medium text-[#251605] transition-colors hover:bg-white"
-            onClick={() => {
-              const next = shiftRateCalendarRange(context.fromDate, context.toDate, week);
-              onRangeChange(next.fromDate, next.toDate);
-            }}
-          >
-            <span>Next</span>
-            <ChevronRight className="size-3.5 text-[#756A5B]" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return {
+    id: "rate-calendar-window",
+    label: rangeClamped ? "Calendar Window · 14-day limit" : "Calendar Window",
+    buttons: [
+      {
+        id: "previous",
+        label: "Previous",
+        onSelect: () => {
+          const next = shiftRateCalendarRange(context.fromDate, context.toDate, -week);
+          onRangeChange(next.fromDate, next.toDate);
+        },
+      },
+      {
+        id: "today",
+        label: "Today",
+        onSelect: () => {
+          const today = defaultRateCalendarRange(businessDate);
+          onRangeChange(today.fromDate, today.toDate);
+        },
+      },
+      {
+        id: "next",
+        label: "Next",
+        onSelect: () => {
+          const next = shiftRateCalendarRange(context.fromDate, context.toDate, week);
+          onRangeChange(next.fromDate, next.toDate);
+        },
+      },
+    ],
+  };
 }

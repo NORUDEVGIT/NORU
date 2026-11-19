@@ -60,7 +60,13 @@ import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-co
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
 import { getRevenueControlWorkspace } from "@/packages/pms/lib/revenue/revenue-control.functions";
 import { getRevenuePerformanceOverview } from "@/packages/pms/lib/revenue/revenue-analytics.functions";
-import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import {
+  PMS_FILTER_ITEM,
+  PMS_FILTER_ROW,
+  PMS_FILTER_SUB,
+  PmsFilterChoiceRow,
+  PmsFilterMenu,
+} from "@/packages/pms/components/pms-filter-menu";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import {
   RATE_REVENUE_SHELL_PRIMARY_BUTTON,
@@ -81,6 +87,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/shared/components/ui/hover-card";
@@ -118,7 +127,6 @@ const BURGER_DESTINATIONS: RevenueWorkspaceView[] = [
   "rate-history",
   "restrictions",
   "restriction-history",
-  "commercial",
   "promotions",
   "packages",
   "commercial-history",
@@ -170,9 +178,10 @@ export function RatesWorkspace({
   );
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [presentation, setPresentation] = useState<"table" | "chart">(() =>
-    normalizeRevenueView(search.view ?? search.tab) === "revenue-performance" ? "chart" : "table",
-  );
+  const [presentation, setPresentation] = useState<"table" | "chart">(() => {
+    const initialView = normalizeRevenueView(search.view ?? search.tab);
+    return initialView === "revenue-performance" || initialView === "commercial" ? "chart" : "table";
+  });
   const [analyticsSection, setAnalyticsSection] = useState<RevenueAnalyticsSection>(
     () =>
       REVENUE_ANALYTICS_SECTIONS.find((row) => row.id === search.analyticsTab)?.id ?? "overview",
@@ -378,6 +387,7 @@ export function RatesWorkspace({
     if (isDemotedDemandView(nextView)) return;
     if (access && !canAccessRevenueView(access, nextView)) return;
     setSearchQuery("");
+    setPresentation("table");
     const range = defaultRangeForView(nextView, businessDate);
     writeState(nextView, {
       fromDate: range.fromDate,
@@ -407,6 +417,14 @@ export function RatesWorkspace({
     writeState("control-center", context);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedView]);
+
+  useEffect(() => {
+    if (requestedView !== "commercial") return;
+    if (access && !canAccessRevenueView(access, "promotions")) return;
+    setPresentation("chart");
+    writeState("promotions", context);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedView, access]);
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
@@ -584,6 +602,18 @@ export function RatesWorkspace({
           />
         );
       case "promotions":
+        if (presentation === "chart") {
+          return (
+            <CommercialOverviewView
+              restaurantId={restaurantId}
+              context={context}
+              access={access!}
+              roomTypes={roomTypes}
+              ratePlans={ratePlans}
+              onNavigateView={selectView}
+            />
+          );
+        }
         return (
           <PromotionsView
             restaurantId={restaurantId}
@@ -591,11 +621,24 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            searchQuery={searchQuery}
             onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
       case "packages":
+        if (presentation === "chart") {
+          return (
+            <CommercialOverviewView
+              restaurantId={restaurantId}
+              context={context}
+              access={access!}
+              roomTypes={roomTypes}
+              ratePlans={ratePlans}
+              onNavigateView={selectView}
+            />
+          );
+        }
         return (
           <PackagesView
             restaurantId={restaurantId}
@@ -603,6 +646,7 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            searchQuery={searchQuery}
             onContextChange={updateContext}
             onNavigateView={selectView}
           />
@@ -612,6 +656,7 @@ export function RatesWorkspace({
           <CommercialHistoryView
             restaurantId={restaurantId}
             context={context}
+            searchQuery={searchQuery}
             onContextChange={updateContext}
             onNavigateView={selectView}
           />
@@ -751,11 +796,24 @@ export function RatesWorkspace({
       tone: "bg-violet-50 text-violet-700",
     },
   ] as const;
+  const kpiOverrides = extras.kpis ?? [];
+  const displayKpis = kpis.map((card, index) => {
+    const override = kpiOverrides[index];
+    return override
+      ? {
+          label: override.label,
+          value: override.value,
+          icon: override.icon ?? card.icon,
+          tone: override.tone ?? card.tone,
+          overridden: true,
+        }
+      : { ...card, overridden: false };
+  });
   const inventoryNote = performance && !inventorySupported
     ? "N/A while a rate plan, market segment, or booking source filter is applied, because those filters don't narrow hotel inventory."
     : null;
   const unpricedNights = performanceQuery.data?.warnings.unpricedSoldNights ?? 0;
-  const kpiExplainers: Partial<Record<(typeof kpis)[number]["label"], {
+  const kpiExplainers: Partial<Record<string, {
     title: string;
     formula: string;
     detail: string | null;
@@ -855,8 +913,8 @@ export function RatesWorkspace({
             aria-label="Rate & Revenue KPIs"
             data-testid="rate-revenue-kpis"
           >
-            {kpis.map((card) => {
-              const explainer = kpiExplainers[card.label];
+            {displayKpis.map((card) => {
+              const explainer = card.overridden ? undefined : kpiExplainers[card.label];
               const body = (
                 <div
                   tabIndex={explainer ? 0 : undefined}
@@ -871,7 +929,7 @@ export function RatesWorkspace({
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
-                    {performanceQuery.isLoading ? (
+                    {performanceQuery.isLoading && !card.overridden ? (
                       <Skeleton className="mt-1 h-5 w-10" />
                     ) : (
                       <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
@@ -966,6 +1024,30 @@ export function RatesWorkspace({
                   buttonTestId="rate-revenue-filters-button"
                   menuTestId="rate-revenue-filters-menu"
                 >
+                  {(extras.buttonGroups ?? []).map((group) => (
+                    <DropdownMenuSub key={group.id}>
+                      <DropdownMenuSubTrigger className={PMS_FILTER_ROW}>
+                        <span className="flex-1 text-left">{group.label}</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent collisionPadding={12} className={PMS_FILTER_SUB}>
+                        {group.buttons.map((button) => (
+                          <DropdownMenuItem
+                            key={button.id}
+                            className={PMS_FILTER_ITEM}
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              extrasBridge.current.buttonGroups
+                                ?.find((row) => row.id === group.id)
+                                ?.buttons.find((row) => row.id === button.id)
+                                ?.onSelect();
+                            }}
+                          >
+                            {button.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ))}
                   {fields.includes("roomType") ? (
                     <PmsFilterChoiceRow
                       label="Room Type"
@@ -1092,9 +1174,13 @@ export function RatesWorkspace({
                 ) : (
                   <div ref={setExportSlot} className="shrink-0 empty:hidden" />
                 )}
-                {requestedView === "control-center" ? (
+                {requestedView === "control-center" ||
+                requestedView === "promotions" ||
+                requestedView === "packages" ? (
                   <>
-                    {presentation === "chart" && access.canViewAnalytics ? (
+                    {requestedView === "control-center" &&
+                    presentation === "chart" &&
+                    access.canViewAnalytics ? (
                       <AnalyticsSectionMenu value={analyticsSection} onChange={setAnalyticsSection} />
                     ) : null}
                     <RateRevenueViewSwitcher value={presentation} onChange={setPresentation} />

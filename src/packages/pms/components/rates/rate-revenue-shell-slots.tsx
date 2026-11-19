@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { BarChart3, Download, RefreshCw, Search, Table2, X } from "lucide-react";
 
@@ -221,10 +228,25 @@ export type RateRevenueExtraAction = {
   onSelect: () => void;
 };
 
+export type RateRevenueExtraButtonGroup = {
+  id: string;
+  label: string;
+  buttons: Array<{ id: string; label: string; onSelect: () => void }>;
+};
+
+export type RateRevenueExtraKpi = {
+  label: string;
+  value: string;
+  icon?: ComponentType<{ className?: string }>;
+  tone?: string;
+};
+
 export type RateRevenueExtras = {
   searchPlaceholder?: string;
   filters: RateRevenueExtraFilter[];
   actions: RateRevenueExtraAction[];
+  buttonGroups?: RateRevenueExtraButtonGroup[];
+  kpis?: RateRevenueExtraKpi[];
   onClear?: () => void;
 };
 
@@ -280,6 +302,12 @@ export function useRateRevenueExtras(extras: RateRevenueExtras) {
       filter.options,
     ]),
     actions: extras.actions.map((action) => [action.id, action.label, Boolean(action.disabled)]),
+    buttonGroups: (extras.buttonGroups ?? []).map((group) => [
+      group.id,
+      group.label,
+      group.buttons.map((button) => [button.id, button.label]),
+    ]),
+    kpis: (extras.kpis ?? []).map((kpi) => [kpi.label, kpi.value, kpi.tone ?? ""]),
     clear: Boolean(extras.onClear),
   });
   useEffect(() => {

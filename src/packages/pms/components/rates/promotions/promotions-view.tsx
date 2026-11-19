@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight, Filter, MoreHorizontal, RotateCcw } from "lucide-react";
+import {
+  BedDouble,
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Percent,
+  Tag,
+} from "lucide-react";
 
 import { CARD3_PROMOTIONS_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card3";
 import { getPromotionsWorkspace } from "@/packages/pms/lib/revenue/commercial-overview.functions";
@@ -39,11 +47,27 @@ import {
   PromotionActivationActionSheet,
   type PromotionActivationAction,
 } from "../commercial/promotion-activation-action-sheet";
-import { commercialGoldButton, commercialOutlineButton } from "../commercial/commercial-ui";
 import type { RevenueWorkspaceView } from "@/packages/pms/lib/rate-revenue-workspace";
+import { useRateRevenueExtras } from "../rate-revenue-shell-slots";
 import { PromotionDetailDrawer } from "./promotion-detail-drawer";
 
 const PROMOTION_PAGE_SIZES = [10, 25, 50] as const;
+
+const PROMOTION_STATUS_OPTIONS: ReadonlyArray<readonly [PromotionDisplayStatus | "all", string]> = [
+  ["all", "All statuses"],
+  ["active", "Active"],
+  ["upcoming", "Upcoming"],
+  ["expired", "Expired"],
+  ["inactive", "Inactive"],
+  ["not_activated", "Not Activated"],
+];
+
+const PROMOTION_KIND_OPTIONS: ReadonlyArray<readonly [CommercialPromoKind | "all", string]> = [
+  ["all", "All kinds"],
+  ["percent", "Percentage"],
+  ["fixed", "Fixed Amount"],
+  ["free_night", "Free Night"],
+];
 
 export function PromotionsView({
   restaurantId,
@@ -51,7 +75,7 @@ export function PromotionsView({
   access,
   roomTypes,
   ratePlans,
-  onContextChange,
+  searchQuery = "",
   onNavigateView,
 }: {
   restaurantId: string;
@@ -59,6 +83,7 @@ export function PromotionsView({
   access: RevenueAccess;
   roomTypes: RevenueRoomType[];
   ratePlans: RevenueRatePlan[];
+  searchQuery?: string;
   onContextChange?: ((patch: Partial<RevenueContext>) => void) | undefined;
   onNavigateView?: ((view: RevenueWorkspaceView) => void) | undefined;
 }) {
@@ -85,7 +110,7 @@ export function PromotionsView({
       }),
     retry: false,
   });
-  const [search, setSearch] = useState("");
+  const search = searchQuery;
   const [status, setStatus] = useState<PromotionDisplayStatus | "all">("all");
   const [kind, setKind] = useState<CommercialPromoKind | "all">("all");
   const [page, setPage] = useState(1);
@@ -134,13 +159,82 @@ export function PromotionsView({
     setIntentOpen(true);
   }
 
-  function clearFilters() {
-    setSearch("");
-    setStatus("all");
-    setKind("all");
-    onContextChange?.({ roomTypeId: null, ratePlanId: null });
-    setPage(1);
-  }
+  const allRows = query.data?.rows ?? [];
+  const activationRows = allRows.filter((row) => row.rowKind === "activation");
+  const kpiMoney = (value: number) => formatHistoryMoney(value, query.data?.currency ?? "");
+
+  useRateRevenueExtras({
+    searchPlaceholder: "Search name or code",
+    filters: [
+      {
+        id: "promotions-status",
+        label: "Status",
+        value: status,
+        current: status === "all" ? "" : commercialStatusLabel(status),
+        options: PROMOTION_STATUS_OPTIONS,
+        onChange: (value) => setStatus(value as PromotionDisplayStatus | "all"),
+      },
+      {
+        id: "promotions-kind",
+        label: "Promotion Type",
+        value: kind,
+        current: PROMOTION_KIND_OPTIONS.find(([id]) => id === kind && id !== "all")?.[1] ?? "",
+        options: PROMOTION_KIND_OPTIONS,
+        onChange: (value) => setKind(value as CommercialPromoKind | "all"),
+      },
+    ],
+    actions: [
+      ...(canManage
+        ? [{ id: "activate-promotion", label: "Activate Promotion", onSelect: () => openActivate() }]
+        : []),
+      ...(onNavigateView
+        ? [
+            {
+              id: "promotions-history",
+              label: "View History",
+              onSelect: () => onNavigateView("commercial-history"),
+            },
+          ]
+        : []),
+      {
+        id: "promotions-configure",
+        label: "Configure in Property Setup",
+        onSelect: () =>
+          window.location.assign(
+            withReturnTo(CARD3_PROMOTIONS_HREF, "/restaurant/pms/rates-revenue?view=promotions"),
+          ),
+      },
+    ],
+    kpis: query.data
+      ? [
+          {
+            label: "Active Promotions",
+            value: String(allRows.filter((row) => row.displayStatus === "active").length),
+            icon: Tag,
+          },
+          {
+            label: "Upcoming Promotions",
+            value: String(allRows.filter((row) => row.displayStatus === "upcoming").length),
+            icon: CalendarClock,
+          },
+          {
+            label: "Promotion Bookings",
+            value: String(activationRows.reduce((sum, row) => sum + row.bookings, 0)),
+            icon: BedDouble,
+          },
+          {
+            label: "Promotion Discount",
+            value: kpiMoney(activationRows.reduce((sum, row) => sum + row.discountAmount, 0)),
+            icon: Percent,
+          },
+        ]
+      : undefined,
+    onClear: () => {
+      setStatus("all");
+      setKind("all");
+      setPage(1);
+    },
+  });
 
   if (query.isLoading) {
     return (
@@ -164,127 +258,11 @@ export function PromotionsView({
   const data = query.data;
   if (!data) return null;
   const money = (value: number) => formatHistoryMoney(value, data.currency);
-  const hasActiveFilters =
-    Boolean(search.trim()) ||
-    status !== "all" ||
-    kind !== "all" ||
-    Boolean(context.roomTypeId) ||
-    Boolean(context.ratePlanId);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display text-xl font-semibold text-[#251605]">Promotions</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Promotion masters are owned in Property Setup; activations and stay windows are managed
-            here.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canManage ? (
-            <button type="button" className={commercialGoldButton()} onClick={() => openActivate()}>
-              Activate Promotion
-            </button>
-          ) : null}
-          <a
-            href={withReturnTo(CARD3_PROMOTIONS_HREF, "/restaurant/pms/rates-revenue?view=promotions")}
-            className={commercialOutlineButton()}
-          >
-            Configure in Property Setup
-          </a>
-          {onNavigateView ? (
-            <button
-              type="button"
-              className={commercialOutlineButton()}
-              onClick={() => onNavigateView("commercial-history")}
-            >
-              View History
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-2.5 rounded-xl border border-[#DDD4C5] bg-white px-4 py-3.5 shadow-sm">
-        {null}
-        <div className="min-w-36">
-          <label htmlFor="promotions-status" className="text-xs font-semibold text-[#5A4833]">
-            Status
-          </label>
-          <select
-            id="promotions-status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as PromotionDisplayStatus | "all")}
-            aria-label="Status"
-            className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="expired">Expired</option>
-            <option value="inactive">Inactive</option>
-            <option value="not_activated">Not Activated</option>
-          </select>
-        </div>
-        <div className="min-w-40">
-          <label htmlFor="promotions-kind" className="text-xs font-semibold text-[#5A4833]">
-            Promotion Type
-          </label>
-          <select
-            id="promotions-kind"
-            value={kind}
-            onChange={(event) => setKind(event.target.value as CommercialPromoKind | "all")}
-            aria-label="Promotion kind"
-            className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-          >
-            <option value="all">All kinds</option>
-            <option value="percent">Percentage</option>
-            <option value="fixed">Fixed Amount</option>
-            <option value="free_night">Free Night</option>
-          </select>
-        </div>
-        <div className="min-w-52 flex-1">
-          <label htmlFor="promotions-search" className="text-xs font-semibold text-[#5A4833]">
-            Search promotions
-          </label>
-          <input
-            id="promotions-search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name or code"
-            aria-label="Search promotions"
-            className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-3 text-sm text-[#251605]"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          {hasActiveFilters ? (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#DED7CD] bg-white px-3 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F7F4EE]"
-            >
-              <RotateCcw className="size-3.5" />
-              Clear
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setPage(1)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] shadow-xs transition-colors hover:bg-[#C89933]"
-          >
-            <Filter className="size-3.5" />
-            Filter
-          </button>
-        </div>
-      </div>
-
+    <div className="space-y-3">
       {data.rows.length === 0 ? (
-        <InventoryState
-          state="empty"
-          title={COMMERCIAL_EMPTY_COPY}
-          description="Activate a configured promotion from Property Setup using Activate Promotion."
-        />
+        <InventoryState state="empty" title={COMMERCIAL_EMPTY_COPY} />
       ) : rows.length === 0 ? (
         <InventoryState state="empty" title="No promotions match these filters." />
       ) : (
