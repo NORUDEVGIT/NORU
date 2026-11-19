@@ -53,6 +53,7 @@ import { BulkReviewPanel } from "../impact-review/bulk-review-panel";
 import { RateDetailDrawer, type DrawerTab } from "../rate-detail/rate-detail-drawer";
 import { RateCalendarGrid } from "./rate-calendar-grid";
 import { RateCalendarLegend } from "./rate-calendar-legend";
+import { useRateRevenueExtras } from "@/packages/pms/components/rates/rate-revenue-shell-slots";
 import { RateCalendarToolbar } from "./rate-calendar-toolbar";
 
 function CalendarSkeleton() {
@@ -517,18 +518,27 @@ export function RateCalendarView({
       </>
     );
 
+  useRateRevenueExtras({
+    filters: [],
+    actions:
+      access.canViewRates && selectedPlanIds.length > 0
+        ? [
+            {
+              id: "bulk-rate-selected",
+              label: `Bulk Rate Change (${selectedPlanIds.length})`,
+              onSelect: () => openBulkDrawer(true),
+            },
+          ]
+        : [],
+  });
+
   return (
     <div className="space-y-3">
       <RateCalendarToolbar
         context={context}
         businessDate={businessDate}
         rangeClamped={query.data?.rangeClamped === true}
-        currency={query.data?.currency ?? ""}
-        mixedCurrency={query.data?.mixedCurrency === true}
-        canViewRates={access.canViewRates}
-        selectedCount={selectedPlanIds.length}
         onRangeChange={onRangeChange}
-        onBulkTrigger={() => openBulkDrawer(true)}
       />
 
       {selectedPlanIds.length > 0 ? (

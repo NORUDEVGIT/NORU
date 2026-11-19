@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { BarChart3, Download, RefreshCw, Search, Table2, X } from "lucide-react";
 
@@ -203,6 +203,94 @@ export function RateRevenueRefreshButton({
       <RefreshCw className={cn("size-4", spinning && "animate-spin")} />
     </Button>
   );
+}
+
+export type RateRevenueExtraFilter = {
+  id: string;
+  label: string;
+  value: string;
+  current: string;
+  options: ReadonlyArray<readonly [string, string]>;
+  onChange: (value: string) => void;
+};
+
+export type RateRevenueExtraAction = {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
+export type RateRevenueExtras = {
+  searchPlaceholder?: string;
+  filters: RateRevenueExtraFilter[];
+  actions: RateRevenueExtraAction[];
+  onClear?: () => void;
+};
+
+const EMPTY_RATE_REVENUE_EXTRAS: RateRevenueExtras = { filters: [], actions: [] };
+
+export type RateRevenueExtrasBridge = {
+  current: RateRevenueExtras;
+  subscribe: (listener: () => void) => () => void;
+  publish: () => void;
+};
+
+const RateRevenueExtrasContext = createContext<RateRevenueExtrasBridge | null>(null);
+
+export function createRateRevenueExtrasBridge(notify: () => void): RateRevenueExtrasBridge {
+  const listeners = new Set<() => void>();
+  return {
+    current: EMPTY_RATE_REVENUE_EXTRAS,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    publish() {
+      notify();
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
+export function RateRevenueExtrasProvider({
+  bridge,
+  children,
+}: {
+  bridge: RateRevenueExtrasBridge;
+  children: ReactNode;
+}) {
+  return (
+    <RateRevenueExtrasContext.Provider value={bridge}>{children}</RateRevenueExtrasContext.Provider>
+  );
+}
+
+export function useRateRevenueExtras(extras: RateRevenueExtras) {
+  const bridge = useContext(RateRevenueExtrasContext);
+  const extrasRef = useRef(extras);
+  extrasRef.current = extras;
+  if (bridge) bridge.current = extras;
+  const signature = JSON.stringify({
+    searchPlaceholder: extras.searchPlaceholder ?? "",
+    filters: extras.filters.map((filter) => [
+      filter.id,
+      filter.label,
+      filter.value,
+      filter.current,
+      filter.options,
+    ]),
+    actions: extras.actions.map((action) => [action.id, action.label, Boolean(action.disabled)]),
+    clear: Boolean(extras.onClear),
+  });
+  useEffect(() => {
+    if (!bridge) return;
+    bridge.current = extrasRef.current;
+    bridge.publish();
+    return () => {
+      bridge.current = EMPTY_RATE_REVENUE_EXTRAS;
+      bridge.publish();
+    };
+  }, [bridge, signature]);
 }
 
 export function downloadCsv(filename: string, headers: string[], rows: string[][]) {

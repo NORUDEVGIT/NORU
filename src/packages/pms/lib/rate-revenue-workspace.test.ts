@@ -70,7 +70,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /<PackagesView/);
     assert.match(workspace, /<CompetitorSetupView/);
     assert.match(workspace, /<ApprovalsView/);
-    assert.match(workspace, /<RevenuePerformanceView/);
+    assert.match(workspace, /analyticsSection=\{analyticsSection\}/);
     assert.match(workspace, /<RevenueAuditView/);
     assert.match(workspace, /<RevenueExportView/);
     assert.match(workspace, /case "control-center"/);
@@ -211,6 +211,39 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     const lib = readRel("./rate-revenue-workspace.ts");
     assert.doesNotMatch(lib, /CREATE TABLE/);
     assert.doesNotMatch(lib, /ALTER TABLE/);
+  });
+
+  it("shell KPIs use the Revenue Performance overview", () => {
+    const workspace = readRel("../components/workspaces/rates-workspace.tsx");
+    const panel = readRel("../components/rates/analytics/revenue-analytics-panel.tsx");
+    assert.match(workspace, /getRevenuePerformanceOverview/);
+    assert.match(workspace, /"revenue-performance-overview"/);
+    assert.match(workspace, /salesChannelId: null/);
+    assert.match(workspace, /performance\.occupancyPct/);
+    assert.match(workspace, /performance\.adr/);
+    assert.match(workspace, /inventoryMetricSupport === "SUPPORTED"/);
+    assert.doesNotMatch(workspace, /summary\.occupancyPercent/);
+    assert.match(panel, /"revenue-performance-overview"/);
+    assert.match(panel, /salesChannelId: null/);
+  });
+
+  it("revenue analytics live in Revenue Control's chart view without a duplicate KPI strip", () => {
+    const workspace = readRel("../components/workspaces/rates-workspace.tsx");
+    const control = readRel("../components/rates/revenue-control/revenue-control-view.tsx");
+    const panel = readRel("../components/rates/analytics/revenue-analytics-panel.tsx");
+    const kpiDetail = readRel("../components/rates/analytics/revenue-kpi-detail.tsx");
+    assert.match(control, /presentation === "chart" && access\.canViewAnalytics/);
+    assert.match(control, /<RevenueAnalyticsPanel/);
+    assert.match(workspace, /AnalyticsSectionMenu/);
+    assert.match(workspace, /HoverCard/);
+    assert.doesNotMatch(panel, /RevenueKpiStrip|RevenueDataQualityAlert/);
+    assert.doesNotMatch(panel, /predate rate plan/);
+    assert.doesNotMatch(kpiDetail, /Occupancy Rate|Sold Room Nights \/ Available/);
+    const nav = workspace.slice(
+      workspace.indexOf("const BURGER_DESTINATIONS"),
+      workspace.indexOf("const BURGER_ICONS"),
+    );
+    assert.doesNotMatch(nav, /"revenue-performance"/);
   });
 
   it("maps UI-01–UI-40 onto workspace views without 40 routes", () => {

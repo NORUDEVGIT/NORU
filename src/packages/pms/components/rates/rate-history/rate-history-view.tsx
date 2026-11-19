@@ -8,28 +8,37 @@ import {
   getRateChangeOperationDetail,
   listRateChangeHistory,
 } from "@/packages/pms/lib/revenue/rate-change.functions";
-import type {
-  RateChangeActionType,
-  RateChangeHistoryRow,
+import {
+  RATE_CHANGE_ACTION_TYPES,
+  type RateChangeActionType,
+  type RateChangeHistoryRow,
 } from "@/packages/pms/lib/revenue/rate-change";
 import {
   RATE_HISTORY_DEFAULT_PAGE_SIZE,
   RATE_HISTORY_PAGE_SIZES,
   historyPaginationRange,
+  rateHistoryActionLabel,
 } from "@/packages/pms/lib/revenue/rate-history";
 import type {
   RevenueRatePlan,
   RevenueRoomType,
 } from "@/packages/pms/lib/revenue/revenue-config.types";
-import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
+import { addUtcDays, type RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import {
   RATE_HISTORY_LOAD_ERROR,
   revenueUiError,
 } from "@/packages/pms/lib/revenue/revenue-read-error";
+import { useRateRevenueExtras } from "@/packages/pms/components/rates/rate-revenue-shell-slots";
 import { RateHistoryDetailDrawer } from "./rate-history-detail-drawer";
 import { RateHistoryEmptyState } from "./rate-history-empty-state";
-import { RateHistoryFilters } from "./rate-history-filters";
 import { RateHistoryTable } from "./rate-history-table";
+
+const RECORDED_WINDOWS = [7, 14, 30, 90] as const;
+
+function recordedWindow(from: string, to: string) {
+  const match = RECORDED_WINDOWS.find((days) => addUtcDays(from, days - 1) === to);
+  return match ? String(match) : "custom";
+}
 
 function TableSkeleton() {
   return (
@@ -43,8 +52,6 @@ function TableSkeleton() {
 export function RateHistoryView({
   restaurantId,
   context,
-  roomTypes = [],
-  ratePlans = [],
   onContextChange,
 }: {
   restaurantId: string;
@@ -114,21 +121,52 @@ export function RateHistoryView({
     pageSize,
     listQuery.data?.total ?? 0,
   );
+  const windowValue = recordedWindow(context.fromDate, context.toDate);
+  useRateRevenueExtras({
+    filters: [
+      {
+        id: "rate-history-action",
+        label: "Action Type",
+        value: actionType || "all",
+        current: actionType ? rateHistoryActionLabel(actionType) : "",
+        options: [
+          ["all", "All actions"],
+          ...RATE_CHANGE_ACTION_TYPES.map(
+            (value) => [value, rateHistoryActionLabel(value)] as const,
+          ),
+        ],
+        onChange: (value) => {
+          setActionType(value === "all" ? "" : (value as RateChangeActionType));
+          setSelected(null);
+        },
+      },
+      {
+        id: "rate-history-window",
+        label: "Recorded window",
+        value: windowValue,
+        current: windowValue === "custom" ? "" : `${windowValue} days`,
+        options: [
+          ["custom", "Custom range"],
+          ["7", "7 days"],
+          ["14", "14 days"],
+          ["30", "30 days"],
+          ["90", "90 days"],
+        ],
+        onChange: (value) => {
+          if (value === "custom") return;
+          onContextChange?.({ toDate: addUtcDays(context.fromDate, Number(value) - 1) });
+        },
+      },
+    ],
+    actions: [],
+    onClear: () => {
+      setActionType("");
+      setSelected(null);
+    },
+  });
 
   return (
     <div className="min-w-0 space-y-3">
-      <RateHistoryFilters
-        context={context}
-        roomTypes={roomTypes}
-        ratePlans={ratePlans}
-        actionType={actionType}
-        onContextChange={onContextChange}
-        onActionTypeChange={(value) => {
-          setActionType(value);
-          setSelected(null);
-        }}
-      />
-
       {listQuery.isLoading ? (
         <TableSkeleton />
       ) : listQuery.isError ? (

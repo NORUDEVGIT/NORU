@@ -8,28 +8,37 @@ import {
   getRestrictionOperationDetail,
   listRestrictionChangeHistory,
 } from "@/packages/pms/lib/revenue/restriction-change.functions";
-import type {
-  RestrictionActionType,
-  RestrictionHistoryRow,
+import {
+  RESTRICTION_ACTION_TYPES,
+  type RestrictionActionType,
+  type RestrictionHistoryRow,
 } from "@/packages/pms/lib/revenue/restriction-change";
 import {
   RESTRICTION_HISTORY_PAGE_SIZE,
   RESTRICTION_HISTORY_PAGE_SIZES,
   historyPaginationRange,
+  restrictionHistoryActionLabel,
 } from "@/packages/pms/lib/revenue/restriction-history";
 import type {
   RevenueRatePlan,
   RevenueRoomType,
 } from "@/packages/pms/lib/revenue/revenue-config.types";
-import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
+import { addUtcDays, type RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import {
   RESTRICTION_HISTORY_LOAD_ERROR,
   revenueUiError,
 } from "@/packages/pms/lib/revenue/revenue-read-error";
+import { useRateRevenueExtras } from "@/packages/pms/components/rates/rate-revenue-shell-slots";
 import { RestrictionHistoryDetailDrawer } from "./restriction-history-detail-drawer";
 import { RestrictionHistoryEmptyState } from "./restriction-history-empty-state";
-import { RestrictionHistoryFilters } from "./restriction-history-filters";
 import { RestrictionHistoryTable } from "./restriction-history-table";
+
+const RECORDED_WINDOWS = [7, 14, 30, 90] as const;
+
+function recordedWindow(from: string, to: string) {
+  const match = RECORDED_WINDOWS.find((days) => addUtcDays(from, days - 1) === to);
+  return match ? String(match) : "custom";
+}
 
 function TableSkeleton() {
   return (
@@ -43,8 +52,6 @@ function TableSkeleton() {
 export function RestrictionHistoryView({
   restaurantId,
   context,
-  roomTypes = [],
-  ratePlans = [],
   onContextChange,
 }: {
   restaurantId: string;
@@ -114,21 +121,52 @@ export function RestrictionHistoryView({
     pageSize,
     listQuery.data?.total ?? 0,
   );
+  const windowValue = recordedWindow(context.fromDate, context.toDate);
+  useRateRevenueExtras({
+    filters: [
+      {
+        id: "restriction-history-action",
+        label: "Action Type",
+        value: actionType || "all",
+        current: actionType ? restrictionHistoryActionLabel(actionType) : "",
+        options: [
+          ["all", "All actions"],
+          ...RESTRICTION_ACTION_TYPES.map(
+            (value) => [value, restrictionHistoryActionLabel(value)] as const,
+          ),
+        ],
+        onChange: (value) => {
+          setActionType(value === "all" ? "" : (value as RestrictionActionType));
+          setSelected(null);
+        },
+      },
+      {
+        id: "restriction-history-window",
+        label: "Recorded window",
+        value: windowValue,
+        current: windowValue === "custom" ? "" : `${windowValue} days`,
+        options: [
+          ["custom", "Custom range"],
+          ["7", "7 days"],
+          ["14", "14 days"],
+          ["30", "30 days"],
+          ["90", "90 days"],
+        ],
+        onChange: (value) => {
+          if (value === "custom") return;
+          onContextChange?.({ toDate: addUtcDays(context.fromDate, Number(value) - 1) });
+        },
+      },
+    ],
+    actions: [],
+    onClear: () => {
+      setActionType("");
+      setSelected(null);
+    },
+  });
 
   return (
     <div className="min-w-0 space-y-3">
-      <RestrictionHistoryFilters
-        context={context}
-        roomTypes={roomTypes}
-        ratePlans={ratePlans}
-        actionType={actionType}
-        onContextChange={onContextChange}
-        onActionTypeChange={(value) => {
-          setActionType(value);
-          setSelected(null);
-        }}
-      />
-
       {listQuery.isLoading ? (
         <TableSkeleton />
       ) : listQuery.isError ? (

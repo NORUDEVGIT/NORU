@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Info, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import {
@@ -12,22 +12,12 @@ export function RateCalendarToolbar({
   context,
   businessDate,
   rangeClamped,
-  currency,
-  mixedCurrency,
-  canViewRates,
-  selectedCount = 0,
   onRangeChange,
-  onBulkTrigger,
 }: {
   context: RevenueContext;
   businessDate: string;
   rangeClamped: boolean;
-  currency: string;
-  mixedCurrency: boolean;
-  canViewRates: boolean;
-  selectedCount?: number;
   onRangeChange: (fromDate: string, toDate: string) => void;
-  onBulkTrigger?: () => void;
 }) {
   const week = RATE_CALENDAR_DEFAULT_DAYS;
 
@@ -83,17 +73,6 @@ export function RateCalendarToolbar({
             <ChevronRight className="size-3.5 text-[#756A5B]" />
           </button>
         </div>
-
-        {canViewRates && selectedCount > 0 && onBulkTrigger ? (
-          <button
-            type="button"
-            onClick={onBulkTrigger}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
-          >
-            <SlidersHorizontal className="size-3.5" />
-            <span>Bulk Rate Change ({selectedCount})</span>
-          </button>
-        ) : null}
       </div>
     </div>
   );

@@ -28,15 +28,14 @@ export function RevenueSegmentBreakdown({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-[#E8E1D7] bg-card shadow-xs">
-        <div className="flex flex-col gap-1 border-b border-[#E8E1D7] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="font-display text-base font-semibold text-[#251605]">
-              Revenue by Market Segment
-            </h3>
-          </div>
-        </div>
+    <div>
+      <div className="rounded-xl border border-[#E8E1D7] bg-white shadow-xs">
+        <header className="flex items-center justify-between gap-2 border-b border-[#E8E1D7] px-4 py-2.5">
+          <h3 className="font-display text-sm font-semibold text-[#251605]">
+            Revenue by Market Segment
+          </h3>
+          <span className="text-[11px] font-medium text-[#756A5B]">Select a row for details</span>
+        </header>
 
         {marketSegments.length === 0 ? (
           <div className="p-8 text-center text-xs text-[#756A5B]">

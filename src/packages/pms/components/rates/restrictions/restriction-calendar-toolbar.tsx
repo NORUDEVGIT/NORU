@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Info, ShieldAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import {
@@ -12,18 +12,12 @@ export function RestrictionCalendarToolbar({
   context,
   businessDate,
   rangeClamped,
-  canViewRestrictions,
-  selectedCount = 0,
   onRangeChange,
-  onBulkTrigger,
 }: {
   context: RevenueContext;
   businessDate: string;
   rangeClamped: boolean;
-  canViewRestrictions: boolean;
-  selectedCount?: number;
   onRangeChange: (fromDate: string, toDate: string) => void;
-  onBulkTrigger?: () => void;
 }) {
   const week = RATE_CALENDAR_DEFAULT_DAYS;
 
@@ -79,17 +73,6 @@ export function RestrictionCalendarToolbar({
             <ChevronRight className="size-3.5 text-[#756A5B]" />
           </button>
         </div>
-
-        {canViewRestrictions && selectedCount > 0 && onBulkTrigger ? (
-          <button
-            type="button"
-            onClick={onBulkTrigger}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#C89933] px-3.5 text-xs font-semibold text-[#251605] shadow-sm transition-colors hover:bg-[#B5882D]"
-          >
-            <ShieldAlert className="size-3.5" />
-            <span>Apply Restriction ({selectedCount})</span>
-          </button>
-        ) : null}
       </div>
     </div>
   );

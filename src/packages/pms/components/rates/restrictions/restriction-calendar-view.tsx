@@ -61,6 +61,7 @@ import { RestrictionConfirmApply } from "../restriction-impact/restriction-confi
 import { RestrictionReviewPanel } from "../restriction-impact/restriction-review-panel";
 import { RestrictionCalendarGrid } from "./restriction-calendar-grid";
 import { RestrictionCalendarLegend } from "./restriction-calendar-legend";
+import { useRateRevenueExtras } from "@/packages/pms/components/rates/rate-revenue-shell-slots";
 import { RestrictionCalendarToolbar } from "./restriction-calendar-toolbar";
 
 function CalendarSkeleton() {
@@ -543,16 +544,27 @@ export function RestrictionCalendarView({
       </>
     );
 
+  useRateRevenueExtras({
+    filters: [],
+    actions:
+      access.canViewRestrictions && selectedPlanIds.length > 0
+        ? [
+            {
+              id: "apply-restriction-selected",
+              label: `Apply Restriction (${selectedPlanIds.length})`,
+              onSelect: () => openBulkDrawer(true),
+            },
+          ]
+        : [],
+  });
+
   return (
     <div className="space-y-3">
       <RestrictionCalendarToolbar
         context={context}
         businessDate={businessDate}
         rangeClamped={calendar?.rangeClamped === true}
-        canViewRestrictions={access.canViewRestrictions}
-        selectedCount={selectedPlanIds.length}
         onRangeChange={onRangeChange}
-        onBulkTrigger={() => openBulkDrawer(true)}
       />
 
       {selectedPlanIds.length > 0 ? (

@@ -331,7 +331,7 @@ describe("RR-P3-02 — wiring, ownership, and UI locks", () => {
       assert.doesNotMatch(source, /template_id|commercial_restriction_id/);
     }
     assert.match(edit, /SUBMIT_FOR_APPROVAL_LABEL|Submit for Approval/);
-    assert.match(toolbar, /Apply Restriction/);
+    assert.match(view, /Apply Restriction/);
     assert.match(toolbar, /Restriction History/);
     assert.match(legend, /Operational restrictions, not demand/);
     assert.match(adapter, /Template prefill is deferred/);
@@ -362,7 +362,7 @@ describe("RR-P3-02 — wiring, ownership, and UI locks", () => {
     assert.match(toolbar, /Previous Period/);
     assert.match(toolbar, /Next Period/);
     assert.match(toolbar, /View Restriction History/);
-    assert.match(toolbar, /Apply Restriction/);
+    assert.match(view, /Apply Restriction/);
     assert.match(contextBar, /Search room type or rate plan/);
     assert.match(contextBar, /Filter/);
     assert.match(contextBar, /bg-\[#D5A62B\]/);

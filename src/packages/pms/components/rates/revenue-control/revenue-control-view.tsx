@@ -10,6 +10,10 @@ import {
 import type { RevenueAccess } from "@/packages/pms/lib/revenue/revenue-access";
 import type { RevenueContext } from "@/packages/pms/lib/revenue/revenue-context";
 import { useMoney } from "@/core/state/property-format";
+import {
+  RevenueAnalyticsPanel,
+  type RevenueAnalyticsSection,
+} from "@/packages/pms/components/rates/analytics/revenue-analytics-panel";
 import { RateInventoryControl } from "./rate-inventory-control";
 import { RevenueControlTrend } from "./revenue-control-trend";
 
@@ -22,14 +26,22 @@ function RevenueControlSkeleton() {
 export function RevenueControlView({
   restaurantId,
   context,
+  access,
   presentation = "table",
+  analyticsSection = "overview",
+  marketSegments,
+  bookingSources,
 }: {
   restaurantId: string;
   context: RevenueContext;
   access: RevenueAccess;
   presentation?: "table" | "chart";
+  analyticsSection?: RevenueAnalyticsSection;
+  marketSegments?: Array<{ id: string; name: string; code?: string }>;
+  bookingSources?: Array<{ id: string; name: string; code?: string }>;
 }) {
   const money = useMoney();
+  const showAnalytics = presentation === "chart" && access.canViewAnalytics;
   const fetchWorkspace = useServerFn(getRevenueControlWorkspace);
   const query = useQuery({
     queryKey: [
@@ -58,6 +70,18 @@ export function RevenueControlView({
       }),
     retry: false,
   });
+
+  if (showAnalytics) {
+    return (
+      <RevenueAnalyticsPanel
+        restaurantId={restaurantId}
+        context={context}
+        section={analyticsSection}
+        marketSegments={marketSegments}
+        bookingSources={bookingSources}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
