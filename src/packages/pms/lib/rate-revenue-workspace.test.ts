@@ -68,7 +68,7 @@ describe("Rate & Revenue Phase 1 Prompt 3 — workspace shell", () => {
     assert.match(workspace, /<CommercialOverviewView/);
     assert.match(workspace, /<PromotionsView/);
     assert.match(workspace, /<PackagesView/);
-    assert.match(workspace, /<CompetitorSetupView/);
+    assert.doesNotMatch(workspace, /<CompetitorSetupView/);
     assert.match(workspace, /<ApprovalsView/);
     assert.match(workspace, /analyticsSection=\{analyticsSection\}/);
     assert.match(workspace, /<RevenueAuditView/);

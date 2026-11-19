@@ -45,7 +45,6 @@ import { CommercialOverviewView } from "@/packages/pms/components/rates/commerci
 import { PromotionsView } from "@/packages/pms/components/rates/promotions/promotions-view";
 import { PackagesView } from "@/packages/pms/components/rates/packages/packages-view";
 import { CommercialHistoryView } from "@/packages/pms/components/rates/commercial-history/commercial-history-view";
-import { CompetitorSetupView } from "@/packages/pms/components/rates/competitor-setup/competitor-setup-view";
 import { ApprovalsView } from "@/packages/pms/components/rates/approvals/approvals-view";
 import {
   REVENUE_ANALYTICS_SECTIONS,
@@ -124,16 +123,12 @@ const BURGER_DESTINATIONS: RevenueWorkspaceView[] = [
   "control-center",
   "rate-plans-reference",
   "rate-calendar",
-  "rate-history",
   "restrictions",
-  "restriction-history",
   "promotions",
   "packages",
-  "commercial-history",
   "approvals",
   "audit-control",
   "export",
-  "competitor-setup",
 ];
 
 const BURGER_ICONS: Partial<Record<RevenueWorkspaceView, typeof LayoutGrid>> = {
@@ -419,6 +414,12 @@ export function RatesWorkspace({
   }, [requestedView]);
 
   useEffect(() => {
+    if (requestedView !== "competitor-setup") return;
+    writeState("control-center", context);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedView]);
+
+  useEffect(() => {
     if (requestedView !== "commercial") return;
     if (access && !canAccessRevenueView(access, "promotions")) return;
     setPresentation("chart");
@@ -662,7 +663,7 @@ export function RatesWorkspace({
           />
         );
       case "competitor-setup":
-        return <CompetitorSetupView restaurantId={restaurantId} access={access!} />;
+        return null;
       case "approvals":
         return (
           <ApprovalsView
@@ -671,6 +672,7 @@ export function RatesWorkspace({
             access={access!}
             approvalTab={search.approvalTab}
             approvalRequest={search.approvalRequest}
+            searchQuery={searchQuery}
           />
         );
       case "revenue-performance":
@@ -696,6 +698,7 @@ export function RatesWorkspace({
             auditAction={search.auditAction}
             auditActor={search.auditActor}
             auditSearch={search.auditSearch}
+            searchQuery={searchQuery}
           />
         );
       case "export":
@@ -894,6 +897,24 @@ export function RatesWorkspace({
             id: "apply-restriction",
             label: "Apply Restriction",
             onSelect: () => selectView("apply-restriction"),
+          },
+        ]
+      : []),
+    ...(requestedView === "rate-plans-reference" || requestedView === "rate-calendar"
+      ? [
+          {
+            id: "view-rate-history",
+            label: "View Rate History",
+            onSelect: () => selectView("rate-history"),
+          },
+        ]
+      : []),
+    ...(requestedView === "restrictions"
+      ? [
+          {
+            id: "view-restriction-history",
+            label: "View Restriction History",
+            onSelect: () => selectView("restriction-history"),
           },
         ]
       : []),

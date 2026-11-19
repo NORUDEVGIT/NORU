@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, FileSpreadsheet, Info, Loader2, ShieldCheck, TrendingUp } from "lucide-react";
+import { Download, FileSpreadsheet, Loader2, ShieldCheck, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -151,27 +151,7 @@ export function RevenueExportView({
   }
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="border-b border-[#DDD4C5] pb-3.5">
-        <h2 className="font-display text-xl font-semibold tracking-tight text-[#251605]">
-          Revenue Data Export
-        </h2>
-        <p className="mt-1 text-xs text-[#7A7167]">
-          Generate official, RFC-4180 compliant CSV exports for operational revenue analysis, commercial performance, and audit compliance.
-        </p>
-      </div>
-
-      {/* Guidance Banner */}
-      <div className="flex items-start sm:items-center gap-2.5 rounded-xl border border-[#DDD4C5] bg-[#FAF8F4]/80 px-4 py-3 text-xs text-[#5F554B] shadow-2xs">
-        <Info className="h-4 w-4 shrink-0 text-[#C89933] mt-0.5 sm:mt-0" />
-        <span>
-          Exports reflect your current property context, active filters, and stay date range in standard CSV format, compatible with Excel, Google Sheets, and financial reporting systems.
-        </span>
-      </div>
-
-      {/* Export Cards Grid */}
-      <div className="grid gap-4.5 md:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-3">
         {/* 1. Revenue Performance */}
         <div className="flex flex-col justify-between rounded-xl border border-[#DDD4C5] bg-white p-5 shadow-xs transition-all hover:border-[#C89933]/60 hover:shadow-sm">
           <div className="space-y-3">
@@ -182,14 +162,9 @@ export function RevenueExportView({
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm text-[#251605]">Revenue Performance</h3>
-                  <p className="text-[11px] text-[#7A7167]">KPIs & Multi-Dimensional Breakdowns</p>
                 </div>
               </div>
             </div>
-
-            <p className="text-xs leading-relaxed text-[#5F554B]">
-              Comprehensive stay-date KPIs, daily performance trend series, and complete breakdowns across Room Types, Rate Plans, Market Segments, Commercial Sources, and Technical Origins.
-            </p>
 
             <div className="rounded-lg border border-[#EFE9DF] bg-[#FAF8F4]/90 p-3 text-[11px] text-[#5F554B] space-y-1">
               <div className="font-medium text-[#251605]">
@@ -234,14 +209,9 @@ export function RevenueExportView({
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm text-[#251605]">Commercial Performance</h3>
-                  <p className="text-[11px] text-[#7A7167]">Promotions & Package Uptake</p>
                 </div>
               </div>
             </div>
-
-            <p className="text-xs leading-relaxed text-[#5F554B]">
-              Operational promotion discounts, base vs. post-discount room amounts, and package selections attributed to stay dates within the selected timeframe.
-            </p>
 
             <div className="rounded-lg border border-[#EFE9DF] bg-[#FAF8F4]/90 p-3 text-[11px] text-[#5F554B] space-y-1">
               <div className="font-medium text-[#251605]">
@@ -286,14 +256,9 @@ export function RevenueExportView({
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm text-[#251605]">Unified Revenue Audit</h3>
-                  <p className="text-[11px] text-[#7A7167]">Rates, Restrictions & Approvals</p>
                 </div>
               </div>
             </div>
-
-            <p className="text-xs leading-relaxed text-[#5F554B]">
-              Complete, unpaginated operational audit stream capturing rate modifications, restriction events, commercial updates, and manager approvals.
-            </p>
 
             <div className="rounded-lg border border-[#EFE9DF] bg-[#FAF8F4]/90 p-3 text-[11px] text-[#5F554B] space-y-1">
               <div className="font-medium text-[#251605]">
@@ -339,6 +304,5 @@ export function RevenueExportView({
           </div>
         </div>
       </div>
-    </div>
   );
 }

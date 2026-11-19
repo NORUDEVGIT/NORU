@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight, Info, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRateRevenueExtras } from "../rate-revenue-shell-slots";
 
 import {
   getUnifiedAuditEventById,
@@ -22,6 +23,29 @@ import type {
 import { RevenueAuditDetailDrawer } from "./revenue-audit-detail-drawer";
 
 const VALID_AUDIT_TABS: RevenueAuditTab[] = ["history", "rates", "restrictions", "overrides"];
+
+const AUDIT_TAB_OPTIONS: ReadonlyArray<readonly [RevenueAuditTab, string]> = [
+  ["history", "Control History"],
+  ["rates", "Rate Audit"],
+  ["restrictions", "Restriction Audit"],
+  ["overrides", "Override Audit"],
+];
+
+const AUDIT_ACTION_OPTIONS: ReadonlyArray<readonly [string, string]> = [
+  ["all", "All Actions"],
+  ["rate_change", "Rate Change"],
+  ["manual_override", "Manual Override"],
+  ["revert_override", "Revert Override"],
+  ["single_restriction_change", "Restriction Change"],
+  ["bulk_restriction_change", "Bulk Restriction"],
+  ["activated", "Commercial Activated"],
+  ["deactivated", "Commercial Deactivated"],
+  ["approved", "Approval Approved"],
+  ["rejected", "Approval Rejected"],
+  ["applied", "Approval Applied"],
+];
+
+const AUDIT_SEARCH_PLACEHOLDER = "Search action, entity, scope, reason, or reference...";
 
 function parseAuditTab(tab?: string): RevenueAuditTab {
   if (tab && VALID_AUDIT_TABS.includes(tab as RevenueAuditTab)) {
@@ -78,6 +102,7 @@ export function RevenueAuditView({
   auditAction,
   auditActor,
   auditSearch,
+  searchQuery = "",
 }: {
   restaurantId: string;
   context: RevenueContext;
@@ -87,6 +112,7 @@ export function RevenueAuditView({
   auditAction?: string | undefined;
   auditActor?: string | undefined;
   auditSearch?: string | undefined;
+  searchQuery?: string;
 }) {
   const navigate = useNavigate();
   const fetchAudit = useServerFn(getUnifiedRevenueAudit);
@@ -98,13 +124,7 @@ export function RevenueAuditView({
   // Pagination & filter state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [searchInput, setSearchInput] = useState(auditSearch || "");
   const [selectedEntry, setSelectedEntry] = useState<UnifiedRevenueAuditEntry | null>(null);
-
-  // Keep search input in sync if URL changes externally
-  useEffect(() => {
-    setSearchInput(auditSearch || "");
-  }, [auditSearch]);
 
   // Load staff actors for dedicated Authoritative Actor filter (UI-36)
   const actorsQuery = useQuery({
@@ -182,6 +202,15 @@ export function RevenueAuditView({
       }),
     });
   };
+
+  useEffect(() => {
+    const next = searchQuery.trim();
+    if (next === (auditSearch || "")) return;
+    const timer = window.setTimeout(() => handleSearchSubmit(searchQuery), 300);
+    return () => window.clearTimeout(timer);
+    // The toolbar search is owned by the workspace; this only publishes it to the audit URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, auditSearch]);
 
   const openDetail = useCallback(
     (entry: UnifiedRevenueAuditEntry) => {
@@ -272,160 +301,49 @@ export function RevenueAuditView({
     }
   }, [auditEvent, query.data?.entries, eventLookupQuery.data, selectedEntry]);
 
+  useRateRevenueExtras({
+    searchPlaceholder: AUDIT_SEARCH_PLACEHOLDER,
+    filters: [
+      {
+        id: "audit-view",
+        label: "Audit",
+        value: activeTab,
+        current: AUDIT_TAB_OPTIONS.find(([id]) => id === activeTab)?.[1] ?? "",
+        options: AUDIT_TAB_OPTIONS,
+        onChange: (value) => setTab(value as RevenueAuditTab),
+      },
+      {
+        id: "audit-action",
+        label: "Action",
+        value: auditAction || "all",
+        current: AUDIT_ACTION_OPTIONS.find(([id]) => id === auditAction)?.[1] ?? "",
+        options: AUDIT_ACTION_OPTIONS,
+        onChange: (value) => handleActionChange(value === "all" ? "" : value),
+      },
+      {
+        id: "audit-actor",
+        label: "Actor",
+        value: auditActor || "all",
+        current: actors.find((actor) => actor.id === auditActor)?.label ?? "",
+        options: [
+          ["all", "All Actors"] as const,
+          ...actors.map((actor) => [actor.id, actor.label] as const),
+        ],
+        onChange: (value) => handleActorChange(value === "all" ? "" : value),
+      },
+    ],
+    actions: [],
+    onClear: () => {
+      setPage(1);
+      void navigate({
+        to: "/restaurant/pms/rates-revenue",
+        search: serializeRevenueSearch("audit-control", context, { auditTab: "history" }),
+      });
+    },
+  });
+
   return (
-    <div className="space-y-4">
-      {/* Header & Sub-Tabs */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-[#E8E1D7] pb-3">
-        <div>
-          <h2 className="font-display text-xl font-semibold tracking-tight text-foreground">
-            Audit & Control
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Authoritative operational audit logging across Rates, Restrictions, Commercial changes,
-            and Approvals.
-          </p>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex flex-wrap rounded-md border border-[#E8E1D7] bg-white p-0.5">
-          <button
-            type="button"
-            onClick={() => setTab("history")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "history"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            Control History
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("rates")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "rates"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            Rate Audit
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("restrictions")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "restrictions"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            Restriction Audit
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("overrides")}
-            className={`h-7 rounded px-2.5 text-xs font-medium transition-colors ${activeTab === "overrides"
-                ? "bg-[#F7F4EE] text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-              }`}
-          >
-            Override Audit
-          </button>
-        </div>
-      </div>
-
-      {/* Override Audit Note for UI-39 */}
-      {activeTab === "overrides" && (
-        <div className="flex items-start gap-2 rounded-lg border border-[#E8E1D7] bg-card px-3.5 py-2 text-xs text-muted-foreground">
-          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          <span>
-            Only override types recorded by current operational event history are shown. Approvals
-            are included only when they structurally represent rate overrides or commercial
-            exceptions.
-          </span>
-        </div>
-      )}
-
-      {/* Compact Server Filter Toolbar (UI-36): Search | Action | Actor | Rows */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[#E8E1D7] bg-card p-3 shadow-2xs">
-        <div className="flex flex-1 flex-wrap items-center gap-2 min-w-[200px]">
-          {/* Search with truthful placeholder */}
-          <div className="flex flex-1 items-center gap-2 min-w-[240px] max-w-sm rounded border border-[#E8E1D7] bg-white px-2.5 py-1">
-            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSearchSubmit(searchInput);
-              }}
-              onBlur={() => {
-                if (searchInput !== (auditSearch || "")) handleSearchSubmit(searchInput);
-              }}
-              placeholder="Search action, entity, scope, reason, or reference..."
-              className="w-full bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-            />
-          </div>
-
-          {/* Action Filter */}
-          <div className="flex items-center gap-1.5">
-            <select
-              value={auditAction || ""}
-              onChange={(e) => handleActionChange(e.target.value)}
-              className="rounded border border-[#E8E1D7] bg-white px-2 py-1 text-xs text-foreground"
-            >
-              <option value="">All Actions</option>
-              <option value="rate_change">Rate Change</option>
-              <option value="manual_override">Manual Override</option>
-              <option value="revert_override">Revert Override</option>
-              <option value="single_restriction_change">Restriction Change</option>
-              <option value="bulk_restriction_change">Bulk Restriction</option>
-              <option value="activated">Commercial Activated</option>
-              <option value="deactivated">Commercial Deactivated</option>
-              <option value="approved">Approval Approved</option>
-              <option value="rejected">Approval Rejected</option>
-              <option value="applied">Approval Applied</option>
-            </select>
-          </div>
-
-          {/* Actor Filter */}
-          <div className="flex items-center gap-1.5">
-            <select
-              value={auditActor || ""}
-              onChange={(e) => handleActorChange(e.target.value)}
-              className="rounded border border-[#E8E1D7] bg-white px-2 py-1 text-xs text-foreground"
-            >
-              <option value="">All Actors</option>
-              {actors.map((actor) => (
-                <option key={actor.id} value={actor.id}>
-                  {actor.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Rows & Total Counter */}
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <span>Rows:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              className="rounded border border-[#E8E1D7] bg-white px-2 py-1 text-xs text-foreground"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-          <div>
-            Total:{" "}
-            <span className="font-mono font-medium text-foreground">{query.data?.total ?? 0}</span>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-3">
       {/* Master Audit Table */}
       <div className="rounded-xl border border-[#E8E1D7] bg-card shadow-xs">
         {query.isLoading ? (
@@ -505,12 +423,25 @@ export function RevenueAuditView({
         )}
 
         {/* Server Pagination */}
-        {query.data && query.data.totalPages > 1 && (
+        {query.data ? (
           <div className="flex items-center justify-between border-t border-[#E8E1D7] px-4 py-2.5 text-xs text-muted-foreground">
             <div>
               Page {query.data.page} of {query.data.totalPages} ({query.data.total} records)
             </div>
             <div className="flex items-center gap-1">
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPage(1);
+                }}
+                className="mr-2 h-7 rounded border border-[#E8E1D7] bg-white px-2 text-xs text-foreground"
+                aria-label="Rows per page"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
               <button
                 type="button"
                 disabled={query.data.page <= 1}
@@ -531,7 +462,7 @@ export function RevenueAuditView({
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Contextual Detail Drawer */}
