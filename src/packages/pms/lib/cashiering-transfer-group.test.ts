@@ -149,3 +149,19 @@ describe("transfer charge group", () => {
     assert.equal(chargeGroupRemainder("vat", rows).grossRemaining, 0);
   });
 });
+
+describe("transfer source link", () => {
+  const sql = read("../../../../supabase/migrations/0216_folio_transfer_original_link.sql");
+  const drizzle = read("../../../../drizzle/migrations/0216_folio_transfer_original_link.sql");
+
+  it("lets a transfer_in point at another folio and keeps every other source on its folio", () => {
+    assert.equal(sql, drizzle);
+    assert.match(sql, /DROP CONSTRAINT IF EXISTS folio_transactions_original_same_folio/);
+    assert.match(sql, /FOREIGN KEY \(original_transaction_id\)/);
+    assert.match(sql, /REFERENCES public\.folio_transactions \(id\)/);
+    assert.match(sql, /NEW\.transaction_type IS DISTINCT FROM 'transfer_in'/);
+    assert.match(sql, /SOURCE_NOT_ON_FOLIO/);
+    assert.match(sql, /SOURCE_WRONG_PROPERTY/);
+    assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION public\.post_folio_transfer/);
+  });
+});
