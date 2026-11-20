@@ -1471,10 +1471,7 @@ export function SettlementTab({
   onPosted,
   onPrintStatement,
   onRefund,
-  onTransfer,
-  onPostPayment,
   onAllocateInvoice,
-  onIssueInvoice,
 }: {
   restaurantId: string;
   workspace: FolioWorkspace;
@@ -1485,10 +1482,7 @@ export function SettlementTab({
   onPosted: () => void;
   onPrintStatement: () => void;
   onRefund: () => void;
-  onTransfer: () => void;
-  onPostPayment?: () => void;
   onAllocateInvoice: (invoiceId: string, paymentId?: string) => void;
-  onIssueInvoice: () => void;
 }) {
   const folio = workspace.folio;
   const summary = workspace.financialSummary;
@@ -1668,55 +1662,6 @@ export function SettlementTab({
                     <span>All issued invoices on this folio are settled.</span>
                   </div>
                 )}
-
-                <div className="border-t border-[#E8E1D7] pt-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-[#765719]">
-                    Settlement actions
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {caps.canIssueInvoice && workspace.grants.invoiceAuthorize ? (
-                      <Button type="button" size="sm" onClick={onIssueInvoice}>
-                        <FileText className="size-4" /> Issue final invoice
-                      </Button>
-                    ) : null}
-                    {workspace.canAllocateInvoices ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onAllocateInvoice("")}
-                      >
-                        <ArrowLeftRight className="size-4" /> Allocate payment or deposit
-                      </Button>
-                    ) : null}
-                    {outstanding > 0 && caps.canPostPayment ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (onPostPayment) {
-                            onPostPayment();
-                          } else {
-                            setPaymentOpen((current) => !current);
-                          }
-                        }}
-                      >
-                        <CreditCard className="size-4" /> Post payment
-                      </Button>
-                    ) : null}
-                    {caps.canTransfer && balance > 0.009 ? (
-                      <Button type="button" size="sm" variant="outline" onClick={onTransfer}>
-                        <ArrowLeftRight className="size-4" /> Transfer charges
-                      </Button>
-                    ) : null}
-                  </div>
-                  {!workspace.canAllocateInvoices ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      An accountant allocates an existing payment or deposit.
-                    </p>
-                  ) : null}
-                </div>
 
                 {balance < -0.009 ? (
                   <div className="border-t border-[#E8E1D7] pt-3 text-xs">
