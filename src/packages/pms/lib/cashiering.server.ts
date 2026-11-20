@@ -327,7 +327,7 @@ export function isCreditType(type: TransactionType): boolean {
   return type === "payment" || type === "deposit" || type === "discount";
 }
 
-export const CORRECTION_AUTHORIZER = "Only an owner or manager can post this correction.";
+export const CORRECTION_AUTHORIZER = "The matching cashiering permission allows this post.";
 
 /** Settings threshold text. The number is not a live posting limit. */
 export function correctionThresholdNotice(
