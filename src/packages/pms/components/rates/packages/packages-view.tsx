@@ -8,11 +8,8 @@ import {
   ChevronRight,
   CircleDollarSign,
   Clock,
-  Filter,
-  Info,
   MoreHorizontal,
   Package,
-  RotateCcw,
 } from "lucide-react";
 
 import { CARD3_PACKAGES_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card3";
@@ -23,8 +20,6 @@ import {
   filterPackageRows,
   PACKAGE_EMPTY_ACTIVATIONS,
   PACKAGE_EMPTY_MASTERS,
-  PACKAGE_PERFORMANCE_NOTE,
-  PACKAGE_REVENUE_HELPER,
   packageTypeLabel,
   type PackageDisplayStatus,
   type PackageWorkspaceRow,
@@ -51,38 +46,21 @@ import {
   PackageActivationActionSheet,
   type PackageActivationAction,
 } from "../commercial/package-activation-action-sheet";
-import { commercialGoldButton, commercialOutlineButton } from "../commercial/commercial-ui";
 import type { RevenueWorkspaceView } from "@/packages/pms/lib/rate-revenue-workspace";
+import { useRateRevenueExtras } from "../rate-revenue-shell-slots";
 import { PackageDetailDrawer } from "./package-detail-drawer";
 import { PackageStatusChip } from "./package-status-chip";
 
 const PACKAGE_PAGE_SIZES = [10, 25, 50] as const;
 
-function PackageKpiCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string | number;
-  tone: string;
-}) {
-  return (
-    <div className="flex min-w-0 items-center gap-3.5 rounded-xl border border-[#DDD4C5] bg-white px-3.5 py-3.5 shadow-sm">
-      <span className={`grid size-10 shrink-0 place-items-center rounded-full ${tone}`}>
-        <Icon className="size-4.5" />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-xs font-semibold text-[#5A4833]">{label}</p>
-        <p className="mt-0.5 font-display text-xl font-semibold leading-tight tracking-tight text-[#251605]">
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-}
+const PACKAGE_STATUS_OPTIONS: ReadonlyArray<readonly [PackageDisplayStatus | "all", string]> = [
+  ["all", "All statuses"],
+  ["active", "Active"],
+  ["upcoming", "Upcoming"],
+  ["expired", "Expired"],
+  ["inactive", "Inactive"],
+  ["not_activated", "Not Activated"],
+];
 
 export function PackagesView({
   restaurantId,
@@ -90,7 +68,7 @@ export function PackagesView({
   access,
   roomTypes,
   ratePlans,
-  onContextChange,
+  searchQuery = "",
   onNavigateView,
 }: {
   restaurantId: string;
@@ -98,6 +76,7 @@ export function PackagesView({
   access: RevenueAccess;
   roomTypes: RevenueRoomType[];
   ratePlans: RevenueRatePlan[];
+  searchQuery?: string;
   onContextChange?: ((patch: Partial<RevenueContext>) => void) | undefined;
   onNavigateView?: ((view: RevenueWorkspaceView) => void) | undefined;
 }) {
@@ -124,7 +103,7 @@ export function PackagesView({
       }),
     retry: false,
   });
-  const [search, setSearch] = useState("");
+  const search = searchQuery;
   const [status, setStatus] = useState<PackageDisplayStatus | "all">("all");
   const [packageType, setPackageType] = useState<string | "all">("all");
   const [page, setPage] = useState(1);
@@ -168,20 +147,101 @@ export function PackagesView({
     query.data?.rows.find((row) => row.rowKey === selectedKey) ??
     null;
 
+  function openActivate(packageId?: string) {
+    setPendingPackageId(packageId ?? null);
+    setIntentOpen(true);
+  }
+
+  const packageKpis = query.data?.kpis;
+  const kpiMoney = (value: number) => formatHistoryMoney(value, query.data?.currency ?? "");
+
+  useRateRevenueExtras({
+    searchPlaceholder: "Search name or code",
+    filters: [
+      {
+        id: "packages-status",
+        label: "Status",
+        value: status,
+        current: PACKAGE_STATUS_OPTIONS.find(([id]) => id === status && id !== "all")?.[1] ?? "",
+        options: PACKAGE_STATUS_OPTIONS,
+        onChange: (value) => setStatus(value as PackageDisplayStatus | "all"),
+      },
+      {
+        id: "packages-type",
+        label: "Package Type",
+        value: packageType,
+        current:
+          packageType === "all"
+            ? ""
+            : (PACKAGE_TYPE_LABELS[packageType as (typeof PACKAGE_TYPES)[number]] ?? packageType),
+        options: [
+          ["all", "All types"] as const,
+          ...PACKAGE_TYPES.map((type) => [type, PACKAGE_TYPE_LABELS[type]] as const),
+        ],
+        onChange: (value) => setPackageType(value),
+      },
+    ],
+    actions: [
+      ...(canManage
+        ? [{ id: "activate-package", label: "Activate Package", onSelect: () => openActivate() }]
+        : []),
+      ...(onNavigateView
+        ? [
+            {
+              id: "packages-history",
+              label: "View History",
+              onSelect: () => onNavigateView("commercial-history"),
+            },
+          ]
+        : []),
+      {
+        id: "packages-configure",
+        label: "Configure in Property Setup",
+        onSelect: () =>
+          window.location.assign(
+            withReturnTo(CARD3_PACKAGES_HREF, "/restaurant/pms/rates-revenue?view=packages"),
+          ),
+      },
+    ],
+    kpis: packageKpis
+      ? [
+          { label: "Active Packages", value: String(packageKpis.activePackages), icon: Package },
+          {
+            label: "Upcoming Packages",
+            value: String(packageKpis.upcomingPackages),
+            icon: CalendarClock,
+          },
+          {
+            label: "Expiring Soon",
+            value: String(packageKpis.expiringSoon),
+            icon: Clock,
+            tone:
+              packageKpis.expiringSoon > 0
+                ? "bg-amber-50 text-amber-700"
+                : "bg-[#EFECE6] text-[#423321]",
+          },
+          {
+            label: "Package Bookings",
+            value: String(packageKpis.packageBookings),
+            icon: BedDouble,
+          },
+          {
+            label: "Package Revenue",
+            value: kpiMoney(packageKpis.packageRevenue),
+            icon: CircleDollarSign,
+          },
+        ]
+      : undefined,
+    onClear: () => {
+      setStatus("all");
+      setPackageType("all");
+      setPage(1);
+    },
+  });
+
   if (query.isLoading) {
     return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-20 animate-pulse rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]"
-            />
-          ))}
-        </div>
-        <div className="h-16 animate-pulse rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]" />
-        <div className="h-72 animate-pulse rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]" />
-      </div>
+      <div className="h-72 animate-pulse rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]" />
     );
   }
   if (query.isError) {
@@ -198,199 +258,20 @@ export function PackagesView({
   const data = query.data;
   if (!data) return null;
   const money = (value: number) => formatHistoryMoney(value, data.currency);
-  const hasActiveFilters =
-    Boolean(search.trim()) ||
-    status !== "all" ||
-    packageType !== "all" ||
-    Boolean(context.roomTypeId) ||
-    Boolean(context.ratePlanId);
-
-  function openActivate(packageId?: string) {
-    setPendingPackageId(packageId ?? null);
-    setIntentOpen(true);
-  }
-
-  function clearFilters() {
-    setSearch("");
-    setStatus("all");
-    setPackageType("all");
-    onContextChange?.({ roomTypeId: null, ratePlanId: null });
-    setPage(1);
-  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display text-xl font-semibold text-[#251605]">Packages</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Package masters and inclusions are owned in Property Setup; activations and stay windows
-            are managed here.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {canManage ? (
-            <button type="button" className={commercialGoldButton()} onClick={() => openActivate()}>
-              Activate Package
-            </button>
-          ) : null}
-          <a
-            href={withReturnTo(CARD3_PACKAGES_HREF, "/restaurant/pms/rates-revenue?view=packages")}
-            className={commercialOutlineButton()}
-          >
-            Configure in Property Setup
-          </a>
-          {onNavigateView ? (
-            <button
-              type="button"
-              className={commercialOutlineButton()}
-              onClick={() => onNavigateView("commercial-history")}
-            >
-              View History
-            </button>
-          ) : null}
-        </div>
-      </div>
-
+    <div className="space-y-3">
       {!data.hasMasters ? (
-        <InventoryState
-          state="empty"
-          title={PACKAGE_EMPTY_MASTERS}
-          description="Open Property Setup to configure a package master before activating it here."
-        />
+        <InventoryState state="empty" title={PACKAGE_EMPTY_MASTERS} />
       ) : (
         <>
-          <section className="space-y-3" aria-label="Package performance summary">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-              <PackageKpiCard
-                icon={Package}
-                label="Active Packages"
-                value={data.kpis.activePackages}
-                tone="bg-[#EFECE6] text-[#423321]"
-              />
-              <PackageKpiCard
-                icon={CalendarClock}
-                label="Upcoming Packages"
-                value={data.kpis.upcomingPackages}
-                tone="bg-[#EFECE6] text-[#423321]"
-              />
-              <PackageKpiCard
-                icon={Clock}
-                label="Expiring Soon"
-                value={data.kpis.expiringSoon}
-                tone={
-                  data.kpis.expiringSoon > 0
-                    ? "bg-amber-50 text-amber-700"
-                    : "bg-[#EFECE6] text-[#423321]"
-                }
-              />
-              <PackageKpiCard
-                icon={BedDouble}
-                label="Package Bookings"
-                value={data.kpis.packageBookings}
-                tone="bg-[#EFECE6] text-[#423321]"
-              />
-              <PackageKpiCard
-                icon={CircleDollarSign}
-                label="Package Revenue"
-                value={money(data.kpis.packageRevenue)}
-                tone="bg-[#F4E9D0] text-[#8A641A]"
-              />
-            </div>
-            <div className="flex items-center gap-2.5 rounded-lg border border-[#F4E9D0] bg-[#FDF9F0] px-4 py-2.5 text-xs text-[#5A4833]">
-              <Info className="size-4 shrink-0 text-[#C89933]" />
-              <p className="leading-relaxed">
-                {PACKAGE_PERFORMANCE_NOTE} · {PACKAGE_REVENUE_HELPER}
-              </p>
-            </div>
-          </section>
-
-          {!data.hasActivations ? (
+          {rows.length === 0 ? (
             <InventoryState
               state="empty"
-              title={PACKAGE_EMPTY_ACTIVATIONS}
-              description="Activate a configured package from Property Setup using Activate Package."
+              title={
+                data.hasActivations ? "No packages match these filters." : PACKAGE_EMPTY_ACTIVATIONS
+              }
             />
-          ) : null}
-
-          <div className="flex flex-wrap items-end gap-2.5 rounded-xl border border-[#DDD4C5] bg-white px-4 py-3.5 shadow-sm">
-            {null}
-            <div className="min-w-36">
-              <label htmlFor="packages-status" className="text-xs font-semibold text-[#5A4833]">
-                Status
-              </label>
-              <select
-                id="packages-status"
-                value={status}
-                onChange={(event) => setStatus(event.target.value as PackageDisplayStatus | "all")}
-                aria-label="Status"
-                className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-              >
-                <option value="all">All statuses</option>
-                <option value="active">Active</option>
-                <option value="upcoming">Upcoming</option>
-                <option value="expired">Expired</option>
-                <option value="inactive">Inactive</option>
-                <option value="not_activated">Not Activated</option>
-              </select>
-            </div>
-            <div className="min-w-40">
-              <label htmlFor="packages-type" className="text-xs font-semibold text-[#5A4833]">
-                Package Type
-              </label>
-              <select
-                id="packages-type"
-                value={packageType}
-                onChange={(event) => setPackageType(event.target.value)}
-                aria-label="Package type"
-                className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-2.5 text-sm text-[#251605]"
-              >
-                <option value="all">All types</option>
-                {PACKAGE_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {PACKAGE_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-52 flex-1">
-              <label htmlFor="packages-search" className="text-xs font-semibold text-[#5A4833]">
-                Search packages
-              </label>
-              <input
-                id="packages-search"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search name or code"
-                aria-label="Search packages"
-                className="mt-1 flex h-9 w-full rounded-md border border-[#DED7CD] bg-white px-3 text-sm text-[#251605]"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              {hasActiveFilters ? (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#DED7CD] bg-white px-3 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F7F4EE]"
-                >
-                  <RotateCcw className="size-3.5" />
-                  Clear
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => setPage(1)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] shadow-xs transition-colors hover:bg-[#C89933]"
-              >
-                <Filter className="size-3.5" />
-                Filter
-              </button>
-            </div>
-          </div>
-
-          {rows.length === 0 ? (
-            <InventoryState state="empty" title="No packages match these filters." />
           ) : (
             <>
               <div className="hidden overflow-auto rounded-xl border border-[#E8E1D7] bg-card md:block">

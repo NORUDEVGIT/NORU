@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { CalendarDays, MoreHorizontal, Search, Settings, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, MoreHorizontal, Settings } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -37,6 +37,7 @@ import {
   saveRateRestriction,
 } from "@/packages/pms/lib/rates.functions";
 import { CARD2_RATES_HREF, withReturnTo } from "@/packages/pms/lib/pms-property-setup-card2";
+import { useRateRevenueExtras } from "@/packages/pms/components/rates/rate-revenue-shell-slots";
 import { useMoney } from "@/core/state/property-format";
 import {
   ROOM_TABLE_HEAD,
@@ -146,7 +147,6 @@ export function RatePlansTab({
   restaurantId,
   roomTypeId,
   searchQuery,
-  onRoomTypeChange,
   onOpenCalendar,
 }: {
   restaurantId: string;
@@ -156,18 +156,14 @@ export function RatePlansTab({
   onOpenCalendar?: (ratePlanId: string, roomTypeId: string) => void;
 }) {
   const money = useMoney();
-  const [localRoomType, setLocalRoomType] = useState<string>(ALL);
-  const usingSharedRoomType = roomTypeId !== undefined;
-  const roomTypeFilter = usingSharedRoomType ? roomTypeId || ALL : localRoomType;
+  const roomTypeFilter = roomTypeId || ALL;
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
 
   const fetchPlans = useServerFn(listRatePlans);
-  const fetchTypes = useServerFn(listRoomTypes);
 
   const plansQuery = useQuery({
     queryKey: ["rate-plans", restaurantId, roomTypeFilter],
@@ -180,12 +176,6 @@ export function RatePlansTab({
       }),
     retry: false,
   });
-  const typesQuery = useQuery({
-    queryKey: ["room-types", restaurantId],
-    queryFn: () => fetchTypes({ data: { restaurantId } }),
-    retry: false,
-  });
-
   const allPlans = useMemo(() => plansQuery.data ?? [], [plansQuery.data]);
   const activeCount = useMemo(() => allPlans.filter((plan) => plan.active).length, [allPlans]);
   const inactiveCount = allPlans.length - activeCount;
@@ -227,20 +217,50 @@ export function RatePlansTab({
   const showingFrom = filteredPlans.length === 0 ? 0 : startIdx + 1;
   const showingTo = Math.min(filteredPlans.length, startIdx + visiblePlans.length);
 
-  function handleRoomTypeChange(next: string) {
-    if (usingSharedRoomType && onRoomTypeChange) {
-      onRoomTypeChange(next === ALL ? null : next);
-      return;
-    }
-    setLocalRoomType(next);
-  }
-
-  function clearFilters() {
-    handleRoomTypeChange(ALL);
-    setStatusFilter("all");
-    setCategoryFilter(ALL);
-    setSearch("");
-  }
+  useRateRevenueExtras({
+    searchPlaceholder: "Search rate plans...",
+    filters: [
+      {
+        id: "rate-plan-status",
+        label: "Status",
+        value: statusFilter,
+        current: statusFilter === "all" ? "" : statusFilter === "active" ? "Active" : "Inactive",
+        options: [
+          ["all", "All"],
+          ["active", "Active"],
+          ["inactive", "Inactive"],
+        ],
+        onChange: (value) => setStatusFilter(value as "all" | "active" | "inactive"),
+      },
+      {
+        id: "rate-plan-category",
+        label: "Category",
+        value: categoryFilter,
+        current: categoryFilter === ALL ? "" : categoryFilter,
+        options: [
+          [ALL, "All categories"],
+          ...categories.map((category) => [category, category] as const),
+        ],
+        onChange: setCategoryFilter,
+      },
+    ],
+    actions: [
+      {
+        id: "configure-property-setup",
+        label: "Configure in Property Setup",
+        onSelect: () => {
+          window.location.assign(
+            withReturnTo(CARD2_RATES_HREF, "/restaurant/pms/rates-revenue?view=rates-reference"),
+          );
+        },
+      },
+    ],
+    onClear: () => {
+      setStatusFilter("all");
+      setCategoryFilter(ALL);
+      setSearch("");
+    },
+  });
 
   return (
     <div className="space-y-3">
@@ -260,128 +280,6 @@ export function RatePlansTab({
           <PropertySetupRatesLink className="font-semibold text-[#8A641A] underline-offset-2 hover:underline" />
           .
         </p>
-      </div>
-
-      {/* Compact Operational Toolbar */}
-      <div className="rounded-xl border border-[#DDD4C5] bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-1 flex-wrap items-center gap-2.5">
-            {usingSharedRoomType ? null : (
-            <div className="w-52">
-              <Select value={roomTypeFilter} onValueChange={handleRoomTypeChange}>
-                <SelectTrigger
-                  aria-label="Room type"
-                  className="h-9 text-sm font-medium text-[#251605]"
-                >
-                  <SelectValue placeholder="All room types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL} className="text-sm">
-                    All room types
-                  </SelectItem>
-                  {(typesQuery.data ?? []).map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="text-sm">
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            )}
-
-            <div
-              role="group"
-              aria-label="Rate plan status filter"
-              className="inline-flex h-9 items-center rounded-lg border border-[#DDD4C5] bg-[#F7F4EE] p-0.5"
-            >
-              {(
-                [
-                  { id: "all", label: "All" },
-                  { id: "active", label: "Active" },
-                  { id: "inactive", label: "Inactive" },
-                ] as const
-              ).map((option) => {
-                const isSelected = statusFilter === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => setStatusFilter(option.id)}
-                    className={[
-                      "h-8 rounded-md px-3 text-xs font-semibold transition-colors",
-                      isSelected
-                        ? "bg-white text-[#251605] shadow-sm"
-                        : "text-[#756A5B] hover:text-[#251605]",
-                    ].join(" ")}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {searchQuery === undefined ? (
-            <div className="relative min-w-56 flex-1 sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#756A5B]" />
-              <Input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search rate plans..."
-                aria-label="Search rate plans"
-                className="h-9 pl-9 text-sm text-[#251605]"
-              />
-            </div>
-            ) : null}
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9 px-3 text-xs font-semibold text-[#5A4833] hover:text-[#251605]"
-              onClick={clearFilters}
-            >
-              Clear
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="h-9 bg-[#D5A62B] px-3.5 text-xs font-semibold text-[#332303] hover:bg-[#C89933]"
-              onClick={() => setFiltersOpen((current) => !current)}
-            >
-              <SlidersHorizontal className="mr-1.5 size-3.5" />
-              Filters
-            </Button>
-          </div>
-
-          <a
-            href={withReturnTo(CARD2_RATES_HREF, "/restaurant/pms/rates-revenue?view=rates-reference")}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDD4C5] bg-[#FAF6F0] px-3.5 text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F1E9DC]"
-          >
-            <Settings className="size-3.5 text-[#8A641A]" />
-            <span>Configure in Property Setup</span>
-          </a>
-        </div>
-
-        {filtersOpen ? (
-          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#EFE9DF] pt-2.5">
-            <label className="flex items-center gap-2 text-xs font-semibold text-[#5A4833]">
-              Category
-              <select
-                value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-8 rounded-lg border border-[#DED7CD] bg-white px-2.5 text-xs font-medium text-[#251605]"
-              >
-                <option value={ALL}>All categories</option>
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        ) : null}
       </div>
 
       {plansQuery.isLoading ? (

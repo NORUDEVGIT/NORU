@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,11 +8,14 @@ import {
   BarChart3,
   BedDouble,
   CalendarDays,
+  Check,
+  ChevronDown,
   CircleDollarSign,
   ClipboardList,
   DoorOpen,
   FileText,
   History,
+  Info,
   LayoutGrid,
   Menu,
   Package,
@@ -42,9 +45,11 @@ import { CommercialOverviewView } from "@/packages/pms/components/rates/commerci
 import { PromotionsView } from "@/packages/pms/components/rates/promotions/promotions-view";
 import { PackagesView } from "@/packages/pms/components/rates/packages/packages-view";
 import { CommercialHistoryView } from "@/packages/pms/components/rates/commercial-history/commercial-history-view";
-import { CompetitorSetupView } from "@/packages/pms/components/rates/competitor-setup/competitor-setup-view";
 import { ApprovalsView } from "@/packages/pms/components/rates/approvals/approvals-view";
-import { RevenuePerformanceView } from "@/packages/pms/components/rates/analytics/revenue-performance-view";
+import {
+  REVENUE_ANALYTICS_SECTIONS,
+  type RevenueAnalyticsSection,
+} from "@/packages/pms/components/rates/analytics/revenue-analytics-panel";
 import { RevenueAuditView } from "@/packages/pms/components/rates/audit/revenue-audit-view";
 import { RevenueExportView } from "@/packages/pms/components/rates/export/revenue-export-view";
 import { defaultRateCalendarRange } from "@/packages/pms/lib/revenue/rate-calendar";
@@ -53,20 +58,40 @@ import { defaultDemandRange } from "@/packages/pms/lib/revenue/demand";
 import { defaultControlCenterRange } from "@/packages/pms/lib/revenue/revenue-control";
 import { getRevenueAccess } from "@/packages/pms/lib/revenue/revenue-access.functions";
 import { getRevenueControlWorkspace } from "@/packages/pms/lib/revenue/revenue-control.functions";
-import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
+import { getRevenuePerformanceOverview } from "@/packages/pms/lib/revenue/revenue-analytics.functions";
+import {
+  PMS_FILTER_ITEM,
+  PMS_FILTER_ROW,
+  PMS_FILTER_SUB,
+  PmsFilterChoiceRow,
+  PmsFilterMenu,
+} from "@/packages/pms/components/pms-filter-menu";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
 import {
   RATE_REVENUE_SHELL_PRIMARY_BUTTON,
   RateRevenueDateRange,
   RateRevenueExportButton,
+  RateRevenueExtrasProvider,
   RateRevenueShellProvider,
   RateRevenueViewSwitcher,
+  createRateRevenueExtrasBridge,
+  type RateRevenueExtraAction,
   type RateRevenueShellSlots,
   downloadCsv,
 } from "@/packages/pms/components/rates/rate-revenue-shell-slots";
-import { useMoney } from "@/core/state/property-format";
+import { formatMoney } from "@/shared/lib/property-time";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/shared/components/ui/dropdown-menu";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/shared/components/ui/hover-card";
 import { cn } from "@/shared/lib/utils";
 import {
   getRevenueBaseConfig,
@@ -98,18 +123,12 @@ const BURGER_DESTINATIONS: RevenueWorkspaceView[] = [
   "control-center",
   "rate-plans-reference",
   "rate-calendar",
-  "rate-history",
   "restrictions",
-  "restriction-history",
-  "commercial",
   "promotions",
   "packages",
-  "commercial-history",
   "approvals",
-  "revenue-performance",
   "audit-control",
   "export",
-  "competitor-setup",
 ];
 
 const BURGER_ICONS: Partial<Record<RevenueWorkspaceView, typeof LayoutGrid>> = {
@@ -124,7 +143,6 @@ const BURGER_ICONS: Partial<Record<RevenueWorkspaceView, typeof LayoutGrid>> = {
   packages: Package,
   "commercial-history": History,
   approvals: ShieldAlert,
-  "revenue-performance": TrendingUp,
   "audit-control": ClipboardList,
   export: FileText,
   "competitor-setup": BarChart3,
@@ -155,7 +173,14 @@ export function RatesWorkspace({
   );
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [presentation, setPresentation] = useState<"table" | "chart">("table");
+  const [presentation, setPresentation] = useState<"table" | "chart">(() => {
+    const initialView = normalizeRevenueView(search.view ?? search.tab);
+    return initialView === "revenue-performance" || initialView === "commercial" ? "chart" : "table";
+  });
+  const [analyticsSection, setAnalyticsSection] = useState<RevenueAnalyticsSection>(
+    () =>
+      REVENUE_ANALYTICS_SECTIONS.find((row) => row.id === search.analyticsTab)?.id ?? "overview",
+  );
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [shellSlots, setShellSlots] = useState<RateRevenueShellSlots>({
     date: null,
@@ -184,7 +209,13 @@ export function RatesWorkspace({
     setShellSlots((current) => (current.cta === node ? current : { ...current, cta: node }));
   }, []);
   const qc = useQueryClient();
-  const money = useMoney();
+  const [extrasTick, setExtrasTick] = useState(0);
+  const extrasBridge = useMemo(
+    () => createRateRevenueExtrasBridge(() => setExtrasTick((tick) => tick + 1)),
+    [],
+  );
+  const extras = extrasBridge.current;
+  void extrasTick;
 
   useEffect(() => {
     setView(normalizeRevenueView(search.view ?? search.tab));
@@ -270,6 +301,33 @@ export function RatesWorkspace({
       }),
     retry: false,
   });
+  const fetchPerformance = useServerFn(getRevenuePerformanceOverview);
+  const performanceQuery = useQuery({
+    queryKey: [
+      "revenue-performance-overview",
+      restaurantId,
+      context.fromDate,
+      context.toDate,
+      context.roomTypeId,
+      context.ratePlanId,
+      context.marketSegmentId,
+      context.commercialSourceId,
+    ],
+    queryFn: () =>
+      fetchPerformance({
+        data: {
+          restaurantId,
+          fromDate: context.fromDate,
+          toDate: context.toDate,
+          roomTypeId: context.roomTypeId,
+          ratePlanId: context.ratePlanId,
+          marketSegmentId: context.marketSegmentId,
+          commercialSourceId: context.commercialSourceId,
+          salesChannelId: null,
+        },
+      }),
+    retry: false,
+  });
   const refreshing = useIsFetching({
     predicate: (query) => {
       const key = String(query.queryKey[0] ?? "");
@@ -324,6 +382,7 @@ export function RatesWorkspace({
     if (isDemotedDemandView(nextView)) return;
     if (access && !canAccessRevenueView(access, nextView)) return;
     setSearchQuery("");
+    setPresentation("table");
     const range = defaultRangeForView(nextView, businessDate);
     writeState(nextView, {
       fromDate: range.fromDate,
@@ -346,6 +405,27 @@ export function RatesWorkspace({
     writeState(REVENUE_DEFAULT_VIEW, context);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.view, search.tab]);
+
+  useEffect(() => {
+    if (requestedView !== "revenue-performance") return;
+    setPresentation("chart");
+    writeState("control-center", context);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedView]);
+
+  useEffect(() => {
+    if (requestedView !== "competitor-setup") return;
+    writeState("control-center", context);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedView]);
+
+  useEffect(() => {
+    if (requestedView !== "commercial") return;
+    if (access && !canAccessRevenueView(access, "promotions")) return;
+    setPresentation("chart");
+    writeState("promotions", context);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedView, access]);
 
   useEffect(() => {
     if (!baseQuery.isSuccess) return;
@@ -411,6 +491,9 @@ export function RatesWorkspace({
             context={context}
             access={access!}
             presentation={presentation}
+            analyticsSection={analyticsSection}
+            marketSegments={marketSegments}
+            bookingSources={bookingSources}
           />
         );
       case "rate-plans-reference":
@@ -520,6 +603,18 @@ export function RatesWorkspace({
           />
         );
       case "promotions":
+        if (presentation === "chart") {
+          return (
+            <CommercialOverviewView
+              restaurantId={restaurantId}
+              context={context}
+              access={access!}
+              roomTypes={roomTypes}
+              ratePlans={ratePlans}
+              onNavigateView={selectView}
+            />
+          );
+        }
         return (
           <PromotionsView
             restaurantId={restaurantId}
@@ -527,11 +622,24 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            searchQuery={searchQuery}
             onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
       case "packages":
+        if (presentation === "chart") {
+          return (
+            <CommercialOverviewView
+              restaurantId={restaurantId}
+              context={context}
+              access={access!}
+              roomTypes={roomTypes}
+              ratePlans={ratePlans}
+              onNavigateView={selectView}
+            />
+          );
+        }
         return (
           <PackagesView
             restaurantId={restaurantId}
@@ -539,6 +647,7 @@ export function RatesWorkspace({
             access={access!}
             roomTypes={roomTypes}
             ratePlans={ratePlans}
+            searchQuery={searchQuery}
             onContextChange={updateContext}
             onNavigateView={selectView}
           />
@@ -548,12 +657,13 @@ export function RatesWorkspace({
           <CommercialHistoryView
             restaurantId={restaurantId}
             context={context}
+            searchQuery={searchQuery}
             onContextChange={updateContext}
             onNavigateView={selectView}
           />
         );
       case "competitor-setup":
-        return <CompetitorSetupView restaurantId={restaurantId} access={access!} />;
+        return null;
       case "approvals":
         return (
           <ApprovalsView
@@ -562,15 +672,17 @@ export function RatesWorkspace({
             access={access!}
             approvalTab={search.approvalTab}
             approvalRequest={search.approvalRequest}
+            searchQuery={searchQuery}
           />
         );
       case "revenue-performance":
         return (
-          <RevenuePerformanceView
+          <RevenueControlView
             restaurantId={restaurantId}
             context={context}
             access={access!}
-            analyticsTab={search.analyticsTab}
+            presentation="chart"
+            analyticsSection={analyticsSection}
             marketSegments={marketSegments}
             bookingSources={bookingSources}
           />
@@ -586,6 +698,7 @@ export function RatesWorkspace({
             auditAction={search.auditAction}
             auditActor={search.auditActor}
             auditSearch={search.auditSearch}
+            searchQuery={searchQuery}
           />
         );
       case "export":
@@ -630,51 +743,120 @@ export function RatesWorkspace({
     (context.ratePlanId ? 1 : 0) +
     (context.marketSegmentId ? 1 : 0) +
     (context.commercialSourceId ? 1 : 0) +
-    (context.salesChannelId ? 1 : 0);
-  const summary = controlQuery.data?.summary;
+    (context.salesChannelId ? 1 : 0) +
+    extras.filters.filter((filter) => filter.current).length;
   const slotMetrics = controlQuery.data?.slotMetrics;
+  const performance = performanceQuery.data?.summary;
+  const inventorySupported = performance?.inventoryMetricSupport === "SUPPORTED";
+  const kpiMoney = (value: number) => formatMoney(value, performanceQuery.data?.currency);
   const kpis = [
     {
       label: "Booked Room Revenue",
-      value: summary ? money(summary.roomRevenue) : null,
+      value: performance ? kpiMoney(performance.bookedRoomRevenue) : null,
       icon: CircleDollarSign,
       tone: "bg-[#F4E9D0] text-[#8A641A]",
     },
     {
       label: "Sold Room Nights",
-      value: summary ? String(summary.soldRoomNights) : null,
+      value: performance ? performance.soldRoomNights.toLocaleString() : null,
       icon: BedDouble,
       tone: "bg-sky-50 text-sky-700",
     },
     {
       label: "Occupancy",
-      value: summary ? `${summary.occupancyPercent}%` : null,
+      value: performance
+        ? inventorySupported && performance.occupancyPct !== null
+          ? `${performance.occupancyPct}%`
+          : "N/A"
+        : null,
       icon: DoorOpen,
       tone: "bg-emerald-50 text-emerald-700",
     },
     {
       label: "ADR",
-      value: summary ? money(summary.adr) : null,
+      value: performance ? kpiMoney(performance.adr) : null,
       icon: BadgeDollarSign,
       tone: "bg-amber-50 text-amber-800",
     },
     {
       label: "RevPAR",
-      value: summary ? money(summary.revPar) : null,
+      value: performance
+        ? inventorySupported && performance.revpar !== null
+          ? kpiMoney(performance.revpar)
+          : "N/A"
+        : null,
       icon: TrendingUp,
       tone: "bg-teal-50 text-teal-700",
     },
     {
       label: "Available Room Nights",
-      value: summary ? String(summary.availableRoomNights) : null,
+      value: performance
+        ? inventorySupported && performance.availableRoomNights !== null
+          ? performance.availableRoomNights.toLocaleString()
+          : "N/A"
+        : null,
       icon: CalendarDays,
       tone: "bg-violet-50 text-violet-700",
     },
   ] as const;
+  const kpiOverrides = extras.kpis ?? [];
+  const displayKpis = kpis.map((card, index) => {
+    const override = kpiOverrides[index];
+    return override
+      ? {
+          label: override.label,
+          value: override.value,
+          icon: override.icon ?? card.icon,
+          tone: override.tone ?? card.tone,
+          overridden: true,
+        }
+      : { ...card, overridden: false };
+  });
+  const inventoryNote = performance && !inventorySupported
+    ? "N/A while a rate plan, market segment, or booking source filter is applied, because those filters don't narrow hotel inventory."
+    : null;
+  const unpricedNights = performanceQuery.data?.warnings.unpricedSoldNights ?? 0;
+  const kpiExplainers: Partial<Record<string, {
+    title: string;
+    formula: string;
+    detail: string | null;
+    note: string | null;
+  }>> = {
+    Occupancy: {
+      title: "Occupancy",
+      formula: "Share of available room nights that were sold.",
+      detail:
+        performance && inventorySupported && performance.availableRoomNights !== null
+          ? `${performance.soldRoomNights.toLocaleString()} sold ÷ ${performance.availableRoomNights.toLocaleString()} available = ${performance.occupancyPct}%`
+          : null,
+      note: inventoryNote,
+    },
+    ADR: {
+      title: "Average Daily Rate",
+      formula: "Average room revenue earned per sold room night.",
+      detail: performance
+        ? `${kpiMoney(performance.bookedRoomRevenue)} ÷ ${performance.soldRoomNights.toLocaleString()} sold = ${kpiMoney(performance.adr)}`
+        : null,
+      note:
+        unpricedNights > 0
+          ? `${unpricedNights} sold night${unpricedNights === 1 ? " has" : "s have"} no rate snapshot and count at zero.`
+          : null,
+    },
+    RevPAR: {
+      title: "Revenue per Available Room",
+      formula: "Room revenue spread across every available room night, sold or not.",
+      detail:
+        performance && inventorySupported && performance.availableRoomNights !== null && performance.revpar !== null
+          ? `${kpiMoney(performance.bookedRoomRevenue)} ÷ ${performance.availableRoomNights.toLocaleString()} available = ${kpiMoney(performance.revpar)}`
+          : null,
+      note: inventoryNote,
+    },
+  };
 
   function refreshRevenue() {
     for (const key of [
       "revenue-control",
+      "revenue-performance-overview",
       "revenue-access",
       "revenue-base-config",
       "revenue-catalogues",
@@ -698,7 +880,49 @@ export function RatesWorkspace({
     );
   }
 
+  const pageActions: RateRevenueExtraAction[] = [
+    ...(access.canEditDailyRates &&
+    (requestedView === "rate-plans-reference" || requestedView === "rate-calendar")
+      ? [
+          {
+            id: "bulk-rate-change",
+            label: "Bulk Rate Change",
+            onSelect: () => selectView("bulk-rate-change"),
+          },
+        ]
+      : []),
+    ...(access.canApplyRestrictions && requestedView === "restrictions"
+      ? [
+          {
+            id: "apply-restriction",
+            label: "Apply Restriction",
+            onSelect: () => selectView("apply-restriction"),
+          },
+        ]
+      : []),
+    ...(requestedView === "rate-plans-reference" || requestedView === "rate-calendar"
+      ? [
+          {
+            id: "view-rate-history",
+            label: "View Rate History",
+            onSelect: () => selectView("rate-history"),
+          },
+        ]
+      : []),
+    ...(requestedView === "restrictions"
+      ? [
+          {
+            id: "view-restriction-history",
+            label: "View Restriction History",
+            onSelect: () => selectView("restriction-history"),
+          },
+        ]
+      : []),
+    ...extras.actions,
+  ];
+
   return (
+    <RateRevenueExtrasProvider bridge={extrasBridge}>
     <RateRevenueChrome membership={membership} suppressReturnButton>
       <RateRevenueShellProvider value={shellSlots}>
         <div
@@ -710,26 +934,52 @@ export function RatesWorkspace({
             aria-label="Rate & Revenue KPIs"
             data-testid="rate-revenue-kpis"
           >
-            {kpis.map((card) => (
-              <div
-                key={card.label}
-                className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm"
-              >
-                <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
-                  <card.icon className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
-                  {controlQuery.isLoading ? (
-                    <Skeleton className="mt-1 h-5 w-10" />
-                  ) : (
-                    <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
-                      {card.value ?? "—"}
-                    </p>
+            {displayKpis.map((card) => {
+              const explainer = card.overridden ? undefined : kpiExplainers[card.label];
+              const body = (
+                <div
+                  tabIndex={explainer ? 0 : undefined}
+                  className={cn(
+                    "relative flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 shadow-sm",
+                    explainer &&
+                      "cursor-help transition-colors hover:border-[#C89933]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C89933]",
                   )}
+                >
+                  <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", card.tone)}>
+                    <card.icon className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[10px] font-medium text-[#756A5B]">{card.label}</p>
+                    {performanceQuery.isLoading && !card.overridden ? (
+                      <Skeleton className="mt-1 h-5 w-10" />
+                    ) : (
+                      <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+                        {card.value ?? "—"}
+                      </p>
+                    )}
+                  </div>
+                  {explainer ? (
+                    <Info
+                      className="absolute right-2 top-2 size-3 text-[#B8A98F]"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                 </div>
-              </div>
-            ))}
+              );
+              if (!explainer) return <div key={card.label} className="min-w-0">{body}</div>;
+              return (
+                <HoverCard key={card.label} openDelay={120} closeDelay={60}>
+                  <HoverCardTrigger asChild>{body}</HoverCardTrigger>
+                  <HoverCardContent
+                    side="bottom"
+                    align="start"
+                    className="w-72 border-[#DDD4C5] p-3"
+                  >
+                    <KpiExplainer {...explainer} />
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            })}
           </section>
 
           {slotMetrics ? (
@@ -773,25 +1023,52 @@ export function RatesWorkspace({
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs"
-                  placeholder="Search rate plan, room type, or restriction…"
+                  placeholder={
+                    extras.searchPlaceholder ?? "Search rate plan, room type, or restriction…"
+                  }
                   aria-label="Search"
                 />
               </div>
               <div className="relative z-10 flex shrink-0 items-center gap-1.5">
                 <PmsFilterMenu
                   activeCount={filterCount}
-                  onClear={() =>
+                  onClear={() => {
                     updateContext({
                       roomTypeId: null,
                       ratePlanId: null,
                       marketSegmentId: null,
                       commercialSourceId: null,
                       salesChannelId: null,
-                    })
-                  }
+                    });
+                    extrasBridge.current.onClear?.();
+                  }}
                   buttonTestId="rate-revenue-filters-button"
                   menuTestId="rate-revenue-filters-menu"
                 >
+                  {(extras.buttonGroups ?? []).map((group) => (
+                    <DropdownMenuSub key={group.id}>
+                      <DropdownMenuSubTrigger className={PMS_FILTER_ROW}>
+                        <span className="flex-1 text-left">{group.label}</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent collisionPadding={12} className={PMS_FILTER_SUB}>
+                        {group.buttons.map((button) => (
+                          <DropdownMenuItem
+                            key={button.id}
+                            className={PMS_FILTER_ITEM}
+                            onSelect={(event) => {
+                              event.preventDefault();
+                              extrasBridge.current.buttonGroups
+                                ?.find((row) => row.id === group.id)
+                                ?.buttons.find((row) => row.id === button.id)
+                                ?.onSelect();
+                            }}
+                          >
+                            {button.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ))}
                   {fields.includes("roomType") ? (
                     <PmsFilterChoiceRow
                       label="Room Type"
@@ -868,6 +1145,20 @@ export function RatesWorkspace({
                       }
                     />
                   ) : null}
+                  {extras.filters.map((filter) => (
+                    <PmsFilterChoiceRow
+                      key={filter.id}
+                      label={filter.label}
+                      value={filter.value}
+                      current={filter.current}
+                      options={filter.options}
+                      onChange={(value) =>
+                        extrasBridge.current.filters
+                          .find((row) => row.id === filter.id)
+                          ?.onChange(value)
+                      }
+                    />
+                  ))}
                 </PmsFilterMenu>
                 <div ref={setFilterSlot} className="hidden" />
                 <Button
@@ -904,28 +1195,29 @@ export function RatesWorkspace({
                 ) : (
                   <div ref={setExportSlot} className="shrink-0 empty:hidden" />
                 )}
-                {requestedView === "control-center" ? (
-                  <RateRevenueViewSwitcher value={presentation} onChange={setPresentation} />
+                {requestedView === "control-center" ||
+                requestedView === "promotions" ||
+                requestedView === "packages" ? (
+                  <>
+                    {requestedView === "control-center" &&
+                    presentation === "chart" &&
+                    access.canViewAnalytics ? (
+                      <AnalyticsSectionMenu value={analyticsSection} onChange={setAnalyticsSection} />
+                    ) : null}
+                    <RateRevenueViewSwitcher value={presentation} onChange={setPresentation} />
+                  </>
                 ) : (
                   <div ref={setViewSlot} className="shrink-0 empty:hidden" />
                 )}
-                {access.canEditDailyRates &&
-                (requestedView === "rate-plans-reference" || requestedView === "rate-calendar") ? (
-                  <Button
-                    type="button"
-                    className={cn(RATE_REVENUE_SHELL_PRIMARY_BUTTON, "px-3.5 text-xs font-semibold")}
-                    onClick={() => selectView("bulk-rate-change")}
-                  >
-                    Bulk Rate Change
-                  </Button>
-                ) : access.canApplyRestrictions && requestedView === "restrictions" ? (
-                  <Button
-                    type="button"
-                    className={cn(RATE_REVENUE_SHELL_PRIMARY_BUTTON, "px-3.5 text-xs font-semibold")}
-                    onClick={() => selectView("apply-restriction")}
-                  >
-                    Apply Restriction
-                  </Button>
+                {pageActions.length > 0 ? (
+                  <RateRevenueActionsMenu
+                    actions={pageActions}
+                    onSelect={(id) => {
+                      const action = pageActions.find((row) => row.id === id);
+                      const live = extrasBridge.current.actions.find((row) => row.id === id);
+                      (live ?? action)?.onSelect();
+                    }}
+                  />
                 ) : (
                   <div ref={setCtaSlot} className="shrink-0 empty:hidden" />
                 )}
@@ -959,6 +1251,41 @@ export function RatesWorkspace({
         </div>
       </RateRevenueShellProvider>
     </RateRevenueChrome>
+    </RateRevenueExtrasProvider>
+  );
+}
+
+function RateRevenueActionsMenu({
+  actions,
+  onSelect,
+}: {
+  actions: RateRevenueExtraAction[];
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          className={cn(RATE_REVENUE_SHELL_PRIMARY_BUTTON, "px-3.5 text-xs font-semibold")}
+          data-testid="rate-revenue-actions"
+        >
+          Actions
+          <ChevronDown className="size-3.5" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        {actions.map((action) => (
+          <DropdownMenuItem
+            key={action.id}
+            disabled={action.disabled}
+            onSelect={() => onSelect(action.id)}
+          >
+            {action.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -1029,5 +1356,87 @@ function RateRevenueBurger({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function AnalyticsSectionMenu({
+  value,
+  onChange,
+}: {
+  value: RevenueAnalyticsSection;
+  onChange: (value: RevenueAnalyticsSection) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = REVENUE_ANALYTICS_SECTIONS.find((row) => row.id === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Revenue analytics section"
+          data-testid="rate-revenue-analytics-section"
+          className={cn(
+            "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-[#DDD4C5] bg-white px-3",
+            "text-xs font-semibold text-[#251605] transition-colors hover:bg-[#F7F4EE]",
+            "data-[state=open]:bg-[#F7F4EE]",
+          )}
+        >
+          {current?.label ?? "Overview"}
+          <ChevronDown className="size-3.5 text-[#8A6A24]" aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={8} className="w-52 p-1.5">
+        <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Show
+        </p>
+        <div className="flex flex-col gap-0.5">
+          {REVENUE_ANALYTICS_SECTIONS.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onChange(row.id);
+              }}
+              aria-current={row.id === value ? "true" : undefined}
+              className={cn(
+                "flex items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition-colors",
+                row.id === value
+                  ? "bg-[#F4E9D0] font-medium text-[#251605]"
+                  : "text-foreground hover:bg-[#F7F4EE]",
+              )}
+            >
+              {row.label}
+              {row.id === value ? <Check className="size-4 text-[#8A6A24]" aria-hidden="true" /> : null}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function KpiExplainer({
+  title,
+  formula,
+  detail,
+  note,
+}: {
+  title: string;
+  formula: string;
+  detail: string | null;
+  note: string | null;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-[#251605]">{title}</p>
+      <p className="text-[11px] text-[#756A5B]">{formula}</p>
+      {detail ? (
+        <p className="rounded-md bg-[#F7F4EE] px-2 py-1 font-mono text-[11px] text-[#251605]">
+          {detail}
+        </p>
+      ) : null}
+      {note ? <p className="text-[11px] text-[#8A641A]">{note}</p> : null}
+    </div>
   );
 }

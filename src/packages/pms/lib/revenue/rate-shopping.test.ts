@@ -548,7 +548,8 @@ describe("P6-STEP-01 — access, UI-24, and honest capabilities", () => {
     assert.ok(!implementedRevenueViews().includes("market-intelligence"));
     const workspace = readRel("../../components/workspaces/rates-workspace.tsx");
     assert.match(workspace, /case "competitor-setup"/);
-    assert.match(workspace, /<CompetitorSetupView/);
+    assert.doesNotMatch(workspace, /<CompetitorSetupView/);
+    assert.match(workspace, /requestedView !== "competitor-setup"/);
   });
 
   it("renders setup-only Competitor Setup without fake rate capabilities", () => {

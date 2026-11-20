@@ -12,6 +12,8 @@ import {
 import {
   COMMERCIAL_HISTORY_DEFAULT_PAGE_SIZE,
   COMMERCIAL_HISTORY_PAGE_SIZES,
+  commercialHistoryActionLabel,
+  commercialHistoryEntityTypeLabel,
   historyPaginationRange,
 } from "@/packages/pms/lib/revenue/commercial-history";
 import {
@@ -26,8 +28,8 @@ import {
 } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { CommercialHistoryDetailDrawer } from "./commercial-history-detail-drawer";
 import { CommercialHistoryEmptyState } from "./commercial-history-empty-state";
-import { CommercialHistoryFilters } from "./commercial-history-filters";
 import { CommercialHistoryTable } from "./commercial-history-table";
+import { useRateRevenueExtras } from "../rate-revenue-shell-slots";
 
 function TableSkeleton() {
   return (
@@ -41,11 +43,12 @@ function TableSkeleton() {
 export function CommercialHistoryView({
   restaurantId,
   context,
-  onContextChange,
+  searchQuery = "",
   onNavigateView,
 }: {
   restaurantId: string;
   context: RevenueContext;
+  searchQuery?: string;
   onContextChange?: (patch: Partial<RevenueContext>) => void;
   onNavigateView: (view: RevenueWorkspaceView) => void;
 }) {
@@ -56,7 +59,7 @@ export function CommercialHistoryView({
   const [entityType, setEntityType] = useState<(typeof COMMERCIAL_ENTITY_TYPES)[number] | "">("");
   const [actionType, setActionType] = useState<(typeof COMMERCIAL_ACTION_TYPES)[number] | "">("");
   const [actorId, setActorId] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const searchInput = searchQuery;
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<CommercialHistoryWorkspaceRow | null>(null);
 
@@ -115,64 +118,71 @@ export function CommercialHistoryView({
     listQuery.data?.total ?? 0,
   );
 
-  function handleClearFilters() {
-    setEntityType("");
-    setActionType("");
-    setActorId("");
-    setSearchInput("");
-    setSearch("");
-    setSelected(null);
-    setPage(1);
-  }
+  const actors = listQuery.data?.actors ?? [];
 
-  function handleApplyFilter() {
-    setSearch(searchInput.trim());
-    setSelected(null);
-    setPage(1);
-  }
+  useRateRevenueExtras({
+    searchPlaceholder: "Search name, code, reason, or operation",
+    filters: [
+      {
+        id: "commercial-history-entity",
+        label: "Commercial Type",
+        value: entityType || "all",
+        current: entityType ? commercialHistoryEntityTypeLabel(entityType) : "",
+        options: [
+          ["all", "All entities"] as const,
+          ...COMMERCIAL_ENTITY_TYPES.map(
+            (value) => [value, commercialHistoryEntityTypeLabel(value)] as const,
+          ),
+        ],
+        onChange: (value) => {
+          setEntityType(value === "all" ? "" : (value as typeof entityType));
+          setSelected(null);
+        },
+      },
+      {
+        id: "commercial-history-action",
+        label: "Action",
+        value: actionType || "all",
+        current: actionType ? commercialHistoryActionLabel(actionType) : "",
+        options: [
+          ["all", "All actions"] as const,
+          ...COMMERCIAL_ACTION_TYPES.map(
+            (value) => [value, commercialHistoryActionLabel(value)] as const,
+          ),
+        ],
+        onChange: (value) => {
+          setActionType(value === "all" ? "" : (value as typeof actionType));
+          setSelected(null);
+        },
+      },
+      {
+        id: "commercial-history-actor",
+        label: "Changed By",
+        value: actorId || "all",
+        current: actors.find((actor) => actor.id === actorId)?.name ?? "",
+        options: [
+          ["all", "Anyone"] as const,
+          ...actors.map((actor) => [actor.id, actor.name] as const),
+        ],
+        onChange: (value) => {
+          setActorId(value === "all" ? "" : value);
+          setSelected(null);
+        },
+      },
+    ],
+    actions: [],
+    onClear: () => {
+      setEntityType("");
+      setActionType("");
+      setActorId("");
+      setSelected(null);
+      setPage(1);
+    },
+  });
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-display text-xl font-semibold text-[#251605]">Commercial History</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Read-only audit log of promotion and package activation changes.
-        </p>
-      </div>
+    <div className="space-y-3">
       <div className="min-w-0 space-y-3">
-        <CommercialHistoryFilters
-          fromDate={context.fromDate}
-          toDate={context.toDate}
-          entityType={entityType}
-          actionType={actionType}
-          actorId={actorId}
-          search={searchInput}
-          actors={listQuery.data?.actors ?? []}
-          onFromDateChange={(fromDate) => {
-            onContextChange?.({ fromDate });
-            setSelected(null);
-          }}
-          onToDateChange={(toDate) => {
-            onContextChange?.({ toDate });
-            setSelected(null);
-          }}
-          onEntityTypeChange={(value) => {
-            setEntityType(value);
-            setSelected(null);
-          }}
-          onActionTypeChange={(value) => {
-            setActionType(value);
-            setSelected(null);
-          }}
-          onActorIdChange={(value) => {
-            setActorId(value);
-            setSelected(null);
-          }}
-          onSearchChange={setSearchInput}
-          onClear={handleClearFilters}
-          onApplyFilter={handleApplyFilter}
-        />
-
         {listQuery.isLoading ? (
           <TableSkeleton />
         ) : listQuery.isError ? (
