@@ -139,7 +139,7 @@ export function FolioActionMenu({
           <FolioPageItem
             folioId={folio.id}
             action="deposit"
-            label="Add Deposit"
+            label="Record Deposit"
             icon={Landmark}
             disabled={!open}
           />

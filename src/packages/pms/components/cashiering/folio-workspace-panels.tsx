@@ -722,7 +722,6 @@ export function ChargesTab({
   dateTime,
   actions,
   selectedChargeId,
-  onPostCharge,
   onPostAdjustment,
   onTransferCharge,
   highlightLineId,
@@ -732,7 +731,6 @@ export function ChargesTab({
   dateTime: DateTimeFormat;
   actions: RowActions;
   selectedChargeId: string | null;
-  onPostCharge: () => void;
   onPostAdjustment: () => void;
   onTransferCharge: () => void;
   highlightLineId?: string | null;
@@ -802,15 +800,6 @@ export function ChargesTab({
             >
               <Percent className="size-3.5 text-[#C89933]" />
               {expandAllTaxes ? "Hide taxes" : "Show taxes"}
-            </Button>
-          ) : null}
-          {caps.canPostCharge ? (
-            <Button
-              size="sm"
-              className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-              onClick={onPostCharge}
-            >
-              Post Charge
             </Button>
           ) : null}
           {hasMore ? (
@@ -1034,16 +1023,12 @@ export function PaymentsDepositsTab({
   money,
   dateTime,
   actions,
-  onReceivePayment,
-  onAddDeposit,
   highlightLineId,
 }: {
   workspace: FolioWorkspace;
   money: Money;
   dateTime: DateTimeFormat;
   actions: RowActions;
-  onReceivePayment: () => void;
-  onAddDeposit: () => void;
   highlightLineId?: string | null;
 }) {
   const caps = workspace.capabilities;
@@ -1117,18 +1102,6 @@ export function PaymentsDepositsTab({
             onChange={(value) => setType(value as TenderTypeFilter)}
           />
         </PmsFilterMenu>
-      </FolioChromeSlot>
-      <FolioChromeSlot name="cta">
-        {caps.canPostPayment ? (
-          <Button size="sm" className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]" onClick={onReceivePayment}>
-            Receive Payment
-          </Button>
-        ) : null}
-        {caps.canPostDeposit ? (
-          <Button size="sm" variant="outline" className="h-9 border-[#DDD4C5]" onClick={onAddDeposit}>
-            Record Deposit
-          </Button>
-        ) : null}
       </FolioChromeSlot>
       <section className={cn(CARD, "overflow-hidden")}>
         {rows.length === 0 ? (

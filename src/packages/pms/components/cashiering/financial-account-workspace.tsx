@@ -136,7 +136,8 @@ export function FinancialAccountWorkspacePage({
   const clearCompose = useCallback(() => setCompose(null), []);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentKind, setPaymentKind] = useState<AccountPaymentKind>("payment");
-  const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
+  const [viewReceipt, setViewReceipt] = useState<TenderReceipt | null>(null);
+  const [printReceipt, setPrintReceipt] = useState<TenderReceipt | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [toolbarSearch, setToolbarSearch] = useState<AccountToolbarSearch | null>(null);
   const [chrome, setChrome] = useState<FolioChromeSlots>({
@@ -916,21 +917,28 @@ export function FinancialAccountWorkspacePage({
           dateTime={dateTime}
           onOpenChange={setPaymentDialogOpen}
           onPosted={refresh}
-          onReceipt={(r) => setReceipt(r)}
+          onReceipt={(r) => setViewReceipt(r)}
         />
       ) : null}
 
-      {receipt ? (
-        <>
-          <DepositReceiptModal
-            receipt={receipt}
-            open={Boolean(receipt)}
-            money={money}
-            dateTime={dateTime}
-            onClose={() => setReceipt(null)}
-          />
-          <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} />
-        </>
+      <DepositReceiptModal
+        receipt={viewReceipt}
+        open={viewReceipt !== null}
+        money={money}
+        dateTime={dateTime}
+        onClose={() => setViewReceipt(null)}
+        onPrint={
+          viewReceipt
+            ? () => {
+                setPrintReceipt(viewReceipt);
+                setViewReceipt(null);
+                window.setTimeout(() => window.print(), 80);
+              }
+            : undefined
+        }
+      />
+      {printReceipt ? (
+        <TenderReceiptPrint receipt={printReceipt} money={money} dateTime={dateTime} />
       ) : null}
     </CashieringChrome>
   );

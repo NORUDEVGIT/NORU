@@ -734,7 +734,7 @@ function FolioWorkspaceBody({
                   ) : null}
                   {caps.canPostDeposit ? (
                     <ActionItem icon={Landmark} onSelect={() => openEntry("deposit")}>
-                      Add Deposit
+                      Record Deposit
                     </ActionItem>
                   ) : null}
                   {caps.canPostCharge || caps.canPostPayment || caps.canPostDeposit ? (
@@ -828,7 +828,6 @@ function FolioWorkspaceBody({
                 actions={rowActions}
                 selectedChargeId={chargeId}
                 highlightLineId={initialLineId}
-                onPostCharge={() => openEntry("charge")}
                 onPostAdjustment={() => openEntry("adjustment")}
                 onTransferCharge={() => openTransfer(null)}
               />
@@ -840,8 +839,6 @@ function FolioWorkspaceBody({
                 dateTime={dateTime}
                 actions={rowActions}
                 highlightLineId={initialLineId}
-                onReceivePayment={() => openEntry("payment")}
-                onAddDeposit={() => openEntry("deposit")}
               />
             ) : null}
             {tab === "adjustments" ? (
