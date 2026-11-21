@@ -252,7 +252,7 @@ export const FO_ACTIONS: FoActionDef[] = [
     menus: ["quick", "bar", "sheet"],
   },
   { id: "guest_search", label: "Guest Search", lane: "live", menus: ["quick"] },
-  { id: "guest_request", label: "Guest Request", lane: "live", menus: ["quick"] },
+  { id: "guest_request", label: "Add Guest Service Request", lane: "live", menus: ["quick"] },
   { id: "view", label: "View", lane: "live", menus: ["bar", "sheet"] },
   {
     id: "assign",

@@ -259,13 +259,13 @@ async function evaluateRoomTypeChange(input: {
 
   const { data: roomType, error: roomTypeError } = await supabaseAdmin
     .from("room_types")
-    .select("id, name, max_occupancy")
+    .select("id, name, max_occupancy, adult_capacity, child_capacity")
     .eq("restaurant_id", input.restaurantId)
     .eq("id", input.roomTypeId)
     .maybeSingle();
   if (roomTypeError) throw new Error(roomTypeError.message);
   if (!roomType) throw reservationError("ROOM_TYPE_NOT_FOUND");
-  assertRoomTypeOccupancy(unit.adults, unit.children, roomType.max_occupancy);
+  assertRoomTypeOccupancy(unit.adults, unit.children, roomType);
 
   const availability = await getRoomTypeAvailabilityCompat(input.userClient, {
     restaurantId: input.restaurantId,

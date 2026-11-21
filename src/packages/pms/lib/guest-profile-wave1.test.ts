@@ -45,7 +45,7 @@ describe("Guest Profile Wave 1 catalogue", () => {
     assert.match(modules, /group: "commercial"/);
     assert.match(modules, /key: "guest-services"/);
     assert.match(modules, /title: "Guest Services"/);
-    assert.match(modules, /Guest requests and concierge tracking/);
+    assert.match(modules, /Guest service requests and concierge tracking/);
     assert.doesNotMatch(
       modules,
       /Guest profiles today; requests and concierge tracking are planned/,

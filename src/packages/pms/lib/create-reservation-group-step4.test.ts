@@ -21,13 +21,13 @@ describe("GROUP-RES-05 Step 4 review", () => {
   it("keeps the single Step 4 cards", () => {
     expect(review).toContain("Guest & Booker Information");
     expect(review).toContain('title="Stay Information"');
-    expect(review).toContain('title="Room & Rate Information"');
+    expect(review).toContain('title="Room & Rate"');
     expect(review).toContain('testId="review-card-rate"');
     expect(review).toContain('data-testid="review-room-lines"');
     expect(review).toContain("(props.roomLines?.length ?? 0) > 1");
     expect(review).toContain('title="Payment & Deposit"');
     expect(review).toContain('title="Stay Policies"');
-    expect(review).toContain("Saved Preferences");
+    expect(review).toContain("Saved preferences");
     expect(review).toContain('reservationKind === "group"');
   });
 

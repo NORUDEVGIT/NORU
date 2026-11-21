@@ -40,7 +40,7 @@ import {
   PMS_OP_SELECT_TRIGGER,
   PMS_OP_TEXTAREA,
 } from "@/packages/pms/lib/pms-operational-surface";
-import { Checkbox } from "@/shared/components/ui/checkbox";
+import { preferenceChipText } from "@/packages/pms/lib/reservation-booking-separation";
 import { Input } from "@/shared/components/ui/input";
 import {
   Select,
@@ -200,6 +200,8 @@ export function CreateReservationBookingDetails({
   const [localRelationTab, setLocalRelationTab] = useState<"company" | "travel_agent" | "group">(
     "company",
   );
+  const accountAttached = Boolean(companyMaster || travelAgentMaster || linkedGroupId);
+  const [accountOpen, setAccountOpen] = useState(accountAttached || lockOperationalGroup);
   const relationTab = relationTabProp ?? localRelationTab;
   const setRelationTab = onRelationTabChange ?? setLocalRelationTab;
   const [groupQuery, setGroupQuery] = useState("");
@@ -403,6 +405,10 @@ export function CreateReservationBookingDetails({
     focusGroupSearch.current = false;
   }, [linkedGroupId]);
 
+  useEffect(() => {
+    if (accountAttached || lockOperationalGroup) setAccountOpen(true);
+  }, [accountAttached, lockOperationalGroup]);
+
   const companyHints = companyHintsQuery.data?.hints ?? [];
   const contractRates = companyHintsQuery.data?.contractRates ?? [];
   const matchedContractRate =
@@ -550,7 +556,7 @@ export function CreateReservationBookingDetails({
           className="order-3 lg:order-none"
           icon={<Package className="size-3.5" aria-hidden />}
           testId="booking-details-packages"
-          title="Packages & Add-ons"
+          title="Add-ons"
         >
           {packagesSlot}
         </BookingCard>
@@ -564,8 +570,40 @@ export function CreateReservationBookingDetails({
           className="order-2 lg:order-none"
           icon={<Building2 className="size-3.5" aria-hidden />}
           testId="booking-details-company-agent-group"
-          title="Company / Agent / Group"
+          title="Account"
         >
+          <div className="flex flex-wrap items-center justify-between gap-2" data-testid="booking-details-account-summary">
+            <p className="text-sm text-[#251605]">
+              <span className="text-[#6B5E4E]">Account: </span>
+              <span className="font-medium">
+                {companyMaster?.name ||
+                  travelAgentMaster?.name ||
+                  selectedGroup?.name ||
+                  "Individual guest"}
+              </span>
+            </p>
+            {accountOpen && !accountAttached && !lockOperationalGroup ? (
+              <button
+                type="button"
+                className="text-xs font-medium text-[#8A6A24]"
+                onClick={() => setAccountOpen(false)}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
+          {!accountOpen ? (
+            <button
+              type="button"
+              className="mt-2 text-sm font-medium text-[#8A6A24]"
+              data-testid="booking-details-attach-account"
+              onClick={() => setAccountOpen(true)}
+            >
+              + Attach company, agency or group
+            </button>
+          ) : null}
+          {accountOpen ? (
+          <div className="mt-3">
           <div
             className="mb-3 grid grid-cols-3 overflow-hidden rounded-[6px] border border-[#CCCCCC]"
             role="tablist"
@@ -873,62 +911,55 @@ export function CreateReservationBookingDetails({
               )}
             </div>
           ) : null}
+          </div>
+          ) : null}
         </BookingCard>
 
         <BookingCard
           className="order-4 lg:order-none"
           icon={<ClipboardList className="size-3.5" aria-hidden />}
           testId="booking-details-guest-requests"
-          title="Guest Requests & Preferences"
+          title="Guest Preferences & Guest Services"
         >
-          <div className="space-y-2" data-testid="booking-details-saved-preferences">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-              Saved Preferences
-            </p>
-            {leadGuestPreferences ? (
-              <p className="text-xs text-[#6B5E4E]" data-testid="lead-guest-preferences">
-                Primary Guest / Booker. Room guest preferences are managed per guest profile.
+          {guest && (savedPreferencesLoading || savedPreferences.length > 0 || leadGuestPreferences) ? (
+            <div className="mb-3 space-y-1.5" data-testid="booking-details-saved-preferences">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
+                Saved preferences
               </p>
-            ) : null}
-            {!guest ? (
-              <p className="text-xs text-muted-foreground">
-                Select a guest to load saved preferences.
-              </p>
-            ) : savedPreferencesLoading ? (
-              <p className="text-xs text-muted-foreground">Loading saved preferences…</p>
-            ) : savedPreferences.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No saved preferences for this guest.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {savedPreferences.map((row) => (
-                  <span
-                    key={row.typeId}
-                    className="inline-flex items-center gap-1 rounded-[6px] border border-[#CCCCCC] bg-white px-2 py-0.5 text-xs text-[#251605]"
-                    data-testid="saved-preference-chip"
-                  >
-                    <span className="text-[#6B5E4E]">{row.label}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-medium">{row.value}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div
-            className="mt-3 space-y-1 border-t border-[#CCCCCC] pt-3"
-            data-testid="booking-details-service-requests"
-          >
+              {leadGuestPreferences ? (
+                <p className="text-xs text-[#6B5E4E]" data-testid="lead-guest-preferences">
+                  Primary Guest / Booker. These are profile context, not room requirements.
+                </p>
+              ) : null}
+              {savedPreferencesLoading ? (
+                <p className="text-xs text-muted-foreground">Loading saved preferences…</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {savedPreferences.map((row) => (
+                    <span
+                      key={row.typeId}
+                      className="inline-flex rounded-full border border-[#E7E0D4] bg-[#FBF6EE] px-2 py-0.5 text-xs text-[#251605]"
+                      data-testid="saved-preference-chip"
+                    >
+                      {preferenceChipText(row)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+          <div className="space-y-1" data-testid="booking-details-service-requests">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5E4E]">
-              Service Requests
+              Guest Services
             </p>
             {!guest ? (
-              <p className="text-xs text-muted-foreground">
-                Select a guest to choose service types.
-              </p>
+              <p className="text-xs text-muted-foreground">Select a guest to add service requests.</p>
             ) : serviceTypesLoading ? (
-              <p className="text-xs text-muted-foreground">Loading service types…</p>
+              <p className="text-xs text-muted-foreground">Loading guest service requests…</p>
             ) : serviceTypes.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No service types configured.</p>
+              <p className="text-xs text-muted-foreground">
+                No guest service requests for this stay.
+              </p>
             ) : (
               <CreateReservationServiceList
                 serviceTypes={serviceTypes}
@@ -937,11 +968,12 @@ export function CreateReservationBookingDetails({
                 stay={serviceStay}
                 rules={serviceRules}
                 money={money}
+                omitUnpriced
               />
             )}
           </div>
           <div className="mt-3 grid items-stretch gap-3 border-t border-[#CCCCCC] pt-3 lg:grid-cols-2">
-            <Field label="Special Requests">
+            <Field label="Special Request">
               <Textarea
                 className={cn(PMS_OP_TEXTAREA, "min-h-24 resize-none text-sm")}
                 maxLength={SPECIAL_REQUEST_MAX}
@@ -949,26 +981,26 @@ export function CreateReservationBookingDetails({
                 onChange={(event) =>
                   onSpecialRequestsChange(event.target.value.slice(0, SPECIAL_REQUEST_MAX))
                 }
-                placeholder="e.g. High floor, extra bed, airport pickup..."
+                placeholder="High floor if available. Arrival around 22:00."
               />
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[10px] text-muted-foreground">
-                  Reservation-specific guest requests
+                  Reservation preference or instruction — not a Guest Service Request.
                 </p>
                 <p className="shrink-0 text-[10px] text-muted-foreground">
                   {requestLength}/{SPECIAL_REQUEST_MAX}
                 </p>
               </div>
             </Field>
-            <Field label="Internal Notes">
+            <Field label="Guest Notes">
               <Textarea
                 className={cn(PMS_OP_TEXTAREA, "min-h-24 resize-none text-sm")}
                 data-testid="booking-details-internal-notes"
                 value={notes}
                 onChange={(event) => onNotesChange(event.target.value)}
-                placeholder="Staff-only notes for this draft"
+                placeholder="VIP referral. Do not discuss upgrade unless approved."
               />
-              <p className="text-[10px] text-muted-foreground">Staff-only notes</p>
+              <p className="text-[10px] text-muted-foreground">Staff-only note. Not shown to the guest.</p>
             </Field>
           </div>
           {roomAssignment}

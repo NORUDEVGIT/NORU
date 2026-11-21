@@ -229,7 +229,7 @@ export function CreateReservationPriceReminder({
           <div className="flex items-center justify-between text-xs text-[#6B5E4E]">
             <span className="flex items-center gap-1.5">
               <Package className="size-3 text-[#A89885]" aria-hidden />
-              Packages & Add-ons
+              Add-ons
             </span>
             <span className="text-[11px] text-[#8A7A68]" data-testid="reminder-packages-empty">
               None selected
@@ -246,9 +246,15 @@ export function CreateReservationPriceReminder({
                 <ConciergeBell className="size-3.5 text-[#C89933]" aria-hidden />
                 Selected Services ({services.length})
               </span>
-              <span className="font-semibold text-[#251605]" data-testid="reminder-services-total">
-                {servicesTotal > 0 ? money(servicesTotal) : "—"}
-              </span>
+              {servicesTotal > 0 ? (
+                <span className="font-semibold text-[#251605]" data-testid="reminder-services-total">
+                  {money(servicesTotal)}
+                </span>
+              ) : (
+                <span className="sr-only" data-testid="reminder-services-total">
+                  No charge
+                </span>
+              )}
             </div>
             <ul className="space-y-1 text-xs" data-testid="reminder-services-list">
               {services.map((service, index) => (
@@ -265,7 +271,7 @@ export function CreateReservationPriceReminder({
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block font-medium text-[#251605]">
-                      {service.total != null ? money(service.total) : "Not priced"}
+                      {service.total != null ? money(service.total) : null}
                     </span>
                     {service.net != null &&
                     service.total != null &&
@@ -297,7 +303,7 @@ export function CreateReservationPriceReminder({
           </div>
           {packagesTotal > 0 ? (
             <div className="flex justify-between">
-              <span>Selected Packages & Add-ons</span>
+              <span>Add-ons</span>
               <span className="font-medium text-[#251605]">{money(packagesTotal)}</span>
             </div>
           ) : null}

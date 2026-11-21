@@ -872,9 +872,9 @@ function HousekeepingRoomQuickView({
                 ))
               )}
               {scope === "maintenance" ? (
-                <p className="text-[#756A5B]">Guest requests are handled in Housekeeping Requests.</p>
+                <p className="text-[#756A5B]">Guest service requests are handled in Housekeeping Requests.</p>
               ) : openRequests.length === 0 ? (
-                <p className="text-[#756A5B]">No open guest requests for this room.</p>
+                <p className="text-[#756A5B]">No open guest service requests for this room.</p>
               ) : (
                 openRequests.map((row) => (
                   <p key={row.id} className="text-[#5C5346]">

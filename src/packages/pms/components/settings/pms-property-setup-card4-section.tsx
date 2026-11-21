@@ -22,6 +22,7 @@ import {
   PmsCard4IdentityDocuments,
 } from "@/packages/pms/components/settings/pms-card4-identity-documents";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { finishPropertySetupCardAndAdvance } from "@/packages/pms/lib/pms-property-setup-navigation";
 import { getPmsCard4ProfileTypes } from "@/packages/pms/lib/profile-types-card4.functions";
 import { getPmsCard4RequiredFields } from "@/packages/pms/lib/required-fields-card4.functions";
 import { guestFieldsConfigured } from "@/packages/pms/lib/required-fields-card4.server";
@@ -84,6 +85,7 @@ import {
   CARD4_GST_STEPS,
   CARD4_GST_SUBTITLE,
   CARD4_GPR_SUBTITLE,
+  CARD4_HASH,
   CARD4_MAIN_SECTIONS,
   CARD4_NOTIFICATION_STEPS,
   CARD4_NOTIFY_SUBTITLE,
@@ -514,6 +516,13 @@ export function PmsPropertySetupCard4Section({
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   }
 
+  function finishCard() {
+    if (cardStatus && cardStatus !== "not_started") {
+      saveCard4Status({ data: { restaurantId, status: cardStatus } }).catch(() => {});
+    }
+    finishPropertySetupCardAndAdvance(CARD4_HASH);
+  }
+
   function requestSave(thenNext: boolean) {
     setSaveRequest((prev) => ({ token: (prev?.token ?? 0) + 1, thenNext }));
   }
@@ -538,7 +547,7 @@ export function PmsPropertySetupCard4Section({
       return;
     }
     if (notificationNext) setNotificationStep(notificationNext);
-    else goHub();
+    else finishCard();
   }
 
   function goContinue() {
@@ -555,7 +564,7 @@ export function PmsPropertySetupCard4Section({
         return;
       }
       if (notificationNext) setNotificationStep(notificationNext);
-      else goHub();
+      else finishCard();
       return;
     }
     if (mainSection === "guest-service-types") {
@@ -679,7 +688,11 @@ export function PmsPropertySetupCard4Section({
           saveDraftDisabled={!canEdit || !liveStep || !canSave || saving}
           continueDisabled={!canEdit || (liveStep && (!canSave || saving))}
           continuePending={saving}
-          continueLabel="Save & Next"
+          continueLabel={
+            mainSection === "notifications" && !notificationNext
+              ? "Save & Finish"
+              : "Save & Continue"
+          }
           footerTestId="pms-card4-chrome"
           rail={
             <div data-testid="pms-card4-status-rail">

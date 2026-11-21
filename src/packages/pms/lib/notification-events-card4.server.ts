@@ -67,7 +67,7 @@ export const SYSTEM_NOTIFICATION_EVENTS = [
     category: "stay",
   },
   {
-    name: "Guest Request Created",
+    name: "Guest Service Request Created",
     code: "guest_request_created",
     module: "guest_services",
     category: "stay",

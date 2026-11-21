@@ -370,7 +370,12 @@ export function NightAuditWorkspace({
   }, [scan, workspaceQuery.isFetching, workspaceQuery.dataUpdatedAt, workspaceQuery.data, data, restaurantId]);
 
   const closeMutation = useMutation({
-    mutationFn: (vars: { runId: string; businessDate: string }) => {
+    mutationFn: (vars: {
+      runId: string;
+      businessDate: string;
+      windowOverrideIntent?: boolean;
+      windowOverrideReason?: string;
+    }) => {
       if (noteTimer.current) window.clearTimeout(noteTimer.current);
       return close({
         data: {
@@ -378,6 +383,12 @@ export function NightAuditWorkspace({
           runId: vars.runId,
           expectedBusinessDate: vars.businessDate.slice(0, 10),
           ...(note.trim() ? { notes: note.trim() } : {}),
+          ...(vars.windowOverrideIntent
+            ? {
+                windowOverrideIntent: true,
+                windowOverrideReason: vars.windowOverrideReason?.trim() || undefined,
+              }
+            : {}),
         },
       });
     },
@@ -529,11 +540,20 @@ export function NightAuditWorkspace({
         close: {
           busy: closeMutation.isPending,
           error: closeError,
-          onClose: () => {
+          onClose: (options) => {
             if (closing.current || closeMutation.isPending || !data.run) return;
             closing.current = true;
             setCloseError(null);
-            closeMutation.mutate({ runId: data.run.id, businessDate: data.businessDate });
+            closeMutation.mutate({
+              runId: data.run.id,
+              businessDate: data.businessDate,
+              ...(options?.windowOverrideIntent
+                ? {
+                    windowOverrideIntent: true,
+                    windowOverrideReason: options.windowOverrideReason,
+                  }
+                : {}),
+            });
           },
         },
         outcome,

@@ -665,7 +665,7 @@ export function ReservationDetailNotesTab({
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
         <Button type="button" variant="outline" size="sm" onClick={onBackToRequests}>
-          Back to Requests & Preferences
+          Back to Guest Services
         </Button>
         {grants.edit ? (
           <div className="flex gap-2">

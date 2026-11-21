@@ -57,6 +57,8 @@ export type ReservationGuestDraft = {
   sendMarketing: boolean;
   guestType: ReservationGuestKind;
   specialRequests: string;
+  /** Reservation-level guest occasion (`hotel_reservations.special_occasion`). */
+  specialOccasion: string;
   guestNotes: string;
   accompanying: AccompanyingGuestDraft[];
 };
@@ -192,6 +194,7 @@ export function buildGuestDraft(
     sendMarketing: marketingGranted(guest),
     guestType: reservationGuestKind(reservation),
     specialRequests: reservation.specialRequests ?? "",
+    specialOccasion: reservation.specialOccasion ?? "",
     guestNotes: reservation.notes ?? "",
     accompanying: accompanyingFromReservation(reservation),
   };

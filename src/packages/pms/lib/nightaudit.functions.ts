@@ -21,7 +21,7 @@ import {
   requirePmsActor,
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { requirePersistedBusinessDate } from "./reservation-workspace/business-date";
 import { NA1_STALE_BUSINESS_DATE, nextBusinessDate } from "./na1";
 import {
   FINANCIAL_UNAVAILABLE_MESSAGE,
@@ -59,14 +59,19 @@ import {
 } from "./night-audit-workflow";
 import type { OtbCaptureResult } from "./revenue/demand-snapshot";
 import {
+  NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED,
   NIGHT_AUDIT_INVALID_WINDOW,
   NIGHT_AUDIT_OUTSIDE_WINDOW,
+  classifyEndOfDayBanner,
+  endOfDayDueCopy,
+  endOfDayPendingCopy,
   evaluateNightAuditWindow,
   nightAuditWindowConfig,
   outsideWindowCloseRecord,
   type NightAuditWindowState,
   type OutsideWindowClose,
 } from "./night-audit-window";
+import { propertyToday } from "@/shared/lib/property-dates";
 import { nightAuditError, type AreaCheck, type AuditFinance } from "./nightaudit.server";
 import {
   END_OF_DAY_STEP_IDS,
@@ -261,7 +266,7 @@ type Admin = any;
 async function loadProperty(admin: Admin, restaurantId: string) {
   const { data } = await admin
     .from("restaurants")
-    .select("id, timezone, currency_code, business_date")
+    .select("id, timezone, currency_code, business_date, business_date_config")
     .eq("id", restaurantId)
     .maybeSingle();
   if (!data) throw new Error("Property not found.");
@@ -270,15 +275,45 @@ async function loadProperty(admin: Admin, restaurantId: string) {
     timezone: string;
     currency_code: string;
     business_date: string | null;
+    business_date_config?: unknown;
   };
-  const persistedBusinessDate = row.business_date ? row.business_date.slice(0, 10) : null;
+  const resolved = requirePersistedBusinessDate(row);
+  const timezone = resolved.timezone || row.timezone || "UTC";
+  const window = nightAuditWindowConfig(row.business_date_config);
+  const calendarDate = propertyToday(timezone);
+  const bannerKind = classifyEndOfDayBanner({
+    businessDate: resolved.businessDate,
+    timezone,
+    windowStart: window.start,
+    windowEnd: window.end,
+    propertyCalendarDate: calendarDate,
+  });
+  const liveWindow = evaluateNightAuditWindow({
+    ...window,
+    timezone,
+    canOverride: false,
+  });
+  const pendingCopy =
+    bannerKind === "overdue"
+      ? endOfDayPendingCopy(resolved.businessDate)
+      : bannerKind === "due"
+        ? endOfDayDueCopy({
+            businessDate: resolved.businessDate,
+            windowLabel: liveWindow.label,
+          })
+        : null;
   return {
-    timezone: row.timezone,
+    timezone,
     currency: row.currency_code,
-    /** Resolved clock: persisted date, or property-local today when the column is null. */
-    businessDate: resolvePropertyBusinessDate(persistedBusinessDate, row.timezone),
-    /** Null until the first close. Never a caller-supplied date. */
-    persistedBusinessDate,
+    /** Authoritative hotel day — restaurants.business_date only. */
+    businessDate: resolved.businessDate,
+    /** Same as businessDate once initialized; never invented from wall-clock. */
+    persistedBusinessDate: resolved.persistedBusinessDate,
+    /** Wall-clock vs hotel-day warning only — never advances the date. */
+    endOfDayPending: bannerKind !== "none",
+    endOfDayPendingKind: bannerKind,
+    endOfDayPendingTitle: pendingCopy?.title ?? null,
+    endOfDayPendingDetail: pendingCopy?.detail ?? null,
   };
 }
 
@@ -1504,6 +1539,7 @@ export type CloseBusinessDateResult =
       code?:
         | typeof NIGHT_AUDIT_OUTSIDE_WINDOW
         | typeof NIGHT_AUDIT_INVALID_WINDOW
+        | typeof NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED
         | typeof NIGHT_AUDIT_BLOCKED;
       blockerCount?: number;
     };
@@ -1511,7 +1547,15 @@ export type CloseBusinessDateResult =
 export const closeBusinessDate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(
-    (d: { restaurantId: string; runId: string; notes?: string; expectedBusinessDate?: string }) =>
+    (d: {
+      restaurantId: string;
+      runId: string;
+      notes?: string;
+      expectedBusinessDate?: string;
+      /** Explicit early-window override only — never inferred from permission alone. */
+      windowOverrideIntent?: boolean;
+      windowOverrideReason?: string;
+    }) =>
       z
         .object({
           restaurantId: idSchema,
@@ -1521,6 +1565,8 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
             .string()
             .regex(/^\d{4}-\d{2}-\d{2}$/)
             .optional(),
+          windowOverrideIntent: z.boolean().optional(),
+          windowOverrideReason: z.string().trim().max(500).optional(),
         })
         .parse(d),
   )
@@ -1636,18 +1682,50 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       return rejected(NA1_STALE_BUSINESS_DATE);
     }
 
-    // Additional condition only: the window override bypasses the time, never a blocker.
+    // Window gate: normal close during open/overdue; early close only with explicit override intent.
     const config = await loadEndOfDayConfig(supabaseAdmin, data.restaurantId);
+    const earlyIntent = data.windowOverrideIntent === true;
+    const overrideReason = (data.windowOverrideReason ?? "").trim();
     const closeWindow = evaluateNightAuditWindow({
       ...config.window,
       timezone: property.timezone,
       canOverride: flags.canOverrideWindow,
+      earlyOverrideIntent: earlyIntent,
     });
-    if (!closeWindow.allowsClose) {
+    if (closeWindow.phase === "invalid" || !closeWindow.configValid) {
       return {
         ok: false,
         message: closeWindow.message,
-        code: closeWindow.configValid ? NIGHT_AUDIT_OUTSIDE_WINDOW : NIGHT_AUDIT_INVALID_WINDOW,
+        code: NIGHT_AUDIT_INVALID_WINDOW,
+      };
+    }
+    if (closeWindow.phase === "before_start") {
+      if (!earlyIntent) {
+        return {
+          ok: false,
+          message: closeWindow.message,
+          code: NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED,
+        };
+      }
+      if (!flags.canOverrideWindow) {
+        return {
+          ok: false,
+          message: "Closing before the Night Audit window requires window override permission.",
+          code: NIGHT_AUDIT_OUTSIDE_WINDOW,
+        };
+      }
+      if (!overrideReason) {
+        return {
+          ok: false,
+          message: "Provide a reason to close before the Night Audit window.",
+          code: NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED,
+        };
+      }
+    } else if (!closeWindow.allowsClose) {
+      return {
+        ok: false,
+        message: closeWindow.message,
+        code: NIGHT_AUDIT_OUTSIDE_WINDOW,
       };
     }
 
@@ -1750,7 +1828,12 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
         },
       },
       closeRequestId,
-      nightAuditWindow: outsideWindowCloseRecord(closeWindow, me.id, new Date().toISOString()),
+      nightAuditWindow: outsideWindowCloseRecord(
+        closeWindow,
+        me.id,
+        new Date().toISOString(),
+        overrideReason,
+      ),
     };
 
     const { data: closedRow, error } = await supabaseAdmin.rpc("close_business_date", {
@@ -1798,6 +1881,10 @@ export const closeBusinessDate = createServerFn({ method: "POST" })
       nextBusinessDate: closed.nextBusinessDate,
       membershipId: me.id,
       outsideWindow: summary.nightAuditWindow != null,
+      earlyWindowOverride: summary.nightAuditWindow?.earlyOverride === true,
+      ...(summary.nightAuditWindow?.reason
+        ? { earlyWindowOverrideReason: summary.nightAuditWindow.reason }
+        : {}),
       fiscalOverrides: closeOverrides.size,
       groupBlockRelease,
       otbSnapshotStatus: snapshot.status,

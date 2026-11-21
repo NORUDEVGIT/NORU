@@ -26,7 +26,12 @@ import { SET6_AUDIT_ACTIONS, activateInputFromSet6Snapshot } from "./pms-set6-sa
 import { loadSet6Snapshot } from "./pms-set6-sales-distribution.functions";
 import { POLISH1_AUDIT_ACTIONS, activateInputFromPolish1Snapshot } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
-import { CARD1_AUDIT_ACTIONS } from "./pms-property-setup-card1";
+import {
+  CARD1_AUDIT_ACTIONS,
+  lateCheckoutCheckinOpsSnapshot,
+  normalizeCard1CheckinOpsForPersistence,
+  parseCheckinOps,
+} from "./pms-property-setup-card1";
 import { loadCard8ActivationEligibility } from "./pms-property-setup-card8-activation.server";
 
 const idSchema = z.string().uuid();
@@ -278,6 +283,41 @@ function policiesPatch(data: z.infer<typeof policiesSchema>): RestaurantUpdate {
   };
 }
 
+/** Keep checkin_ops.lateCheckout aligned with canonical restaurants.late_checkout_*. */
+function lateCheckoutSnapshotPatch(
+  existingCheckinOps: unknown,
+  data: z.infer<typeof policiesSchema>,
+): RestaurantUpdate {
+  const current = parseCheckinOps(existingCheckinOps);
+  const lateCheckout = lateCheckoutCheckinOpsSnapshot({
+    allowed: data.lateCheckoutAllowed,
+    feeBasis: "fixed",
+    feeValue: optionalNumber(data.lateCheckoutFee ?? ""),
+  });
+  return {
+    checkin_ops: normalizeCard1CheckinOpsForPersistence({
+      ...current,
+      lateCheckout,
+    }) as unknown as Json,
+  };
+}
+
+async function loadCheckinOpsSnapshot(
+  supabaseAdmin: Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"],
+  restaurantId: string,
+): Promise<unknown> {
+  const { data, error } = await supabaseAdmin
+    .from("restaurants")
+    .select("checkin_ops")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  if (error) {
+    if (isMissingColumnError(error)) return null;
+    throw new Error(error.message);
+  }
+  return data?.checkin_ops ?? null;
+}
+
 function feesFromSave(data: z.infer<typeof policiesSchema>): FoFeeDefaults {
   return normalizeFoFeeDefaults({
     cancelFeeRequired: data.cancelFeeRequired,
@@ -319,7 +359,11 @@ export const savePmsSet1Foundation = createServerFn({ method: "POST" })
         fo_noshow_fee_required: feeAfter.noshowFeeRequired,
         fo_noshow_fee_default: feeAfter.noshowFeeDefault,
       };
-      if (loaded.foundationColumnsAvailable) Object.assign(patch, policiesPatch(data));
+      if (loaded.foundationColumnsAvailable) {
+        Object.assign(patch, policiesPatch(data));
+        const checkinOps = await loadCheckinOpsSnapshot(supabaseAdmin, data.restaurantId);
+        Object.assign(patch, lateCheckoutSnapshotPatch(checkinOps, data));
+      }
     }
 
     const { error } = await supabaseAdmin.from("restaurants").update(patch).eq("id", data.restaurantId);
@@ -457,10 +501,20 @@ export const activatePmsSet1 = createServerFn({ method: "POST" })
       };
     }
 
+    const wasLive = before.pmsSet1Live === true;
     const { error } = await supabaseAdmin.from("restaurants").update({ pms_set1_live: true }).eq("id", data.restaurantId);
     if (error) {
       if (isMissingColumnError(error)) throw new Error("Activate is unavailable until foundation columns are applied.");
       throw new Error(error.message);
+    }
+
+    // Housekeeping owns room cleanliness. Activation only triggers first-live
+    // bootstrap for rooms that still lack an operational HK footprint.
+    if (!wasLive) {
+      const { bootstrapHousekeepingRoomStateOnFirstLive } = await import(
+        "./housekeeping-room-state-bootstrap.functions"
+      );
+      await bootstrapHousekeepingRoomStateOnFirstLive(supabaseAdmin, data.restaurantId, context.userId);
     }
 
     const afterLoad = await loadRestaurantRow(supabaseAdmin, data.restaurantId);

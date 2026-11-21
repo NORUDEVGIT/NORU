@@ -95,7 +95,7 @@ describe("HK Phase 5 — one request engine", () => {
     assert.match(tab, /listHousekeepingGuestRequests/);
     assert.match(tab, /updateHousekeepingGuestRequest/);
     assert.match(tab, /Open Guest Services/);
-    assert.match(tab, /No housekeeping-routed guest requests/);
+    assert.match(tab, /No housekeeping-routed guest service requests/);
     assert.doesNotMatch(tab, /createGuestServiceRequest/);
     assert.doesNotMatch(tab, /hk-requests-placeholder/);
     assert.doesNotMatch(tab, /from\("housekeeping_requests"\)/);

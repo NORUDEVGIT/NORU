@@ -47,6 +47,8 @@ import {
   markCard1Complete,
   markStepComplete,
   markStepInProgress,
+  lateCheckoutCheckinOpsSnapshot,
+  mergeCard1LateCheckoutFromRuntime,
   normalizeCard1CheckinOpsForPersistence,
   normalizeCard1StepId,
   parseBusinessDateBlockers,
@@ -81,7 +83,7 @@ import { IMAGE_EXT_BY_TYPE, ROOM_BUCKET, signRoomImages } from "./rooms.server";
 const idSchema = z.string().uuid();
 
 const SET1_COLUMNS =
-  "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, property_code, legal_name, property_type, check_in_time, check_out_time, pms_set1_live, hotel_day_open";
+  "id, name, logo_url, phone, email, address, city, postcode, country, timezone, currency_code, business_date, property_code, legal_name, property_type, check_in_time, check_out_time, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, pms_set1_live, hotel_day_open";
 
 const CARD1_COLUMNS = `${SET1_COLUMNS}, trading_name, star_rating, default_language, short_description, identity_toggles, brand_name, brand_code, chain_name, address_region, address_zone, address_woreda, address_kebele, address_subcity, address_house_no, latitude, longitude, full_address, whatsapp, social_contacts, department_contacts, checkin_policy_text, checkout_policy_text, early_checkin_policy_text, late_checkout_policy_text, business_date_config, business_date_blockers, legal_entity_name, legal_entity_type, registration_number, legal_upload_refs, vat_registered, vat_number, tin_number, licence_number, tax_upload_refs, structure_rules_posture, pms_property_setup_status`;
 
@@ -203,6 +205,7 @@ const draftSchema = z.object({
   checkoutPolicyText: z.string().trim().max(2000).optional().nullable(),
   earlyCheckinPolicyText: z.string().trim().max(2000).optional().nullable(),
   lateCheckoutPolicyText: z.string().trim().max(2000).optional().nullable(),
+  lateCheckoutNeedsApproval: z.boolean().optional(),
   checkinOps: z.object({
     minLeadTime: z.string().trim().max(40),
     minLeadTimeHours: numericInputSchema,
@@ -422,6 +425,7 @@ function snapshotFromRow(
     checkoutPolicyText: card1ColumnsAvailable ? text(row, "checkout_policy_text") : "",
     earlyCheckinPolicyText: card1ColumnsAvailable ? text(row, "early_checkin_policy_text") : "",
     lateCheckoutPolicyText: card1ColumnsAvailable ? text(row, "late_checkout_policy_text") : "",
+    lateCheckoutNeedsApproval: false,
     checkinOps: parseCheckinOps(fidelityColumnsAvailable ? row?.checkin_ops : null),
     businessDateConfig: parseBusinessDateConfig(
       card1ColumnsAvailable ? row?.business_date_config : null,
@@ -444,6 +448,16 @@ function snapshotFromRow(
       card1ColumnsAvailable ? row?.structure_rules_posture : null,
     ),
     propertyAreas: parsePropertyAreas(fidelityColumnsAvailable ? row?.property_areas : null) });
+  if (foundationColumnsAvailable) {
+    const mergedLate = mergeCard1LateCheckoutFromRuntime({
+      runtimeAllowed: row?.late_checkout_allowed,
+      runtimeFee: row?.late_checkout_fee,
+      runtimeNeedsApproval: row?.late_checkout_needs_approval,
+      checkinOpsLate: draft.checkinOps.lateCheckout,
+    });
+    draft.checkinOps = { ...draft.checkinOps, lateCheckout: mergedLate.lateCheckout };
+    draft.lateCheckoutNeedsApproval = mergedLate.needsApproval;
+  }
   draft.fullAddress =
     card1ColumnsAvailable && text(row, "full_address")
       ? text(row, "full_address")
@@ -836,12 +850,17 @@ function draftFromSave(data: z.infer<typeof draftSchema>, propertyCode: string):
     checkoutPolicyText: data.checkoutPolicyText ?? "",
     earlyCheckinPolicyText: data.earlyCheckinPolicyText ?? "",
     lateCheckoutPolicyText: data.lateCheckoutPolicyText ?? "",
+    lateCheckoutNeedsApproval: data.lateCheckoutNeedsApproval === true,
     legalName: data.legalName ?? "",
     legalEntityName: data.legalEntityName ?? "",
     registrationNumber: data.registrationNumber ?? "",
     vatNumber: data.vatNumber ?? "",
     tinNumber: data.tinNumber ?? "",
     licenceNumber: data.licenceNumber ?? "" });
+  draft.checkinOps = {
+    ...draft.checkinOps,
+    lateCheckout: lateCheckoutCheckinOpsSnapshot(draft.checkinOps.lateCheckout),
+  };
   draft.fullAddress = composeFullAddress(draft);
   return draft;
 }
@@ -902,6 +921,7 @@ function card1Patch(
     tax_upload_refs: persistedUploadRefs(draft.taxUploadRefs),
     structure_rules_posture: draft.structureRules as unknown as Json,
     pms_property_setup_status: status as unknown as Json };
+  const lateCheckoutSnapshot = lateCheckoutCheckinOpsSnapshot(draft.checkinOps.lateCheckout);
   if (fidelityColumnsAvailable) {
     patch.opening_date = draft.openingDate.trim() || null;
     patch.cover_image_url = draft.coverImageUrl.trim() || null;
@@ -913,7 +933,10 @@ function card1Patch(
     patch.emergency_contacts = draft.emergency as unknown as Json;
     patch.property_areas = draft.propertyAreas as unknown as Json;
     patch.location_extras = draft.locationExtras as unknown as Json;
-    patch.checkin_ops = normalizeCard1CheckinOpsForPersistence(draft.checkinOps) as unknown as Json;
+    patch.checkin_ops = normalizeCard1CheckinOpsForPersistence({
+      ...draft.checkinOps,
+      lateCheckout: lateCheckoutSnapshot,
+    }) as unknown as Json;
     patch.legal_extras = draft.legalExtras as unknown as Json;
   }
   if (foundationColumnsAvailable) {
@@ -922,6 +945,11 @@ function card1Patch(
     patch.property_type = draft.propertyType || null;
     patch.check_in_time = normalizeClock(draft.checkInTime) || null;
     patch.check_out_time = normalizeClock(draft.checkOutTime) || null;
+    // Canonical FO/Night Audit late-checkout policy (fixed fee only).
+    patch.late_checkout_allowed = lateCheckoutSnapshot.allowed;
+    patch.late_checkout_fee =
+      lateCheckoutSnapshot.feeValue == null ? null : Number(lateCheckoutSnapshot.feeValue);
+    patch.late_checkout_needs_approval = draft.lateCheckoutNeedsApproval === true;
   }
   return patch;
 }

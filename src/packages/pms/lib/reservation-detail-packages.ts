@@ -2,6 +2,7 @@ import { DETAIL_DASH } from "@/packages/pms/lib/reservation-detail-overview";
 import {
   parsePackageChargeBasis,
   PACKAGE_CHARGE_BASIS_LABELS,
+  type Card3GuestServiceTypeRef,
   type PackageCard3Row,
   type PackageChargeBasis,
   type PackageComponentCard3Row,
@@ -54,7 +55,19 @@ export type AvailablePackageCard = {
   price: number | null;
   coverUrl: string | null;
   components: string[];
+  /** Component labels plus Guest Service Type names from Package Master. Display only. */
+  benefitLabels?: string[];
+  /** Linked guest-service categories. Display only. */
+  serviceCategoryLabels?: string[];
+  active?: boolean;
   inclusionLabel: string | null;
+  /** Rate-plan link for the card's stay. Null when the package is not tied to one plan. */
+  inclusionType?: PackageInclusionType | null;
+  /** Guest service types bundled on pms_packages.inclusion. */
+  serviceTypeIds?: string[];
+  componentMealPlanIds?: string[];
+  /** True when the package has a component that is not the rate meal plan. */
+  hasNonMealComponent?: boolean;
   applicabilityRoom: string;
   applicabilityRate: string;
   eligibilityStatus: PackageEligibilityStatus;
@@ -325,6 +338,37 @@ export function packageInclusionLabel(
   return inclusion ? PACKAGE_INCLUSION_TYPE_LABELS[inclusion] : null;
 }
 
+export function packageStaffBenefitLabels(input: {
+  componentLabels: string[];
+  serviceTypeIds: string[];
+  serviceTypes?: ReadonlyArray<Pick<Card3GuestServiceTypeRef, "id" | "name" | "categoryName">>;
+}): { benefits: string[]; serviceCategories: string[] } {
+  const byId = new Map((input.serviceTypes ?? []).map((row) => [row.id, row]));
+  const benefits: string[] = [];
+  const categories: string[] = [];
+  const seenBenefit = new Set<string>();
+  const seenCategory = new Set<string>();
+  const pushBenefit = (label: string) => {
+    const text = label.trim();
+    const key = text.toLowerCase();
+    if (!text || seenBenefit.has(key)) return;
+    seenBenefit.add(key);
+    benefits.push(text);
+  };
+  for (const label of input.componentLabels) pushBenefit(label);
+  for (const id of input.serviceTypeIds) {
+    const row = byId.get(id);
+    if (!row) continue;
+    pushBenefit(row.name);
+    const category = row.categoryName.trim();
+    const categoryKey = category.toLowerCase();
+    if (!category || seenCategory.has(categoryKey)) continue;
+    seenCategory.add(categoryKey);
+    categories.push(category);
+  }
+  return { benefits, serviceCategories: categories };
+}
+
 export function componentLabelsForPackage(
   components: PackageComponentCard3Row[],
   packageId: string,
@@ -401,6 +445,9 @@ export function buildAvailablePackageCards(input: {
   eligible: EligiblePackageListItem[];
   roomTypeId: string;
   ratePlanId: string | null;
+  guestServiceTypes?: ReadonlyArray<
+    Pick<Card3GuestServiceTypeRef, "id" | "name" | "categoryName">
+  >;
 }): AvailablePackageCard[] {
   const eligibleByPackage = new Map(input.eligible.map((row) => [row.packageId, row]));
   const ratePlanReady = Boolean(input.ratePlanId?.trim());
@@ -420,6 +467,13 @@ export function buildAvailablePackageCards(input: {
         : eligible
           ? "activation_eligible"
           : "catalogue_only";
+      const packageComponents = input.components.filter((row) => row.packageId === pkg.id);
+      const componentLabels = componentLabelsForPackage(input.components, pkg.id);
+      const staffBenefits = packageStaffBenefitLabels({
+        componentLabels,
+        serviceTypeIds: pkg.serviceTypeIds,
+        serviceTypes: input.guestServiceTypes,
+      });
       return {
         id: pkg.id,
         name: pkg.name,
@@ -431,8 +485,17 @@ export function buildAvailablePackageCards(input: {
         chargeBasisHonesty: chargeBasisHonestyCopy(configuredBasis),
         price,
         coverUrl: pkg.coverUrl,
-        components: componentLabelsForPackage(input.components, pkg.id),
+        components: componentLabels,
+        benefitLabels: staffBenefits.benefits,
+        serviceCategoryLabels: staffBenefits.serviceCategories,
+        active: pkg.active,
         inclusionLabel: packageInclusionLabel(pkg, input.ratePlanId),
+        inclusionType: packageInclusionForRatePlan(pkg, input.ratePlanId),
+        serviceTypeIds: pkg.serviceTypeIds,
+        componentMealPlanIds: packageComponents.flatMap((row) =>
+          row.mealPlanId ? [row.mealPlanId] : [],
+        ),
+        hasNonMealComponent: packageComponents.some((row) => row.kind !== "meal_plan"),
         applicabilityRoom: applicability.room,
         applicabilityRate: applicability.rate,
         eligibilityStatus,

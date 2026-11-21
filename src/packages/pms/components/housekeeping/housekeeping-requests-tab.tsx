@@ -137,7 +137,7 @@ export function HousekeepingRequestsTab({ restaurantId, today }: Props) {
           {list.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading requests…</p>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No housekeeping-routed guest requests.</p>
+            <p className="text-sm text-muted-foreground">No housekeeping-routed guest service requests.</p>
           ) : (
             filtered.map((row) => (
               <HkFieldCard key={row.id} selected={selected?.id === row.id}>
@@ -189,7 +189,7 @@ export function HousekeepingRequestsTab({ restaurantId, today }: Props) {
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className={`${ROOM_TABLE_TD} text-muted-foreground`}>
-                    No housekeeping-routed guest requests.
+                    No housekeeping-routed guest service requests.
                   </td>
                 </tr>
               ) : (

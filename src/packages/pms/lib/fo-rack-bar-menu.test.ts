@@ -95,6 +95,7 @@ function ids(input: Parameters<typeof foRackBarMenuItems>[0]): string[] {
 
 const preArrival = {
   arrivalDate: "2026-10-26",
+  departureDate: "2026-10-27",
   businessDate: "2026-10-26",
   canOpenCashiering: true,
   maintenanceRelevant: true,
@@ -158,6 +159,7 @@ describe("room rack stay menu", () => {
       status: "checked_in",
       assigned: true,
       arrivalDate: "2026-10-24",
+      departureDate: "2026-10-26",
       businessDate: "2026-10-26",
       canOpenCashiering: true,
       maintenanceRelevant: false,
@@ -206,10 +208,23 @@ describe("room rack stay menu", () => {
       status: "checked_in",
       assigned: true,
       arrivalDate: "2026-10-24",
+      departureDate: "2026-10-26",
       businessDate: "2026-10-26",
       canOpenCashiering: true,
       maintenanceRelevant: true,
     });
+    assert.equal(
+      ids({
+        status: "checked_in",
+        assigned: true,
+        arrivalDate: "2026-10-18",
+        departureDate: "2026-10-20",
+        businessDate: "2026-10-26",
+        canOpenCashiering: true,
+        maintenanceRelevant: false,
+      }).includes("late_checkout"),
+      false,
+    );
     assert.equal(maintained.at(-1), "open_maintenance");
     assert.equal(foRackMaintenanceRelevant("open"), true);
     assert.equal(foRackMaintenanceRelevant("none"), false);

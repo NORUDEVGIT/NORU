@@ -3106,6 +3106,7 @@ export type GuestServiceTypeOption = {
   name: string;
   code: string;
   categoryName: string;
+  categoryCode?: string | null;
   active: boolean;
   amount: number | null;
   currency: string | null;
@@ -3269,7 +3270,7 @@ async function loadGuestServiceWorkspace(
   }
   const categoriesRes = await supabaseAdmin
     .from("pms_guest_service_categories")
-    .select("id, name")
+    .select("id, name, code")
     .eq("restaurant_id", restaurantId);
   const pricingRes = await supabaseAdmin
     .from("pms_guest_service_pricing")
@@ -3291,11 +3292,12 @@ async function loadGuestServiceWorkspace(
       row.department_id,
     ]);
   }
-  const categoryName = new Map(
-    ((categoriesRes.data ?? []) as Array<{ id: string; name: string }>).map((row) => [
-      row.id,
-      row.name,
-    ]),
+  const categoryById = new Map(
+    ((categoriesRes.error ? [] : (categoriesRes.data ?? [])) as Array<{
+      id: string;
+      name: string;
+      code?: string | null;
+    }>).map((row) => [row.id, row]),
   );
   const priceByType = new Map(
     (
@@ -3332,7 +3334,8 @@ async function loadGuestServiceWorkspace(
       id: row.id,
       name: row.name,
       code: row.code,
-      categoryName: categoryName.get(row.category_id) ?? "Service",
+      categoryName: categoryById.get(row.category_id)?.name ?? "Service",
+      categoryCode: categoryById.get(row.category_id)?.code ?? null,
       active: row.active,
       amount: priceByType.get(row.id)?.amount ?? null,
       currency: priceByType.get(row.id)?.currency ?? null,

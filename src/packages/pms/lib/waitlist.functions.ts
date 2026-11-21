@@ -568,13 +568,13 @@ export const createWaitlistOffer = createServerFn({ method: "POST" })
     }
     const { data: roomType, error: typeError } = await context.supabase
       .from("room_types")
-      .select("max_occupancy")
+      .select("max_occupancy, adult_capacity, child_capacity")
       .eq("restaurant_id", data.restaurantId)
       .eq("id", data.roomTypeId)
       .maybeSingle();
     if (typeError) throw new Error(typeError.message);
     if (!roomType) throw new Error("Room type not found for this property.");
-    assertRoomTypeOccupancy(request.adults, request.children, roomType.max_occupancy);
+    assertRoomTypeOccupancy(request.adults, request.children, roomType);
     const availability = await getRoomTypeAvailabilityCompat(context.supabase, {
       restaurantId: data.restaurantId,
       roomTypeId: data.roomTypeId,

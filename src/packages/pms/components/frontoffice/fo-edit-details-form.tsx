@@ -555,7 +555,7 @@ export function FoEditDetailsForm({
           <FieldError message={errors.email} />
         </div>
 
-        <SectionLabel>Requests & Notes</SectionLabel>
+        <SectionLabel>Guest Preferences & Notes</SectionLabel>
         <div className="space-y-1.5 md:col-span-2">
           <FieldLabel htmlFor="fo-edit-requests">Special Requests</FieldLabel>
           <Textarea
@@ -568,7 +568,7 @@ export function FoEditDetailsForm({
           />
         </div>
         <div className="space-y-1.5 md:col-span-2">
-          <FieldLabel htmlFor="fo-edit-notes">Internal Notes</FieldLabel>
+          <FieldLabel htmlFor="fo-edit-notes">Guest Notes</FieldLabel>
           <Textarea
             id="fo-edit-notes"
             value={draft.notes}

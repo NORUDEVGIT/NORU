@@ -162,7 +162,9 @@ export function inHouseMenuItems(hints: FoInHouseActionHints): { id: string; lab
     });
   }
   if (hints.canAddService) items.push({ id: "add_service", label: "Add Service" });
-  if (hints.canGuestRequest) items.push({ id: "guest_request", label: "Guest Request" });
+  if (hints.canGuestRequest) {
+    items.push({ id: "guest_request", label: "Add Guest Service Request" });
+  }
   if (hints.canOpenGuest) items.push({ id: "open_guest", label: "Open Guest Profile" });
   if (hints.canOpenFolio) items.push({ id: "open_folio", label: "Open Folio" });
   if (hints.canCheckOut) items.push({ id: "check_out", label: "Check Out" });

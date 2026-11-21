@@ -16,10 +16,12 @@ import {
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { finishPropertySetupCardAndAdvance } from "@/packages/pms/lib/pms-property-setup-navigation";
 import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
 import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
 import { getCard7Validation } from "@/packages/pms/lib/pms-property-setup-card7.functions";
 import {
+  CARD7_HASH,
   CARD7_SUBTITLE,
   CARD7_TABS,
   type Card7TabId,
@@ -114,6 +116,17 @@ export function PmsPropertySetupCard7Section({
     },
   ] as const;
   const counts = propertySetupRailCounts(railSections.map((row) => row.status));
+  const tabIndex = CARD7_TABS.findIndex((item) => item.id === tab);
+  const nextTab =
+    tabIndex >= 0 && tabIndex < CARD7_TABS.length - 1 ? CARD7_TABS[tabIndex + 1] : null;
+
+  function goContinue() {
+    if (nextTab) {
+      setTab(nextTab.id);
+      return;
+    }
+    finishPropertySetupCardAndAdvance(CARD7_HASH);
+  }
 
   return (
     <section
@@ -133,6 +146,8 @@ export function PmsPropertySetupCard7Section({
           blockers={overall?.blockers}
           warnings={overall?.warnings}
           onBack={goBack}
+          onContinue={goContinue}
+          continueLabel={nextTab ? "Save & Continue" : "Save & Finish"}
           footerTestId="pms-card7-chrome"
           headerActions={
             <Button

@@ -15,6 +15,7 @@ import {
   stayQuickViewMenuItems,
 } from "./front-office-shell";
 import { isNoShowPastDue } from "./fo-no-show-readiness";
+import { foLateCheckoutActionEligible } from "./reservation-workspace/arrivals-departures";
 import { RESERVATION_STATUSES, type ReservationStatus } from "./reservation-dates";
 import { frontOfficeRoomTargets } from "./reservation-room-units";
 import { primaryRoomOccupant } from "./reservation-room-occupants";
@@ -51,6 +52,7 @@ export type FoRackBarMenuInput = {
   status: ReservationStatus;
   assigned: boolean;
   arrivalDate: string;
+  departureDate: string;
   businessDate: string;
   canOpenCashiering: boolean;
   /** Same check the in-house room tab uses before showing Maintenance. */
@@ -126,9 +128,16 @@ export function foRackBarMenuItems(input: FoRackBarMenuInput): FoRackBarMenuItem
       items.push({ id: "add_service", label: "Add Service", tone: "default" });
     }
     if (housed.has("guest_request")) {
-      items.push({ id: "guest_request", label: "Guest Request", tone: "default" });
+      items.push({ id: "guest_request", label: "Add Guest Service Request", tone: "default" });
     }
-    if (housed.has("late_checkout")) {
+    if (
+      housed.has("late_checkout") &&
+      foLateCheckoutActionEligible({
+        status: input.status,
+        departureDate: input.departureDate,
+        businessDate: input.businessDate,
+      })
+    ) {
       items.push({
         id: "late_checkout",
         label: housed.get("late_checkout") ?? "Late Checkout",

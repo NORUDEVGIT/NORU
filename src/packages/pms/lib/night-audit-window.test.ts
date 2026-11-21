@@ -3,8 +3,11 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
+  NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED,
   NIGHT_AUDIT_OUTSIDE_WINDOW,
   WINDOW_OVERRIDE_COPY,
+  classifyEndOfDayBanner,
+  classifyNightAuditWindowPhase,
   evaluateNightAuditWindow,
   isWithinNightAuditWindow,
   nightAuditWindowConfig,
@@ -61,84 +64,116 @@ function ready(window: NightAuditWindowState, blockers = 0) {
   return { enabled: true, reason: "" };
 }
 
+const SAME_DAY = { start: "22:00", end: "23:00", timezone: "UTC" };
+
 describe("Night Audit Window", () => {
   it("1. manager inside the window may close when ready", () => {
     const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: false, now: utcAt(23, 30) });
     assert.equal(w.open, true);
+    assert.equal(w.phase, "open");
     assert.equal(ready(w).enabled, true);
   });
 
-  it("2. manager before the window cannot close", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: false, now: utcAt(22, 59) });
+  it("2. before the window blocks normal close even with override permission", () => {
+    const w = evaluateNightAuditWindow({ ...SAME_DAY, canOverride: true, now: utcAt(14, 27) });
+    assert.equal(w.phase, "before_start");
     assert.equal(w.allowsClose, false);
-    const gate = ready(w);
-    assert.equal(gate.enabled, false);
-    assert.equal(gate.reason, "Night Audit can be closed between 11:00 PM and 4:00 AM.");
-  });
-
-  it("3. manager after the window cannot close", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: false, now: utcAt(4, 0) });
-    assert.equal(w.allowsClose, false);
+    assert.equal(w.canOfferEarlyOverride, true);
+    assert.equal(w.windowOverride, false);
+    assert.match(w.message, /Night Audit window has not started/);
     assert.equal(ready(w).enabled, false);
   });
 
-  it("4. owner inside the window may close", () => {
+  it("3. after the window, normal close remains available (overdue)", () => {
+    const w = evaluateNightAuditWindow({ ...SAME_DAY, canOverride: false, now: utcAt(23, 30) });
+    assert.equal(w.phase, "after_end");
+    assert.equal(w.allowsClose, true);
+    assert.equal(w.windowOverride, false);
+    assert.equal(ready(w).enabled, true);
+  });
+
+  it("4. owner inside the window may close without override", () => {
     const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(1, 0) });
     assert.equal(w.open, true);
     assert.equal(w.windowOverride, false);
     assert.equal(ready(w).enabled, true);
   });
 
-  it("5. owner before the window may close when ready", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(18, 0) });
-    assert.equal(w.open, false);
-    assert.equal(w.windowOverride, true);
-    assert.equal(ready(w).enabled, true);
-    assert.match(endOfDayStepsSrc, /WINDOW_OVERRIDE_COPY/);
+  it("5. early close requires explicit override intent, not permission alone", () => {
+    const permitted = evaluateNightAuditWindow({
+      ...SAME_DAY,
+      canOverride: true,
+      now: utcAt(14, 27),
+    });
+    assert.equal(permitted.canOfferEarlyOverride, true);
+    assert.equal(permitted.allowsClose, false);
+    const withIntent = evaluateNightAuditWindow({
+      ...SAME_DAY,
+      canOverride: true,
+      earlyOverrideIntent: true,
+      now: utcAt(14, 27),
+    });
+    assert.equal(withIntent.windowOverride, true);
+    assert.equal(withIntent.allowsClose, true);
+    assert.match(endOfDayStepsSrc, /Close Outside Window/);
+    assert.match(endOfDayStepsSrc, /windowOverrideIntent/);
     assert.equal(
       WINDOW_OVERRIDE_COPY,
-      "You are authorized to close outside the configured Night Audit window. Blockers still apply.",
+      "Closing the business date before the configured Night Audit window is an exceptional action.",
     );
   });
 
-  it("6. owner after the window may close when ready", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(9, 0) });
-    assert.equal(w.windowOverride, true);
-    assert.equal(ready(w).enabled, true);
+  it("6. wrapping after morning end is overdue; afternoon before start is early", () => {
+    const morning = evaluateNightAuditWindow({
+      ...OVERNIGHT,
+      canOverride: false,
+      now: utcAt(9, 0),
+    });
+    assert.equal(morning.phase, "after_end");
+    assert.equal(morning.allowsClose, true);
+    const afternoon = evaluateNightAuditWindow({
+      ...OVERNIGHT,
+      canOverride: true,
+      now: utcAt(18, 0),
+    });
+    assert.equal(afternoon.phase, "before_start");
+    assert.equal(afternoon.allowsClose, false);
+    assert.equal(afternoon.canOfferEarlyOverride, true);
   });
 
-  it("7. owner outside the window is still blocked by a financial blocker", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(12, 0) });
+  it("7. early-override permission still cannot bypass blockers", () => {
+    const w = evaluateNightAuditWindow({
+      ...SAME_DAY,
+      canOverride: true,
+      earlyOverrideIntent: true,
+      now: utcAt(14, 27),
+    });
     assert.equal(ready(w, 1).enabled, false);
     const handler = closeHandler();
-    assert.ok(
-      handler.indexOf("!closeWindow.allowsClose") < handler.indexOf("openBlockers(conditions)"),
-    );
+    assert.ok(handler.indexOf("before_start") < handler.indexOf("openBlockers(conditions)"));
   });
 
-  it("8. owner outside the window is still blocked by an operational blocker", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(12, 0) });
+  it("8. operational blockers still apply after the window", () => {
+    const w = evaluateNightAuditWindow({ ...SAME_DAY, canOverride: false, now: utcAt(23, 30) });
     assert.equal(ready(w, 3).reason, "Resolve 3 blockers before closing the business date.");
     assert.ok(closeHandler().indexOf("if (!evaluation.operational.ok)") > 0);
   });
 
-  it("9. owner outside the window is still blocked when reconciliation is unavailable", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(12, 0) });
+  it("9. overdue close is still blocked when reconciliation is unavailable", () => {
+    const w = evaluateNightAuditWindow({ ...SAME_DAY, canOverride: false, now: utcAt(23, 30) });
     assert.equal(w.allowsClose, true);
     const handler = closeHandler();
-    assert.ok(
-      handler.indexOf("!closeWindow.allowsClose") <
-        handler.indexOf("FINANCIAL_UNAVAILABLE_MESSAGE"),
-    );
+    assert.ok(handler.indexOf("before_start") < handler.indexOf("FINANCIAL_UNAVAILABLE_MESSAGE"));
   });
 
-  it("10. an overnight window works across midnight", () => {
+  it("10. an overnight window works across midnight (inclusive end)", () => {
     const s = parseWindowTime("23:00")!;
     const e = parseWindowTime("04:00")!;
     assert.equal(isWithinNightAuditWindow(s, e, parseWindowTime("23:00")!), true);
     assert.equal(isWithinNightAuditWindow(s, e, parseWindowTime("00:00")!), true);
     assert.equal(isWithinNightAuditWindow(s, e, parseWindowTime("03:59")!), true);
-    assert.equal(isWithinNightAuditWindow(s, e, parseWindowTime("04:00")!), false);
+    assert.equal(isWithinNightAuditWindow(s, e, parseWindowTime("04:00")!), true);
+    assert.equal(isWithinNightAuditWindow(s, e, parseWindowTime("04:01")!), false);
     assert.equal(isWithinNightAuditWindow(s, e, parseWindowTime("12:00")!), false);
     assert.equal(
       isWithinNightAuditWindow(
@@ -148,6 +183,8 @@ describe("Night Audit Window", () => {
       ),
       false,
     );
+    assert.equal(classifyNightAuditWindowPhase(s, e, parseWindowTime("22:00")!, true), "before_start");
+    assert.equal(classifyNightAuditWindowPhase(s, e, parseWindowTime("04:01")!, true), "after_end");
   });
 
   it("11. the property timezone is used, not the server clock", () => {
@@ -167,19 +204,19 @@ describe("Night Audit Window", () => {
     });
     assert.equal(addis.localTime, "00:30");
     assert.equal(addis.open, true);
-    assert.equal(utc.open, false);
+    assert.equal(utc.phase, "before_start");
     assert.match(
       closeHandler(),
       /timezone: property\.timezone,\s*canOverride: flags\.canOverrideWindow/,
     );
   });
 
-  it("12. the server rejects a non-owner outside the window with NIGHT_AUDIT_OUTSIDE_WINDOW", () => {
+  it("12. the server rejects early close without explicit override intent", () => {
     assert.equal(NIGHT_AUDIT_OUTSIDE_WINDOW, "NIGHT_AUDIT_OUTSIDE_WINDOW");
-    assert.match(
-      closeHandler(),
-      /if \(!closeWindow\.allowsClose\) \{[\s\S]*?code: closeWindow\.configValid \? NIGHT_AUDIT_OUTSIDE_WINDOW : NIGHT_AUDIT_INVALID_WINDOW/,
-    );
+    assert.equal(NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED, "NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED");
+    assert.match(closeHandler(), /windowOverrideIntent/);
+    assert.match(closeHandler(), /NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED/);
+    assert.match(closeHandler(), /phase === "before_start"/);
     const override = PMS_PERMISSIONS.NIGHT_AUDIT_WINDOW_OVERRIDE;
     assert.equal(override, "night_audit.business_date.window_override");
     assert.match(
@@ -194,7 +231,7 @@ describe("Night Audit Window", () => {
 
   it("13. the rejection returns before close_business_date is called", () => {
     const handler = closeHandler();
-    const reject = handler.indexOf("code: closeWindow.configValid");
+    const reject = handler.indexOf("NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED");
     const rpc = handler.indexOf('rpc("close_business_date"');
     assert.ok(reject > 0 && rpc > reject);
     assert.ok(
@@ -203,24 +240,34 @@ describe("Night Audit Window", () => {
     );
   });
 
-  it("14. an owner outside-window close is recorded on the run summary", () => {
-    const w = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(15, 5) });
-    const record = outsideWindowCloseRecord(w, "member-1", "2026-10-25T15:05:00.000Z");
+  it("14. an explicit early-window close is recorded on the run summary with reason", () => {
+    const w = evaluateNightAuditWindow({
+      ...SAME_DAY,
+      canOverride: true,
+      earlyOverrideIntent: true,
+      now: utcAt(14, 27),
+    });
+    const record = outsideWindowCloseRecord(
+      w,
+      "member-1",
+      "2026-10-25T14:27:00.000Z",
+      "Emergency early close",
+    );
     assert.deepEqual(record, {
       outsideWindow: true,
-      windowStart: "23:00",
-      windowEnd: "04:00",
+      earlyOverride: true,
+      windowStart: "22:00",
+      windowEnd: "23:00",
       timezone: "UTC",
-      localTime: "15:05",
-      requestedAt: "2026-10-25T15:05:00.000Z",
+      localTime: "14:27",
+      requestedAt: "2026-10-25T14:27:00.000Z",
       actorMembershipId: "member-1",
+      reason: "Emergency early close",
     });
-    const inside = evaluateNightAuditWindow({ ...OVERNIGHT, canOverride: true, now: utcAt(23, 5) });
-    assert.equal(outsideWindowCloseRecord(inside, "member-1", "x"), null);
-    assert.match(
-      closeHandler(),
-      /nightAuditWindow: outsideWindowCloseRecord\(closeWindow, me\.id, new Date\(\)\.toISOString\(\)\)/,
-    );
+    const inside = evaluateNightAuditWindow({ ...SAME_DAY, canOverride: true, now: utcAt(22, 30) });
+    assert.equal(outsideWindowCloseRecord(inside, "member-1", "x", "n/a"), null);
+    assert.match(closeHandler(), /outsideWindowCloseRecord\(/);
+    assert.match(closeHandler(), /overrideReason/);
   });
 
   it("15. the window never closes, schedules, or rolls the date by itself", () => {
@@ -233,6 +280,65 @@ describe("Night Audit Window", () => {
     const hook = read("../components/nightaudit/use-live-night-audit-window.ts");
     assert.match(hook, /setNow\(new Date\(\)\)/);
     assert.doesNotMatch(hook, /onConfirm|close\(|mutate/);
+  });
+
+  it("shared banner is hidden before the window, due during, overdue after", () => {
+    assert.equal(
+      classifyEndOfDayBanner({
+        businessDate: "2026-11-21",
+        timezone: "UTC",
+        windowStart: "22:00",
+        windowEnd: "23:00",
+        propertyCalendarDate: "2026-11-21",
+        now: utcAt(14, 27),
+      }),
+      "none",
+    );
+    assert.equal(
+      classifyEndOfDayBanner({
+        businessDate: "2026-11-21",
+        timezone: "UTC",
+        windowStart: "22:00",
+        windowEnd: "23:00",
+        propertyCalendarDate: "2026-11-21",
+        now: utcAt(22, 30),
+      }),
+      "due",
+    );
+    assert.equal(
+      classifyEndOfDayBanner({
+        businessDate: "2026-11-21",
+        timezone: "UTC",
+        windowStart: "22:00",
+        windowEnd: "23:00",
+        propertyCalendarDate: "2026-11-21",
+        now: utcAt(23, 30),
+      }),
+      "overdue",
+    );
+    assert.equal(
+      classifyEndOfDayBanner({
+        businessDate: "2026-11-21",
+        timezone: "UTC",
+        windowStart: "22:00",
+        windowEnd: "23:00",
+        propertyCalendarDate: "2026-11-22",
+        now: utcAt(14, 27),
+      }),
+      "overdue",
+    );
+    // Wrapping: still inside after midnight → due, not overdue / hidden.
+    assert.equal(
+      classifyEndOfDayBanner({
+        businessDate: "2026-11-21",
+        timezone: "UTC",
+        windowStart: "22:00",
+        windowEnd: "02:00",
+        propertyCalendarDate: "2026-11-22",
+        now: utcAt(1, 0),
+      }),
+      "due",
+    );
   });
 
   it("falls back to the setup default when the stored window is malformed", () => {
@@ -273,18 +379,20 @@ describe("Night Audit Window", () => {
     assert.match(card1Src, /nightAuditWindowConfigProblem/);
   });
 
-  it("keeps the window override explicit for an invalid equal-time legacy window", () => {
+  it("permission alone does not open an invalid equal-time legacy window", () => {
     const owner = evaluateNightAuditWindow({
       start: "04:00",
       end: "04:00",
       timezone: "UTC",
       canOverride: true,
+      earlyOverrideIntent: true,
       now: utcAt(12, 0),
     });
     assert.equal(owner.configValid, false);
+    assert.equal(owner.phase, "invalid");
     assert.equal(owner.open, false);
-    assert.equal(owner.windowOverride, true);
-    assert.equal(owner.allowsClose, true);
+    assert.equal(owner.windowOverride, false);
+    assert.equal(owner.allowsClose, false);
   });
 });
 
@@ -455,7 +563,7 @@ describe("Owner Business Date recovery", () => {
   it("25. an initialized date stays read-only in normal settings", () => {
     assert.match(stepsSrc, /id="card1-business-date-current"[\s\S]*?readOnly\s+disabled/);
     assert.match(stepsSrc, /BUSINESS_DATE_NORMAL_COPY/);
-    assert.equal(BUSINESS_DATE_NORMAL_COPY, "Normally advanced by Night Audit.");
+    assert.match(BUSINESS_DATE_NORMAL_COPY, /Night Audit close/);
     assert.match(card1FnSrc, /delete[^;\n]*business_date/);
   });
 

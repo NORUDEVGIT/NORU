@@ -67,6 +67,7 @@ export type CreateReservationReviewProps = {
   ratePerNight: string;
   stayTotal: string;
   includedItems: string | null;
+  includedLines?: string[];
   cancellationLabel: string;
   refundabilityLabel: string | null;
   refundabilityKind: string | null;
@@ -268,11 +269,18 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
     ["Nights", String(props.nights)] as [string, string],
     ["Stay Total", props.stayTotal || "—"] as [string, string],
     ...filledRows([
-      ["Included", props.includedItems],
       ["Cancellation", props.cancellationLabel],
       ["Refundability", refundability],
     ]),
   ];
+  const includedLines =
+    props.includedLines ??
+    (props.includedItems
+      ? props.includedItems
+          .split("·")
+          .map((line) => line.trim())
+          .filter(Boolean)
+      : []);
   const sourceRows = [
     ["Source", props.bookingSource || "—"] as [string, string],
     ["Channel", props.salesChannel || "—"] as [string, string],
@@ -281,7 +289,6 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
       ["Company", props.companyName],
       ["Travel Agent", props.travelAgentName],
       ["Group", props.groupName],
-      ["Internal Notes", props.internalNotes],
     ]),
   ];
   const paymentRows = [
@@ -419,7 +426,7 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
           </section>
         ) : (
           <ReviewCard
-            title="Room & Rate Information"
+            title="Room & Rate"
             icon={<BedDouble className="size-3.5" />}
             onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
             testId="review-card-rate"
@@ -465,6 +472,21 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
             ) : null}
           </ReviewCard>
         )}
+
+        {includedLines.length > 0 ? (
+          <ReviewCard
+            title="Included"
+            icon={<Package className="size-3.5" />}
+            onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.guestStayAvailability)}
+            testId="review-included"
+          >
+            <ul className="space-y-0.5 text-sm text-[#251605]">
+              {includedLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </ReviewCard>
+        ) : null}
 
         {props.linkedGroup ? (
           <section
@@ -552,7 +574,7 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
         </ReviewCard>
 
         <ReviewCard
-          title="Packages & Add-ons"
+          title="Add-ons"
           icon={<Package className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
           testId="review-card-packages"
@@ -566,38 +588,38 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
         </ReviewCard>
 
         <ReviewCard
-          title="Guest Requests & Preferences"
+          title="Guest Preferences & Guest Services"
           icon={<ClipboardList className="size-3.5" />}
           onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
           testId="review-card-requests"
         >
           <div className="space-y-2">
-            <RequestBlock
-              title={props.leadGuestPreferences ? "Primary Guest Preference" : "Saved Preferences"}
-            >
-              {props.leadGuestPreferences ? (
-                <p className="text-xs text-[#6B5E4E]" data-testid="review-lead-preferences">
-                  Primary Guest / Booker. These saved preferences are not the booked rooms.
-                </p>
-              ) : null}
-              {preferenceLines.length === 0 ? (
-                <p className="text-xs text-[#6B5E4E]">No saved preferences</p>
-              ) : (
-                <ul className="flex flex-wrap gap-1">
-                  {preferences.map((row) => (
-                    <li
-                      key={row.typeId}
-                      className="rounded-full bg-[#FBF6EE] px-2 py-0.5 text-xs text-[#251605]"
-                    >
-                      {row.label}: {row.value}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </RequestBlock>
-            <RequestBlock title="Service Requests">
+            {preferenceLines.length > 0 || props.leadGuestPreferences ? (
+              <RequestBlock
+                title={props.leadGuestPreferences ? "Primary Guest Preference" : "Saved preferences"}
+              >
+                {props.leadGuestPreferences ? (
+                  <p className="text-xs text-[#6B5E4E]" data-testid="review-lead-preferences">
+                    Primary Guest / Booker. These saved preferences are not room requirements.
+                  </p>
+                ) : null}
+                {preferenceLines.length > 0 ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {preferences.map((row) => (
+                      <li
+                        key={row.typeId}
+                        className="rounded-full bg-[#FBF6EE] px-2 py-0.5 text-xs text-[#251605]"
+                      >
+                        {row.value.trim() || row.label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </RequestBlock>
+            ) : null}
+            <RequestBlock title="Guest Services">
               {serviceLines.length === 0 ? (
-                <p className="text-xs text-[#6B5E4E]">No service requests selected</p>
+                <p className="text-xs text-[#6B5E4E]">No guest service requests</p>
               ) : (
                 <ul className="space-y-0.5 text-sm text-[#251605]">
                   {services.map((row) => (
@@ -621,20 +643,6 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
                 </ul>
               )}
             </RequestBlock>
-            {props.specialRequests?.trim() ? (
-              <RequestBlock
-                title={
-                  props.leadGuestPreferences ? "Reservation Special Requests" : "Special Requests"
-                }
-              >
-                <p className="text-sm text-[#251605]">{props.specialRequests.trim()}</p>
-              </RequestBlock>
-            ) : null}
-            {props.internalNotes?.trim() ? (
-              <RequestBlock title="Internal Notes">
-                <p className="text-sm text-[#251605]">{props.internalNotes.trim()}</p>
-              </RequestBlock>
-            ) : null}
             {props.roomAssignment?.trim() ? (
               <RequestBlock title="Room Assignment">
                 <p className="text-sm text-[#251605]">{props.roomAssignment.trim()}</p>
@@ -642,6 +650,28 @@ export function CreateReservationReview(props: CreateReservationReviewProps) {
             ) : null}
           </div>
         </ReviewCard>
+
+        {props.specialRequests?.trim() || props.internalNotes?.trim() ? (
+          <ReviewCard
+            title="Notes"
+            icon={<FileText className="size-3.5" />}
+            onEdit={() => props.onEdit(CREATE_REVIEW_STEPS.bookingDetails)}
+            testId="review-card-notes"
+          >
+            {props.specialRequests?.trim() ? (
+              <p className="text-sm text-[#251605]">
+                <span className="text-[#6B5E4E]">Special Request: </span>
+                {props.specialRequests.trim()}
+              </p>
+            ) : null}
+            {props.internalNotes?.trim() ? (
+              <p className="text-sm text-[#251605]">
+                <span className="text-[#6B5E4E]">Guest Notes: </span>
+                {props.internalNotes.trim()}
+              </p>
+            ) : null}
+          </ReviewCard>
+        ) : null}
 
         <ReviewCard
           title="Print Reservation"
@@ -744,7 +774,7 @@ function ReviewPackages({ packages }: { packages: ReviewSelectedPackage[] }) {
   if (packages.length === 0) {
     return (
       <p className="text-xs text-[#6B5E4E]" data-testid="review-packages-empty">
-        No packages selected
+        No add-ons selected
       </p>
     );
   }

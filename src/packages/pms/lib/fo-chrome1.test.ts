@@ -191,7 +191,7 @@ describe("FO large-screen chrome — Legend, HK glyph, Filters", () => {
   });
 });
 
-describe("FO large-screen chrome — Guest Request sheet and no new backend", () => {
+describe("FO large-screen chrome — Guest Service Request sheet and no new backend", () => {
   it("keeps FoGuestRequestSheet reachable from Quick Action, Amendments and Side Sheet", () => {
     assert.ok(
       actionsForMenu("quick").some(
@@ -206,7 +206,7 @@ describe("FO large-screen chrome — Guest Request sheet and no new backend", ()
 
     const frames = readRel("../components/frontoffice/front-office-frames.tsx");
     assert.match(frames, /FoGuestRequestSheet/);
-    assert.match(frames, /Guest Request/);
+    assert.match(frames, /Add Guest Service Request/);
 
     const sheet = readRel("../components/frontoffice/fo-amend-sheet.tsx");
     assert.match(sheet, /FoGuestRequestSheet/);

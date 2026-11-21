@@ -98,6 +98,8 @@ function facts(input: Partial<NightAuditOperationalFacts> = {}): NightAuditOpera
   return {
     businessDate: DATE,
     checkedAt: NOW,
+    timezone: "UTC",
+    checkOutTime: "12:00",
     reservations: [],
     units: [],
     rooms: [],
@@ -227,10 +229,11 @@ describe("NA-P3 departures", () => {
     assert.equal(result.summary.overstayCount, 1);
   });
 
-  it("12. checked-in departing today is a warning", () => {
+  it("12a. checked-in departing today before checkout is not a blocker", () => {
     const r = room();
     const result = reconcileNightAuditOperations(
       facts({
+        checkedAt: "2026-10-21T08:00:00.000Z",
         reservations: [
           reservation({
             status: "checked_in",
@@ -242,8 +245,30 @@ describe("NA-P3 departures", () => {
         rooms: [r],
       }),
     );
-    assert.equal(ofCode(result, "departure_due_today")[0]?.severity, "warning");
-    assert.equal(result.status, "warning");
+    assert.equal(ofCode(result, "departure_due_today").length, 0);
+    assert.equal(ofCode(result, "departure_overdue").length, 0);
+    assert.equal(result.departures.length, 1);
+    assert.notEqual(result.status, "blocked");
+  });
+
+  it("12b. checked-in departing today after checkout is a blocker", () => {
+    const r = room();
+    const result = reconcileNightAuditOperations(
+      facts({
+        checkedAt: "2026-10-21T15:00:00.000Z",
+        reservations: [
+          reservation({
+            status: "checked_in",
+            arrivalDate: "2026-10-19",
+            departureDate: DATE,
+            roomId: r.id,
+          }),
+        ],
+        rooms: [r],
+      }),
+    );
+    assert.equal(ofCode(result, "departure_overdue")[0]?.severity, "blocking");
+    assert.equal(result.status, "blocked");
   });
 
   it("13–14. checked-out and future departures pass", () => {
@@ -295,10 +320,11 @@ describe("NA-P3 departures", () => {
     assert.equal(result.summary.inHouseCount, 2);
   });
 
-  it("16. canonical late-checkout metadata is shown, not inferred", () => {
+  it("16a. approved late checkout before until remains informational", () => {
     const r = room();
     const result = reconcileNightAuditOperations(
       facts({
+        checkedAt: "2026-10-21T13:00:00.000Z",
         reservations: [
           reservation({
             status: "checked_in",
@@ -313,10 +339,33 @@ describe("NA-P3 departures", () => {
       }),
     );
     const issue = ofCode(result, "departure_due_today")[0]!;
-    assert.equal(issue.severity, "warning");
-    assert.match(issue.description, /late checkout until/);
+    assert.equal(issue.severity, "info");
+    assert.match(issue.description, /approved late checkout until/);
     assert.equal(result.departures[0]?.lateCheckoutUntil, "2026-10-21T14:00:00Z");
+    assert.equal(ofCode(result, "departure_overdue").length, 0);
     assert.doesNotMatch(server, /late_checkout_note/);
+  });
+
+  it("16b. expired late checkout becomes a departure overdue blocker", () => {
+    const r = room();
+    const result = reconcileNightAuditOperations(
+      facts({
+        checkedAt: "2026-10-21T15:00:00.000Z",
+        reservations: [
+          reservation({
+            status: "checked_in",
+            departureDate: DATE,
+            arrivalDate: "2026-10-19",
+            roomId: r.id,
+            lateCheckoutGranted: true,
+            lateCheckoutUntil: "2026-10-21T14:00:00Z",
+          }),
+        ],
+        rooms: [r],
+      }),
+    );
+    assert.equal(ofCode(result, "departure_overdue")[0]?.severity, "blocking");
+    assert.match(ofCode(result, "departure_overdue")[0]!.description, /Late checkout expired/);
   });
 });
 
@@ -1163,6 +1212,7 @@ describe("NA-P3 close gate", () => {
     assert.deepEqual([...NIGHT_AUDIT_OPERATIONAL_BLOCKER_CODES].sort(), [
       "arrival_not_processed",
       "checked_in_without_room",
+      "departure_overdue",
       "hk_conflict",
       "occupied_maintenance_unavailable",
       "occupied_restricted_room",

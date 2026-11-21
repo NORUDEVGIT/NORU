@@ -11,7 +11,7 @@ const search = readFileSync(new URL("./search.server.ts", import.meta.url), "utf
 
 describe("DB-04I-02 Reservation Desk read model", () => {
   it("uses property business date rather than browser-local today", () => {
-    assert.match(desk, /resolvePropertyBusinessDate/);
+    assert.match(desk, /operationalBusinessDate/);
     assert.match(desk, /\.select\("business_date, timezone"\)/);
     assert.doesNotMatch(desk, /propertyToday\(/);
     assert.doesNotMatch(desk, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);

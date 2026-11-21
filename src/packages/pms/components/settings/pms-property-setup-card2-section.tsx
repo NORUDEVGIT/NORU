@@ -21,11 +21,13 @@ import {
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { finishPropertySetupCardAndAdvance } from "@/packages/pms/lib/pms-property-setup-navigation";
 import type {
   Card2StepStatusMap,
   PropertySetupCardStatus,
 } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
+  CARD2_HASH,
   CARD2_NAV_STEPS,
   CARD2_STEPS,
   card2StepById,
@@ -245,7 +247,10 @@ export function PmsPropertySetupCard2Section({
       setContinuePending(false);
       if (!ready) return;
     }
-    if (!next) return;
+    if (!next) {
+      finishPropertySetupCardAndAdvance(CARD2_HASH);
+      return;
+    }
     setStep(next);
   }
 

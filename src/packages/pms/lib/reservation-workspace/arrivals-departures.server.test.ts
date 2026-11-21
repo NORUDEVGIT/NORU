@@ -62,7 +62,7 @@ function stay(overrides: Partial<FrontOfficeStay> = {}): FrontOfficeStay {
 
 describe("DB-04I-04 Arrivals & Departures read model", () => {
   it("defaults to property business date and allows an explicit selected date", () => {
-    assert.match(source, /resolvePropertyBusinessDate/);
+    assert.match(source, /operationalBusinessDate/);
     assert.match(source, /business_date, timezone/);
     assert.match(
       source,

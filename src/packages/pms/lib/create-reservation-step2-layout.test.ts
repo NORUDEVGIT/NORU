@@ -30,9 +30,9 @@ describe("reservation create step 2 booking details layout", () => {
 
   it("shows the four Step 2 sections in a two-column content-height grid", () => {
     assert.match(details, /Source & Channel/);
-    assert.match(details, /Company \/ Agent \/ Group/);
-    assert.match(details, /Packages & Add-ons/);
-    assert.match(details, /Guest Requests & Preferences/);
+    assert.match(details, /title="Account"/);
+    assert.match(details, /title="Add-ons"/);
+    assert.match(details, /title="Guest Preferences & Guest Services"/);
     assert.match(details, /lg:grid lg:grid-cols-2 lg:items-start/);
     assert.match(details, /h-fit/);
   });
@@ -55,7 +55,7 @@ describe("reservation create step 2 booking details layout", () => {
     assert.match(details, /className="order-4 lg:order-none"/);
   });
 
-  it("places room assignment at the bottom of Guest Requests", () => {
+  it("places room assignment at the bottom of Guest Preferences & Guest Services", () => {
     const requests = details.indexOf('testId="booking-details-guest-requests"');
     const notes = details.indexOf("booking-details-internal-notes");
     const room = details.indexOf("{roomAssignment}");
@@ -136,26 +136,20 @@ describe("reservation create step 2 booking details layout", () => {
     assert.equal(details.match(/relationTab === "group" \? \(/g)?.length, 1);
   });
 
-  it("keeps the packages table, preference labels, requests, notes, and continue gate", () => {
-    assert.match(packages, /<table/);
-    assert.match(packages, /card\.coverUrl/);
-    assert.match(packages, /PackageCoverThumb/);
-    assert.match(packages, /package-cover-image/);
-    assert.match(packages, /package-cover-fallback/);
-    assert.match(packages, /selected && "bg-\[#FBF6EE\]/);
-    assert.match(packages, /<Checkbox/);
+  it("keeps compact add-ons, preference labels, requests, notes, and continue gate", () => {
+    assert.match(packages, /Included with rate/);
+    assert.match(packages, /reservationAddOnPresentation/);
     assert.match(packages, /data-selected=\{selected \? "true" : "false"\}/);
     assert.match(packages, /onToggleActivation/);
+    assert.match(packages, /"Add"/);
     assert.match(details, /data-testid="saved-preference-chip"/);
-    assert.match(details, /\{row\.label\}/);
+    assert.match(details, /preferenceChipText\(row\)/);
     assert.doesNotMatch(details, /apply-saved-preferences|preferenceApplyText/);
-    assert.match(details, /<Checkbox/);
+    assert.match(details, /omitUnpriced/);
     assert.match(details, /booking-details-service-requests/);
     assert.match(details, /onSelectedServiceRequestsChange/);
-    assert.match(details, /max-h-32 space-y-0\.5 overflow-y-auto/);
-    assert.match(packages, /block break-words leading-snug">\{card\.name\}/);
     assert.doesNotMatch(packages, /truncate">\{card\.name\}/);
-    assert.match(details, /Special Requests/);
+    assert.match(details, /Special Request/);
     assert.match(details, /booking-details-internal-notes/);
     assert.match(page, /canAdvanceFromBookingDetails/);
     assert.match(page, /channelForm\?\.accepted === true/);

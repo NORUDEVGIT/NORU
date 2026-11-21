@@ -370,7 +370,10 @@ export function InHouseQuickViewSheet({
                 testId="fo-inhouse-amendment-history"
               />
 
-              <Card title="Requests, Notes & Guest Services" testId="fo-inhouse-qv-special-requests">
+              <Card
+                title="Guest Preferences, Notes & Guest Services"
+                testId="fo-inhouse-qv-special-requests"
+              >
                 <div className="grid gap-3 md:grid-cols-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -382,10 +385,10 @@ export function InHouseQuickViewSheet({
                   </div>
                   <div data-testid="fo-inhouse-qv-notes">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Internal Notes
+                      Guest Notes
                     </p>
                     <p className="mt-1 text-sm text-foreground" id="fo-inhouse-notes">
-                      {qv.notes?.trim() || "No internal note."}
+                      {qv.notes?.trim() || "No guest notes."}
                     </p>
                   </div>
                   <FoGuestServicesPanel

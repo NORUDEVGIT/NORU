@@ -2,7 +2,7 @@
  * Loads and reconciles operational entitlements, then reads the report.
  * Reconciliation is deterministic and idempotent. It does not post charges.
  */
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import {
   REPORT_DATE_RANGE_LIMIT,
   eachReportDate,
@@ -655,7 +655,7 @@ async function loadProperty(
   const persisted = text(result.data.business_date);
   return {
     timezone,
-    businessDate: resolvePropertyBusinessDate(persisted ? persisted.slice(0, 10) : null, timezone),
+    businessDate: operationalBusinessDate(persisted ? persisted.slice(0, 10) : null, timezone),
   };
 }
 

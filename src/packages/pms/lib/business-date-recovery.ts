@@ -4,7 +4,8 @@
  * setup/recovery tool only, always reasoned, confirmed, and audited.
  */
 
-export const BUSINESS_DATE_NORMAL_COPY = "Normally advanced by Night Audit.";
+export const BUSINESS_DATE_NORMAL_COPY =
+  "Authoritative hotel day. Advances only after a successful Night Audit close (+1 day). Not the wall-clock calendar.";
 
 export const BUSINESS_DATE_ADJUST_WARNING =
   "Changing the business date manually bypasses the normal Night Audit progression and may affect reservations, financial reconciliation, fiscal records, reports, and hotel operations. Use this only for setup or recovery.";

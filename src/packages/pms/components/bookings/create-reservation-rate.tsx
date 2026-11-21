@@ -7,6 +7,7 @@ import {
   rateCatalogueCopy,
   type CreateRateQuoteRow,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
+import { rateInclusionSummaryLines } from "@/packages/pms/lib/reservation-booking-separation";
 import { cn } from "@/shared/lib/utils";
 
 const ExcludedRatePlanContext = createContext<string[]>([]);
@@ -108,6 +109,15 @@ export function CreateReservationRate({
                 const isSelected = row.plan.id === ratePlanId;
                 const disabled = !row.quote;
                 const fromRate = row.quote ? fromNightlyRate(row.quote) : null;
+                const inclusionLines = isSelected
+                  ? rateInclusionSummaryLines({
+                      breakfastIncluded: row.plan.breakfastIncluded,
+                      breakfastLabel: row.breakfastLabel,
+                      mealPlanName: row.plan.mealPlanName,
+                      mealPlanId: row.plan.mealPlanId,
+                      packages: row.plan.packages,
+                    })
+                  : [];
                 return (
                   <tr
                     key={row.plan.id}
@@ -141,6 +151,15 @@ export function CreateReservationRate({
                       <p className="font-medium leading-tight text-[#251605]">
                         {row.plan.name || row.plan.code}
                       </p>
+                      {inclusionLines.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5" data-testid="rate-inclusion-summary">
+                          {inclusionLines.map((line) => (
+                            <li key={line} className="text-xs leading-tight text-[#6B5E4E]">
+                              {line}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                       {row.quote ? null : (
                         <p className="text-xs leading-tight text-muted-foreground">
                           {row.unavailableReason ?? "—"}

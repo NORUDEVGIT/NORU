@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { useEffect, useMemo } from "react";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getInventoryDashboard } from "@/lib/inventory-reporting.functions";
 import { listShifts } from "@/core/lib/workforce.functions";
 import { getFrontOfficeDashboard } from "@/packages/pms/lib/frontoffice.functions";
-import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
+import { getMyRestaurants, type RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { useRestaurantTimezone } from "@/core/state/property-format";
 import { localDateInZone } from "@/shared/lib/property-time";
 import { getMyModuleAccess } from "@/core/lib/module-access.functions";
@@ -29,21 +29,40 @@ import type { ModuleKey } from "@/core/lib/module-access";
 import { usePackageEntitlements } from "@/core/lib/use-package-entitlements";
 import { sharedCoreLinkVisible } from "@/core/lib/shared-core-access";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+import { PMS_OPERATIONAL_HOME_PATH } from "@/core/lib/pms-operational-home";
+import { clearRoutePackageCache } from "@/core/lib/route-package-guard";
+import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/shared/lib/utils";
+
+type HomeSearch = {
+  blocked?: string;
+  retired?: string;
+  verify?: "failed";
+};
+
+function hasAccessNotice(search: HomeSearch): boolean {
+  return Boolean(search.blocked || search.retired || search.verify === "failed");
+}
 
 export const Route = createFileRoute("/restaurant/home")({
   ssr: false,
-  // Phase 8D1 — a guarded route sends the user back here with the package it
-  // blocked. Property Home is Core and is never package-gated, so no loop.
-  validateSearch: (search: Record<string, unknown>) => ({
+  // Access notices land here without looping. Live PMS properties redirect to operational home.
+  validateSearch: (search: Record<string, unknown>): HomeSearch => ({
     ...(typeof search["blocked"] === "string" ? { blocked: search["blocked"] as string } : {}),
     ...(typeof search["retired"] === "string" ? { retired: search["retired"] as string } : {}),
     ...(search["verify"] === "failed" ? { verify: "failed" as const } : {}),
   }),
-  beforeLoad: async () => {
+  beforeLoad: async ({ search }) => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) {
       throw redirect({ to: "/restaurant/login", search: { redirect: "/restaurant/home" } });
+    }
+    // Keep the route for focused access / pre-live onboarding. Do not bounce notice URLs.
+    if (hasAccessNotice(search)) return;
+    const memberships = await getMyRestaurants().catch(() => null);
+    const restaurant = memberships?.[0]?.restaurant;
+    if (restaurant?.status === "approved" && restaurant.pmsSet1Live === true) {
+      throw redirect({ to: PMS_OPERATIONAL_HOME_PATH, replace: true });
     }
   },
   head: () => ({
@@ -52,10 +71,10 @@ export const Route = createFileRoute("/restaurant/home")({
       {
         name: "description",
         content:
-          "Your NORU property home: the packages this property uses, with today's key numbers at a glance.",
+          "Property onboarding and access notices for this NORU property.",
       },
       { property: "og:title", content: "Property Home — NORU" },
-      { property: "og:description", content: "One home for every NORU hospitality package." },
+      { property: "og:description", content: "Property onboarding and access notices." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
@@ -65,35 +84,72 @@ export const Route = createFileRoute("/restaurant/home")({
 });
 
 function PropertyHomeRoute() {
-  return <RestaurantShell active="Home">{(m) => <PropertyHome membership={m} />}</RestaurantShell>;
-}
-
-/**
- * Shown when someone opened the address of a page that belongs to a package
- * this property doesn't have. Deliberately says nothing about dates, sources
- * or billing.
- */
-function BlockedNotice() {
-  const { blocked, verify, retired } = Route.useSearch() as {
-    blocked?: string;
-    verify?: string;
-    retired?: string;
-  };
-  if (!blocked && !retired && verify !== "failed") return null;
+  const search = Route.useSearch();
+  const accessNotice = hasAccessNotice(search);
   return (
-    <div
-      role="status"
-      className="rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+    <RestaurantShell
+      active="Home"
+      // Access notices are a focused full-page state — no gold package rail/sidebar.
+      hidePackageRail={accessNotice}
+      hideTopHeader={accessNotice}
     >
-      {verify === "failed"
-        ? "Package access could not be verified. Please try again."
-        : retired
-          ? "This product is retired and is no longer available."
-          : "This package isn't enabled for this property."}
-    </div>
+      {(m) => <PropertyHome membership={m} />}
+    </RestaurantShell>
   );
 }
 
+/**
+ * Focused access state for package-gate failures.
+ * Does not render the legacy Available Packages launcher.
+ */
+function PmsPackageAccessState({ search }: { search: HomeSearch }) {
+  const navigate = useNavigate();
+
+  function retryPms() {
+    clearRoutePackageCache();
+    void navigate({ to: PMS_OPERATIONAL_HOME_PATH, replace: true });
+  }
+
+  const title =
+    search.verify === "failed"
+      ? "PMS access could not be verified."
+      : search.retired
+        ? "This product is retired and is no longer available."
+        : "PMS isn't enabled for this property.";
+
+  const message =
+    search.verify === "failed"
+      ? "A temporary check failed, or your session could not confirm PMS entitlement. Retry, or ask a property administrator if this continues."
+      : search.retired
+        ? "Ask NORU support if you believe this product should still be available."
+        : "Ask the property owner or a NORU administrator to enable PMS for this property. This is not a product-selection screen.";
+
+  return (
+    <div className="mx-auto flex min-h-[50vh] max-w-lg flex-col justify-center gap-4 p-6" data-testid="pms-package-access-state">
+      <NoruLogo size="sm" />
+      <div className="rounded-2xl border border-[#E6E1D8] bg-white p-6">
+        <h1 className="font-display text-xl text-[#251605]">{title}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        {search.verify === "failed" ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" onClick={retryPms} data-testid="pms-access-retry">
+              Retry PMS access
+            </Button>
+            <Button type="button" variant="outline" asChild>
+              <Link to="/restaurant/settings">Open Settings</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <Button type="button" variant="outline" asChild>
+              <Link to="/restaurant/settings">Open Settings</Link>
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /** Shared/Core hotel services retained with PMS. Module permission still required. */
 const SHARED_CORE_LINKS: {
@@ -156,6 +212,39 @@ const PMS_SUBMODULES = [
 ];
 
 function PropertyHome({ membership }: { membership: RestaurantMembership }) {
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const live = membership.restaurant.pmsSet1Live === true;
+  const approved = membership.restaurant.status === "approved";
+
+  useEffect(() => {
+    if (hasAccessNotice(search)) return;
+    if (approved && live) {
+      void navigate({ to: PMS_OPERATIONAL_HOME_PATH, replace: true });
+    }
+  }, [approved, live, navigate, search]);
+
+  if (hasAccessNotice(search)) {
+    return <PmsPackageAccessState search={search} />;
+  }
+
+  // Active PMS properties use the operational home — never the package launcher.
+  if (approved && live) {
+    return (
+      <p className="p-6 text-sm text-muted-foreground" data-testid="property-home-redirecting-pms">
+        Opening PMS…
+      </p>
+    );
+  }
+
+  return <LegacyPackageLauncher membership={membership} />;
+}
+
+/**
+ * Legacy multi-package launcher retained only for rare non-live fallthrough.
+ * Normal active PMS properties never reach this surface.
+ */
+function LegacyPackageLauncher({ membership }: { membership: RestaurantMembership }) {
   const restaurantId = membership.restaurant.id;
   const timezone = useRestaurantTimezone();
 
@@ -207,7 +296,6 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
       })()
     : null;
 
-  // Package tile = operational policy AND entitlement AND existing module access.
   const showPms =
     packages.has("pms") &&
     !pmsAccess.isLoading &&
@@ -230,11 +318,9 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
           <h1 className="font-display text-2xl sm:text-3xl">{membership.restaurant.name}</h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Your unified hospitality workspace — the packages this property uses, in one place.
+          Complete property setup to activate PMS. This is not the live operational home.
         </p>
       </header>
-
-      <BlockedNotice />
 
       <section aria-label="Today at a glance" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard
@@ -279,7 +365,7 @@ function PropertyHome({ membership }: { membership: RestaurantMembership }) {
               title="PMS"
               description="Hotel operating system — the home for every rooms-side operation."
               detail={`${PMS_SUBMODULES.join(" · ")} and more`}
-              to="/restaurant/pms"
+              to={PMS_OPERATIONAL_HOME_PATH}
             />
           ) : null}
         </div>

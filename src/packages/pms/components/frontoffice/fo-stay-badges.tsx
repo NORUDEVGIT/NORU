@@ -11,6 +11,7 @@ const ICONS: Record<StayBadgeId, typeof Crown> = {
   corporate_badge: Building2,
   special_request_badge: MessageSquare,
   room_discrepancy_badge: AlertTriangle,
+  departure_attention_badge: AlertTriangle,
 };
 
 function badgeStyle(tone: LiveStayBadge["tone"]): { className: string; style: CSSProperties } {
@@ -24,6 +25,12 @@ function badgeStyle(tone: LiveStayBadge["tone"]): { className: string; style: CS
     return {
       className: "border-transparent text-white",
       style: { backgroundColor: FO_BRAND.green },
+    };
+  }
+  if (tone === "warning") {
+    return {
+      className: "border-orange-200 text-orange-800",
+      style: { backgroundColor: "#FFF7ED" },
     };
   }
   return {

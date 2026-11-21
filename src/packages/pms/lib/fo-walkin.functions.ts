@@ -17,7 +17,7 @@ import { nightsBetween } from "./reservation-dates";
 import { requirePmsActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { assertDateOnly } from "./reservations.server";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { operationalBusinessDate } from "./reservation-workspace/business-date";
 import { financialFromSignal, type RoomInventoryState } from "./reservation-workspace/arrivals-departures";
 import { normalizeClock } from "./pms-set1-foundation";
 import {
@@ -223,7 +223,7 @@ export const listFrontOfficeWalkInsDesk = createServerFn({ method: "POST" })
     const settings = await loadWalkInSettings(supabaseAdmin, data.restaurantId);
     const today = data.date
       ? assertDateOnly(data.date, "Business date")
-      : resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
+      : operationalBusinessDate(settings.businessDate, settings.timezone);
 
     const { data: rows, error } = await context.supabase
       .from("hotel_reservations")
@@ -423,7 +423,7 @@ export const getFrontOfficeWalkInQuickView = createServerFn({ method: "POST" })
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadWalkInSettings(supabaseAdmin, data.restaurantId);
-    const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
+    const today = operationalBusinessDate(settings.businessDate, settings.timezone);
     const stay = await loadFrontOfficeStay(context.supabase, {
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,

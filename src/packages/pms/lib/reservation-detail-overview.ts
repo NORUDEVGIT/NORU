@@ -63,7 +63,7 @@ export const DETAIL_SIDEBAR_ITEMS: Array<{
   { id: "rates", label: "Rates" },
   { id: "packages", label: "Packages" },
   { id: "folio", label: "Folio & Payments" },
-  { id: "requests", label: "Requests & Preferences" },
+  { id: "requests", label: "Guest Services" },
   { id: "notes", label: "Notes & Traces" },
   { id: "communication", label: "Communication", deferred: true },
   { id: "linked", label: "Linked Reservations", deferred: true },
@@ -79,7 +79,7 @@ export const DETAIL_PRIMARY_TABS: Array<{
   { id: "stay", label: "Stay & Rooms", tabs: ["stay", "rooms", "rates", "packages"] },
   { id: "guest", label: "Guest", tabs: ["guest"] },
   { id: "folio", label: "Folio & Payments", tabs: ["folio"] },
-  { id: "requests", label: "Requests & Notes", tabs: ["requests", "notes", "communication"] },
+  { id: "requests", label: "Guest Services", tabs: ["requests", "notes", "communication"] },
   { id: "history", label: "History", tabs: ["history", "linked"] },
 ];
 
@@ -212,16 +212,41 @@ export function overviewPartyName(
   return DETAIL_DASH;
 }
 
-export function overviewPaymentLabel(value: string | null | undefined): string {
+export function overviewPaymentLabel(
+  value: string | null | undefined,
+  options?: Array<{ value: string; label: string }>,
+): string {
   const raw = value?.trim() ?? "";
   if (!raw) return DETAIL_DASH;
   if (UUID_RE.test(raw)) return OVERVIEW_LABEL_UNAVAILABLE;
-  const match = resolveGuaranteeMethodOptions(undefined).find(
-    (option) => option.value === raw || option.label.toLowerCase() === raw.toLowerCase(),
+  const catalogue = options?.length
+    ? options
+    : resolveGuaranteeMethodOptions(undefined);
+  const match = catalogue.find(
+    (option) =>
+      option.value === raw ||
+      option.value.toLowerCase() === raw.toLowerCase() ||
+      option.label.toLowerCase() === raw.toLowerCase(),
   );
   if (match) return match.label;
   if (isCardGuaranteeMethod(raw)) return "Card";
   return raw.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+/** Staff-facing Bill To party derived from linked masters (no separate bill-to column). */
+export function reservationBillToKind(reservation: {
+  companyMasterId: string | null;
+  travelAgentMasterId: string | null;
+}): "guest" | "company" | "travel_agent" {
+  if (reservation.companyMasterId) return "company";
+  if (reservation.travelAgentMasterId) return "travel_agent";
+  return "guest";
+}
+
+export function reservationBillToLabel(kind: "guest" | "company" | "travel_agent"): string {
+  if (kind === "company") return "Company";
+  if (kind === "travel_agent") return "Travel Agent";
+  return "Guest";
 }
 
 export function overviewNoShowLabel(snapshot: unknown): string | null {

@@ -17,6 +17,7 @@ import { moduleOrDesk } from "./fo-desk-permissions";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { operationalBusinessDate } from "./reservation-workspace/business-date";
 import {
   blankToNull,
   housekeepingError,
@@ -693,8 +694,10 @@ export const listRoomRack = createServerFn({ method: "POST" })
       .maybeSingle();
     const today =
       data.today ??
-      (typeof property?.business_date === "string" ? property.business_date.slice(0, 10) : null) ??
-      new Date().toISOString().slice(0, 10);
+      operationalBusinessDate(
+        typeof property?.business_date === "string" ? property.business_date.slice(0, 10) : null,
+        typeof property?.timezone === "string" ? property.timezone : "UTC",
+      );
 
     const [occupied, names, demandOverlay] = await Promise.all([
       occupancyMap(context.supabase, data.restaurantId),
@@ -888,9 +891,10 @@ export const createHousekeepingTask = createServerFn({ method: "POST" })
         .maybeSingle(),
       loadCard2HousekeepingSnapshot(supabaseAdmin, data.restaurantId, false),
     ]);
-    const today =
-      (typeof property?.business_date === "string" ? property.business_date.slice(0, 10) : null) ??
-      new Date().toISOString().slice(0, 10);
+    const today = operationalBusinessDate(
+      typeof property?.business_date === "string" ? property.business_date.slice(0, 10) : null,
+      typeof property?.timezone === "string" ? property.timezone : "UTC",
+    );
     const overlay = await loadHkDemandOverlay(supabaseAdmin, data.restaurantId, today, {
       timezone: typeof property?.timezone === "string" ? property.timezone : "UTC",
       checkInTime: typeof property?.check_in_time === "string" ? property.check_in_time : null,

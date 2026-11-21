@@ -12,12 +12,12 @@ import { isMissingSchemaError } from "./pms-set2-structure";
 import { requirePmsActor } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { assertDateOnly } from "./reservations.server";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { operationalBusinessDate } from "./reservation-workspace/business-date";
 import { loadFrontOfficeArrivals, loadFrontOfficeDepartures, loadFrontOfficeInHouse, type FrontOfficeStay } from "./frontoffice.functions";
 import { loadFoStaySignals } from "./fo-exceptions.functions";
 import { loadFrontOfficeRoomOpsQueue } from "./front-office-room-operations.server";
 import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
-import { financialFromSignal, outstandingBalance, parseLateCheckoutPolicy } from "./reservation-workspace/arrivals-departures";
+import { financialFromSignal, outstandingBalance, resolveLateCheckoutPolicy } from "./reservation-workspace/arrivals-departures";
 import { normalizeClock } from "./pms-set1-foundation";
 import { arrivalProgressKey, foArrivalExceptionKeys, guestVerificationMissing, etaTiming, checkInPaymentGate, depositOkFromSignals, registrationOkFromProgress } from "./fo-arrival";
 import { loadArrivalProgressByStay } from "./fo-arrival.functions";
@@ -129,7 +129,7 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
     const { data: property, error: propertyError } = await supabaseAdmin
       .from("restaurants")
       .select(
-        "timezone, business_date, check_in_time, check_out_time, deposit_required, deposit_value, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval",
+        "timezone, business_date, check_in_time, check_out_time, deposit_required, deposit_value, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, checkin_ops",
       )
       .eq("id", data.restaurantId)
       .maybeSingle();
@@ -138,8 +138,8 @@ export const getFrontOfficeExceptions = createServerFn({ method: "POST" })
     const timezone = property.timezone || "UTC";
     const businessDate = data.businessDate
       ? assertDateOnly(data.businessDate, "Business date")
-      : resolvePropertyBusinessDate(property.business_date, timezone);
-    const lateCheckout = parseLateCheckoutPolicy(property);
+      : operationalBusinessDate(property.business_date, timezone);
+    const lateCheckout = resolveLateCheckoutPolicy(property);
     const partialSources: FoControlPartialSource[] = [];
 
     let arrivals: FrontOfficeStay[] = [];

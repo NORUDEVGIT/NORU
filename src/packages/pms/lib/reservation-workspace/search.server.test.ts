@@ -76,7 +76,7 @@ describe("DB-04I-01 shared operational Reservation read model", () => {
   it("uses property business date and preserves the established timezone fallback", () => {
     assert.equal(resolvePropertyBusinessDate("2026-09-30", "Pacific/Auckland"), "2026-09-30");
     assert.match(source, /\.select\("business_date, timezone"\)/);
-    assert.match(source, /resolvePropertyBusinessDate/);
+    assert.match(source, /operationalBusinessDate/);
   });
 
   it("locks view status semantics and intersects explicit status filters", () => {

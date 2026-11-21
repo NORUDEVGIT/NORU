@@ -2,7 +2,7 @@
  * Server loader for the Cashier Invoice Report.
  * Uses a trusted client after requireCashieringAccess (business_date column grant).
  */
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { propertyDayBounds } from "@/packages/pms/lib/cashiering-control";
 import { mapFolioInvoiceSnapshot } from "@/packages/pms/lib/cashiering-invoices.server";
 import { mapAccountInvoiceSnapshot } from "@/packages/pms/lib/cashiering-account-invoices";
@@ -157,7 +157,7 @@ async function loadProperty(
   const persisted = text(result.data.business_date);
   return {
     timezone,
-    businessDate: resolvePropertyBusinessDate(persisted ? persisted.slice(0, 10) : null, timezone),
+    businessDate: operationalBusinessDate(persisted ? persisted.slice(0, 10) : null, timezone),
   };
 }
 

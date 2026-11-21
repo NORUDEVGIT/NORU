@@ -18,10 +18,10 @@ import { normalizeClock } from "./pms-set1-foundation";
 import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { assertDateOnly } from "./reservations.server";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { operationalBusinessDate } from "./reservation-workspace/business-date";
 import {
   financialFromSignal,
-  parseLateCheckoutPolicy,
+  resolveLateCheckoutPolicy,
 } from "./reservation-workspace/arrivals-departures";
 import type { LateCheckoutPolicy } from "./reservation-workspace/shared-read-models";
 import {
@@ -126,7 +126,7 @@ async function loadInHouseSettings(
   const { data, error } = await supabaseAdmin
     .from("restaurants")
     .select(
-      "timezone, business_date, check_out_time, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval",
+      "timezone, business_date, check_out_time, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, checkin_ops",
     )
     .eq("id", restaurantId)
     .maybeSingle();
@@ -136,7 +136,7 @@ async function loadInHouseSettings(
     timezone: data.timezone || "UTC",
     businessDate: data.business_date ?? null,
     checkOutTime: normalizeClock(String(data.check_out_time ?? "")) || null,
-    lateCheckout: parseLateCheckoutPolicy(data),
+    lateCheckout: resolveLateCheckoutPolicy(data),
   };
 }
 
@@ -238,7 +238,7 @@ export const listFrontOfficeInHouseDesk = createServerFn({ method: "POST" })
     const settings = await loadInHouseSettings(supabaseAdmin, data.restaurantId);
     const today = data.today
       ? assertDateOnly(data.today, "Business date")
-      : resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
+      : operationalBusinessDate(settings.businessDate, settings.timezone);
     const stays = await loadFrontOfficeInHouse(context.supabase, {
       restaurantId: data.restaurantId,
       today,
@@ -283,7 +283,7 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadInHouseSettings(supabaseAdmin, data.restaurantId);
-    const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
+    const today = operationalBusinessDate(settings.businessDate, settings.timezone);
     let stay = await loadFrontOfficeStay(context.supabase, {
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,

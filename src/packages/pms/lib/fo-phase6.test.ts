@@ -98,7 +98,7 @@ describe("FO Phase 6 — summary and signals", () => {
 });
 
 describe("FO Phase 6 — create, add service, QV", () => {
-  it("Guest Request launches the canonical writer with stay prefill", () => {
+  it("Add Guest Service Request launches the canonical writer with stay prefill", () => {
     const sheet = readRel("../components/frontoffice/fo-amend-sheet.tsx");
     const guestRequest = sheet.slice(sheet.indexOf("export function FoGuestRequestSheet"));
     assert.match(guestRequest, /createGuestServiceRequest/);
@@ -163,7 +163,7 @@ describe("FO Phase 6 — create, add service, QV", () => {
     assert.doesNotMatch(fullPanel, /View all/);
     assert.match(panel, /guestProfileSearch\(\{ card: "services" \}\)/);
     assert.match(panel, /GUEST_PROFILE_DETAIL_PATH/);
-    assert.match(menu, /Guest Request/);
+    assert.match(menu, /Add Guest Service Request/);
     assert.match(menu, /Add Service/);
     assert.match(
       readRel("../components/frontoffice/arrival-quick-view.tsx"),

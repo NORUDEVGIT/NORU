@@ -11,7 +11,7 @@ import {
   summarizeBusinessDateActivity,
   type BusinessActivityRow,
 } from "./cashiering-control";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { operationalBusinessDate } from "./reservation-workspace/business-date";
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -266,7 +266,7 @@ async function loadCashierProperty(
   return {
     timezone,
     currency: row?.currency_code || "GBP",
-    businessDate: resolvePropertyBusinessDate(
+    businessDate: operationalBusinessDate(
       row?.business_date ? row.business_date.slice(0, 10) : null,
       timezone,
     ),

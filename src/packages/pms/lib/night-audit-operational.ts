@@ -19,6 +19,7 @@ import {
   type NightAuditFinancialStatus,
 } from "./night-audit-financial.ts";
 import { housekeepingNightAuditExceptions } from "./night-audit-rooms.ts";
+import { evaluateDepartureDayTiming } from "./reservation-workspace/arrivals-departures.ts";
 
 export const NIGHT_AUDIT_OPERATIONAL_CATEGORIES = [
   "arrivals",
@@ -57,6 +58,8 @@ export const NIGHT_AUDIT_OPERATIONAL_OWNED_TYPES = new Set([
   "arrival_not_processed",
   "pending_arrival",
   "overstay",
+  "departure_due_today",
+  "departure_overdue",
   "checked_in_without_room",
   "room_double_occupancy",
   "occupied_restricted_room",
@@ -70,6 +73,7 @@ export const NIGHT_AUDIT_OPERATIONAL_OWNED_TYPES = new Set([
 export const NIGHT_AUDIT_OPERATIONAL_BLOCKER_CODES = [
   "arrival_not_processed",
   "overstay",
+  "departure_overdue",
   "checked_in_without_room",
   "room_double_occupancy",
   "occupied_restricted_room",
@@ -83,6 +87,7 @@ export const NIGHT_AUDIT_OPERATIONAL_CODE_CATEGORY: Readonly<Record<string, Nigh
   pending_arrival: "arrivals",
   overstay: "departures",
   departure_due_today: "departures",
+  departure_overdue: "departures",
   checked_in_without_room: "rooms",
   room_double_occupancy: "rooms",
   occupied_restricted_room: "rooms",
@@ -159,6 +164,9 @@ export type NightAuditOperationalIssue = {
   reservationRoomId?: string | null;
   confirmationNumber?: string | null;
   guestName?: string | null;
+  /** Property-local checkout or approved late-checkout deadline for staff. */
+  checkoutDeadlineLabel?: string | null;
+  amount?: number | null;
 };
 
 /* ------------------------------------------------------------------ facts */
@@ -252,6 +260,10 @@ export type DayActivityFacts = {
 export type NightAuditOperationalFacts = {
   businessDate: string;
   checkedAt: string;
+  /** IANA timezone for property-local departure timing. */
+  timezone: string;
+  /** Property standard check-out clock HH:mm. */
+  checkOutTime: string | null;
   /** Optional: counts for Steps 2–4. Absent or unavailable never changes close. */
   dayActivity?: OptionalSection<DayActivityFacts>;
   reservations: readonly OperationalReservationFact[];
@@ -360,6 +372,10 @@ export type StayRow = {
   arrivalDate: string;
   departureDate: string;
   lateCheckoutUntil: string | null;
+  /** Property-local checkout or approved late-checkout deadline shown to staff. */
+  checkoutDeadlineLabel: string | null;
+  /** Folio balance when already present on the operational snapshot; otherwise null. */
+  folioBalance: number | null;
   status: OperationalRowStatus;
   issue: string;
   route: string;
@@ -719,26 +735,30 @@ export function reconcileNightAuditOperations(
   const inHouseSlices = slices.filter((slice) => slice.status === "checked_in");
   const departures: StayRow[] = [];
   const inHouse: StayRow[] = [];
+  const timezone = facts.timezone || "UTC";
+  const propertyCheckOutTime = facts.checkOutTime;
   for (const slice of inHouseSlices) {
     const ref = stayRef(slice);
     const roomNumber = roomNumberOf(slice.roomId);
     const lateUntil = slice.reservation.lateCheckoutGranted ? slice.reservation.lateCheckoutUntil : null;
     let severity: OperationalSeverity | null = null;
     let issueTitle = "";
+    let checkoutDeadlineLabel: string | null = null;
     if (slice.departureDate < businessDate) {
       severity = "blocking";
-      issueTitle = "Overstay";
+      issueTitle = "Departure overdue";
+      checkoutDeadlineLabel = propertyCheckOutTime || "12:00";
       add({
         code: "overstay",
         category: "departures",
         severity,
         title: issueTitle,
-        description: `${stayLabel(slice)} was due to depart ${slice.departureDate} and is still checked in. Extend the stay or check the guest out.`,
+        description: `${stayLabel(slice)} was due to depart ${slice.departureDate} and is still in-house. Check out the guest or extend the stay before closing the business date.`,
         ...ref,
         route: FRONT_OFFICE,
         search: foSearch("departures", businessDate),
         ownerModule: "Front Office",
-        recommendedAction: "Extend the stay or check the guest out in Front Office.",
+        recommendedAction: "Check out the guest or extend the stay before closing the business date.",
         sourceStatus: slice.status,
         dueDate: slice.departureDate,
         roomId: slice.roomId,
@@ -748,33 +768,78 @@ export function reconcileNightAuditOperations(
         reservationRoomId: slice.unitId,
         confirmationNumber: slice.reservation.confirmationNumber,
         guestName: slice.reservation.guestName,
+        checkoutDeadlineLabel,
       });
     } else if (slice.departureDate === businessDate) {
-      severity = "warning";
-      issueTitle = lateUntil ? "Due out today · late checkout" : "Due out today";
-      add({
-        code: "departure_due_today",
-        category: "departures",
-        severity,
-        title: issueTitle,
-        description: lateUntil
-          ? `${stayLabel(slice)} departs today with a late checkout until ${lateUntil}. It does not block close.`
-          : `${stayLabel(slice)} departs today and is still checked in. It does not block close.`,
-        ...ref,
-        route: FRONT_OFFICE,
-        search: foSearch("departures", businessDate),
-        ownerModule: "Front Office",
-        recommendedAction: "Check out or extend in Front Office when the guest leaves.",
-        sourceStatus: slice.status,
-        dueDate: slice.departureDate,
-        roomId: slice.roomId,
-        roomNumber,
-        roomType: typeName(slice.roomTypeId),
-        reservationId: slice.reservation.id,
-        reservationRoomId: slice.unitId,
-        confirmationNumber: slice.reservation.confirmationNumber,
-        guestName: slice.reservation.guestName,
+      const timing = evaluateDepartureDayTiming({
+        departureDate: slice.departureDate,
+        businessDate,
+        checkedAt,
+        timezone,
+        checkOutTime: propertyCheckOutTime,
+        lateCheckoutGranted: slice.reservation.lateCheckoutGranted,
+        lateCheckoutUntil: lateUntil,
       });
+      if (timing?.kind === "before_checkout") {
+        checkoutDeadlineLabel = timing.deadlineLabel;
+        // Before standard checkout: no Night Audit action and no blocker.
+      } else if (timing?.kind === "approved_late_checkout") {
+        severity = "info";
+        issueTitle = "Approved late checkout";
+        checkoutDeadlineLabel = timing.deadlineLabel;
+        add({
+          code: "departure_due_today",
+          category: "departures",
+          severity,
+          title: issueTitle,
+          description: `${stayLabel(slice)} has an approved late checkout until ${timing.deadlineLabel}. The guest may remain in-house until then.`,
+          ...ref,
+          route: FRONT_OFFICE,
+          search: foSearch("departures", businessDate),
+          ownerModule: "Front Office",
+          recommendedAction: "No action needed until the approved late checkout time.",
+          sourceStatus: slice.status,
+          dueDate: slice.departureDate,
+          roomId: slice.roomId,
+          roomNumber,
+          roomType: typeName(slice.roomTypeId),
+          reservationId: slice.reservation.id,
+          reservationRoomId: slice.unitId,
+          confirmationNumber: slice.reservation.confirmationNumber,
+          guestName: slice.reservation.guestName,
+          checkoutDeadlineLabel,
+        });
+      } else if (timing?.kind === "departure_overdue") {
+        severity = "blocking";
+        issueTitle = "Departure overdue";
+        checkoutDeadlineLabel = timing.deadlineLabel;
+        const reason =
+          timing.reason === "late_checkout_expired"
+            ? `Late checkout expired at ${timing.deadlineLabel}.`
+            : `Guest is still in-house after the scheduled checkout time (${timing.deadlineLabel}).`;
+        add({
+          code: "departure_overdue",
+          category: "departures",
+          severity,
+          title: issueTitle,
+          description: `${stayLabel(slice)}: ${reason} Check out the guest or extend the stay before closing the business date.`,
+          ...ref,
+          route: FRONT_OFFICE,
+          search: foSearch("departures", businessDate),
+          ownerModule: "Front Office",
+          recommendedAction: "Check out the guest or extend the stay before closing the business date.",
+          sourceStatus: slice.status,
+          dueDate: slice.departureDate,
+          roomId: slice.roomId,
+          roomNumber,
+          roomType: typeName(slice.roomTypeId),
+          reservationId: slice.reservation.id,
+          reservationRoomId: slice.unitId,
+          confirmationNumber: slice.reservation.confirmationNumber,
+          guestName: slice.reservation.guestName,
+          checkoutDeadlineLabel,
+        });
+      }
     }
     const row: StayRow = {
       id: slice.key,
@@ -788,13 +853,15 @@ export function reconcileNightAuditOperations(
       arrivalDate: slice.arrivalDate,
       departureDate: slice.departureDate,
       lateCheckoutUntil: lateUntil,
+      checkoutDeadlineLabel,
+      folioBalance: null,
       status: rowStatus(severity),
       issue: issueTitle,
       route: FRONT_OFFICE,
-      search: foSearch(severity ? "departures" : "inhouse", businessDate),
+      search: foSearch(slice.departureDate <= businessDate ? "departures" : "inhouse", businessDate),
     };
     inHouse.push(row);
-    if (severity) departures.push(row);
+    if (slice.departureDate <= businessDate) departures.push(row);
   }
   departures.sort((a, b) => a.departureDate.localeCompare(b.departureDate) || naturalCompare(a.roomNumber, b.roomNumber));
   inHouse.sort((a, b) => naturalCompare(a.roomNumber, b.roomNumber) || a.id.localeCompare(b.id));
@@ -1528,7 +1595,9 @@ export function reconcileNightAuditOperations(
       infoCount: count((issue) => issue.severity === "info"),
       unresolvedArrivalCount: count((issue) => issue.code === "arrival_not_processed"),
       overstayCount: count((issue) => issue.code === "overstay"),
-      dueTodayCount: count((issue) => issue.code === "departure_due_today"),
+      dueTodayCount: count(
+        (issue) => issue.code === "departure_due_today" || issue.code === "departure_overdue",
+      ),
       inHouseCount: inHouseSlices.length,
       roomConflictCount: count((issue) => ROOM_CONFLICT_CODES.has(issue.code)),
       overbookingIssueCount: count(

@@ -56,6 +56,7 @@ export const getFrontOfficeApprovalRequirement = createServerFn({ method: "POST"
           thresholdUnit: null,
           amount: data.amount ?? null,
           policyNeedsApproval: data.actionKey === "late_checkout.authorize" ? true : null,
+          lateCheckoutFee: null,
           unavailable: true,
           unavailableMessage: "You don't have access to Front Office authorization for this property.",
         });
@@ -65,13 +66,17 @@ export const getFrontOfficeApprovalRequirement = createServerFn({ method: "POST"
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let policyNeedsApproval: boolean | null = null;
+    let lateCheckoutFee: number | null = null;
     if (data.actionKey === "late_checkout.authorize") {
       const { data: property } = await supabaseAdmin
         .from("restaurants")
-        .select("late_checkout_needs_approval")
+        .select("late_checkout_needs_approval, late_checkout_fee, late_checkout_allowed, checkin_ops")
         .eq("id", data.restaurantId)
         .maybeSingle();
       policyNeedsApproval = property?.late_checkout_needs_approval === true;
+      const { resolveLateCheckoutPolicy } = await import("./reservation-workspace/arrivals-departures");
+      const policy = resolveLateCheckoutPolicy(property ?? {});
+      lateCheckoutFee = policy.fee;
     }
 
     const metaCode = FO_AUTHORIZATION_META[data.actionKey as FoAuthorizationKey].permissionCode;
@@ -141,6 +146,7 @@ export const getFrontOfficeApprovalRequirement = createServerFn({ method: "POST"
       thresholdUnit,
       amount: data.amount ?? null,
       policyNeedsApproval,
+      lateCheckoutFee,
       unavailable,
       unavailableMessage,
     });

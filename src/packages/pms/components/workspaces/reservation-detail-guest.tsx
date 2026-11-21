@@ -236,6 +236,7 @@ export function ReservationDetailGuestTab({
     return (
       (draft.guestNotes || "") !== (initialDraft.guestNotes || "") ||
       (draft.specialRequests || "") !== (initialDraft.specialRequests || "") ||
+      (draft.specialOccasion || "") !== (initialDraft.specialOccasion || "") ||
       draft.preferredContactMethod !== initialDraft.preferredContactMethod ||
       draft.sendConfirmation !== initialDraft.sendConfirmation ||
       draft.sendMarketing !== initialDraft.sendMarketing
@@ -261,6 +262,7 @@ export function ReservationDetailGuestTab({
           children: reservation.children,
           notes: draft.guestNotes,
           specialRequests: draft.specialRequests,
+          specialOccasion: draft.specialOccasion.trim() || null,
           ratePlanId: reservation.ratePlanId,
         },
       }),
@@ -529,6 +531,30 @@ export function ReservationDetailGuestTab({
               showEdit={grants.edit}
             />
           </div>
+
+          <section
+            className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+            data-testid="guest-special-occasion"
+          >
+            <div className="flex items-center gap-2">
+              <Heart className="size-4 text-[#D97706]" />
+              <h2 className="font-display text-base font-semibold text-[#251605]">
+                Special Occasion
+              </h2>
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Reservation-level guest occasion (anniversary, honeymoon, birthday, and similar).
+            </p>
+            <Input
+              id="guest-tab-special-occasion"
+              maxLength={80}
+              disabled={!editable}
+              value={draft.specialOccasion}
+              onChange={(e) => patch({ specialOccasion: e.target.value.slice(0, 80) })}
+              placeholder="e.g. Anniversary, Honeymoon"
+              className="mt-3 h-9 rounded-lg border-[#DDD4C5] bg-white text-sm text-[#251605] disabled:bg-[#FAF8F5]"
+            />
+          </section>
 
           {/* Guest Notes (Reservation Specific) */}
           <section

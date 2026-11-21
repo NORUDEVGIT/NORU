@@ -47,20 +47,25 @@ const item = (
   ...partial,
 });
 
-describe("Reservation Detail Requests & Preferences tab", () => {
-  it("wires the Requests workspace and keeps Notes & Traces on notes", () => {
+describe("Reservation Detail Guest Services tab", () => {
+  it("wires operational Guest Services and keeps Notes & Traces on notes", () => {
     expect(workspace).toContain("<ReservationDetailRequestsTab");
     expect(workspace).toContain('detailTab === "requests"');
     expect(workspace).toContain('onBackToFolio={() => setDetailTab("folio")}');
     expect(workspace).toContain('detailTab === "notes"');
     expect(workspace).not.toContain('detailTab === "requests" || detailTab === "notes"');
+    expect(workspace).toContain('label: "Guest Services"');
     expect(requestsUi).toContain("listGuestServiceWorkspace");
     expect(requestsUi).toContain("createGuestServiceRequest");
     expect(requestsUi).toContain("priority: draftPriority");
     expect(requestsUi).toContain("preferredAt:");
     expect(requestsUi).toContain("updateGuestServiceRequest");
-    expect(requestsUi).toContain("guestProfilePreferenceChips");
-    expect(requestsUi).toContain('search={{ card: "preferences" }}');
+    expect(requestsUi).toContain("Guest Services");
+    expect(requestsUi).toContain("No guest service requests for this reservation.");
+    expect(requestsUi).not.toContain("Guest Preferences (from profile)");
+    expect(requestsUi).not.toContain("Reservation Specific Preferences");
+    expect(requestsUi).not.toContain("Internal Notes (Requests)");
+    expect(requestsUi).not.toContain("Save occasion");
     expect(requestsUi).toContain("Back to Folio & Payments");
   });
 

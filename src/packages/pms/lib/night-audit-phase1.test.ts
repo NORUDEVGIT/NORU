@@ -108,7 +108,7 @@ describe("NA-P1 date and ownership", () => {
     assert.match(functions, /NIGHT_AUDIT_CLOSE_DATE/);
     assert.doesNotMatch(functions, /update\(\{[^}]*business_date/);
     assert.match(card1, /if \("business_date" in patch\) delete patch\.business_date/);
-    assert.match(reservations, /resolvePropertyBusinessDate\(/);
+    assert.match(reservations, /operationalBusinessDate\(/);
     assert.doesNotMatch(reservations, /propertyToday\(timezone/);
   });
 

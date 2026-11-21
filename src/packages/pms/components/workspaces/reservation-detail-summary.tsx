@@ -29,6 +29,7 @@ import {
 } from "@/packages/pms/lib/reservation-detail-group";
 import {
   DETAIL_DASH,
+  overviewPaymentLabel,
   parseDepositRequirementSnapshot,
   snapshotDisplayName,
   snapshotField,
@@ -321,7 +322,7 @@ export function ReservationDetailSummary({
           <div className="space-y-1">
             <SummaryRow
               label="Guarantee"
-              value={reviewDash(reservation.guaranteeMethod).toUpperCase()}
+              value={overviewPaymentLabel(reservation.guaranteeMethod)}
             />
             <SummaryRow
               label="Payment requirement"

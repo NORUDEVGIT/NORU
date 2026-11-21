@@ -19,6 +19,7 @@ import {
 import { selectAll, selectByIds } from "./night-audit-read";
 import { parseOverbookingNights } from "./overbooking.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
+import { normalizeClock } from "./pms-set1-foundation";
 import { reservationRoomNightlyRates } from "./reservation-room-units";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -204,6 +205,13 @@ export async function loadNightAuditOperationalReconciliation(
 ): Promise<NightAuditOperationalReconciliation> {
   const tomorrow = nextDate(businessDate);
   const bounds = propertyDayBounds(businessDate, timezone);
+  const propertyRow = await admin
+    .from("restaurants")
+    .select("check_out_time")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  if (propertyRow.error) throw new Error(propertyRow.error.message);
+  const checkOutTime = normalizeClock(String(propertyRow.data?.check_out_time ?? "")) || null;
 
   /* ------------------------------------------------------ required reads */
 
@@ -581,6 +589,8 @@ export async function loadNightAuditOperationalReconciliation(
   return reconcileNightAuditOperations({
     businessDate,
     checkedAt,
+    timezone,
+    checkOutTime,
     dayActivity,
     reservations: reservations.map((row) => ({
       id: row.id,

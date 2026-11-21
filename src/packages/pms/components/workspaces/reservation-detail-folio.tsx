@@ -1,33 +1,66 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { MoreHorizontal } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import { Label } from "@/shared/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/ui/select";
+import { Textarea } from "@/shared/components/ui/textarea";
 import {
   formatStayDate,
   ReservationStatusBadge,
 } from "@/packages/pms/components/bookings/reservation-bits";
+import { CreateReservationMasterPicker } from "@/packages/pms/components/bookings/create-reservation-master-picker";
 import { labelTransactionType } from "@/packages/pms/components/cashiering/folio-bits";
 import {
   CloseFolioDialog,
   FolioEntryDialog,
 } from "@/packages/pms/components/cashiering/folio-dialogs";
 import { guestInitials, reviewDash } from "@/packages/pms/lib/create-reservation-review";
+import {
+  toPickedReservationMaster,
+  type PickedReservationMaster,
+} from "@/packages/pms/lib/create-reservation-phase1";
+import {
+  CREATE_RESERVATION_GUARANTEE_LABELS_ONLY,
+  resolveGuaranteeMethodOptions,
+} from "@/packages/pms/lib/create-reservation-phase1-section7";
+import { getBillingCard3 } from "@/packages/pms/lib/billing-card3.functions";
+import { BILLING_PAYER_KIND_LABELS } from "@/packages/pms/lib/billing-card3.server";
+import { setReservationGuestMasters } from "@/packages/pms/lib/guest-accounts.functions";
+import { getPmsPolish1Snapshot } from "@/packages/pms/lib/pms-polish1-payment-admin.functions";
 import { nightsBetween } from "@/packages/pms/lib/reservation-dates";
 import {
   DETAIL_DASH,
   depositStatusLabel,
+  overviewPaymentLabel,
   parseDepositRequirementSnapshot,
+  reservationBillToKind,
+  reservationBillToLabel,
   snapshotDisplayName,
   snapshotField,
 } from "@/packages/pms/lib/reservation-detail-overview";
@@ -49,7 +82,10 @@ import {
   paymentTenderStatus,
   snapshotDueDate,
 } from "@/packages/pms/lib/reservation-detail-folio";
-import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
+import {
+  amendReservation,
+  type ReservationDetail,
+} from "@/packages/pms/lib/reservations.functions";
 import {
   getCashieringAccess,
   getCashieringCorrectionNotice,
@@ -87,6 +123,8 @@ export function ReservationDetailFolioTab({
   servicesTotal = 0,
   roomGuestTotal = null,
   coverUrl,
+  canEdit = false,
+  onReservationUpdated,
 }: {
   restaurantId: string;
   /** The tab itself is only mounted with Cashiering view. */
@@ -101,6 +139,9 @@ export function ReservationDetailFolioTab({
   servicesTotal?: number;
   roomGuestTotal?: number | null;
   coverUrl: string | null;
+  /** Reservation edit permission + stay lifecycle — independent of folio open status. */
+  canEdit?: boolean;
+  onReservationUpdated?: () => void;
 }) {
   const queryClient = useQueryClient();
   const { dateTime } = useRestaurantTime();
@@ -290,6 +331,12 @@ export function ReservationDetailFolioTab({
               setCloseOpen(true);
             }}
           />
+          <PreferredPaymentMethodCard
+            restaurantId={restaurantId}
+            reservation={reservation}
+            canEdit={canEdit}
+            onSaved={onReservationUpdated}
+          />
           <div className="grid gap-4 lg:grid-cols-2">
             <FolioSummaryCard summary={summary} money={money} />
             <PaymentMethodsCard
@@ -309,7 +356,12 @@ export function ReservationDetailFolioTab({
               money={money}
               applied={remainderQuery.data?.applied ?? null}
             />
-            <BillingRoutingCard reservation={reservation} />
+            <BillingRoutingCard
+              restaurantId={restaurantId}
+              reservation={reservation}
+              canEdit={canEdit}
+              onSaved={onReservationUpdated}
+            />
           </div>
         </div>
         <FolioSummaryRail
@@ -632,6 +684,156 @@ function SummaryLine({
   );
 }
 
+function PreferredPaymentMethodCard({
+  restaurantId,
+  reservation,
+  canEdit,
+  onSaved,
+}: {
+  restaurantId: string;
+  reservation: ReservationDetail;
+  canEdit: boolean;
+  onSaved?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(reservation.guaranteeMethod ?? "");
+  const fetchPolish1 = useServerFn(getPmsPolish1Snapshot);
+  const amend = useServerFn(amendReservation);
+  const polish1Query = useQuery({
+    queryKey: ["pms-polish1-snapshot", restaurantId, "folio-preferred-payment"],
+    queryFn: () => fetchPolish1({ data: { restaurantId } }),
+    retry: false,
+  });
+  const options = useMemo(() => {
+    const catalogue = resolveGuaranteeMethodOptions(polish1Query.data?.snapshot);
+    const current = reservation.guaranteeMethod?.trim();
+    if (
+      current &&
+      !catalogue.some(
+        (row) =>
+          row.value === current || row.value.toLowerCase() === current.toLowerCase(),
+      )
+    ) {
+      return [
+        ...catalogue,
+        {
+          value: current,
+          label: overviewPaymentLabel(current, catalogue),
+          origin: "setup" as const,
+        },
+      ];
+    }
+    return catalogue;
+  }, [polish1Query.data?.snapshot, reservation.guaranteeMethod]);
+  const label = overviewPaymentLabel(reservation.guaranteeMethod, options);
+
+  useEffect(() => {
+    if (open) setValue(reservation.guaranteeMethod ?? "");
+  }, [open, reservation.guaranteeMethod]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      await amend({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          guestId: reservation.guestId,
+          roomTypeId: reservation.roomTypeId,
+          roomId: reservation.roomId,
+          arrival: reservation.arrivalDate,
+          departure: reservation.departureDate,
+          adults: reservation.adults,
+          children: reservation.children,
+          specialRequests: reservation.specialRequests,
+          notes: reservation.notes,
+          ratePlanId: reservation.ratePlanId,
+          guaranteeMethod: value.trim() || null,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Preferred payment method updated.");
+      setOpen(false);
+      onSaved?.();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <>
+      <section
+        className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+        data-testid="preferred-payment-method"
+      >
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base text-[#251605]">Preferred Payment Method</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Reservation instruction only — not a posted payment.
+            </p>
+          </div>
+          {canEdit ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setOpen(true)}
+              data-testid="preferred-payment-method-edit"
+            >
+              Edit
+            </Button>
+          ) : null}
+        </div>
+        <p className="text-sm font-medium text-[#251605]" data-testid="preferred-payment-method-value">
+          {label}
+        </p>
+      </section>
+      {open ? (
+        <Dialog open onOpenChange={(next) => !next && setOpen(false)}>
+          <DialogContent className="sm:max-w-md" data-testid="preferred-payment-method-dialog">
+            <DialogHeader>
+              <DialogTitle>Preferred Payment Method</DialogTitle>
+              <DialogDescription>{CREATE_RESERVATION_GUARANTEE_LABELS_ONLY}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <Label>Method</Label>
+              <Select
+                value={value || "none"}
+                onValueChange={(next) => setValue(next === "none" ? "" : next)}
+              >
+                <SelectTrigger data-testid="preferred-payment-method-select">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={save.isPending}
+                onClick={() => save.mutate()}
+                data-testid="preferred-payment-method-save"
+              >
+                {save.isPending ? "Saving…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </>
+  );
+}
+
 function PaymentMethodsCard({
   folio,
   money,
@@ -656,7 +858,10 @@ function PaymentMethodsCard({
       data-testid="payment-methods"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-display text-base text-[#251605]">Payment Methods</h2>
+        <div>
+          <h2 className="font-display text-base text-[#251605]">Payments & Credits</h2>
+          <p className="text-[11px] text-muted-foreground">Posted Cashiering transactions.</p>
+        </div>
         {canPay ? (
           <Button type="button" size="sm" variant="outline" disabled={!canAdd} onClick={onAdd}>
             Add Payment
@@ -768,26 +973,275 @@ function DepositInfoCard({
   );
 }
 
-function BillingRoutingCard({ reservation }: { reservation: ReservationDetail }) {
+function BillingRoutingCard({
+  restaurantId,
+  reservation,
+  canEdit,
+  onSaved,
+}: {
+  restaurantId: string;
+  reservation: ReservationDetail;
+  canEdit: boolean;
+  onSaved?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const billToKind = reservationBillToKind(reservation);
   return (
-    <section
-      className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
-      data-testid="billing-routing"
-    >
-      <div className="mb-3">
-        <h2 className="font-display text-base text-[#251605]">Billing & Routing</h2>
-        <p className="text-[11px] text-muted-foreground">
-          Company and travel agent stay on the reservation. Routing is not a posting rule.
-        </p>
-      </div>
-      <dl className="space-y-1 text-sm">
-        <InfoRow label="Bill To" value={reservation.guestName} />
-        <InfoRow label="Routing" value={DETAIL_DASH} />
-        <InfoRow label="Company" value={reviewDash(reservation.companyName)} />
-        <InfoRow label="Travel Agent" value={reviewDash(reservation.travelAgentName)} />
-        <InfoRow label="Special Instructions" value={reviewDash(reservation.specialRequests)} />
-      </dl>
-    </section>
+    <>
+      <section
+        className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+        data-testid="billing-routing"
+      >
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <h2 className="font-display text-base text-[#251605]">Billing & Routing</h2>
+            <p className="text-[11px] text-muted-foreground">
+              Reservation billing instructions. Routing is not a Cashiering posting rule.
+            </p>
+          </div>
+          {canEdit ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Billing & Routing actions"
+                  data-testid="billing-routing-menu"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => setOpen(true)}
+                  data-testid="billing-routing-edit"
+                >
+                  Edit Billing & Routing
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
+        <dl className="space-y-1 text-sm">
+          <InfoRow label="Bill To" value={reservationBillToLabel(billToKind)} />
+          <InfoRow label="Routing" value={reviewDash(reservation.billingRuleName)} />
+          <InfoRow label="Company" value={reviewDash(reservation.companyName)} />
+          <InfoRow label="Travel Agent" value={reviewDash(reservation.travelAgentName)} />
+          <InfoRow label="Special Instructions" value={reviewDash(reservation.specialRequests)} />
+        </dl>
+      </section>
+      {open ? (
+        <BillingRoutingDialog
+          restaurantId={restaurantId}
+          reservation={reservation}
+          onClose={() => setOpen(false)}
+          onSaved={() => {
+            setOpen(false);
+            onSaved?.();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function BillingRoutingDialog({
+  restaurantId,
+  reservation,
+  onClose,
+  onSaved,
+}: {
+  restaurantId: string;
+  reservation: ReservationDetail;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const amend = useServerFn(amendReservation);
+  const saveMasters = useServerFn(setReservationGuestMasters);
+  const loadBilling = useServerFn(getBillingCard3);
+  const [billTo, setBillTo] = useState<"guest" | "company" | "travel_agent">(
+    reservationBillToKind(reservation),
+  );
+  const [company, setCompany] = useState<PickedReservationMaster | null>(
+    reservation.companyMasterId
+      ? toPickedReservationMaster({
+          id: reservation.companyMasterId,
+          name: reservation.companyName ?? "Company",
+          code: null,
+        })
+      : null,
+  );
+  const [travelAgent, setTravelAgent] = useState<PickedReservationMaster | null>(
+    reservation.travelAgentMasterId
+      ? toPickedReservationMaster({
+          id: reservation.travelAgentMasterId,
+          name: reservation.travelAgentName ?? "Travel Agent",
+          code: null,
+        })
+      : null,
+  );
+  const [billingRuleId, setBillingRuleId] = useState(reservation.billingRuleId ?? "");
+  const [specialRequests, setSpecialRequests] = useState(reservation.specialRequests ?? "");
+
+  useEffect(() => {
+    if (billTo === "guest") {
+      setCompany(null);
+      setTravelAgent(null);
+    } else if (billTo === "travel_agent") {
+      setCompany(null);
+    }
+  }, [billTo]);
+
+  const billingQuery = useQuery({
+    queryKey: ["billing-card3", restaurantId, "folio-billing-routing"],
+    queryFn: () => loadBilling({ data: { restaurantId } }),
+    retry: false,
+  });
+  const billingRules = (billingQuery.data?.snapshot.billingRules ?? []).filter((row) => row.active);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      let companyMasterId: string | null = company?.id ?? null;
+      let travelAgentMasterId: string | null = travelAgent?.id ?? null;
+      if (billTo === "guest") {
+        companyMasterId = null;
+        travelAgentMasterId = null;
+      } else if (billTo === "company") {
+        if (!companyMasterId) throw new Error("Select a company for Bill To Company.");
+      } else {
+        if (!travelAgentMasterId) {
+          throw new Error("Select a travel agent for Bill To Travel Agent.");
+        }
+        // Prefer Travel Agent as Bill To when both could otherwise be linked.
+        companyMasterId = null;
+      }
+      await saveMasters({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          companyMasterId,
+          travelAgentMasterId,
+        },
+      });
+      await amend({
+        data: {
+          restaurantId,
+          reservationId: reservation.id,
+          guestId: reservation.guestId,
+          roomTypeId: reservation.roomTypeId,
+          roomId: reservation.roomId,
+          arrival: reservation.arrivalDate,
+          departure: reservation.departureDate,
+          adults: reservation.adults,
+          children: reservation.children,
+          specialRequests: specialRequests.trim() || null,
+          notes: reservation.notes,
+          ratePlanId: reservation.ratePlanId,
+          billingRuleId: billingRuleId || null,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Billing & Routing updated.");
+      onSaved();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-lg" data-testid="billing-routing-dialog">
+        <DialogHeader>
+          <DialogTitle>Edit Billing & Routing</DialogTitle>
+          <DialogDescription>
+            Updates reservation commercial instructions only. Does not post folio payments.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+          <div className="space-y-1.5">
+            <Label>Bill To</Label>
+            <Select
+              value={billTo}
+              onValueChange={(next) => setBillTo(next as "guest" | "company" | "travel_agent")}
+            >
+              <SelectTrigger data-testid="billing-routing-bill-to">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="guest">Guest</SelectItem>
+                <SelectItem value="company">Company</SelectItem>
+                <SelectItem value="travel_agent">Travel Agent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <CreateReservationMasterPicker
+            restaurantId={restaurantId}
+            kind="company"
+            canCreate={false}
+            hideCreate
+            compact
+            master={company}
+            onMasterChange={setCompany}
+          />
+          <CreateReservationMasterPicker
+            restaurantId={restaurantId}
+            kind="travel_agent"
+            canCreate={false}
+            hideCreate
+            compact
+            master={travelAgent}
+            onMasterChange={setTravelAgent}
+          />
+          <div className="space-y-1.5">
+            <Label>Routing</Label>
+            <Select
+              value={billingRuleId || "none"}
+              onValueChange={(next) => setBillingRuleId(next === "none" ? "" : next)}
+            >
+              <SelectTrigger data-testid="billing-routing-rule">
+                <SelectValue placeholder="Select arrangement" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {billingRules.map((row) => (
+                  <SelectItem key={row.id} value={row.id}>
+                    {row.name}
+                    {row.payerKind
+                      ? ` · ${BILLING_PAYER_KIND_LABELS[row.payerKind] ?? row.payerKind}`
+                      : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="billing-routing-instructions">Special Instructions</Label>
+            <Textarea
+              id="billing-routing-instructions"
+              value={specialRequests}
+              onChange={(event) => setSpecialRequests(event.target.value)}
+              rows={3}
+              maxLength={2000}
+              data-testid="billing-routing-instructions"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={save.isPending}
+            onClick={() => save.mutate()}
+            data-testid="billing-routing-save"
+          >
+            {save.isPending ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

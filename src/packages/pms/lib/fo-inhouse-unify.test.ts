@@ -61,7 +61,7 @@ describe("FO-09 — in-house detail workspace matches the professional pattern",
       'title="Stay & Accommodation" testId="fo-inhouse-qv-stay-information"',
       'title="Financial Summary" testId="fo-inhouse-qv-financial"',
       'title="Room Information" testId="fo-inhouse-qv-room-information"',
-      'title="Requests, Notes & Guest Services" testId="fo-inhouse-qv-special-requests"',
+      'title="Guest Preferences, Notes & Guest Services" testId="fo-inhouse-qv-special-requests"',
     ].map((needle) => qv.indexOf(needle));
     assert.ok(order.every((idx) => idx > 0));
     assert.deepEqual(
@@ -106,7 +106,7 @@ describe("FO-09 — in-house detail workspace matches the professional pattern",
     const helpers = readRel("./fo-inhouse.ts");
     assert.match(helpers, /label: "Open Folio"/);
     assert.match(helpers, /label: "Add Service"/);
-    assert.match(helpers, /label: "Guest Request"/);
+    assert.match(helpers, /label: "Add Guest Service Request"/);
     assert.match(qv, /menuIds\.has\("open_folio"\)/);
   });
 

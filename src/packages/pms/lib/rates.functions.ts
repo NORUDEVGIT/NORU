@@ -22,6 +22,10 @@ import { parsePackageInclusionType, type RatePlanPackageLink } from "./rate-plan
 import { previewPostedRoomCharge } from "./room-charge-guest-total";
 import { loadRoomChargeRules } from "./room-charge-guest-total.server";
 import { ratePlanOccupancyValidationError } from "./occupancy-allocation";
+import {
+  assertRoomTypePartyOccupancy,
+  roomTypeCapacityFromRow,
+} from "./room-type-occupancy";
 
 const idSchema = z.string().uuid();
 
@@ -1086,6 +1090,19 @@ export const quoteStay = createServerFn({ method: "POST" })
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
 
+    const adults = data.adults ?? 1;
+    const children = data.children ?? 0;
+    const { data: roomTypeRow, error: roomTypeError } = await context.supabase
+      .from("room_types")
+      .select("max_occupancy, adult_capacity, child_capacity")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.roomTypeId)
+      .maybeSingle();
+    if (roomTypeError) throw new Error(roomTypeError.message);
+    if (!roomTypeRow) throw new Error("Room type not found for this property.");
+    // Hard capacity before price_hotel_stay — extra-person rates never raise the ceiling.
+    assertRoomTypePartyOccupancy(adults, children, roomTypeCapacityFromRow(roomTypeRow));
+
     const plans = await loadRatePlans(context.supabase, data.restaurantId, (query) => {
       let next = query.eq("room_type_id", data.roomTypeId).eq("active", true);
       if (data.ratePlanId) next = next.eq("id", data.ratePlanId);
@@ -1204,8 +1221,8 @@ export const quoteStay = createServerFn({ method: "POST" })
         _arrival: data.arrival,
         _departure: data.departure,
         _rooms: data.rooms ?? 1,
-        _adults: data.adults ?? 1,
-        _children: data.children ?? 0,
+        _adults: adults,
+        _children: children,
         _infants: data.infants ?? 0,
         _quote_currency: data.quoteCurrency ?? undefined });
       if (priceError) {
@@ -1302,6 +1319,17 @@ export const quoteFlexibleStay = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ windows: FlexibleStayWindow[] }> => {
     await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_VIEW);
     if (data.departure <= data.arrival) throw new Error("Departure must be after arrival.");
+    const adults = data.adults ?? 1;
+    const children = data.children ?? 0;
+    const { data: roomTypeRow, error: roomTypeError } = await context.supabase
+      .from("room_types")
+      .select("max_occupancy, adult_capacity, child_capacity")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("id", data.roomTypeId)
+      .maybeSingle();
+    if (roomTypeError) throw new Error(roomTypeError.message);
+    if (!roomTypeRow) throw new Error("Room type not found for this property.");
+    assertRoomTypePartyOccupancy(adults, children, roomTypeCapacityFromRow(roomTypeRow));
     const { addDaysIso, FLEXIBLE_DATE_OFFSETS } = await import("./create-reservation-step3");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const windows: FlexibleStayWindow[] = [];
@@ -1315,8 +1343,8 @@ export const quoteFlexibleStay = createServerFn({ method: "POST" })
         _arrival: arrival,
         _departure: departure,
         _rooms: data.rooms ?? 1,
-        _adults: data.adults ?? 1,
-        _children: data.children ?? 0,
+        _adults: adults,
+        _children: children,
         _infants: data.infants ?? 0,
         _quote_currency: data.quoteCurrency ?? undefined });
       const quote = error || pricing == null ? null : toQuote(pricing);

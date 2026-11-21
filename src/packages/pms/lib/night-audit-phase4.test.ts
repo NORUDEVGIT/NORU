@@ -919,7 +919,7 @@ describe("NA-P4 concurrent close", () => {
     );
     assert.match(
       body,
-      /closeRequestId,\r?\n\s*nightAuditWindow: outsideWindowCloseRecord\(.*\),\r?\n\s*\};/,
+      /closeRequestId,\r?\n\s*nightAuditWindow: outsideWindowCloseRecord\([\s\S]*?\),\r?\n\s*\};/,
     );
     assert.match(
       body,

@@ -1,4 +1,4 @@
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { reservationMutationBlock } from "@/packages/pms/lib/reservation-lifecycle";
 import { reservationError } from "@/packages/pms/lib/reservations.server";
 
@@ -50,7 +50,7 @@ export async function assertReservationDetailEditable(
     timezone?: string | null;
     business_date?: string | null;
   } | null;
-  const businessDate = resolvePropertyBusinessDate(
+  const businessDate = operationalBusinessDate(
     propertyRow?.business_date ? String(propertyRow.business_date).slice(0, 10) : null,
     propertyRow?.timezone || "UTC",
   );

@@ -654,6 +654,8 @@ export type Card1Draft = {
   checkoutPolicyText: string;
   earlyCheckinPolicyText: string;
   lateCheckoutPolicyText: string;
+  /** Canonical runtime gate mirrored to restaurants.late_checkout_needs_approval. */
+  lateCheckoutNeedsApproval: boolean;
   checkinOps: Card1CheckinOps;
   businessDateConfig: Card1BusinessDateConfig;
   businessDateBlockers: string[];
@@ -760,7 +762,9 @@ export function emptyLegalExtras(partial?: Partial<Card1LegalExtras>): Card1Lega
 export function emptyBusinessDateConfig(
   partial?: Partial<Card1BusinessDateConfig>,
 ): Card1BusinessDateConfig {
-  return {
+  // Unsupported engines (auto-roll, calendar desk/board rules) are forced to
+  // authoritative semantics — hotel day advances via Night Audit close only.
+  const merged: Card1BusinessDateConfig = {
     notes: "",
     closeBlockersEnabled: true,
     calendarDisplay: "dual",
@@ -768,7 +772,7 @@ export function emptyBusinessDateConfig(
     dayBoundary: "04:00",
     nightAuditWindowStart: "00:00",
     nightAuditWindowEnd: "04:00",
-    automaticRollover: true,
+    automaticRollover: false,
     manualRolloverRoles: ["owner", "front_office_manager"],
     lockDuringAudit: true,
     reservationSellDateRule: "use_business_date",
@@ -776,6 +780,11 @@ export function emptyBusinessDateConfig(
     frontOfficeDeskDate: "follow_business_date",
     ...partial,
   };
+  merged.automaticRollover = false;
+  merged.reservationSellDateRule = "use_business_date";
+  merged.housekeepingBoardDate = "follow_business_date";
+  merged.frontOfficeDeskDate = "follow_business_date";
+  return merged;
 }
 
 export function emptyStructureRules(partial?: Partial<Card1StructureRules>): Card1StructureRules {
@@ -883,6 +892,7 @@ export function emptyCard1Draft(partial?: Partial<Card1Draft>): Card1Draft {
     checkoutPolicyText: "",
     earlyCheckinPolicyText: "",
     lateCheckoutPolicyText: "",
+    lateCheckoutNeedsApproval: false,
     checkinOps: emptyCheckinOps(),
     businessDateConfig: emptyBusinessDateConfig(),
     businessDateBlockers: [...CARD1_DEFAULT_BLOCKERS],
@@ -1366,6 +1376,68 @@ function normalizedStayPolicy(value: unknown): Record<string, unknown> | undefin
   const feeValue = normalizedNumber(source["feeValue"]);
   if (feeValue != null && feeValue >= 0) normalized["feeValue"] = feeValue;
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+/**
+ * Late-checkout runtime columns on restaurants are the canonical FO/Night Audit
+ * source. checkin_ops.lateCheckout is a compatibility snapshot only.
+ * Runtime fee is fixed-amount; non-fixed Card1 snapshots cannot be promoted.
+ */
+export function mergeCard1LateCheckoutFromRuntime(input: {
+  runtimeAllowed?: boolean | null;
+  runtimeFee?: number | string | null;
+  runtimeNeedsApproval?: boolean | null;
+  checkinOpsLate: Card1StayPolicy;
+}): { lateCheckout: Card1StayPolicy; needsApproval: boolean } {
+  const runtimeFee =
+    input.runtimeFee == null || input.runtimeFee === ""
+      ? null
+      : Number.isFinite(Number(input.runtimeFee))
+        ? Number(input.runtimeFee)
+        : null;
+  const runtimeConfigured =
+    runtimeFee != null ||
+    input.runtimeAllowed === true ||
+    input.runtimeNeedsApproval === true;
+
+  if (runtimeConfigured) {
+    return {
+      lateCheckout: {
+        allowed: input.runtimeAllowed === true,
+        feeBasis: "fixed",
+        feeValue: runtimeFee,
+      },
+      needsApproval: input.runtimeNeedsApproval === true,
+    };
+  }
+
+  const ops = input.checkinOpsLate;
+  return {
+    lateCheckout: {
+      allowed: ops.allowed === true,
+      feeBasis: "fixed",
+      feeValue:
+        ops.feeBasis === "fixed" && ops.feeValue != null && Number.isFinite(Number(ops.feeValue))
+          ? Number(ops.feeValue)
+          : null,
+    },
+    needsApproval: false,
+  };
+}
+
+/** Snapshot shape written beside the canonical restaurants.late_checkout_* columns. */
+export function lateCheckoutCheckinOpsSnapshot(policy: Card1StayPolicy): Card1StayPolicy {
+  const feeValue =
+    policy.feeValue == null || policy.feeValue === ""
+      ? null
+      : Number.isFinite(Number(policy.feeValue))
+        ? Number(policy.feeValue)
+        : null;
+  return {
+    allowed: policy.allowed === true,
+    feeBasis: "fixed",
+    feeValue,
+  };
 }
 
 /**

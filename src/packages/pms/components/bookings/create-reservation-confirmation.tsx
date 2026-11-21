@@ -142,7 +142,7 @@ export function CreateReservationConfirmation({
           </div>
         ) : null}
         <div className="sm:col-span-2">
-          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Packages</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Add-ons</dt>
           <dd data-testid="confirmation-packages">
             {view.selectedPackageLines && view.selectedPackageLines.length > 0 ? (
               <ul className="space-y-0.5">
@@ -151,29 +151,27 @@ export function CreateReservationConfirmation({
                 ))}
               </ul>
             ) : (
-              "No packages selected"
+              "No add-ons selected"
             )}
           </dd>
         </div>
+        {view.savedPreferenceLines && view.savedPreferenceLines.length > 0 ? (
         <div className="sm:col-span-2">
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">
             Saved preferences
           </dt>
           <dd data-testid="confirmation-preferences">
-            {view.savedPreferenceLines && view.savedPreferenceLines.length > 0 ? (
               <ul className="space-y-0.5">
                 {view.savedPreferenceLines.map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>
-            ) : (
-              "No saved preferences"
-            )}
           </dd>
         </div>
+        ) : null}
         <div className="sm:col-span-2">
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-            Service requests
+            Guest Services
           </dt>
           <dd data-testid="confirmation-services">
             {view.selectedServiceLines && view.selectedServiceLines.length > 0 ? (
@@ -183,7 +181,7 @@ export function CreateReservationConfirmation({
                 ))}
               </ul>
             ) : (
-              "No service requests submitted"
+              "No guest service requests submitted"
             )}
           </dd>
         </div>

@@ -66,10 +66,10 @@ describe("GROUP-RES-04 Step 2 and Step 3", () => {
 
   it("keeps single Step 2 on the existing cards", () => {
     expect(details).toContain("Source & Channel");
-    expect(details).toContain("Company / Agent / Group");
+    expect(details).toContain('title="Account"');
     expect(details).toContain('["group", "Group / Block"]');
-    expect(details).toContain("Packages & Add-ons");
-    expect(details).toContain("Guest Requests & Preferences");
+    expect(details).toContain('title="Add-ons"');
+    expect(details).toContain('title="Guest Preferences & Guest Services"');
     expect(booking).toContain("groupSummary ?");
     expect(booking).not.toContain("CreateReservationRoomingList");
     expect(summary).toContain("Rooming Summary");

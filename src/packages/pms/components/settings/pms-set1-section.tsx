@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { PMS_OPERATIONAL_HOME_PATH } from "@/core/lib/pms-operational-home";
 
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -505,6 +507,7 @@ export function Set1PoliciesSection({ restaurantId, role, snapshot, canEdit }: {
 
 export function Set1GoLiveSection({ restaurantId, snapshot, checklist, canEdit, canActivate }: { restaurantId: string; role?: string; snapshot: Set1Foundation; checklist: Set1Checklist; canEdit: boolean; canActivate: boolean }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const activate = useServerFn(activatePmsSet1);
   const owner = canActivate;
   const [explicitConfirmation, setExplicitConfirmation] = useState(false);
@@ -519,6 +522,7 @@ export function Set1GoLiveSection({ restaurantId, snapshot, checklist, canEdit, 
       toast.success("Foundation settings are live.");
       void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
+      void navigate({ to: PMS_OPERATIONAL_HOME_PATH, replace: true });
     },
     onError: (error: Error) => toast.error(friendlySetupError(error)),
   });

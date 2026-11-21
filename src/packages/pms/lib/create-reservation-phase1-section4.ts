@@ -12,6 +12,12 @@
  */
 
 import { occupancyBlockMessage, occupancyExceeded } from "./fo-amendments.ts";
+import {
+  assertRoomTypePartyOccupancy,
+  roomTypeCapacityFromRow,
+  roomTypeOccupancyIneligibility,
+  type RoomTypeOccupancyCapacity,
+} from "./room-type-occupancy.ts";
 
 export const CREATE_RESERVATION_SECTION4_ISSUE = 131;
 export const CREATE_RESERVATION_SECTION4_MIGRATION = "NONE";
@@ -21,7 +27,8 @@ export const CREATE_RESERVATION_LIMITED_AVAILABLE_MAX = 2;
 
 export const CREATE_RESERVATION_STALE_SELECTION_RULE = "keep-selection-disable-submit";
 
-export const CREATE_RESERVATION_CAPACITY_ENFORCEMENT = "maxOccupancy-hard-block";
+export const CREATE_RESERVATION_CAPACITY_ENFORCEMENT =
+  "maxOccupancy-adultCapacity-childCapacity-hard-block";
 
 export const CREATE_RESERVATION_ACCEPTANCE_CRITERIA_SECTION4 = [
   "AC-CR4-1",
@@ -89,7 +96,7 @@ export const CREATE_RESERVATION_EMPTY_CATALOGUE =
 export const CREATE_RESERVATION_CHECKING_AVAILABILITY = "Checking availability…";
 
 export const CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY =
-  "Adult and child capacity labels are display-only. Occupancy block uses max occupancy (adults + children).";
+  "Hard capacity uses max occupancy plus configured adult and child capacity. Extra-person rates do not raise that ceiling.";
 
 export const CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE =
   "Create is blocked until occupancy fits this room type.";
@@ -163,7 +170,7 @@ export function roomTypeAvailabilityCopy(available: number, totalRooms: number):
 }
 
 export function roomTypeCapacityDisplay(adultCapacity: number, childCapacity: number): string {
-  return `Adult capacity ${adultCapacity} · Child capacity ${childCapacity} (display only)`;
+  return `Adult capacity ${adultCapacity} · Child capacity ${childCapacity}`;
 }
 
 export function stickyRoomTypeLabel(
@@ -246,11 +253,69 @@ export function occupancySoftWarn(
   return occupancyBlockMessage(adults, children, maxOccupancy);
 }
 
+/** Hard capacity including adult/child ceilings when configured on the room type. */
+export function occupancyCapacityWarn(
+  adults: number,
+  children: number,
+  capacity:
+    | RoomTypeOccupancyCapacity
+    | {
+        maxOccupancy?: number | null;
+        adultCapacity?: number | null;
+        childCapacity?: number | null;
+      }
+    | number
+    | null
+    | undefined,
+): string | null {
+  if (capacity == null) return null;
+  if (typeof capacity === "number") return occupancySoftWarn(adults, children, capacity);
+  const normalized =
+    "maxOccupancy" in capacity && capacity.maxOccupancy != null
+      ? {
+          maxOccupancy: Number(capacity.maxOccupancy ?? 0),
+          adultCapacity: Number(capacity.adultCapacity ?? 0),
+          childCapacity: Number(capacity.childCapacity ?? 0),
+        }
+      : roomTypeCapacityFromRow(capacity);
+  const blocked = roomTypeOccupancyIneligibility(adults, children, normalized);
+  if (!blocked) return null;
+  return `${blocked.reason}. ${blocked.maximum}.`;
+}
+
+/**
+ * Hard-block party size against room-type capacity.
+ * Pass max occupancy alone for legacy callers, or the full capacity object when available.
+ */
 export function assertRoomTypeOccupancy(
   adults: number,
   children: number,
-  maxOccupancy: number | null | undefined,
+  capacity:
+    | number
+    | RoomTypeOccupancyCapacity
+    | {
+        max_occupancy?: number | null;
+        adult_capacity?: number | null;
+        child_capacity?: number | null;
+        maxOccupancy?: number | null;
+        adultCapacity?: number | null;
+        childCapacity?: number | null;
+      }
+    | null
+    | undefined,
 ): void {
-  const blocked = occupancySoftWarn(adults, children, maxOccupancy ?? undefined);
-  if (blocked) throw new Error(blocked);
+  if (capacity == null) return;
+  if (typeof capacity === "number") {
+    assertRoomTypePartyOccupancy(adults, children, capacity);
+    return;
+  }
+  if ("maxOccupancy" in capacity && typeof capacity.maxOccupancy === "number") {
+    assertRoomTypePartyOccupancy(adults, children, {
+      maxOccupancy: capacity.maxOccupancy,
+      adultCapacity: Number(capacity.adultCapacity ?? 0),
+      childCapacity: Number(capacity.childCapacity ?? 0),
+    });
+    return;
+  }
+  assertRoomTypePartyOccupancy(adults, children, roomTypeCapacityFromRow(capacity));
 }

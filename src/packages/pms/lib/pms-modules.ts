@@ -208,7 +208,7 @@ export const PMS_MODULES: PmsModule[] = [
   {
     key: "guest-services",
     title: "Guest Services",
-    description: "Guest requests and concierge tracking — planned.",
+    description: "Guest service requests and concierge tracking — planned.",
     icon: ConciergeBell,
     group: "commercial",
     moduleKey: "front_office",

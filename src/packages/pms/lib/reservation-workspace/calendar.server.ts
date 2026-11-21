@@ -14,7 +14,7 @@ import {
   RESERVATION_STATUSES,
   type ReservationStatus,
 } from "../reservations.server";
-import { resolvePropertyBusinessDate } from "./business-date";
+import { operationalBusinessDate } from "./business-date";
 import {
   OPERATIONAL_RESERVATION_SELECT,
   toReservationOperationalSummary,
@@ -558,7 +558,7 @@ export const getReservationCalendar = createServerFn({ method: "POST" })
     if (propertyError) throw new Error(propertyError.message);
     if (!property) throw new Error("Property not found.");
 
-    const businessDate = resolvePropertyBusinessDate(property.business_date, property.timezone);
+    const businessDate = operationalBusinessDate(property.business_date, property.timezone);
     const range = resolveCalendarWindow({
       rangeStart: data.rangeStart,
       rangeEnd: data.rangeEnd,

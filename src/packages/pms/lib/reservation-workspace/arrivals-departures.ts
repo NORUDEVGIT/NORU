@@ -369,6 +369,172 @@ export function assertExpectedArrivalInstant(params: {
   return iso;
 }
 
+
+export type DepartureDayTiming =
+  | { kind: "before_checkout"; checkOutTime: string; deadlineLabel: string }
+  | {
+      kind: "approved_late_checkout";
+      checkOutTime: string;
+      lateCheckoutUntil: string;
+      deadlineLabel: string;
+    }
+  | {
+      kind: "departure_overdue";
+      reason: "past_checkout" | "late_checkout_expired";
+      checkOutTime: string;
+      lateCheckoutUntil: string | null;
+      deadlineLabel: string;
+    };
+
+/** Property-local HH:mm for an instant. Falls back to UTC clock on bad timezones. */
+export function formatZonedClock(iso: string, timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(iso));
+  } catch {
+    const date = new Date(iso);
+    return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+  }
+}
+
+/**
+ * Same-day departure timing for a checked-in stay on the business date.
+ * Calendar overstays (departureDate < businessDate) are handled by the caller.
+ * Uses property timezone only — never the browser clock.
+ */
+export function evaluateDepartureDayTiming(params: {
+  departureDate: string;
+  businessDate: string;
+  checkedAt: string;
+  timezone: string;
+  checkOutTime: string | null;
+  lateCheckoutGranted: boolean;
+  lateCheckoutUntil: string | null;
+}): DepartureDayTiming | null {
+  if (params.departureDate !== params.businessDate) return null;
+  const checkOutTime = normalizeClock(params.checkOutTime) || "12:00";
+  const nowMinutes = zonedClockMinutes(params.checkedAt, params.timezone);
+  const checkoutMinutes = clockMinutes(checkOutTime);
+  const lateUntil =
+    params.lateCheckoutGranted && params.lateCheckoutUntil && !Number.isNaN(Date.parse(params.lateCheckoutUntil))
+      ? new Date(params.lateCheckoutUntil).toISOString()
+      : null;
+
+  if (lateUntil) {
+    const untilMinutes = zonedClockMinutes(lateUntil, params.timezone);
+    const deadlineLabel = formatZonedClock(lateUntil, params.timezone);
+    if (nowMinutes <= untilMinutes) {
+      return {
+        kind: "approved_late_checkout",
+        checkOutTime,
+        lateCheckoutUntil: lateUntil,
+        deadlineLabel,
+      };
+    }
+    return {
+      kind: "departure_overdue",
+      reason: "late_checkout_expired",
+      checkOutTime,
+      lateCheckoutUntil: lateUntil,
+      deadlineLabel,
+    };
+  }
+
+  if (nowMinutes <= checkoutMinutes) {
+    return {
+      kind: "before_checkout",
+      checkOutTime,
+      deadlineLabel: checkOutTime,
+    };
+  }
+
+  return {
+    kind: "departure_overdue",
+    reason: "past_checkout",
+    checkOutTime,
+    lateCheckoutUntil: null,
+    deadlineLabel: checkOutTime,
+  };
+}
+
+/** FO Attention / rack labels for departure timing — same clock as Night Audit. */
+export type FoDepartureAttentionKind =
+  | "checkout_overdue"
+  | "late_checkout_expired"
+  | "calendar_overstay";
+
+export type FoDepartureAttention = {
+  kind: FoDepartureAttentionKind;
+  label: string;
+};
+
+export const FO_DEPARTURE_ATTENTION_LABEL: Record<FoDepartureAttentionKind, string> = {
+  checkout_overdue: "Checkout overdue",
+  late_checkout_expired: "Late checkout expired",
+  calendar_overstay: "Departure overdue",
+};
+
+/**
+ * Front Office departure attention for a checked-in stay.
+ * Calendar overstay is exclusive of same-day timing (no double classification).
+ * Reuses evaluateDepartureDayTiming — never a second clock/date engine.
+ */
+export function classifyFoDepartureAttention(params: {
+  status: string;
+  departureDate: string;
+  businessDate: string;
+  checkedAt: string;
+  timezone: string;
+  checkOutTime: string | null;
+  lateCheckoutGranted: boolean;
+  lateCheckoutUntil: string | null;
+}): FoDepartureAttention | null {
+  if (params.status !== "checked_in") return null;
+  if (params.departureDate < params.businessDate) {
+    return {
+      kind: "calendar_overstay",
+      label: FO_DEPARTURE_ATTENTION_LABEL.calendar_overstay,
+    };
+  }
+  if (params.departureDate !== params.businessDate) return null;
+  const timing = evaluateDepartureDayTiming({
+    departureDate: params.departureDate,
+    businessDate: params.businessDate,
+    checkedAt: params.checkedAt,
+    timezone: params.timezone,
+    checkOutTime: params.checkOutTime,
+    lateCheckoutGranted: params.lateCheckoutGranted,
+    lateCheckoutUntil: params.lateCheckoutUntil,
+  });
+  if (!timing || timing.kind !== "departure_overdue") return null;
+  if (timing.reason === "late_checkout_expired") {
+    return {
+      kind: "late_checkout_expired",
+      label: FO_DEPARTURE_ATTENTION_LABEL.late_checkout_expired,
+    };
+  }
+  return {
+    kind: "checkout_overdue",
+    label: FO_DEPARTURE_ATTENTION_LABEL.checkout_overdue,
+  };
+}
+
+/**
+ * Late-checkout grants are same-calendar-day only.
+ * Calendar overstay (departure before business date) must not offer Late Checkout.
+ */
+export function foLateCheckoutActionEligible(params: {
+  status: string;
+  departureDate: string;
+  businessDate: string;
+}): boolean {
+  return params.status === "checked_in" && params.departureDate === params.businessDate;
+}
+
 export function assertLateCheckoutUntil(params: {
   until: string;
   departureDate: string;
@@ -403,5 +569,49 @@ export function parseLateCheckoutPolicy(row: {
     fee,
     needsApproval: row.late_checkout_needs_approval === true,
     checkOutTime: normalizeClock(row.check_out_time) || null,
+  };
+}
+
+/** Fixed-fee snapshot only — matches restaurants.late_checkout_fee semantics. */
+function lateCheckoutFixedFeeFromCheckinOps(value: unknown): { allowed: boolean; fee: number | null } | null {
+  if (!value || typeof value !== "object") return null;
+  const late = (value as Record<string, unknown>)["lateCheckout"];
+  if (!late || typeof late !== "object") return null;
+  const rec = late as Record<string, unknown>;
+  if (rec["feeBasis"] != null && rec["feeBasis"] !== "fixed") return null;
+  const feeRaw = rec["feeValue"];
+  const fee =
+    feeRaw == null || feeRaw === "" ? null : Number.isNaN(Number(feeRaw)) ? null : Number(feeRaw);
+  return {
+    allowed: rec["allowed"] === true,
+    fee: fee != null && Number.isFinite(fee) ? fee : null,
+  };
+}
+
+/**
+ * Canonical runtime is restaurants.late_checkout_*.
+ * When those columns were never configured, a fixed-fee checkin_ops.lateCheckout
+ * snapshot may still hold the Property & Business value (no mass migration).
+ */
+export function resolveLateCheckoutPolicy(row: {
+  late_checkout_allowed?: boolean | null;
+  late_checkout_fee?: number | string | null;
+  late_checkout_needs_approval?: boolean | null;
+  check_out_time?: string | null;
+  checkin_ops?: unknown;
+}): LateCheckoutPolicy {
+  const runtime = parseLateCheckoutPolicy(row);
+  const runtimeConfigured =
+    runtime.fee != null ||
+    row.late_checkout_allowed === true ||
+    row.late_checkout_needs_approval === true;
+  if (runtimeConfigured) return runtime;
+  const snapshot = lateCheckoutFixedFeeFromCheckinOps(row.checkin_ops);
+  if (!snapshot || (!snapshot.allowed && snapshot.fee == null)) return runtime;
+  return {
+    allowed: snapshot.allowed,
+    fee: snapshot.fee,
+    needsApproval: runtime.needsApproval,
+    checkOutTime: runtime.checkOutTime,
   };
 }

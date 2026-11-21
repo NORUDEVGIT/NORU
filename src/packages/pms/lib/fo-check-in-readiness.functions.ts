@@ -32,7 +32,7 @@ import {
 import type { GuestProfile } from "@/packages/pms/lib/guests.functions";
 import { loadGuestWorkspaceConfig } from "@/packages/pms/lib/guest-workspace-config.functions";
 import { loadCard2HousekeepingSnapshot } from "@/packages/pms/lib/housekeeping-card2.functions";
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { requirePmsActor } from "@/packages/pms/lib/pms-permissions.server";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { getAssignmentEligibilityCompat } from "@/packages/pms/lib/room-inventory-compat";
@@ -165,7 +165,7 @@ export const getCheckInReadiness = createServerFn({ method: "POST" })
       )
       .eq("id", data.restaurantId)
       .maybeSingle();
-    const today = resolvePropertyBusinessDate(
+    const today = operationalBusinessDate(
       property?.business_date ?? null,
       property?.timezone ?? "UTC",
     );

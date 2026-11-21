@@ -20,13 +20,10 @@ import type { ReservationHistoryEntry } from "@/packages/pms/lib/reservations.fu
 
 export const REQUEST_NOTES_MAX = 500;
 
+/** Operational Guest Services filters only — preference/note editing lives on Guest. */
 export const REQUEST_SECTION_TABS = [
-  { id: "all", label: "All" },
-  { id: "guest", label: "Guest Preferences" },
   { id: "service", label: "Service Requests" },
-  { id: "room", label: "Room Preferences" },
-  { id: "vip", label: "VIP & Special" },
-  { id: "history", label: "History" },
+  { id: "history", label: "Request History" },
 ] as const;
 
 export type RequestSectionTab = (typeof REQUEST_SECTION_TABS)[number]["id"];

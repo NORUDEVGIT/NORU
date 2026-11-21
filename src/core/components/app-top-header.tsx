@@ -519,7 +519,7 @@ function ModuleRow({ items, moreItems }: { items: HeaderNavItem[]; moreItems: He
 /* ------------------------------------------------------------------ */
 
 export function AppTopHeader({
-  logoHref = "/restaurant/home",
+  logoHref = "/restaurant/pms/dashboard",
   onOpenNavigation,
   properties,
   activePropertyId,

@@ -117,6 +117,7 @@ import type {
 import { DepositPolicySheet } from "@/packages/pms/components/settings/pms-property-setup-card3-payments";
 import { saveDepositPolicyCard3 } from "@/packages/pms/lib/payments-card3.functions";
 import type { DepositPolicyCard3Row } from "@/packages/pms/lib/payments-card3";
+import { PackageCoverThumb } from "@/packages/pms/components/bookings/reservation-package-merchandise";
 import { RatePlanWizard } from "@/packages/pms/components/settings/rate-plan-wizard/rate-plan-wizard";
 import {
   isEffectivelyOpenEndedRestrictionWindow,
@@ -138,7 +139,6 @@ import {
   formatPackageDropdownDetail,
   formatPackagePriceDetail,
   formatRatePlanMoney,
-  oneNightStartingTotal,
 } from "@/packages/pms/lib/rate-plan-price-summary";
 import { cn } from "@/shared/lib/utils";
 import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
@@ -1454,6 +1454,7 @@ function PlanDrawer({
   const [initialPackageId, setInitialPackageId] = useState<string | null>(null);
   const [packageHydrated, setPackageHydrated] = useState(false);
   const [packageEditorOpen, setPackageEditorOpen] = useState(false);
+  const [packageEditorTarget, setPackageEditorTarget] = useState<PackageCard3Row | null>(null);
   const [mealCatalogueOpen, setMealCatalogueOpen] = useState(false);
   const [packageCatalogueOpen, setPackageCatalogueOpen] = useState(false);
   const [packageSavePending, setPackageSavePending] = useState(false);
@@ -1938,11 +1939,29 @@ function PlanDrawer({
                     variant="ghost"
                     size="sm"
                     className="h-5 px-1.5 text-xs text-[#8A641A] hover:bg-[#F4EDE0]"
-                    onClick={() => setPackageEditorOpen(true)}
+                    onClick={() => {
+                      setPackageEditorTarget(null);
+                      setPackageEditorOpen(true);
+                    }}
                   >
                     <Plus className="mr-1 size-3" />
                     Create custom
                   </Button>
+                  {packageSelected && selectedPackage ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-5 border-[#D9D2C4] px-1.5 text-[10px] text-[#251605] hover:bg-[#F4EDE0]"
+                      data-testid="edit-rate-plan-edit-package"
+                      onClick={() => {
+                        setPackageEditorTarget(selectedPackage);
+                        setPackageEditorOpen(true);
+                      }}
+                    >
+                      Edit selected package
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
@@ -2014,6 +2033,14 @@ function PlanDrawer({
                   : "Guests may add this package separately when booking."}
               </p>
             </div>
+          ) : null}
+
+          {packageSelected && selectedPackage ? (
+            <SelectedPackagePreview
+              pkg={selectedPackage}
+              currencyCode={currencyCode}
+              inclusionType={packageInclusionType}
+            />
           ) : null}
         </div>
 
@@ -2253,7 +2280,9 @@ function PlanDrawer({
           {packageSelected && selectedPackage && packageInclusionType === "included" ? (
             <>
               <div className="flex justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">{selectedPackage.name}</span>
+                <span className="text-muted-foreground">
+                  Catalogue price · {selectedPackage.name}
+                </span>
                 <span className="text-right font-medium text-[#251605]">
                   {formatPackagePriceDetail(selectedPackage, currencyCode)}
                 </span>
@@ -2265,25 +2294,23 @@ function PlanDrawer({
                 </span>
               </div>
               <div className="mt-2 flex justify-between gap-3 border-t border-[#EDE6D8] pt-2.5">
-                <span className="text-xs font-semibold text-[#251605]">
-                  1-night starting total
-                </span>
+                <span className="text-xs font-semibold text-[#251605]">Starting room total</span>
                 <span className="text-right text-sm font-semibold tabular-nums text-[#251605]">
-                  {formatRatePlanMoney(
-                    currencyCode,
-                    oneNightStartingTotal(baseRate, selectedPackage.packagePrice),
-                  )}
+                  {`${formatRatePlanMoney(currencyCode, baseRate)} / night`}
                 </span>
               </div>
               <p className="pt-1 text-[11px] text-[#756A5B]">
-                Final booking total depends on stay length and package charge basis.
+                The package is bundled with this rate. Its catalogue price is not added separately
+                to the room quote.
               </p>
             </>
           ) : null}
           {packageSelected && selectedPackage && packageInclusionType === "optional" ? (
             <>
               <div className="flex justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">{selectedPackage.name}</span>
+                <span className="text-muted-foreground">
+                  Catalogue price · {selectedPackage.name}
+                </span>
                 <span className="text-right font-medium text-[#251605]">
                   {formatPackagePriceDetail(selectedPackage, currencyCode)}
                 </span>
@@ -2455,6 +2482,7 @@ function PlanDrawer({
     </Card3OverlapSheet>
 
     <PackageMasterEditor
+      key={`${packageEditorTarget?.id ?? "create"}:${packageEditorOpen ? "open" : "closed"}`}
       open={packageEditorOpen}
       restaurantId={restaurantId}
       canEdit={canEdit}
@@ -2469,7 +2497,7 @@ function PlanDrawer({
       guestServiceCategories={mealsSnapshot?.guestServiceCategories ?? []}
       guestServiceTypes={mealsSnapshot?.guestServiceTypes ?? []}
       existingPackages={packageCatalogue}
-      value={null}
+      value={packageEditorTarget}
       pending={packageSavePending}
       componentPending={false}
       className="z-[80]"
@@ -2477,7 +2505,11 @@ function PlanDrawer({
       onSave={handleSaveInlinePackage}
       onSaved={(pkg) => {
         setPackageId(pkg.id);
-        toast.success(`Selected "${pkg.name}" for rate plan.`);
+        toast.success(
+          packageEditorTarget
+            ? `Updated "${pkg.name}".`
+            : `Selected "${pkg.name}" for rate plan.`,
+        );
         void queryClient.invalidateQueries({ queryKey: ["pms-card3-meals", restaurantId] });
       }}
       onSaveComponent={() => {
@@ -2553,6 +2585,49 @@ function PlanDrawer({
       </DialogContent>
     </Dialog>
     </>
+  );
+}
+
+function SelectedPackagePreview({
+  pkg,
+  currencyCode,
+  inclusionType,
+}: {
+  pkg: PackageCard3Row;
+  currencyCode: string;
+  inclusionType: PackageInclusionType;
+}) {
+  const included = inclusionType === "included";
+  const description = pkg.description.trim();
+  return (
+    <div
+      className="flex gap-3 rounded-lg border border-[#E6E1D8] bg-white p-3"
+      data-testid="edit-rate-plan-package-preview"
+    >
+      <PackageCoverThumb
+        coverUrl={pkg.coverUrl}
+        name={pkg.name}
+        className="size-14 shrink-0 object-cover"
+      />
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-[#251605]">{pkg.name}</p>
+        {description ? (
+          <p className="mt-0.5 line-clamp-2 text-xs text-[#6B5E4E]">{description}</p>
+        ) : null}
+        <p className="mt-1 text-xs text-[#251605]">
+          <span className="text-[#6B5E4E]">Catalogue price </span>
+          {formatPackagePriceDetail(pkg, currencyCode)}
+        </p>
+        <p className="mt-0.5 text-xs font-medium text-[#251605]">
+          {PACKAGE_INCLUSION_TYPE_LABELS[inclusionType]}
+        </p>
+        <p className="mt-1 text-[11px] leading-snug text-[#756A5B]">
+          {included
+            ? "The package is bundled with this rate. Its catalogue price is not added separately to the room quote."
+            : "Guests may add this package separately during reservation."}
+        </p>
+      </div>
+    </div>
   );
 }
 

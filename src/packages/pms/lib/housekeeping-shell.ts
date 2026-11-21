@@ -152,6 +152,8 @@ export function boardColumnForRoom(room: RackRoom): HkBoardColumn | null {
   if (room.ready) return "ready";
   if (room.housekeepingStatus === "clean") return "inspection";
   if (room.housekeepingStatus === "inspected") return "clean";
+  // Unknown/missing status is a data problem — do not invent Clean in the UI.
+  // First Go-Live bootstrap must persist an explicit operational status instead.
   return "dirty";
 }
 

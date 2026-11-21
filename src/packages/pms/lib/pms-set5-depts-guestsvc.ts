@@ -99,7 +99,7 @@ export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEventKey, string> = {
   reservation_confirmed: "Reservation confirmed",
   pre_arrival: "Pre-arrival",
-  guest_request_created: "Guest request created",
+  guest_request_created: "Guest service request created",
   night_audit_exception: "Night audit exception",
 };
 
