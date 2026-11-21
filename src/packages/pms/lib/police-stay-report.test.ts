@@ -252,7 +252,7 @@ describe("Police stay report read model", () => {
       /from\(["']fo_stay_companions|from\(["']guest_documents|from\(["']pms_group_rooming_rows/,
     );
     assert.match(server, /assertDateOnly/);
-    assert.match(server, /resolvePropertyBusinessDate/);
+    assert.match(server, /operationalBusinessDate/);
   });
 
   it("uses room-unit overlap and excludes the checkout date", () => {

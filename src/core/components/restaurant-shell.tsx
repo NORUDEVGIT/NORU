@@ -624,40 +624,42 @@ export function RestaurantShell({
     </div>
   );
 
+  const liveHomeHref = pmsPackage ? "/restaurant/pms/dashboard" : "/restaurant/home";
   const sidebar = !membership || pendingReview || setupHome ? null : !operational ? restrictedSidebar : (
     <div className="flex h-full flex-col gap-5 p-4">
       <Link
-        to="/restaurant/home"
+        to={liveHomeHref}
         className="flex items-center gap-2 px-2 font-display text-lg"
         onClick={() => setNavOpen(false)}
-        aria-label="NORU property home"
+        aria-label="NORU PMS home"
       >
         <NoruLogo size="sm" wordmarkClassName="text-sidebar-foreground" />
       </Link>
 
       {pmsMod ? (
         <div className="space-y-1">
-          <Link
-            to="/restaurant/home"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ArrowLeft className="size-4 shrink-0" /> Property Home
-          </Link>
           {pmsPackage ? (
             <Link
-              to="/restaurant/pms"
+              to="/restaurant/pms/dashboard"
               onClick={() => setNavOpen(false)}
               className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             >
               <Hotel className="size-4 shrink-0" /> PMS Home
             </Link>
-          ) : null}
+          ) : (
+            <Link
+              to="/restaurant/home"
+              onClick={() => setNavOpen(false)}
+              className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <ArrowLeft className="size-4 shrink-0" /> Property Home
+            </Link>
+          )}
         </div>
       ) : workspace !== "home" ? (
         <div className="space-y-2">
           <Link
-            to={pmsPackage && (pms || active === "Settings") ? "/restaurant/pms" : "/restaurant/home"}
+            to={pmsPackage && (pms || active === "Settings") ? "/restaurant/pms/dashboard" : "/restaurant/home"}
             onClick={() => setNavOpen(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
@@ -929,8 +931,8 @@ export function RestaurantShell({
 
                   {pmsMod && !hidePackageRail ? (
                     <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
-                      <Link to="/restaurant/home" className="hover:text-foreground">
-                        Property Home
+                      <Link to="/restaurant/pms/dashboard" className="hover:text-foreground">
+                        PMS Home
                       </Link>
                       <span className="px-1.5">→</span>
                       <Link to="/restaurant/pms" className="hover:text-foreground">

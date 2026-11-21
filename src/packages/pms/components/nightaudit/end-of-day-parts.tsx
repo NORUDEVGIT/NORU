@@ -297,7 +297,10 @@ function folioIdFromRoute(route: string): string | null {
 }
 
 function inlineKind(code: string, label: string): "check-out" | "allocate" | null {
-  if ((code === "overstay" || code === "departure_due_today") && label === "Check Out") {
+  if (
+    (code === "overstay" || code === "departure_overdue" || code === "departure_due_today") &&
+    label === "Check Out"
+  ) {
     return "check-out";
   }
   if (
@@ -860,6 +863,95 @@ function FiscalOverrideDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const DEPARTURE_UNRESOLVED_CODES = new Set(["overstay", "departure_overdue"]);
+
+export function UnresolvedDeparturesTable({
+  conditions,
+  permissions,
+  fiscal,
+  money,
+  arrival,
+}: {
+  conditions: readonly EndOfDayCondition[];
+  permissions: ConditionPermissions;
+  fiscal: FiscalOverrideControl;
+  money: (value: number | null | undefined) => string;
+  arrival?: ArrivalStayActions;
+}) {
+  const rows = conditions.filter(
+    (row) => row.kind === "blocker" && (DEPARTURE_UNRESOLVED_CODES.has(row.code) || row.code === "source_unavailable"),
+  );
+  if (rows.length === 0) {
+    return <p className="text-xs text-muted-foreground">No unresolved departures.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border/60" data-testid="end-of-day-unresolved-departures">
+      <table className="w-full min-w-[40rem] border-collapse text-left text-xs">
+        <thead className="bg-muted/40 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Guest</th>
+            <th className="px-3 py-2 font-medium">Room</th>
+            <th className="px-3 py-2 font-medium">Planned departure</th>
+            <th className="px-3 py-2 font-medium">Checkout time</th>
+            <th className="px-3 py-2 font-medium">Folio balance</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+            <th className="px-3 py-2 font-medium">
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
+          {rows.map((condition) => {
+            const actions = condition.actions.filter(
+              (action) => action.permissions.length === 0 || permissions.canAny(action.permissions),
+            );
+            const lateExpired = /late checkout expired/i.test(condition.explanation);
+            const statusReason =
+              condition.code === "overstay"
+                ? "Still in-house after the planned departure date."
+                : condition.code === "departure_overdue"
+                  ? lateExpired
+                    ? `Late checkout expired at ${condition.checkoutDeadlineLabel ?? "the approved time"}.`
+                    : "Guest is still in-house after the scheduled checkout time."
+                  : condition.explanation;
+            return (
+              <tr key={condition.key} className="bg-white align-top" data-testid="end-of-day-unresolved-departure-row">
+                <td className="px-3 py-2 font-medium text-foreground">
+                  {condition.guestName ?? condition.entity ?? "Guest"}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">{condition.roomNumber ?? "—"}</td>
+                <td className="px-3 py-2 text-muted-foreground">{condition.dueDate ?? "—"}</td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {condition.checkoutDeadlineLabel ?? "—"}
+                </td>
+                <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                  {condition.amount != null ? money(condition.amount) : "—"}
+                </td>
+                <td className="px-3 py-2 text-foreground">
+                  <p className="font-semibold text-red-700">Departure overdue</p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{statusReason}</p>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <ConditionActionMenu
+                    condition={condition}
+                    permissions={permissions}
+                    actions={actions}
+                    fiscal={fiscal}
+                    fiscalTarget={null}
+                    showFiscalOverride={false}
+                    onFiscalOverride={() => undefined}
+                    {...(arrival ? { arrival } : {})}
+                  />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

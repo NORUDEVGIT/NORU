@@ -106,22 +106,14 @@ describe("Create reservation Booking Details wiring", () => {
     assert.match(packages, /CREATE_RESERVATION_PACKAGES_NOT_ATTACHED/);
     assert.match(packages, /money\(card\.price\)/);
     assert.match(packages, /card\.price == null/);
-    assert.match(packages, /<table/);
-    assert.match(packages, />Package</);
-    assert.match(packages, />Description</);
-    assert.match(packages, /Price \(\{currency\}\)/);
-    assert.match(packages, />Qty</);
-    assert.match(packages, /Total \(\{currency\}\)/);
+    assert.match(packages, /Included with rate/);
     assert.match(packages, /card\.chargeType/);
-    assert.match(packages, /card\.chargeBasisHonesty/);
-    assert.match(packages, /No packages are available for the selected room and rate\./);
+    assert.match(packages, /No add-ons for this rate\./);
     assert.match(packages, /canBindCreatePackage/);
-    assert.match(packages, /Select optional packages for this reservation\./);
+    assert.match(packages, /Commercial extras for this rate/);
     assert.match(packages, /createPackageUnselectableReason/);
     assert.match(packages, /data-selected=\{selected \? "true" : "false"\}/);
-    assert.match(packages, /data-bindable=\{bindable \? "true" : "false"\}/);
-    assert.match(packages, /<Checkbox/);
-    assert.match(packages, /disabled=\{!bindable/);
+    assert.match(packages, /"Add"/);
     assert.match(page, /getMealsCard3|fetchMealsCard3/);
     assert.match(page, /buildAvailablePackageCards/);
     assert.match(page, /ratePlanId,\s*roomTypeId,\s*arrival,\s*departure/);
@@ -166,10 +158,13 @@ describe("Create reservation Booking Details wiring", () => {
     assert.doesNotMatch(page, /guestServiceTypeIds|serviceRequestIds|preferenceValues/);
     assert.doesNotMatch(page, /saveGuestPreference/);
     assert.match(details, /data-testid="saved-preference-chip"/);
-    assert.match(details, /No saved preferences for this guest/);
-    assert.match(details, /<Checkbox/);
+    assert.doesNotMatch(details, /No saved preferences for this guest/);
+    assert.match(details, /omitUnpriced/);
     assert.match(details, /booking-details-service-requests/);
-    assert.match(details, /data-testid="selected-service-description"/);
+    assert.match(
+      readRel("../components/bookings/reservation-service-picker.tsx"),
+      /data-testid="selected-service-description"/,
+    );
     assert.match(details, /onSelectedServiceRequestsChange/);
     assert.doesNotMatch(details, /service-type-search|Selected Requests \(/);
     assert.match(details, /lg:grid-cols-2/);

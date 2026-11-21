@@ -11,7 +11,7 @@ import { requirePmsActor } from "../pms-permissions.server";
 import { PMS_PERMISSIONS } from "../pms-permissions";
 import { RESERVATION_STATUSES } from "../reservations.server";
 import { deskActionHints } from "./desk.server";
-import { resolvePropertyBusinessDate } from "./business-date";
+import { operationalBusinessDate } from "./business-date";
 import {
   OPERATIONAL_RESERVATION_SELECT,
   operationalRoomState,
@@ -442,7 +442,7 @@ export const getReservationQuickView = createServerFn({ method: "POST" })
     const row = reservationResult.data as unknown as OperationalReservationRow;
     const summary = toReservationOperationalSummary(row);
     const roomState = operationalRoomState(row);
-    const businessDate = resolvePropertyBusinessDate(
+    const businessDate = operationalBusinessDate(
       propertyResult.data.business_date,
       propertyResult.data.timezone,
     );

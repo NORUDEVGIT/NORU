@@ -3,7 +3,7 @@
  * Reuses Property Setup loaders. Does not write masters or operational rows.
  */
 
-import { propertyToday } from "../reservation-dates";
+import { operationalBusinessDate } from "../reservation-workspace/business-date";
 import { loadCommercialCard3Snapshot } from "../commercial-card3.functions";
 import { loadMealsCard3Snapshot } from "../meals-card3.functions";
 import { loadCorporateCard3Snapshot } from "../corporate-card3.functions";
@@ -80,7 +80,10 @@ export async function loadRevenueProperty(
     propertyId: row.id,
     propertyName: row.name || fallbackName,
     timezone: row.timezone,
-    businessDate: row.business_date ?? propertyToday(row.timezone),
+    businessDate: operationalBusinessDate(
+      row.business_date ? row.business_date.slice(0, 10) : null,
+      row.timezone,
+    ),
     currency: row.currency_code,
   };
 }

@@ -1,5 +1,11 @@
 /** Shared Reservations week window. Checkout is exclusive, matching the desk stay overlap. */
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isIsoDate(value: string | null | undefined): value is string {
+  return Boolean(value && ISO_DATE.test(value));
+}
+
 export function stayOverlapsWindow(
   arrival: string,
   departure: string,
@@ -43,38 +49,50 @@ export function eachDateInclusive(start: string, end: string): string[] {
 }
 
 function shiftDate(value: string, days: number): string {
+  if (!isIsoDate(value)) return "";
   const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "";
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
 /** Monday of the week that contains `isoDate`. Weeks start on Monday. */
 export function reservationMondayOf(isoDate: string): string {
+  if (!isIsoDate(isoDate)) return "";
   const weekday = new Date(`${isoDate}T00:00:00Z`).getUTCDay();
+  if (Number.isNaN(weekday)) return "";
   const delta = weekday === 0 ? -6 : 1 - weekday;
   return shiftDate(isoDate, delta);
 }
 
 /** Inclusive last day. A 7-day horizon that starts on Monday ends on Sunday. */
 export function reservationRangeEnd(start: string, horizon: number): string {
+  if (!isIsoDate(start)) return "";
   return shiftDate(start, Math.max(1, horizon) - 1);
 }
 
 /**
  * Start used by every Reservations section.
  * Seven days stays on the Monday of the stored day. Other horizons keep that day.
+ * Returns "" until a valid ISO hotel day / stored start is available.
  */
 export function reservationRangeStart(input: {
   storedStart: string | null;
   horizon: number;
   businessDate: string;
 }): string {
-  const anchor = input.storedStart ?? input.businessDate;
+  const anchor = isIsoDate(input.storedStart)
+    ? input.storedStart
+    : isIsoDate(input.businessDate)
+      ? input.businessDate
+      : "";
+  if (!anchor) return "";
   return input.horizon === 7 ? reservationMondayOf(anchor) : anchor;
 }
 
 /** Move the window by the selected horizon. A week lands on the next or previous Monday. */
 export function shiftReservationRange(start: string, horizon: number, direction: -1 | 1): string {
+  if (!isIsoDate(start)) return "";
   const shifted = shiftDate(start, direction * Math.max(1, horizon));
   return horizon === 7 ? reservationMondayOf(shifted) : shifted;
 }
@@ -84,6 +102,7 @@ export function shiftReservationRange(start: string, horizon: number, direction:
  * One, 14, and 30 days start on the picked date.
  */
 export function reservationStartAfterPick(date: string, horizon: number): string {
+  if (!isIsoDate(date)) return "";
   return horizon === 7 ? reservationMondayOf(date) : date;
 }
 
@@ -98,10 +117,17 @@ export function reservationStartAfterHorizonChange(input: {
   nextHorizon: number;
   businessDate: string;
 }): string {
+  if (!isIsoDate(input.currentStart)) {
+    return isIsoDate(input.businessDate) ? reservationMondayOf(input.businessDate) : "";
+  }
   if (input.nextHorizon === 7) return reservationMondayOf(input.currentStart);
   if (input.nextHorizon === 1) {
     const end = reservationRangeEnd(input.currentStart, input.currentHorizon);
-    if (input.businessDate >= input.currentStart && input.businessDate <= end) {
+    if (
+      isIsoDate(input.businessDate) &&
+      input.businessDate >= input.currentStart &&
+      input.businessDate <= end
+    ) {
       return input.businessDate;
     }
     return input.currentStart;
@@ -111,6 +137,7 @@ export function reservationStartAfterHorizonChange(input: {
 
 /** `9–15 Nov 2026`, `11 Nov 2026`, or the month and year repeated when the span crosses them. */
 export function formatInclusiveRangeLabel(start: string, end: string): string {
+  if (!isIsoDate(start) || !isIsoDate(end)) return "";
   const startDate = new Date(`${start}T00:00:00Z`);
   const endDate = new Date(`${end}T00:00:00Z`);
   const day = (date: Date) => String(date.getUTCDate());

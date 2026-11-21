@@ -10,6 +10,7 @@ import {
   rateCopyFromQuote,
   type CreateRateQuoteRow,
 } from "@/packages/pms/lib/create-reservation-phase1-section5";
+import { rateInclusionSummaryLines } from "@/packages/pms/lib/reservation-booking-separation";
 import { quotedNonRefundable } from "@/packages/pms/lib/create-reservation-step4";
 import { PMS_OP_BTN_COMPACT, PMS_OP_PANEL } from "@/packages/pms/lib/pms-operational-surface";
 import { Button } from "@/shared/components/ui/button";
@@ -82,34 +83,6 @@ function displayCancellation(label: string, arrivalDate: string | null): string 
   return trimmed;
 }
 
-function includedItemsLabel(quote: CreateRateQuoteRow | null): string {
-  if (!quote) return NO_INCLUSIONS_FALLBACK;
-  const items: string[] = [];
-  const breakfast = quote.breakfastLabel?.trim();
-  if (breakfast && breakfast !== "—" && breakfast !== "Not included") {
-    items.push(breakfast === "Included" ? "Breakfast included" : breakfast);
-  } else if (quote.plan.breakfastIncluded) {
-    items.push("Breakfast included");
-  }
-  const meal = quote.plan.mealPlanName?.trim();
-  if (
-    meal &&
-    meal !== "Included" &&
-    !items.some((item) => item.toLowerCase() === meal.toLowerCase())
-  ) {
-    items.push(meal);
-  }
-  const services = quote.includedServicesLabel?.trim();
-  if (services && services !== "—" && services !== "Included") {
-    for (const part of services.split("·")) {
-      const label = part.trim();
-      if (!label || label === "Included" || label === "—") continue;
-      if (!items.some((item) => item.toLowerCase() === label.toLowerCase())) items.push(label);
-    }
-  }
-  return items.length > 0 ? items.join(" · ") : NO_INCLUSIONS_FALLBACK;
-}
-
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
@@ -145,6 +118,13 @@ export function CreateReservationSelectedRoom({
   occupancyLabel?: string | null;
 }) {
   const rateCopy = rateCopyFromQuote(selectedQuote, money);
+  const inclusionLines = rateInclusionSummaryLines({
+    breakfastIncluded: selectedQuote?.plan.breakfastIncluded,
+    breakfastLabel: selectedQuote?.breakfastLabel,
+    mealPlanName: selectedQuote?.plan.mealPlanName,
+    mealPlanId: selectedQuote?.plan.mealPlanId,
+    packages: selectedQuote?.plan.packages,
+  });
   const searchIsCurrent = !statusMessage;
   const hasSelection = searchIsCurrent && (selectedRoomType != null || selectedQuote != null);
 
@@ -265,7 +245,20 @@ export function CreateReservationSelectedRoom({
                 </dd>
               </div>
             </div>
-            <SummaryLine label="Included" value={includedItemsLabel(selectedQuote)} />
+            <div className="col-span-2 min-w-0" data-testid="selected-room-inclusions">
+              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Included</dt>
+              {inclusionLines.length > 0 ? (
+                <ul className="mt-0.5 space-y-0.5">
+                  {inclusionLines.map((line) => (
+                    <li key={line} className="text-sm text-[#251605]">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <dd className="text-sm text-[#251605]">{NO_INCLUSIONS_FALLBACK}</dd>
+              )}
+            </div>
             <SummaryLine
               label="Cancellation"
               value={displayCancellation(

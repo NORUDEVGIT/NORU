@@ -48,8 +48,7 @@ import {
 } from "@/packages/pms/lib/housekeeping-shell";
 import { invalidateFrontOfficeOwnerReads } from "@/packages/pms/lib/fo-freshness";
 import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
-import { useRestaurantTimezone } from "@/core/state/property-format";
-import { localDateInZone } from "@/shared/lib/property-time";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import type { RestaurantMembership } from "@/core/lib/restaurant.functions";
 import { PageHeading } from "@/core/state/pms-context";
 import { SHELL_ICON_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
@@ -101,8 +100,7 @@ export function HousekeepingWorkspace({
   returnToLabel?: string | undefined;
 }) {
   const restaurantId = membership.restaurant.id;
-  const timezone = useRestaurantTimezone();
-  const today = useMemo(() => localDateInZone(timezone), [timezone]);
+  const today = usePropertyBusinessDate(restaurantId);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { hasPrevious, computedLabel, handleReturn } = resolvePmsReturnTo({
@@ -117,10 +115,11 @@ export function HousekeepingWorkspace({
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
-  const [boardDate, setBoardDate] = useState(today);
+  const [boardDate, setBoardDate] = useState("");
   const [boardStatus, setBoardStatus] = useState("all");
   useEffect(() => {
-    setBoardDate(today);
+    if (!today) return;
+    setBoardDate((current) => current || today);
   }, [today]);
 
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);

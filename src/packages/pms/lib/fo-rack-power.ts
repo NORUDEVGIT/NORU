@@ -67,13 +67,14 @@ export type AssignableLookup =
   | { state: "error" }
   | { state: "ready"; roomIds: string[] };
 
-export type StayBadgeTone = "gold" | "outline" | "green";
+export type StayBadgeTone = "gold" | "outline" | "green" | "warning";
 export type StayBadgeId =
   | "vip_badge"
   | "group_badge"
   | "corporate_badge"
   | "special_request_badge"
-  | "room_discrepancy_badge";
+  | "room_discrepancy_badge"
+  | "departure_attention_badge";
 
 export type LiveStayBadge = {
   id: StayBadgeId;
@@ -151,6 +152,8 @@ export function liveStayBadges(stay: {
   source?: string | null;
   specialRequests?: string | null;
   hasOpenDiscrepancy?: boolean;
+  /** Staff-facing departure attention label from classifyFoDepartureAttention (server). */
+  departureAttentionLabel?: string | null;
 }): LiveStayBadge[] {
   const badges: LiveStayBadge[] = [];
   if (stay.guestVip) badges.push({ id: "vip_badge", label: "VIP", tone: "gold" });
@@ -161,6 +164,10 @@ export function liveStayBadges(stay: {
   }
   if (stay.hasOpenDiscrepancy) {
     badges.push({ id: "room_discrepancy_badge", label: "Discrepancy", tone: "outline" });
+  }
+  const attentionLabel = (stay.departureAttentionLabel ?? "").trim();
+  if (attentionLabel) {
+    badges.push({ id: "departure_attention_badge", label: attentionLabel, tone: "warning" });
   }
   return badges;
 }

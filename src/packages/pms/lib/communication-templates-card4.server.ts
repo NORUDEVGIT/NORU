@@ -76,7 +76,7 @@ export const COMMUNICATION_TEMPLATE_EVENTS: readonly CommunicationTemplateEvent[
   {
     id: "guest_request_created",
     category: "stay",
-    label: "Guest Request Created",
+    label: "Guest Service Request Created",
   },
   {
     id: "service_overdue",

@@ -27,7 +27,10 @@ let sharedWeek: SharedWeek | null = null;
 
 /** Monday of the week that contains `isoDate` (YYYY-MM-DD). Weeks start on Monday. */
 export function mondayOf(isoDate: string): string {
-  const weekday = new Date(`${isoDate}T00:00:00Z`).getUTCDay();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return "";
+  const parsed = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const weekday = parsed.getUTCDay();
   const delta = weekday === 0 ? -6 : 1 - weekday;
   return addDays(isoDate, delta);
 }
@@ -38,6 +41,7 @@ export function readSharedWeekStart(restaurantId: string): string | null {
 
 export function writeSharedWeekStart(restaurantId: string, dateInWeek: string) {
   const weekStart = mondayOf(dateInWeek);
+  if (!weekStart) return;
   if (sharedWeek?.restaurantId === restaurantId && sharedWeek.weekStart === weekStart) return;
   sharedWeek = { restaurantId, weekStart };
 }

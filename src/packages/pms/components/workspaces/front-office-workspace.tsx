@@ -931,7 +931,7 @@ export function FrontOfficeWorkspace({
               : picker === "extend_stay"
                 ? "Extend Stay"
                 : picker === "guest_request"
-                  ? "Guest Request"
+                  ? "Add Guest Service Request"
                   : "Check-out"
         }
         stays={picker === "check_in" ? (arrivalsQuery.data ?? []) : (inHouseQuery.data ?? [])}

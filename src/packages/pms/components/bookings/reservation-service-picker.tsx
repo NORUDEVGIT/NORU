@@ -192,6 +192,7 @@ export function CreateReservationServiceList({
   stay,
   rules,
   money,
+  omitUnpriced = false,
 }: {
   serviceTypes: GuestServiceTypeOption[];
   selected: CreateServiceSelection[];
@@ -199,6 +200,8 @@ export function CreateReservationServiceList({
   stay: ServiceStayContext;
   rules?: ServiceChargeRules | null;
   money: (value: number) => string;
+  /** Guest requests omit a price when the service has no commercial charge. */
+  omitUnpriced?: boolean;
 }) {
   const selectedTotal = useMemo(() => {
     return selected.reduce((sum, item) => {
@@ -261,14 +264,16 @@ export function CreateReservationServiceList({
                   </div>
                 </label>
 
-                <ServicePriceSummary
-                  unitAmount={row.amount}
-                  pricingUnit={row.pricingUnit}
-                  quantity={quantity}
-                  departmentId={row.departmentId}
-                  rules={rules}
-                  money={money}
-                />
+                {omitUnpriced && row.amount == null ? null : (
+                  <ServicePriceSummary
+                    unitAmount={row.amount}
+                    pricingUnit={row.pricingUnit}
+                    quantity={quantity}
+                    departmentId={row.departmentId}
+                    rules={rules}
+                    money={money}
+                  />
+                )}
               </div>
 
               {current ? (
@@ -307,17 +312,17 @@ export function CreateReservationServiceList({
               {selected.length}
             </span>
             <span className="font-medium text-[#6B5E4E]">
-              {selected.length === 1 ? "Service" : "Services"} requested
+              {selected.length === 1 ? "Request" : "Requests"}
             </span>
           </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-bold text-sm text-[#251605] tabular-nums">
-              {money(selectedTotal)}
-            </span>
-            <span className="text-[10px] text-[#8C7A64] font-medium">
-              (incl. taxes & fees)
-            </span>
-          </div>
+          {!omitUnpriced || selectedTotal > 0 ? (
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-bold text-sm text-[#251605] tabular-nums">
+                {money(selectedTotal)}
+              </span>
+              <span className="text-[10px] text-[#8C7A64] font-medium">(incl. taxes & fees)</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

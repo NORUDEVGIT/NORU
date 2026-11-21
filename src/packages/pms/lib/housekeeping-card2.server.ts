@@ -143,7 +143,8 @@ export function emptyHousekeepingCard2Settings(
 ): HousekeepingCard2Settings {
   return {
     enabled: true,
-    defaultStatus: "dirty",
+    // First-room / first-live bootstrap default. Checkout still transitions to dirty.
+    defaultStatus: "clean",
     cleanRequired: true,
     inspectionRequired: true,
     maintenanceClearRequired: true,

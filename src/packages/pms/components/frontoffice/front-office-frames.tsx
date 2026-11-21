@@ -102,7 +102,7 @@ export function AmendmentsFrame({
       <div>
         <h2 className="font-display text-xl">Amendments</h2>
         <p className="text-sm text-muted-foreground">
-          Find a stay, then Move, Extend, Upgrade / Downgrade, Guests, Add Service, Special Request, Guest Request or Notes.
+          Find a stay, then Move, Extend, Upgrade / Downgrade, Guests, Add Service, Special Request, Add Guest Service Request or Notes.
         </p>
       </div>
 
@@ -154,7 +154,7 @@ export function AmendmentsFrame({
                     Special Request
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setSheet({ stay, kind: "guest_request" })}>
-                    Guest Request
+                    Add Guest Service Request
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setAmend(stay)}>
                     Notes

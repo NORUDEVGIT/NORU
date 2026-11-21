@@ -11,7 +11,7 @@ export const RATE_IMPACT_UNAVAILABLE = "Rate impact unavailable";
 export const OCCUPANCY_EXCEEDED =
   "Adults and children together exceed this room type's maximum occupancy.";
 export const GUEST_REQUESTS_UNAVAILABLE =
-  "Guest requests are not available until migration 0043 is applied.";
+  "Guest service requests are not available until migration 0043 is applied.";
 export const SPECIAL_REQUEST_CATEGORY_UNAVAILABLE =
   "Special request category is not available until migration 0043 is applied.";
 export const COMPANIONS_UNAVAILABLE =

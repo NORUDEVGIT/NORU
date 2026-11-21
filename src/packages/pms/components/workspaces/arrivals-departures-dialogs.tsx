@@ -368,8 +368,16 @@ export function LateCheckoutDialog({
           note: input.note,
         },
       }),
-    onSuccess: () => {
-      toast.success("Late checkout updated.");
+    onSuccess: (result) => {
+      if (!result.lateCheckoutGranted) {
+        toast.success("Late checkout cleared.");
+      } else if (result.fee.status === "posted") {
+        toast.success("Late checkout granted. Late checkout fee added to the folio.");
+      } else if (result.fee.status === "already_posted") {
+        toast.success("Late checkout granted. The late checkout fee was already on the folio.");
+      } else {
+        toast.success("Late checkout granted.");
+      }
       onOpenChange(false);
       onSaved();
     },
@@ -382,6 +390,9 @@ export function LateCheckoutDialog({
   const fee = policy?.fee;
   const feeLabel =
     fee == null || fee === 0 ? null : typeof fee === "number" ? money(fee) : String(fee);
+  const untilPreview = clock
+    ? formatClockInZone(instantFromClock(row.stay.departureDate, clock, timezone), timezone)
+    : "—";
 
   return (
     <FoActionModal
@@ -436,15 +447,21 @@ export function LateCheckoutDialog({
           />
         </div>
         <section className="rounded-lg border border-[#E8DFD0] bg-white p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">Policy</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">Before you confirm</p>
           <dl className="mt-2 space-y-1.5 text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#6B5E4E]">Late checkout until</dt>
+              <dd className="font-medium text-[#251605]">{untilPreview}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-[#6B5E4E]">Late checkout fee</dt>
+              <dd className="font-medium text-[#251605]">
+                {feeLabel ? feeLabel : "No late checkout fee"}
+              </dd>
+            </div>
             <div className="flex justify-between gap-3">
               <dt className="text-[#6B5E4E]">Allowed</dt>
               <dd className="font-medium text-[#251605]">{policy?.allowed ? "Yes" : "No"}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-[#6B5E4E]">Fee</dt>
-              <dd className="font-medium text-[#251605]">{feeLabel ?? "None"}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-[#6B5E4E]">Approval</dt>
@@ -462,9 +479,6 @@ export function LateCheckoutDialog({
             ) : null}
           </dl>
         </section>
-        {feeLabel ? (
-          <p className="text-sm font-medium text-[#251605]">Late checkout fee: {feeLabel}</p>
-        ) : null}
         {needsApproval ? (
           <FoAuthorizationCard
             requirement={lateAuth}

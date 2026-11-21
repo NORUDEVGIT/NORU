@@ -73,7 +73,7 @@ const FRONT_OFFICE: PmsHelpGuide = {
         { title: "Check-Out", body: "Complete departure from the stay. Folio charges and payments stay on the guest folio." },
         { title: "Amend Stay", body: "Change dates, occupancy, or room from the stay actions in this workspace." },
         { title: "Cancellation / No-Show", body: "Mark a reservation cancelled or no-show from the matching Front Office list." },
-        { title: "Guest Actions", body: "Guest requests, late checkout, and maintenance are opened from the stay, not from the top bar." },
+        { title: "Guest Actions", body: "Guest service requests, late checkout, and maintenance are opened from the stay, not from the top bar." },
       ],
     },
     {

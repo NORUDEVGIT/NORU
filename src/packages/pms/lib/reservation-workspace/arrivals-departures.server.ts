@@ -18,10 +18,10 @@ import {
   dailyControlTotals,
   mapArrivalRow,
   mapDepartureRow,
-  parseLateCheckoutPolicy,
+  resolveLateCheckoutPolicy,
   type RoomInventoryState,
 } from "./arrivals-departures";
-import { resolvePropertyBusinessDate } from "./business-date";
+import { operationalBusinessDate } from "./business-date";
 import { eachDateInclusive } from "./section-week";
 import {
   FINANCIAL_SIGNAL_BATCH_CAP,
@@ -127,16 +127,16 @@ export const getReservationArrivalsDepartures = createServerFn({ method: "POST" 
     const { data: property, error: propertyError } = await supabaseAdmin
       .from("restaurants")
       .select(
-        "business_date, timezone, check_out_time, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval",
+        "business_date, timezone, check_out_time, late_checkout_allowed, late_checkout_fee, late_checkout_needs_approval, checkin_ops",
       )
       .eq("id", data.restaurantId)
       .maybeSingle();
     if (propertyError) throw new Error(propertyError.message);
     if (!property) throw new Error("Property not found.");
 
-    const businessDate = resolvePropertyBusinessDate(property.business_date, property.timezone);
+    const businessDate = operationalBusinessDate(property.business_date, property.timezone);
     const selectedDate = data.date ? assertDateOnly(data.date, "Operational date") : businessDate;
-    const policy: LateCheckoutPolicy = parseLateCheckoutPolicy(property);
+    const policy: LateCheckoutPolicy = resolveLateCheckoutPolicy(property);
     const ranged = Boolean(data.dateFrom && data.dateTo && !data.date);
     const dates = ranged ? eachDateInclusive(data.dateFrom!, data.dateTo!) : [selectedDate];
 

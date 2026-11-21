@@ -2,7 +2,7 @@
  * Server loader for the Fiscal Registration Report.
  * Uses a trusted client after requireCashieringAccess (business_date column grant).
  */
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { propertyDayBounds } from "@/packages/pms/lib/cashiering-control";
 import {
   assembleFiscalRegistrationReport,
@@ -131,7 +131,7 @@ async function loadProperty(
   const persisted = text(result.data.business_date);
   return {
     timezone,
-    businessDate: resolvePropertyBusinessDate(persisted ? persisted.slice(0, 10) : null, timezone),
+    businessDate: operationalBusinessDate(persisted ? persisted.slice(0, 10) : null, timezone),
   };
 }
 

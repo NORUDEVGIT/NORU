@@ -438,6 +438,13 @@ export function RoomRackCalendar({
   const openDiscrepancyRoomIds = new Set(
     discrepancyLive ? (feedsQuery.data?.discrepancies ?? []).map((row) => row.roomId) : [],
   );
+  const departureAttentionByStayId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of dashboardQuery.data?.departureAttention ?? []) {
+      map.set(row.reservationId, row.label);
+    }
+    return map;
+  }, [dashboardQuery.data?.departureAttention]);
 
   const floors = useMemo(
     () => Array.from(new Set(rooms.map((r) => r.floor).filter(Boolean) as string[])).sort(),
@@ -714,6 +721,7 @@ export function RoomRackCalendar({
           groupBy={groupBy}
           onGroupBy={setGroupBy}
           openDiscrepancyRoomIds={openDiscrepancyRoomIds}
+          departureAttentionByStayId={departureAttentionByStayId}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
           onSelectRoom={onSelectRoom}
@@ -733,6 +741,7 @@ export function RoomRackCalendar({
           hkByRoom={hkByRoom}
           canOpenCashiering={canOpenCashiering}
           staffRole={staffRole}
+          departureAttentionByStayId={departureAttentionByStayId}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
           onSelectRoom={onSelectRoom}
@@ -753,6 +762,7 @@ export function RoomRackCalendar({
             showDrag={showDrag}
             preview={preview}
             openDiscrepancyRoomIds={openDiscrepancyRoomIds}
+            departureAttentionByStayId={departureAttentionByStayId}
             highlightRoomId={rackFocus?.roomId ?? null}
             onSelectStay={onSelectStay}
             onSelectInHouse={onSelectInHouse}
@@ -923,6 +933,7 @@ function OpsStrip({
     occupiedRooms: number;
     outOfOrder: number;
     outOfService: number;
+    attention?: number;
   };
   loading: boolean;
   rooms: Array<{
@@ -947,6 +958,7 @@ function OpsStrip({
         hkAvailable,
         occupancyTrusted,
         openDiscrepancies,
+        attention: dashboard.attention ?? null,
       })
     : [];
 
@@ -996,7 +1008,9 @@ function frontOfficeKpiCards(cards: OpsStripItem[]): OpsStripItem[] {
   const departures = byId.get("departures");
   const occupancy = byId.get("occupancy_pct");
   const available = byId.get("available");
-  const attention = byId.get("discrepancies") ?? byId.get("vacant_dirty");
+  // Prefer server Attention (departure timing + preserved discrepancy conditions).
+  const attention =
+    byId.get("attention") ?? byId.get("discrepancies") ?? byId.get("vacant_dirty");
   return [
     { id: "arrivals", label: "Arrivals", value: arrivals?.value ?? 0, filter: arrivals?.filter ?? { staySlice: "arrival" } },
     { id: "in_house", label: "In-House", value: inHouse?.value ?? 0, filter: inHouse?.filter ?? { staySlice: "in_house" } },
@@ -1437,6 +1451,7 @@ function RackViewMenu({
         status: stay.status,
         assigned: Boolean(stay.roomId),
         arrivalDate: stay.arrivalDate,
+        departureDate: stay.departureDate,
         businessDate,
         canOpenCashiering,
         maintenanceRelevant: foRackMaintenanceRelevant(
@@ -1463,6 +1478,7 @@ function RackStatusChip({ phase }: { phase: FoOperationalPhase }) {
 }
 
 type AmendmentLatestByStay = ReadonlyMap<string, FoStayAmendmentHistoryRow>;
+type DepartureAttentionByStayId = ReadonlyMap<string, string>;
 
 type RackViewRowsProps = {
   rooms: OccupancyRoom[];
@@ -1473,6 +1489,7 @@ type RackViewRowsProps = {
   canOpenCashiering: boolean;
   staffRole?: string;
   hkByRoom: Map<string, RackRoom>;
+  departureAttentionByStayId: DepartureAttentionByStayId;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (target: FoHkTaskRoomTarget) => void;
@@ -1494,6 +1511,7 @@ function FoRackTableView({
   canOpenCashiering,
   staffRole,
   hkByRoom,
+  departureAttentionByStayId,
   onSelectStay,
   onSelectInHouse,
   onSelectRoom,
@@ -1594,7 +1612,17 @@ function FoRackTableView({
                 <TableCell>{formatStayDate(stay.arrivalDate)}</TableCell>
                 <TableCell>{formatStayDate(stay.departureDate)}</TableCell>
                 <TableCell>
-                  <RackStatusChip phase={phase} />
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <RackStatusChip phase={phase} />
+                    {departureAttentionByStayId.get(stay.id) ? (
+                      <span
+                        className="inline-flex w-fit items-center rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-800"
+                        data-testid="fo-departure-attention"
+                      >
+                        {departureAttentionByStayId.get(stay.id)}
+                      </span>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell onClick={(event) => event.stopPropagation()}>
                   <RackViewMenu
@@ -1627,6 +1655,7 @@ function CalendarBoard({
   showDrag,
   preview,
   openDiscrepancyRoomIds,
+  departureAttentionByStayId,
   highlightRoomId,
   onSelectStay,
   onSelectInHouse,
@@ -1652,6 +1681,7 @@ function CalendarBoard({
   showDrag: boolean;
   preview: RackConfirmDraft | null;
   openDiscrepancyRoomIds: Set<string>;
+  departureAttentionByStayId: DepartureAttentionByStayId;
   highlightRoomId: string | null;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
@@ -1810,6 +1840,7 @@ function CalendarBoard({
             colMin={colMin}
             showDrag={showDrag}
             preview={preview}
+            departureAttentionByStayId={departureAttentionByStayId}
             onSelectStay={onSelectStay}
             onSelectInHouse={onSelectInHouse}
             onRackAction={onRackAction}
@@ -1848,6 +1879,7 @@ function CalendarBoard({
                 showDrag={showDrag}
                 preview={preview}
                 hasOpenDiscrepancy={openDiscrepancyRoomIds.has(room.id)}
+                departureAttentionByStayId={departureAttentionByStayId}
                 highlight={highlightRoomId === room.id}
                 onSelectStay={onSelectStay}
                 onSelectInHouse={onSelectInHouse}
@@ -1883,6 +1915,7 @@ function UnassignedRow({
   colMin,
   showDrag,
   preview,
+  departureAttentionByStayId,
   onSelectStay,
   onSelectInHouse,
   onRackAction,
@@ -1901,6 +1934,7 @@ function UnassignedRow({
   colMin: number;
   showDrag: boolean;
   preview: RackConfirmDraft | null;
+  departureAttentionByStayId: DepartureAttentionByStayId;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
@@ -1942,6 +1976,7 @@ function UnassignedRow({
           colMin={colMin}
           showDrag={showDrag}
           preview={preview}
+          departureAttentionByStayId={departureAttentionByStayId}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
           onRackAction={onRackAction}
@@ -1971,6 +2006,7 @@ function RoomRow({
   showDrag,
   preview,
   hasOpenDiscrepancy,
+  departureAttentionByStayId,
   highlight,
   onSelectStay,
   onSelectInHouse,
@@ -1999,6 +2035,7 @@ function RoomRow({
   showDrag: boolean;
   preview: RackConfirmDraft | null;
   hasOpenDiscrepancy: boolean;
+  departureAttentionByStayId: DepartureAttentionByStayId;
   highlight: boolean;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
@@ -2017,6 +2054,10 @@ function RoomRow({
   amendmentLatestByStay: AmendmentLatestByStay;
 }) {
   const status = rackRoomStatusDisplay(room);
+  const roomDepartureAttention =
+    (room.reservationId ? departureAttentionByStayId.get(room.reservationId) : null) ??
+    stays.map((stay) => departureAttentionByStayId.get(stay.id)).find(Boolean) ??
+    null;
   const dropHandlers = showDrag && acceptDrop
     ? {
         onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
@@ -2089,7 +2130,18 @@ function RoomRow({
         style={highlightStyle}
         {...dropHandlers}
       >
-        <RackStatusPill statusKey={status.key} label={status.label} color={status.color} />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <RackStatusPill statusKey={status.key} label={status.label} color={status.color} />
+          {roomDepartureAttention ? (
+            <span
+              className="truncate text-[10px] font-semibold text-orange-800"
+              data-testid="fo-departure-attention"
+              title={roomDepartureAttention}
+            >
+              {roomDepartureAttention}
+            </span>
+          ) : null}
+        </div>
       </RackFrozenBodyCell>
       <RackFrozenBodyCell
         columnIndex={3}
@@ -2155,6 +2207,7 @@ function RoomRow({
           showDrag={showDrag}
           preview={preview}
           hasOpenDiscrepancy={hasOpenDiscrepancy}
+          departureAttentionByStayId={departureAttentionByStayId}
           onSelectStay={onSelectStay}
           onSelectInHouse={onSelectInHouse}
           onRackAction={onRackAction}
@@ -2181,6 +2234,7 @@ function BarTrack({
   showDrag,
   preview,
   hasOpenDiscrepancy = false,
+  departureAttentionByStayId,
   onSelectStay,
   onSelectInHouse,
   onRackAction,
@@ -2201,6 +2255,7 @@ function BarTrack({
   showDrag: boolean;
   preview: RackConfirmDraft | null;
   hasOpenDiscrepancy?: boolean;
+  departureAttentionByStayId: DepartureAttentionByStayId;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
@@ -2268,11 +2323,13 @@ function BarTrack({
             onCommitDates={(arrival, departure) => onOpenDateConfirm(stay, arrival, departure)}
             onRoomDragStart={onRoomDragStart}
             hasOpenDiscrepancy={hasOpenDiscrepancy}
+            departureAttentionLabel={departureAttentionByStayId.get(stay.id) ?? null}
             amendment={amendmentLatestByStay.get(stay.id) ?? null}
             menuItems={foRackBarMenuItems({
               status: stay.status,
               assigned: Boolean(stay.roomId),
               arrivalDate: stay.arrivalDate,
+              departureDate: stay.departureDate,
               businessDate,
               canOpenCashiering,
               maintenanceRelevant,
@@ -2368,6 +2425,7 @@ function ReservationBar({
   focusDate,
   showDrag,
   hasOpenDiscrepancy = false,
+  departureAttentionLabel = null,
   menuItems,
   onOpen,
   onAction,
@@ -2384,6 +2442,7 @@ function ReservationBar({
   focusDate: string;
   showDrag: boolean;
   hasOpenDiscrepancy?: boolean;
+  departureAttentionLabel?: string | null;
   menuItems: FoRackBarMenuItem[];
   onOpen: (stay: FoRackStay) => void;
   onAction: (action: FoRackBarActionId) => void;
@@ -2393,7 +2452,11 @@ function ReservationBar({
   amendment?: FoStayAmendmentHistoryRow | null;
 }) {
   const dragged = useRef(false);
-  const badges = liveStayBadges({ ...stay, hasOpenDiscrepancy });
+  const badges = liveStayBadges({
+    ...stay,
+    hasOpenDiscrepancy,
+    departureAttentionLabel,
+  });
   const compact = badgeDisplayMode(days);
   const span = endCol - startCol;
   const tone = operationalBarTone(phase);
@@ -2499,7 +2562,16 @@ function ReservationBar({
             <FoStayAmendedMark amendment={amendment} />
           </>
         ) : null}
-        {span >= 3 ? <StayBadgeStrip badges={badges} mode={compact} /> : null}
+        {span >= 3 || departureAttentionLabel ? (
+          <StayBadgeStrip
+            badges={
+              span >= 3
+                ? badges
+                : badges.filter((badge) => badge.id === "departure_attention_badge")
+            }
+            mode={compact}
+          />
+        ) : null}
       </button>
       <div
         className={cn(
@@ -2605,6 +2677,7 @@ function PhoneRackList({
   groupBy,
   onGroupBy,
   openDiscrepancyRoomIds,
+  departureAttentionByStayId,
   onSelectStay,
   onSelectInHouse,
   onSelectRoom,
@@ -2621,6 +2694,7 @@ function PhoneRackList({
   groupBy: RackGroupBy;
   onGroupBy: (next: RackGroupBy) => void;
   openDiscrepancyRoomIds: Set<string>;
+  departureAttentionByStayId: DepartureAttentionByStayId;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
   onSelectRoom: (target: FoHkTaskRoomTarget) => void;
@@ -2653,6 +2727,15 @@ function PhoneRackList({
           <ul className="space-y-2">
             {group.rooms.map((room) => {
               const hk = hkByRoom.get(room.id);
+              const roomStayAttention =
+                (room.reservationId
+                  ? departureAttentionByStayId.get(room.reservationId)
+                  : null) ??
+                stays
+                  .filter((stay) => stay.roomId === room.id)
+                  .map((stay) => departureAttentionByStayId.get(stay.id))
+                  .find(Boolean) ??
+                null;
               return (
                 <li key={room.id} className="rounded-xl border border-[#DDD4C5] bg-card p-3">
                   <button
@@ -2672,11 +2755,13 @@ function PhoneRackList({
                     badges={liveStayBadges({
                       guestVip: false,
                       hasOpenDiscrepancy: openDiscrepancyRoomIds.has(room.id),
+                      departureAttentionLabel: roomStayAttention,
                     })}
                     mode="full"
                   />
                   <p className="text-xs text-muted-foreground">
                     {room.occupancy} · {room.guestName ?? "Vacant"}
+                    {roomStayAttention ? ` · ${roomStayAttention}` : ""}
                   </p>
                 </li>
               );
@@ -2714,6 +2799,7 @@ function PhoneRackList({
                     hasOpenDiscrepancy: Boolean(
                       stay.roomId && openDiscrepancyRoomIds.has(stay.roomId),
                     ),
+                    departureAttentionLabel: departureAttentionByStayId.get(stay.id) ?? null,
                   })}
                   mode="full"
                 />
@@ -2729,6 +2815,7 @@ function PhoneRackList({
                     status: stay.status,
                     assigned: Boolean(stay.roomId),
                     arrivalDate: stay.arrivalDate,
+                    departureDate: stay.departureDate,
                     businessDate,
                     canOpenCashiering,
                     maintenanceRelevant: foRackMaintenanceRelevant(

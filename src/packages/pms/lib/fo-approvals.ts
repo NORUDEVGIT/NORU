@@ -112,6 +112,8 @@ export type FoApprovalRequirement = {
   thresholdUnit: "amount" | "percent" | null;
   thresholdSummary: string | null;
   policyNeedsApproval: boolean | null;
+  /** Canonical restaurants.late_checkout_fee when action is late_checkout.authorize. */
+  lateCheckoutFee: number | null;
   directPermission: boolean;
   canCurrentUserAuthorize: boolean;
   approvalRequired: boolean;
@@ -134,6 +136,7 @@ export function evaluateFoApprovalRequirement(input: {
   thresholdUnit: "amount" | "percent" | null;
   amount: number | null;
   policyNeedsApproval: boolean | null;
+  lateCheckoutFee?: number | null;
   unavailable?: boolean;
   unavailableMessage?: string | null;
 }): FoApprovalRequirement {
@@ -177,6 +180,12 @@ export function evaluateFoApprovalRequirement(input: {
     thresholdAmount: input.thresholdAmount,
     thresholdUnit: input.thresholdUnit,
     thresholdSummary,
+    lateCheckoutFee:
+      input.actionKey === "late_checkout.authorize"
+        ? input.lateCheckoutFee != null && Number.isFinite(Number(input.lateCheckoutFee))
+          ? Number(input.lateCheckoutFee)
+          : null
+        : null,
     policyNeedsApproval: input.policyNeedsApproval,
     directPermission,
     canCurrentUserAuthorize: meta.foCommand && liveRequired ? canAuthorize : meta.foCommand && !liveRequired,

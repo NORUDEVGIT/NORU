@@ -1527,12 +1527,21 @@ export function CheckinStep({
               setDraft((p) => ({ ...p, checkinOps: { ...p.checkinOps, earlyCheckin } }))
             }
           />
-          <StayPolicyFields
-            label="Late Check-Out"
+          <LateCheckoutPolicyFields
             value={draft.checkinOps.lateCheckout}
+            needsApproval={draft.lateCheckoutNeedsApproval}
             disabled={!canEdit}
             onChange={(lateCheckout) =>
-              setDraft((p) => ({ ...p, checkinOps: { ...p.checkinOps, lateCheckout } }))
+              setDraft((p) => ({
+                ...p,
+                checkinOps: {
+                  ...p.checkinOps,
+                  lateCheckout: { ...lateCheckout, feeBasis: "fixed" },
+                },
+              }))
+            }
+            onNeedsApprovalChange={(lateCheckoutNeedsApproval) =>
+              setDraft((p) => ({ ...p, lateCheckoutNeedsApproval }))
             }
           />
         </div>
@@ -1756,6 +1765,10 @@ export function CheckinStep({
             <p className="mt-1.5 text-xs text-muted-foreground">
               System integrity checks always block End of Day and cannot be turned off.
             </p>
+            <p className="mt-1.5 text-xs text-muted-foreground" data-testid="card1-hotel-day-rule">
+              Front Office, Housekeeping, and Reservations use this business date as hotel “today”.
+              There is no automatic calendar rollover.
+            </p>
           </div>
         </div>
       </Panel>
@@ -1890,6 +1903,69 @@ function StayPolicyFields({
             disabled={disabled || !value.allowed}
             className={PROPERTY_SETUP_CONTROL_CLASS}
             onChange={(event) => onChange({ ...value, feeValue: event.target.value || null })}
+          />
+        </PropertySetupField>
+      </PropertySetupFormGrid>
+    </PropertySetupPanel>
+  );
+}
+
+/** Late checkout runtime supports a fixed fee only — do not expose unsupported bases. */
+function LateCheckoutPolicyFields({
+  value,
+  needsApproval,
+  disabled,
+  onChange,
+  onNeedsApprovalChange,
+}: {
+  value: Card1StayPolicy;
+  needsApproval: boolean;
+  disabled?: boolean;
+  onChange: (value: Card1StayPolicy) => void;
+  onNeedsApprovalChange: (value: boolean) => void;
+}) {
+  return (
+    <PropertySetupPanel title="Late Check-Out" icon="time">
+      <PropertySetupSettingRow
+        id="card1-late-check-out-allowed"
+        label="Allowed"
+        checked={value.allowed}
+        disabled={disabled}
+        onChange={(allowed) => onChange({ ...value, allowed, feeBasis: "fixed" })}
+      />
+      <PropertySetupSettingRow
+        id="card1-late-check-out-approval"
+        label="Needs approval"
+        checked={needsApproval}
+        disabled={disabled || !value.allowed}
+        onChange={onNeedsApprovalChange}
+      />
+      <PropertySetupFormGrid>
+        <PropertySetupField id="card1-late-check-out-basis" label="Fee Basis">
+          <Input
+            id="card1-late-check-out-basis"
+            value="Fixed amount"
+            disabled
+            className={PROPERTY_SETUP_CONTROL_CLASS}
+            readOnly
+          />
+        </PropertySetupField>
+        <PropertySetupField id="card1-late-check-out-fee" label="Base Fee Value">
+          <Input
+            id="card1-late-check-out-fee"
+            type="number"
+            min={0}
+            step="0.01"
+            value={value.feeValue ?? ""}
+            disabled={disabled || !value.allowed}
+            className={PROPERTY_SETUP_CONTROL_CLASS}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                feeBasis: "fixed",
+                feeValue: event.target.value || null,
+              })
+            }
           />
         </PropertySetupField>
       </PropertySetupFormGrid>

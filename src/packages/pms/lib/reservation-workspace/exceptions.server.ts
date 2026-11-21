@@ -37,7 +37,7 @@ import {
   RESERVATION_STATUSES,
   type ReservationStatus,
 } from "../reservations.server";
-import { resolvePropertyBusinessDate } from "./business-date";
+import { operationalBusinessDate } from "./business-date";
 import {
   FINANCIAL_SIGNAL_BATCH_CAP,
   RESERVATION_EXCEPTION_ITEM_CAP,
@@ -726,7 +726,7 @@ export const getReservationExceptions = createServerFn({ method: "POST" })
     if (propertyError) throw new Error(propertyError.message);
     if (!property) throw new Error("Property not found.");
 
-    const businessDate = resolvePropertyBusinessDate(property.business_date, property.timezone);
+    const businessDate = operationalBusinessDate(property.business_date, property.timezone);
     const ranged = Boolean(data.rangeStart && data.rangeEnd);
     const blockRangeStart = ranged ? data.rangeStart! : businessDate;
     const blockRangeEnd = ranged ? addDays(data.rangeEnd!, 1) : addDays(businessDate, 7);

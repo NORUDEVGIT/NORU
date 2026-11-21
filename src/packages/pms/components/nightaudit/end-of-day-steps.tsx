@@ -6,6 +6,7 @@ import {
   CheckList,
   ConditionList,
   Panel,
+  UnresolvedDeparturesTable,
   type ArrivalStayActions,
   type ConditionPermissions,
   type FiscalOverrideControl,
@@ -72,7 +73,7 @@ export type StepContext = {
   close: {
     busy: boolean;
     error: string | null;
-    onClose: () => void;
+    onClose: (options?: { windowOverrideIntent?: boolean; windowOverrideReason?: string }) => void;
   };
   outcome: CloseOutcome | null;
   otb: { busy: boolean; onRetry: (runId: string) => void };
@@ -234,10 +235,51 @@ function ArrivalsStep({ ctx }: { ctx: StepContext }) {
 }
 
 function DeparturesStep({ ctx }: { ctx: StepContext }) {
+  const unresolved = ctx.data.conditions.filter(
+    (row) =>
+      row.step === "departures" &&
+      row.kind === "blocker" &&
+      (row.code === "overstay" || row.code === "departure_overdue" || row.code === "source_unavailable"),
+  );
+  const lateCheckoutInfo = ctx.data.conditions.filter(
+    (row) => row.step === "departures" && row.kind === "information",
+  );
   return (
     <>
       <StepChecks ctx={ctx} step="departures" />
-      <StepConditions ctx={ctx} step="departures" />
+      <Panel
+        title="Unresolved departures"
+        description={
+          unresolved.length === 0
+            ? "Every departure-day guest has checked out or is still within the approved checkout time."
+            : "Check out the guest or extend the stay before closing the business date."
+        }
+        testId="end-of-day-departures-unresolved"
+      >
+        <UnresolvedDeparturesTable
+          conditions={unresolved}
+          permissions={ctx.permissions}
+          fiscal={ctx.fiscal}
+          money={ctx.money}
+          {...(ctx.arrival ? { arrival: ctx.arrival } : {})}
+        />
+      </Panel>
+      {lateCheckoutInfo.length > 0 ? (
+        <Panel
+          title="Approved late checkout"
+          description="These guests may remain in-house until the approved late checkout time."
+          testId="end-of-day-departures-late-checkout"
+        >
+          <ConditionList
+            conditions={lateCheckoutInfo.slice(0, MAX_LISTED)}
+            permissions={ctx.permissions}
+            fiscal={ctx.fiscal}
+            dateTime={ctx.dateTime}
+            emptyCopy="No approved late checkouts."
+            {...(ctx.arrival ? { arrival: ctx.arrival } : {})}
+          />
+        </Panel>
+      ) : null}
     </>
   );
 }
@@ -285,9 +327,14 @@ function ReconcileStep({ ctx }: { ctx: StepContext }) {
 function BusinessDateStep({ ctx }: { ctx: StepContext }) {
   const { data } = ctx;
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
   const runOpen = data.run?.status === "open" || data.run?.status === "ready";
   const sourceProblem = data.evaluation.failed || data.evaluation.unavailable.length > 0;
-  const reason = !data.run
+  const phase = ctx.window?.phase;
+  const normalWindowOk = phase === "open" || phase === "after_end";
+  const beforeWindow = phase === "before_start";
+  const baseBlockReason = !data.run
     ? "Start End of Day before closing the business date."
     : !runOpen
       ? "This End of Day run cannot be closed."
@@ -295,13 +342,55 @@ function BusinessDateStep({ ctx }: { ctx: StepContext }) {
         ? "A source module could not be read. Recheck before closing."
         : data.blockerCount > 0
           ? closeBlockedCopy(data.blockerCount)
-          : ctx.window && !ctx.window.allowsClose
-            ? ctx.window.message
-            : null;
+          : null;
+  const normalCloseReason =
+    baseBlockReason ??
+    (ctx.window && !normalWindowOk ? (ctx.window.message ?? "Night Audit window unknown") : null);
+  const overrideReady =
+    beforeWindow &&
+    ctx.window?.canOfferEarlyOverride === true &&
+    baseBlockReason == null &&
+    data.access.canClose;
+  const statusLabel = ctx.window?.statusLabel ?? "Night Audit window";
+  const windowGateLabel =
+    phase === "open"
+      ? `Inside the Night Audit window (${ctx.window?.label})`
+      : phase === "after_end"
+        ? `End of Day overdue · window was ${ctx.window?.label}`
+        : phase === "before_start"
+          ? (ctx.window?.message ?? "Night Audit window has not started")
+          : (ctx.window?.message ?? "Night Audit window unknown");
 
   return (
     <>
       <Panel title="Close the business date" testId="end-of-day-close">
+        <div
+          className="mb-3 rounded-lg border border-border/70 bg-muted/30 px-3 py-2"
+          data-testid="end-of-day-window-status"
+          data-phase={phase ?? "unknown"}
+        >
+          <p className="text-sm font-semibold text-foreground">{statusLabel}</p>
+          <dl className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
+            <div>
+              <dt className="font-medium text-foreground/80">Business date</dt>
+              <dd className="font-mono">{formatNa1Date(data.businessDate)}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-foreground/80">Property time</dt>
+              <dd className="font-mono">
+                {ctx.window?.localTime ?? "—"}
+                {ctx.window?.timezone ? ` · ${ctx.window.timezone}` : ""}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium text-foreground/80">Night Audit window</dt>
+              <dd className="font-mono">{ctx.window?.label ?? "—"}</dd>
+            </div>
+          </dl>
+          {phase === "after_end" ? (
+            <p className="mt-2 text-xs text-muted-foreground">{ctx.window?.message}</p>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
           <span className="font-mono text-foreground">{formatNa1Date(data.businessDate)}</span>
           <ArrowRight className="size-4 text-muted-foreground" aria-hidden />
@@ -314,16 +403,7 @@ function BusinessDateStep({ ctx }: { ctx: StepContext }) {
             ok={data.blockerCount === 0}
             label={data.blockerCount === 0 ? "No blockers" : closeBlockedCopy(data.blockerCount)}
           />
-          <GateRow
-            ok={Boolean(ctx.window?.allowsClose)}
-            label={
-              ctx.window?.open
-                ? `Inside the Night Audit window (${ctx.window.label})`
-                : ctx.window?.windowOverride
-                  ? WINDOW_OVERRIDE_COPY
-                  : (ctx.window?.message ?? "Night Audit window unknown")
-            }
-          />
+          <GateRow ok={Boolean(normalWindowOk)} label={windowGateLabel} />
         </ul>
         {ctx.close.error ? (
           <p
@@ -333,24 +413,44 @@ function BusinessDateStep({ ctx }: { ctx: StepContext }) {
             {ctx.close.error}
           </p>
         ) : null}
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
           {data.access.canClose ? (
             <>
               <Button
                 type="button"
-                disabled={reason != null || ctx.close.busy}
+                disabled={normalCloseReason != null || ctx.close.busy}
                 onClick={() => setConfirmOpen(true)}
                 data-testid="end-of-day-close-button"
               >
                 {ctx.close.busy ? "Closing…" : "Close Business Date"}
               </Button>
-              {reason ? (
+              {normalCloseReason ? (
                 <p
-                  className="mt-2 text-xs text-muted-foreground"
+                  className="text-xs text-muted-foreground"
                   data-testid="end-of-day-close-reason"
                 >
-                  {reason}
+                  {normalCloseReason}
                 </p>
+              ) : null}
+              {overrideReady ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3">
+                  <p className="text-xs text-amber-950" data-testid="end-of-day-override-hint">
+                    {WINDOW_OVERRIDE_COPY}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-2"
+                    disabled={ctx.close.busy}
+                    onClick={() => {
+                      setOverrideReason("");
+                      setOverrideOpen(true);
+                    }}
+                    data-testid="end-of-day-close-outside-window"
+                  >
+                    Close Outside Window
+                  </Button>
+                </div>
               ) : null}
             </>
           ) : (
@@ -386,6 +486,65 @@ function BusinessDateStep({ ctx }: { ctx: StepContext }) {
                 }}
               >
                 Close Business Date
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+      {overrideOpen ? (
+        <Dialog open onOpenChange={(next) => !next && setOverrideOpen(false)}>
+          <DialogContent className="sm:max-w-md" data-testid="end-of-day-override-confirm">
+            <DialogHeader>
+              <DialogTitle>Close Outside Window</DialogTitle>
+              <DialogDescription>{WINDOW_OVERRIDE_COPY}</DialogDescription>
+            </DialogHeader>
+            <dl className="space-y-1.5 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Business date</dt>
+                <dd className="font-mono font-medium">{formatNa1Date(data.businessDate)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Property time</dt>
+                <dd className="font-mono font-medium">{ctx.window?.localTime ?? "—"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">Night Audit window</dt>
+                <dd className="font-mono font-medium">{ctx.window?.label ?? "—"}</dd>
+              </div>
+            </dl>
+            <div className="space-y-1.5">
+              <label htmlFor="na-window-override-reason" className="text-sm font-medium">
+                Reason for override
+              </label>
+              <Textarea
+                id="na-window-override-reason"
+                value={overrideReason}
+                onChange={(event) => setOverrideReason(event.target.value)}
+                maxLength={500}
+                rows={3}
+                placeholder="Why must this business date close before the Night Audit window?"
+                data-testid="end-of-day-override-reason"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOverrideOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={ctx.close.busy || overrideReason.trim().length === 0}
+                onClick={() => {
+                  const reason = overrideReason.trim();
+                  if (!reason) return;
+                  setOverrideOpen(false);
+                  ctx.close.onClose({
+                    windowOverrideIntent: true,
+                    windowOverrideReason: reason,
+                  });
+                }}
+                data-testid="end-of-day-override-submit"
+              >
+                Confirm Close Outside Window
               </Button>
             </DialogFooter>
           </DialogContent>

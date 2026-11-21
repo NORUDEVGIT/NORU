@@ -48,7 +48,7 @@ describe("Create reservation Step 4 policies layout", () => {
     assert.match(layout, /Stay Policies/);
     assert.match(
       readRel("../components/bookings/create-reservation-booking-details.tsx"),
-      /Internal Notes/,
+      /Guest Notes/,
     );
     assert.match(guarantee, /data-testid="create-reservation-guarantee"/);
     assert.match(guarantee, /data-testid="guarantee-method"/);

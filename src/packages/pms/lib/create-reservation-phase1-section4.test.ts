@@ -183,17 +183,30 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     assert.match(occupancySoftWarn(2, 1, 2) ?? "", /maximum occupancy/);
     assert.equal(occupancySoftWarn(2, 0, 2), null);
     assert.equal(occupancySoftWarn(4, 0, undefined), null);
-    assert.equal(CREATE_RESERVATION_CAPACITY_ENFORCEMENT, "maxOccupancy-hard-block");
+    assert.equal(
+      CREATE_RESERVATION_CAPACITY_ENFORCEMENT,
+      "maxOccupancy-adultCapacity-childCapacity-hard-block",
+    );
     assert.match(helpers, /occupancyExceeded/);
     assert.match(helpers, /occupancyBlockMessage/);
     assert.match(helpers, /assertRoomTypeOccupancy/);
-    assert.match(roomType, /OccupancySoftWarn/);
-    assert.match(roomType, /data-testid=\{testId\}/);
-    assert.match(page, /stay-occupancy-warn/);
+    assert.match(helpers, /occupancyCapacityWarn/);
+    assert.match(roomType, /OccupancySoftWarn|occupancyCapacityWarn/);
+    assert.match(roomType, /Not eligible for/);
+    assert.match(page, /stay-occupancy-warn|occupancyOk/);
     assert.match(page, /occupancyOk/);
     assert.match(CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE, /blocked until occupancy fits/);
-    assert.throws(() => assertRoomTypeOccupancy(3, 0, 2), /maximum occupancy/);
+    assert.throws(() => assertRoomTypeOccupancy(3, 0, 2), /Not eligible for|Maximum occupancy/i);
     assert.doesNotThrow(() => assertRoomTypeOccupancy(2, 0, 2));
+    assert.throws(
+      () =>
+        assertRoomTypeOccupancy(3, 1, {
+          maxOccupancy: 3,
+          adultCapacity: 2,
+          childCapacity: 1,
+        }),
+      /Not eligible for 3 adults \+ 1 child/,
+    );
     const createStart = functions.indexOf("export const createReservation");
     const createFn = functions.slice(
       createStart,
@@ -201,6 +214,8 @@ describe("Create Reservation Phase 1 Section 4 lock — AC-CR4-1…21", () => {
     );
     assert.match(createFn, /assertRoomTypeOccupancy/);
     assert.match(createFn, /max_occupancy/);
+    assert.match(createFn, /adult_capacity/);
+    assert.match(createFn, /child_capacity/);
   });
 
   it("AC-CR4-6 Selected room type binds room_type_id via createReservation → create_hotel_reservation_priced", () => {

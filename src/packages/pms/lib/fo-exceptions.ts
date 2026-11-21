@@ -626,6 +626,8 @@ export function deriveOpsStrip(input: {
   hkAvailable: boolean;
   occupancyTrusted?: boolean;
   openDiscrepancies?: number | null;
+  /** Authoritative Attention KPI from the FO dashboard (departure timing + preserved conditions). */
+  attention?: number | null;
 }): OpsStripItem[] {
   const items: OpsStripItem[] = [
     { id: "arrivals", label: "Arrivals", value: input.arrivalsToday, filter: { staySlice: "arrival" } },
@@ -634,6 +636,15 @@ export function deriveOpsStrip(input: {
     { id: "occupied", label: "Occupied", value: input.occupiedRooms, filter: { roomStatus: "occupied" } },
     { id: "available", label: "Available", value: input.availableRooms, filter: { roomStatus: "available" } },
   ];
+
+  if (input.attention != null) {
+    items.push({
+      id: "attention",
+      label: "Attention",
+      value: input.attention,
+      filter: { discrepancy: "open" },
+    });
+  }
 
   const vacantSellable = input.rooms.filter(
     (room) => room.occupancy === "vacant" && !isOooOrOos(room.status),

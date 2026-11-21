@@ -288,15 +288,16 @@ export function ReservationDetailOverviewDashboard({
             />
           </OverviewCard>
 
-          <OverviewCard title="Requests & Notes" testId="overview-card-requests">
+          <OverviewCard title="Guest Preferences & Notes" testId="overview-card-requests">
             <OverviewFields
               rows={[
                 [
                   "Special Requests",
                   reservation.specialRequests?.trim() || "No special request.",
                 ],
+                ["Special Occasion", reservation.specialOccasion?.trim() || "None"],
                 ["Room Preferences", preferenceFromStay(reservation.specialRequests, "floor")],
-                ["Internal Notes", reservation.notes?.trim() || "None"],
+                ["Guest Notes", reservation.notes?.trim() || "None"],
               ]}
             />
           </OverviewCard>

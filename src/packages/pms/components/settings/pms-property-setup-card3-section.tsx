@@ -3,10 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { finishPropertySetupCardAndAdvance } from "@/packages/pms/lib/pms-property-setup-navigation";
 import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
 import {
   CARD3_DOMAINS,
+  CARD3_HASH,
   CARD3_TITLE,
   card3DomainFromSearch,
   type Card3DomainId,
@@ -138,6 +140,10 @@ export function PmsPropertySetupCard3Section({
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   }
 
+  function finishCard() {
+    finishPropertySetupCardAndAdvance(CARD3_HASH);
+  }
+
   const domainProps = {
     restaurantId,
     canEdit,
@@ -164,9 +170,9 @@ export function PmsPropertySetupCard3Section({
             notStarted={counts.notStarted}
             onBack={previousDomain ? () => setActiveDomain(previousDomain.id) : goBackToHub}
             onContinue={
-              nextDomain ? () => setActiveDomain(nextDomain.id) : goBackToHub
+              nextDomain ? () => setActiveDomain(nextDomain.id) : finishCard
             }
-            continueLabel={nextDomain ? "Continue" : "Finish"}
+            continueLabel={nextDomain ? "Save & Continue" : "Save & Finish"}
             continueDisabled={false}
             footerTestId="pms-card3-chrome"
             stepNav={

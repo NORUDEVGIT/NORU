@@ -18,7 +18,7 @@ import {
   type PmsChromeModuleLabel,
 } from "@/packages/pms/lib/pms-module-nav";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
-import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
+import { usePropertyBusinessDateQuery } from "@/packages/pms/lib/use-property-business-date";
 import { resolvePmsReturnTo } from "@/packages/pms/lib/cashiering-shell";
 import {
   DropdownMenu,
@@ -104,8 +104,9 @@ export function RoomInventoryChrome({
   const primaryNav = NAV_ITEMS.filter((item) => !PMS_NAV_MORE_IDS.has(item.id));
   const moreNav = NAV_ITEMS.filter((item) => PMS_NAV_MORE_IDS.has(item.id));
   const homePath = live
-    ? ((navReady ? getFirstAccessiblePmsRoute(access) : "/restaurant/pms") ?? "/restaurant/home")
-    : "/restaurant/home";
+    ? ((navReady ? getFirstAccessiblePmsRoute(access) : "/restaurant/pms/dashboard") ??
+      "/restaurant/pms/dashboard")
+    : "/restaurant/pms/dashboard";
   const settingsHref =
     membership.restaurant.status === "approved" && navReady && pmsSettingsHubVisible(access)
       ? PMS_SETTINGS_HREF
@@ -115,10 +116,8 @@ export function RoomInventoryChrome({
     returnToLabel,
   });
   const showReturnButton = hasPrevious && !suppressReturnButton;
-  const businessDate = usePropertyBusinessDate(
-    membership.restaurant.id,
-    membership.restaurant.timezone,
-  );
+  const businessDateState = usePropertyBusinessDateQuery(membership.restaurant.id);
+  const businessDate = businessDateState.businessDate ?? "";
   const [search, setSearch] = useState(initialSearch);
   const [helpOpen, setHelpOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -133,13 +132,37 @@ export function RoomInventoryChrome({
   }
 
   const moreContainsActive = moreNav.some((item) => item.label === activeModule);
-  const businessDateLabel = new Date(`${businessDate}T00:00:00Z`).toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  const businessDateLabel = businessDate
+    ? new Date(`${businessDate}T00:00:00Z`).toLocaleDateString("en-GB", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : businessDateState.loading
+      ? "…"
+      : businessDateState.error
+        ? "Business date unavailable"
+        : "—";
+  const eodPending =
+    live &&
+    businessDateState.endOfDayPending &&
+    businessDateState.endOfDayPendingTitle &&
+    businessDateState.endOfDayPendingDetail;
+  const eodPendingTone =
+    businessDateState.endOfDayPendingKind === "due"
+      ? "border-sky-200 bg-sky-50 text-sky-950"
+      : "border-amber-200 bg-amber-50 text-amber-950";
+  const eodPendingDetailTone =
+    businessDateState.endOfDayPendingKind === "due"
+      ? "text-sky-900/90"
+      : "text-amber-900/90";
+  const eodLinkTone =
+    businessDateState.endOfDayPendingKind === "due"
+      ? "text-sky-950 underline-offset-2 hover:underline"
+      : "text-amber-950 underline-offset-2 hover:underline";
+  const canOpenNightAudit = NAV_ITEMS.some((item) => item.id === "night-audit");
 
   function openHelp() {
     setAccountOpen(false);
@@ -328,6 +351,32 @@ export function RoomInventoryChrome({
         </>
       }
     >
+      {eodPending ? (
+        <div
+          className={`border-b px-4 py-2 ${eodPendingTone}`}
+          data-testid="pms-eod-pending-banner"
+          data-kind={businessDateState.endOfDayPendingKind}
+          role="status"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">{businessDateState.endOfDayPendingTitle}</p>
+              <p className={`text-xs ${eodPendingDetailTone}`}>
+                {businessDateState.endOfDayPendingDetail}
+              </p>
+            </div>
+            {canOpenNightAudit && activeModule !== "Night Audit" ? (
+              <Link
+                to="/restaurant/pms/night-audit"
+                className={`shrink-0 text-xs font-semibold ${eodLinkTone}`}
+                data-testid="pms-eod-pending-open-night-audit"
+              >
+                Open Night Audit
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {children}
       <PmsHelpPanel
         open={helpOpen}

@@ -115,7 +115,7 @@ describe("DB-04I-05 Booking Calendar read model", () => {
         }),
       /exclusive/,
     );
-    assert.match(source, /resolvePropertyBusinessDate/);
+    assert.match(source, /operationalBusinessDate/);
     assert.doesNotMatch(source, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/);
   });
 

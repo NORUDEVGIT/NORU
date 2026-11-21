@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Package } from "lucide-react";
 
 import { reviewDash } from "@/packages/pms/lib/create-reservation-review";
@@ -8,6 +8,7 @@ import {
   packageChargeFigures,
   type RoomChargeRules,
 } from "@/packages/pms/lib/room-charge-guest-total";
+import { cn } from "@/shared/lib/utils";
 
 export function PackageCoverThumb({
   coverUrl,
@@ -18,22 +19,33 @@ export function PackageCoverThumb({
   name: string;
   className?: string;
 }) {
-  if (coverUrl) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [coverUrl]);
+
+  if (coverUrl && !failed) {
     return (
       <img
         src={coverUrl}
         alt=""
-        className={`w-full rounded-md bg-[#EFE8DC] ${className}`}
+        className={cn("w-full rounded-md bg-[#EFE8DC] object-contain", className)}
         loading="lazy"
+        onError={() => setFailed(true)}
       />
     );
   }
   return (
     <div
-      className={`flex w-full items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68] ${className}`}
+      className={cn(
+        "flex w-full items-center justify-center rounded-md bg-[#EFE8DC] text-[#8A7B68]",
+        className,
+      )}
       aria-hidden
+      title={name || undefined}
+      data-testid="package-cover-fallback"
     >
-      <Package className="size-7" />
+      <Package className="size-6" />
     </div>
   );
 }

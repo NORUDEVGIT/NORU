@@ -180,7 +180,7 @@ function ReservationPrintArticle({ data }: { data: ReservationPrintDocumentData 
       )}
 
       {showPackages ? (
-        <PrintSection title="Packages & Add-ons">
+        <PrintSection title="Add-ons">
           {data.packages.length === 0 ? (
             <p className="text-xs text-[#44403c]">No packages selected</p>
           ) : (
@@ -260,7 +260,7 @@ function ReservationPrintArticle({ data }: { data: ReservationPrintDocumentData 
       ) : null}
 
       {showRequests ? (
-        <PrintSection title="Guest Requests & Preferences">
+        <PrintSection title="Guest Preferences & Guest Services">
           {data.preferences.length > 0 ? (
             <div className="mb-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#44403c]">
@@ -276,7 +276,7 @@ function ReservationPrintArticle({ data }: { data: ReservationPrintDocumentData 
           {data.serviceRequests.length > 0 ? (
             <div className="mb-2">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#44403c]">
-                Service Requests
+                Guest Service Requests
               </p>
               <ul className="mt-1 list-disc pl-4 text-xs">
                 {data.serviceRequests.map((row) => (

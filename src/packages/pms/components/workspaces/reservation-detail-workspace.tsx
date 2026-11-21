@@ -176,7 +176,7 @@ const SECTION_MENU_LABEL: Record<DetailWorkspaceTab, string> = {
   rates: "Rates",
   packages: "Packages",
   folio: "Folio & Payments",
-  requests: "Requests & Preferences",
+  requests: "Guest Services",
   notes: "Notes & Traces",
   communication: "Communication",
   linked: "Linked Reservations",
@@ -976,6 +976,8 @@ export function ReservationDetailWorkspace({
         packagesTotal={headerPackageTotal}
         servicesTotal={headerServiceTotal}
         coverUrl={roomType?.coverUrl ?? null}
+        canEdit={Boolean(stayMutable && canEditReservation)}
+        onReservationUpdated={invalidate}
       />
     );
     const requestsPanel = (

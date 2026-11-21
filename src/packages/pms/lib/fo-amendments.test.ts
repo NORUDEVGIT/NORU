@@ -68,7 +68,7 @@ describe("FO-FS4 reason gating", () => {
     );
   });
 
-  it("Guest Request uses the request text as the auditable statement", () => {
+  it("Guest Service Request uses the request text as the auditable statement", () => {
     assert.equal(canConfirmGuestRequest({ text: "ab" }), false);
     assert.equal(canConfirmGuestRequest({ text: "Extra towels please" }), true);
   });
@@ -252,7 +252,7 @@ describe("FO-FS4 source locks", () => {
     const frames = readFileSync(new URL("../components/frontoffice/front-office-frames.tsx", import.meta.url), "utf8");
     assert.match(frames, /Upgrade \/ Downgrade/);
     assert.match(frames, /Add Service/);
-    assert.match(frames, /Guest Request/);
+    assert.match(frames, /Add Guest Service Request/);
     assert.match(frames, /FoAmendUpgradeSheet/);
 
     const workspace = readFileSync(

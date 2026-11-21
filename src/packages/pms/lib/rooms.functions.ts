@@ -1455,6 +1455,8 @@ export const bulkCreateRooms = createServerFn({ method: "POST" })
       (await import("@/integrations/supabase/client.server")).supabaseAdmin,
       data.restaurantId,
     );
+    // Post-live and pre-live creates both use Card 2 Default Housekeeping Status.
+    // First Go-Live bootstrap only fills untouched seed rows; do not require re-activate.
     const defaultHousekeepingStatus =
       housekeepingPolicy.settings.manualStatusChangeAllowed && data.housekeepingStatus
         ? data.housekeepingStatus

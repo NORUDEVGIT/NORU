@@ -429,7 +429,7 @@ describe("FO Check-In workspace — Phase 2 polish", () => {
       'title="Stay & Accommodation"',
       'title={roomAssigned ? "Room Information" : "Room Assignment"}',
       'title="Financial Summary"',
-      'title="Special Requests / Notes"',
+      'title="Guest Preferences, Notes & Guest Services"',
       'data-testid="fo-ci-workspace-notes"',
     ];
     const positions = titles.map((title) => sheet.indexOf(title));

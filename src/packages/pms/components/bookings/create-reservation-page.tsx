@@ -83,7 +83,6 @@ import {
   type CreateServiceSelection,
 } from "@/packages/pms/components/bookings/create-reservation-booking-details";
 import { CreateReservationReview } from "@/packages/pms/components/bookings/create-reservation-review";
-import { reviewIncludedItems } from "@/packages/pms/lib/create-reservation-review";
 import { formatPropertyContactAddress } from "@/packages/pms/lib/reservation-print-document";
 
 import { SHELL_PRIMARY_BUTTON } from "@/packages/pms/components/reservations/reservation-shell-slots";
@@ -102,8 +101,8 @@ import {
   addDays,
   formatStayDate,
   nightsBetween,
-  propertyToday,
 } from "@/packages/pms/components/bookings/reservation-bits";
+import { usePropertyBusinessDate } from "@/packages/pms/lib/use-property-business-date";
 import {
   CreateReservationGuest,
   CreateReservationGuestSearch,
@@ -164,6 +163,15 @@ import {
   canBindCreatePackage,
   selectedCreatePackageRows,
 } from "@/packages/pms/lib/reservation-detail-packages";
+import {
+  coveredGuestServiceTypeIds,
+  filterReservationGuestRequests,
+  isBreakfastGuestService,
+  isMaintenanceGuestService,
+  rateIncludesBreakfast,
+  rateInclusionSummary,
+  resolveWalkInBookingSource,
+} from "@/packages/pms/lib/reservation-booking-separation";
 import { listEligiblePackageActivations } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import {
   compactRoomOccupancy,
@@ -222,11 +230,12 @@ import {
   availabilitySearchIsCurrent,
   CREATE_RESERVATION_AVAILABILITY_IDLE,
   CREATE_RESERVATION_AVAILABILITY_STALE,
-  occupancySoftWarn,
+  occupancyCapacityWarn,
   stickyRoomTypeLabel,
   type AvailabilitySearchCriteria,
   type SelectedRoomTypeMeta,
 } from "@/packages/pms/lib/create-reservation-phase1-section4";
+import { roomTypeOccupancyFits } from "@/packages/pms/lib/room-type-occupancy";
 import {
   canSubmitCreateReservation,
   fromNightlyRate,
@@ -349,7 +358,9 @@ export function CreateReservationPage({
   const packageChargeRules = usePackageChargeRules(restaurantId);
   const serviceChargeRules = useServiceChargeRules(restaurantId);
   const timezone = useRestaurantTimezone();
-  const today = propertyToday(timezone);
+  const loadedBusinessDate = usePropertyBusinessDate(restaurantId, timezone);
+  /** Staff PMS hotel day — never wall-clock. Prop wins when FO walk-in already resolved it. */
+  const today = (businessDate && businessDate.trim()) || loadedBusinessDate;
   const walkInMode = isWalkInCreateMode(mode);
 
   const fetchAccess = useServerFn(getBookingsAccess);
@@ -744,6 +755,7 @@ export function CreateReservationPage({
       catalogue: mealsCard3MerchQuery.data.snapshot.packages,
       components: mealsCard3MerchQuery.data.snapshot.components,
       eligible: eligiblePackagesMerchQuery.data ?? [],
+      guestServiceTypes: mealsCard3MerchQuery.data.snapshot.guestServiceTypes,
       roomTypeId,
       ratePlanId,
     });
@@ -752,7 +764,9 @@ export function CreateReservationPage({
     if (!eligiblePackagesMerchQuery.isSuccess) return;
     const allowed = new Set(
       createPackageMerchandiseCards.flatMap((card) =>
-        canBindCreatePackage(card) && card.activationId ? [card.activationId] : [],
+        card.inclusionType !== "included" && canBindCreatePackage(card) && card.activationId
+          ? [card.activationId]
+          : [],
       ),
     );
     setPackageActivationIds((current) => {
@@ -761,7 +775,11 @@ export function CreateReservationPage({
     });
   }, [createPackageMerchandiseCards, eligiblePackagesMerchQuery.isSuccess]);
   const selectedCreatePackages = useMemo(
-    () => selectedCreatePackageRows(createPackageMerchandiseCards, packageActivationIds),
+    () =>
+      selectedCreatePackageRows(
+        createPackageMerchandiseCards.filter((card) => card.inclusionType !== "included"),
+        packageActivationIds,
+      ),
     [createPackageMerchandiseCards, packageActivationIds],
   );
 
@@ -846,6 +864,31 @@ export function CreateReservationPage({
     enabled: canManage && datesValid && !!roomTypeId,
   });
 
+  const selectedOccupancyCapacity = (() => {
+    const fromAvailability = (availabilityQuery.data ?? []).find(
+      (row) => row.roomTypeId === roomTypeId,
+    );
+    if (fromAvailability) {
+      return {
+        maxOccupancy: fromAvailability.maxOccupancy,
+        adultCapacity: fromAvailability.adultCapacity,
+        childCapacity: fromAvailability.childCapacity,
+      };
+    }
+    if (selectedRoomType?.roomTypeId === roomTypeId) {
+      return {
+        maxOccupancy: selectedRoomType.maxOccupancy,
+        adultCapacity: selectedRoomType.adultCapacity,
+        childCapacity: selectedRoomType.childCapacity,
+      };
+    }
+    return null;
+  })();
+  const selectedOccupancyEligible = roomTypeOccupancyFits(
+    adults,
+    children,
+    selectedOccupancyCapacity,
+  );
   const quotesQuery = useQuery({
     queryKey: [
       "stay-quotes",
@@ -873,7 +916,12 @@ export function CreateReservationPage({
           quoteCurrency: quoteCurrency || null,
         },
       }),
-    enabled: canManage && datesValid && !!roomTypeId && availabilitySearchActive,
+    enabled:
+      canManage &&
+      datesValid &&
+      !!roomTypeId &&
+      availabilitySearchActive &&
+      selectedOccupancyEligible,
     retry: false,
   });
   const quotes = useMemo(
@@ -881,6 +929,63 @@ export function CreateReservationPage({
     [availabilitySearchActive, quotesQuery.data],
   );
   const selectedQuote = quotes.find((q) => q.plan.id === ratePlanId) ?? null;
+  const stayBreakfastIncluded = rateIncludesBreakfast(
+    selectedQuote
+      ? {
+          breakfastIncluded: selectedQuote.plan.breakfastIncluded,
+          breakfastLabel: selectedQuote.breakfastLabel,
+          mealPlanName: selectedQuote.plan.mealPlanName,
+        }
+      : null,
+  );
+  const coveredServiceTypeIds = useMemo(
+    () => coveredGuestServiceTypeIds(createPackageMerchandiseCards, selectedQuote?.plan.mealPlanId ?? null),
+    [createPackageMerchandiseCards, selectedQuote?.plan.mealPlanId],
+  );
+  const selectedInclusion = useMemo(
+    () =>
+      selectedQuote
+        ? rateInclusionSummary({
+            breakfastIncluded: selectedQuote.plan.breakfastIncluded,
+            breakfastLabel: selectedQuote.breakfastLabel,
+            mealPlanName: selectedQuote.plan.mealPlanName,
+            mealPlanId: selectedQuote.plan.mealPlanId,
+            packages: selectedQuote.plan.packages,
+          })
+        : { included: [] as string[], optional: [] as string[] },
+    [selectedQuote],
+  );
+  const reservationServiceTypes = useMemo(
+    () =>
+      filterReservationGuestRequests(activeServiceTypes, {
+        coveredServiceTypeIds,
+        breakfastIncluded: stayBreakfastIncluded,
+      }),
+    [activeServiceTypes, coveredServiceTypeIds, stayBreakfastIncluded],
+  );
+  const walkInSourceSeeded = useRef(false);
+  useEffect(() => {
+    if (!walkInMode || walkInSourceSeeded.current) return;
+    const sources = sourceChannelQuery.data?.sources;
+    if (!sources) return;
+    walkInSourceSeeded.current = true;
+    if (bookingSource.trim()) return;
+    const sourceId = resolveWalkInBookingSource(sources);
+    if (sourceId) setBookingSource(sourceId);
+  }, [bookingSource, sourceChannelQuery.data?.sources, walkInMode]);
+  useEffect(() => {
+    setSelectedServiceRequests((current) => {
+      const next = current.filter((row) => {
+        if (coveredServiceTypeIds.has(row.serviceTypeId)) return false;
+        const type = activeServiceTypes.find((item) => item.id === row.serviceTypeId);
+        if (!type) return true;
+        if (isMaintenanceGuestService(type)) return false;
+        if (stayBreakfastIncluded && isBreakfastGuestService(type)) return false;
+        return true;
+      });
+      return next.length === current.length ? current : next;
+    });
+  }, [activeServiceTypes, coveredServiceTypeIds, stayBreakfastIncluded]);
   const roomCatalogQuery = useQuery({
     queryKey: ["create-reservation-room-catalog", restaurantId],
     queryFn: () => fetchRoomTypes({ data: { restaurantId } }),
@@ -950,36 +1055,44 @@ export function CreateReservationPage({
     retry: false,
   });
   const catalogQuoteQueries = useQueries({
-    queries: (availabilityQuery.data ?? []).map((row) => ({
-      queryKey: [
-        "stay-quotes",
-        restaurantId,
-        row.roomTypeId,
-        arrival,
-        departure,
-        1,
-        quoteAdults,
-        quoteChildren,
-        quoteInfants,
-        quoteCurrency,
-      ],
-      queryFn: () =>
-        fetchQuotes({
-          data: {
-            restaurantId,
-            roomTypeId: row.roomTypeId,
-            arrival,
-            departure,
-            rooms: 1,
-            adults: quoteAdults,
-            children: quoteChildren,
-            infants: quoteInfants,
-            quoteCurrency: quoteCurrency || null,
-          },
-        }),
-      enabled: canManage && datesValid && availabilitySearchActive,
-      retry: false,
-    })),
+    queries: (availabilityQuery.data ?? []).map((row) => {
+      const occupancyEligible = roomTypeOccupancyFits(quoteAdults, quoteChildren, {
+        maxOccupancy: row.maxOccupancy,
+        adultCapacity: row.adultCapacity,
+        childCapacity: row.childCapacity,
+      });
+      return {
+        queryKey: [
+          "stay-quotes",
+          restaurantId,
+          row.roomTypeId,
+          arrival,
+          departure,
+          1,
+          quoteAdults,
+          quoteChildren,
+          quoteInfants,
+          quoteCurrency,
+        ],
+        queryFn: () =>
+          fetchQuotes({
+            data: {
+              restaurantId,
+              roomTypeId: row.roomTypeId,
+              arrival,
+              departure,
+              rooms: 1,
+              adults: quoteAdults,
+              children: quoteChildren,
+              infants: quoteInfants,
+              quoteCurrency: quoteCurrency || null,
+            },
+          }),
+        // Capacity precedes pricing — do not quote over-capacity room types.
+        enabled: canManage && datesValid && availabilitySearchActive && occupancyEligible,
+        retry: false,
+      };
+    }),
   });
   const observedRatePlans = new Map<string, string>();
   for (const row of quotesQuery.data ?? []) {
@@ -1870,6 +1983,13 @@ export function CreateReservationPage({
     setDeparture(next.departure);
   }, [businessDate, walkInMode]);
 
+  // Seed staff create defaults from hotel business date once it loads (no wall-clock invent).
+  useEffect(() => {
+    if (walkInMode || !today || stayDatesTouched.current) return;
+    setArrival((current) => current || today);
+    setDeparture((current) => current || addDays(today, 1));
+  }, [today, walkInMode]);
+
   useEffect(() => {
     if (walkInMode) {
       setDraftReady(true);
@@ -2059,11 +2179,11 @@ export function CreateReservationPage({
     priced,
     canCreateUnpriced,
   };
-  const occupancyIssue = occupancySoftWarn(
-    adults,
-    children,
-    selectedType?.maxOccupancy ?? selectedRoomType?.maxOccupancy,
-  );
+  const occupancyIssue = occupancyCapacityWarn(adults, children, {
+    maxOccupancy: selectedType?.maxOccupancy ?? selectedRoomType?.maxOccupancy ?? 0,
+    adultCapacity: selectedType?.adultCapacity ?? selectedRoomType?.adultCapacity ?? 0,
+    childCapacity: selectedType?.childCapacity ?? selectedRoomType?.childCapacity ?? 0,
+  });
   const occupancyOk = occupancyIssue == null;
   const detailsQuoteIdentity = {
     roomTypeId,
@@ -2596,6 +2716,16 @@ export function CreateReservationPage({
             ? availability.find((row) => row.roomTypeId === activeExtra.roomTypeId)?.maxOccupancy
             : selectedMeta?.maxOccupancy) ?? selectedMeta?.maxOccupancy
         }
+        selectedAdultCapacity={
+          (activeExtra
+            ? availability.find((row) => row.roomTypeId === activeExtra.roomTypeId)?.adultCapacity
+            : selectedMeta?.adultCapacity) ?? selectedMeta?.adultCapacity
+        }
+        selectedChildCapacity={
+          (activeExtra
+            ? availability.find((row) => row.roomTypeId === activeExtra.roomTypeId)?.childCapacity
+            : selectedMeta?.childCapacity) ?? selectedMeta?.childCapacity
+        }
         catalog={roomTypeCatalog}
         filterRoomTypeId={searchRoomTypeFilter}
         currencyCode={displayCurrencyCode}
@@ -3069,11 +3199,8 @@ export function CreateReservationPage({
           : "—"
       }
       stayTotal={pricingState.kind === "priced" ? money(quotedGuestTotal(pricingState.quote)) : "—"}
-      includedItems={reviewIncludedItems([
-        selectedQuote?.breakfastLabel,
-        selectedQuote?.plan.mealPlanName,
-        selectedQuote?.includedServicesLabel,
-      ])}
+      includedItems={selectedInclusion.included.join(" · ") || null}
+      includedLines={selectedInclusion.included}
       cancellationLabel={selectedQuote?.cancellationLabel ?? "—"}
       refundabilityLabel={selectedQuote?.refundabilityLabel ?? null}
       refundabilityKind={selectedQuote?.refundabilityKind ?? null}
@@ -3647,6 +3774,7 @@ export function CreateReservationPage({
             roomId={roomId}
             unassignedValue={UNASSIGNED}
             onSelect={handleRoomChange}
+            emphasizeAssignNow={walkInMode}
           />
         }
         arrival={arrival}
@@ -3658,7 +3786,7 @@ export function CreateReservationPage({
         savedPreferencesLoading={
           Boolean(guest) && (preferenceWorkspaceQuery.isLoading || guestConfigQuery.isLoading)
         }
-        serviceTypes={activeServiceTypes}
+        serviceTypes={reservationServiceTypes}
         serviceTypesLoading={Boolean(guest) && serviceCatalogueQuery.isLoading}
         selectedServiceRequests={selectedServiceRequests}
         onSelectedServiceRequestsChange={setSelectedServiceRequests}
@@ -3680,6 +3808,7 @@ export function CreateReservationPage({
             bookingScopeNote={groupPackageNote}
             packageRules={packageChargeRules.data ?? null}
             selectedActivationIds={packageActivationIds}
+            mealPlanId={selectedQuote?.plan.mealPlanId ?? null}
             onToggleActivation={(activationId) =>
               setPackageActivationIds((current) =>
                 current.includes(activationId)

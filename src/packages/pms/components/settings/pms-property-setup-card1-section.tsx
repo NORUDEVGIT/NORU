@@ -7,11 +7,13 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/shared/components/ui/button";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { finishPropertySetupCardAndAdvance } from "@/packages/pms/lib/pms-property-setup-navigation";
 import type { Set1Checklist } from "@/packages/pms/lib/pms-set1-foundation";
 import type { Set2Snapshot } from "@/packages/pms/lib/pms-set2-structure";
 import { savePmsPropertySetupCard1 } from "@/packages/pms/lib/pms-property-setup-card1.functions";
 import {
   CARD1_AGREEMENT_OUT,
+  CARD1_HASH,
   CARD1_SIDEBAR_OUT,
   CARD1_STEPS,
   clearCard1SessionDraft,
@@ -183,9 +185,7 @@ export function PmsPropertySetupCard1Section({
         if (next) setStep(next);
       }
       if (mode === "finish") {
-        window.location.hash = "";
-        window.history.replaceState(null, "", SET1_HUB_HREF);
-        window.dispatchEvent(new HashChangeEvent("hashchange"));
+        finishPropertySetupCardAndAdvance(CARD1_HASH);
       }
       if (result.snapshot) {
         setDraft(result.snapshot.draft);

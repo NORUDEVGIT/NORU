@@ -29,7 +29,7 @@ import { assertCreateReservationPricing } from "./create-reservation-phase1-sect
 import { assertReservationCreateSourceChannel } from "./reservation-source-channel.server";
 import { assertRoomTypeOccupancy } from "./create-reservation-phase1-section4";
 import { buildStayAmendmentResult, type StayAmendmentResult } from "./reservation-stay-amendment";
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { assertReservationDetailEditable } from "@/packages/pms/lib/reservation-lifecycle.server";
 import { assertGuestProfilesActiveForBooking } from "./guests.server";
 
@@ -195,6 +195,9 @@ export interface ReservationDetail extends ReservationSummary {
   marketSegment: string | null;
   externalReference: string | null;
   guaranteeMethod: string | null;
+  /** Card 3 billing arrangement on the reservation (`hotel_reservations.billing_rule_id`). */
+  billingRuleId: string | null;
+  billingRuleName: string | null;
   companyMasterId: string | null;
   companyName: string | null;
   travelAgentMasterId: string | null;
@@ -284,12 +287,14 @@ const RESERVATION_SELECT = `
   adults, children, status, source, special_requests, notes, cancellation_reason,
   rate_plan_id, currency, room_subtotal, nightly_rate_snapshot, priced_at,
   commercial_booking_source, market_segment, external_reference, guarantee_method,
+  billing_rule_id,
   company_master_id, travel_agent_master_id, group_account_master_id,
   created_at, updated_at,
   guest_profiles!hotel_reservations_guest_same_property ( first_name, last_name, phone, email, vip_status ),
   room_types!hotel_reservations_type_same_property ( name, code ),
   hotel_rooms!hotel_reservations_room_same_type ( room_number, status, housekeeping_status ),
   rate_plan:hotel_rate_plans!hotel_reservations_rate_plan_same_property ( name ),
+  billing_rule:pms_billing_rules!hotel_reservations_billing_rule_same_property ( name ),
   company:guest_account_masters!hotel_reservations_company_master_same_property ( name ),
   travel_agent:guest_account_masters!hotel_reservations_travel_agent_master_same_property ( name ),
   group_account:guest_account_masters!hotel_reservations_group_account_master_same_property ( name )
@@ -361,6 +366,8 @@ type ReservationRow = {
   market_segment: string | null;
   external_reference: string | null;
   guarantee_method: string | null;
+  billing_rule_id?: string | null;
+  billing_rule?: NameRelation;
   company_master_id: string | null;
   travel_agent_master_id: string | null;
   group_account_master_id: string | null;
@@ -440,6 +447,8 @@ function toDetail(row: ReservationRow): ReservationDetail {
     marketSegment: row.market_segment,
     externalReference: row.external_reference,
     guaranteeMethod: row.guarantee_method,
+    billingRuleId: row.billing_rule_id ?? null,
+    billingRuleName: oneRel(row.billing_rule)?.name ?? null,
     companyMasterId: row.company_master_id,
     companyName: oneRel(row.company)?.name ?? null,
     travelAgentMasterId: row.travel_agent_master_id,
@@ -1929,13 +1938,13 @@ export const createReservation = createServerFn({ method: "POST" })
 
       const { data: roomType, error: occupancyError } = await context.supabase
         .from("room_types")
-        .select("max_occupancy")
+        .select("max_occupancy, adult_capacity, child_capacity")
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.roomTypeId)
         .maybeSingle();
       if (occupancyError) throw new Error(occupancyError.message);
       if (!roomType) throw new Error("Room type not found for this property.");
-      assertRoomTypeOccupancy(data.adults, data.children, roomType.max_occupancy);
+      assertRoomTypeOccupancy(data.adults, data.children, roomType);
       const roomUnitPayload = createReservationRoomUnitPayload({
         roomTypeId: data.roomTypeId,
         adults: data.adults,
@@ -1966,13 +1975,13 @@ export const createReservation = createServerFn({ method: "POST" })
         for (const unit of roomUnitPayload.roomUnits.slice(1)) {
           const { data: extraType, error: extraTypeError } = await context.supabase
             .from("room_types")
-            .select("max_occupancy")
+            .select("max_occupancy, adult_capacity, child_capacity")
             .eq("restaurant_id", data.restaurantId)
             .eq("id", unit.roomTypeId)
             .maybeSingle();
           if (extraTypeError) throw new Error(extraTypeError.message);
           if (!extraType) throw new Error("Room type not found for this property.");
-          assertRoomTypeOccupancy(unit.adults, unit.children, extraType.max_occupancy);
+          assertRoomTypeOccupancy(unit.adults, unit.children, extraType);
         }
       }
       let reservationMode: ReservationMode;
@@ -2590,7 +2599,7 @@ async function applyUnitScopedReservationEdit(input: {
     const persistedBusinessDate = property?.business_date
       ? String(property.business_date).slice(0, 10)
       : null;
-    const businessDate = resolvePropertyBusinessDate(
+    const businessDate = operationalBusinessDate(
       persistedBusinessDate,
       property?.timezone || "",
     );
@@ -2600,14 +2609,18 @@ async function applyUnitScopedReservationEdit(input: {
   }
   const roomTypeRead = await db
     .from("room_types")
-    .select("max_occupancy")
+    .select("max_occupancy, adult_capacity, child_capacity")
     .eq("restaurant_id", input.restaurantId)
     .eq("id", input.roomTypeId)
     .maybeSingle();
   if (roomTypeRead.error) throw new Error(roomTypeRead.error.message);
-  const roomType = roomTypeRead.data as { max_occupancy?: number | null } | null;
+  const roomType = roomTypeRead.data as {
+    max_occupancy?: number | null;
+    adult_capacity?: number | null;
+    child_capacity?: number | null;
+  } | null;
   if (!roomType) throw new Error("Room type not found for this property.");
-  assertRoomTypeOccupancy(input.adults, input.children, roomType.max_occupancy ?? null);
+  assertRoomTypeOccupancy(input.adults, input.children, roomType);
 
   if (datesChanging || roomTypeChanged) {
     const { assertExistingReservationGroupPickup } = await import("./groups.functions");
@@ -2886,6 +2899,7 @@ export const amendReservation = createServerFn({ method: "POST" })
         marketSegment: z.string().max(120).nullable().optional(),
         externalReference: z.string().max(120).nullable().optional(),
         guaranteeMethod: z.string().max(80).nullable().optional(),
+        billingRuleId: idSchema.nullable().optional(),
         purposeOfStay: z.string().max(40).nullable().optional(),
         reservationRoomId: idSchema.nullable().optional(),
         arrivalTransport: z.string().max(200).nullable().optional(),
@@ -2948,7 +2962,7 @@ export const amendReservation = createServerFn({ method: "POST" })
       const { data: existing, error: readError } = await supabaseAdmin
         .from("hotel_reservations")
         .select(
-          "id, guest_id, room_type_id, status, arrival_date, departure_date, adults, children, infants, room_subtotal, currency, commercial_booking_source, market_segment, external_reference, guarantee_method, travel_agent_master_id, purpose_of_stay, arrival_transport, pickup_note, special_occasion, pms_group_id, pms_group_block_id",
+          "id, guest_id, room_type_id, status, arrival_date, departure_date, adults, children, infants, room_subtotal, currency, commercial_booking_source, market_segment, external_reference, guarantee_method, billing_rule_id, travel_agent_master_id, purpose_of_stay, arrival_transport, pickup_note, special_occasion, pms_group_id, pms_group_block_id",
         )
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.reservationId)
@@ -2997,7 +3011,7 @@ export const amendReservation = createServerFn({ method: "POST" })
         const persistedBusinessDate = propertyRow?.business_date
           ? String(propertyRow.business_date).slice(0, 10)
           : null;
-        const businessDate = resolvePropertyBusinessDate(
+        const businessDate = operationalBusinessDate(
           persistedBusinessDate,
           propertyRow?.timezone || "",
         );
@@ -3011,13 +3025,13 @@ export const amendReservation = createServerFn({ method: "POST" })
 
       const { data: roomType, error: occupancyError } = await supabaseAdmin
         .from("room_types")
-        .select("max_occupancy")
+        .select("max_occupancy, adult_capacity, child_capacity")
         .eq("restaurant_id", data.restaurantId)
         .eq("id", data.roomTypeId)
         .maybeSingle();
       if (occupancyError) throw new Error(occupancyError.message);
       if (!roomType) throw new Error("Room type not found for this property.");
-      assertRoomTypeOccupancy(data.adults, data.children, roomType.max_occupancy);
+      assertRoomTypeOccupancy(data.adults, data.children, roomType);
 
       const typeChanging = existing.room_type_id !== data.roomTypeId;
       if (datesChanging || typeChanging) {
@@ -3097,6 +3111,19 @@ export const amendReservation = createServerFn({ method: "POST" })
         data.externalReference !== undefined ? blankToNull(data.externalReference) : undefined;
       const nextGuarantee =
         data.guaranteeMethod !== undefined ? blankToNull(data.guaranteeMethod) : undefined;
+      const nextBillingRule =
+        data.billingRuleId !== undefined ? (data.billingRuleId ?? null) : undefined;
+      if (nextBillingRule) {
+        const { data: ruleRow, error: ruleError } = await supabaseAdmin
+          .from("pms_billing_rules")
+          .select("id")
+          .eq("restaurant_id", data.restaurantId)
+          .eq("id", nextBillingRule)
+          .eq("active", true)
+          .maybeSingle();
+        if (ruleError) throw new Error(ruleError.message);
+        if (!ruleRow) throw new Error("That billing arrangement is not available.");
+      }
 
       const commercialPatch: Record<string, string | null> = {};
       if (nextGuestId) commercialPatch.guest_id = nextGuestId;
@@ -3111,6 +3138,11 @@ export const amendReservation = createServerFn({ method: "POST" })
       }
       if (nextGuarantee !== undefined && nextGuarantee !== existing.guarantee_method) {
         commercialPatch.guarantee_method = nextGuarantee;
+      }
+      const existingBillingRuleId =
+        (existing as { billing_rule_id?: string | null }).billing_rule_id ?? null;
+      if (nextBillingRule !== undefined && nextBillingRule !== existingBillingRuleId) {
+        commercialPatch.billing_rule_id = nextBillingRule;
       }
 
       const storedMeta = existing as {
@@ -3179,6 +3211,7 @@ export const amendReservation = createServerFn({ method: "POST" })
             market_segment: existing.market_segment,
             external_reference: existing.external_reference,
             guarantee_method: existing.guarantee_method,
+            billing_rule_id: existingBillingRuleId,
             purpose_of_stay: storedPurpose,
             infants: storedInfants,
             arrival_transport: storedTransport,
@@ -3192,6 +3225,7 @@ export const amendReservation = createServerFn({ method: "POST" })
             market_segment: commercialPatch.market_segment ?? existing.market_segment,
             external_reference: commercialPatch.external_reference ?? existing.external_reference,
             guarantee_method: commercialPatch.guarantee_method ?? existing.guarantee_method,
+            billing_rule_id: commercialPatch.billing_rule_id ?? existingBillingRuleId,
             purpose_of_stay:
               stayMetaPatch.purpose_of_stay !== undefined
                 ? stayMetaPatch.purpose_of_stay

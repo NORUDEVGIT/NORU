@@ -12,7 +12,7 @@ import {
   isMatchingNoShowCharge,
   type NoShowReadiness,
 } from "@/packages/pms/lib/fo-no-show-readiness";
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import {
   hasEffectivePermission,
   requirePmsActor,
@@ -209,7 +209,7 @@ export const getNoShowReadiness = createServerFn({ method: "POST" })
     );
 
     const readiness = evaluateNoShowReadiness({
-      businessDate: resolvePropertyBusinessDate(
+      businessDate: operationalBusinessDate(
         propertyResult.data?.business_date ?? null,
         propertyResult.data?.timezone ?? "UTC",
       ),

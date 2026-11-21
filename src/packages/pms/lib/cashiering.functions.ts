@@ -22,7 +22,7 @@ import {
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { operationalBusinessDate } from "./reservation-workspace/business-date";
 import { folioTenderFromCatalogue } from "./pms-polish1-payment-admin";
 import { loadPolish1Snapshot } from "./pms-polish1-payment-admin.functions";
 import { isMissingSchemaError } from "./pms-set2-structure";
@@ -1270,7 +1270,7 @@ export const getCashieringDashboard = createServerFn({ method: "GET" })
       business_date: string | null;
     } | null;
     const timezone = property?.timezone || "UTC";
-    const businessDate = resolvePropertyBusinessDate(
+    const businessDate = operationalBusinessDate(
       property?.business_date ? property.business_date.slice(0, 10) : null,
       timezone,
     );

@@ -19,11 +19,12 @@ describe("Create reservation Booking Details layout", () => {
     assert.match(details, /booking-details-source-channel/);
     assert.match(details, /Source & Channel/);
     assert.match(details, /booking-details-company-agent-group/);
-    assert.match(details, /Company \/ Agent \/ Group/);
+    assert.match(details, /title="Account"/);
+    assert.match(details, /Attach company, agency or group/);
     assert.match(details, /booking-details-packages/);
-    assert.match(details, /Packages & Add-ons/);
+    assert.match(details, /title="Add-ons"/);
     assert.match(details, /booking-details-guest-requests/);
-    assert.match(details, /Guest Requests & Preferences/);
+    assert.match(details, /title="Guest Preferences & Guest Services"/);
     assert.doesNotMatch(details, /Guest & Booker Information/);
     assert.doesNotMatch(details, /booking-details-guest-booker/);
     assert.doesNotMatch(details, /Room & Rate Details/);

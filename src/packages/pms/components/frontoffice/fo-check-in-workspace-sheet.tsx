@@ -1075,7 +1075,7 @@ export function FoCheckInWorkspaceSheet({
                 />
 
                 <OpCard
-                  title="Requests, Notes & Guest Services"
+                  title="Guest Preferences, Notes & Guest Services"
                   testId="fo-ci-workspace-special-requests"
                   className={cardClass}
                 >
@@ -1090,12 +1090,12 @@ export function FoCheckInWorkspaceSheet({
                     </div>
                     <div data-testid="fo-ci-workspace-notes">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Internal Notes
+                        Guest Notes
                       </p>
                       {reservation?.notes ? (
                         <p className="mt-1 whitespace-pre-wrap text-sm">{reservation.notes}</p>
                       ) : (
-                        <p className="mt-1 text-sm text-muted-foreground">No internal note.</p>
+                        <p className="mt-1 text-sm text-muted-foreground">No guest notes.</p>
                       )}
                     </div>
                     <FoGuestServicesPanel

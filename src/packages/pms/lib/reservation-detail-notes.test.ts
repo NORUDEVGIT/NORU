@@ -45,7 +45,7 @@ describe("Reservation Detail Notes & Traces tab", () => {
     expect(notesUi).toContain("listReservationTraces");
     expect(notesUi).toContain("createReservationTrace");
     expect(notesUi).not.toContain("listHousekeepingTasks");
-    expect(notesUi).toContain("Back to Requests & Preferences");
+    expect(notesUi).toContain("Back to Guest Services");
     expect(notesUi).not.toContain("createGuestServiceRequest");
   });
 

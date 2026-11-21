@@ -237,7 +237,6 @@ export function GuestCompanyDirectory({
     useState<(typeof COMPANY_PAGE_SIZES)[number]>(COMPANY_DEFAULT_PAGE_SIZE);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | undefined>();
-  const [creditFocus, setCreditFocus] = useState(false);
   useEffect(() => {
     const handle = setTimeout(() => {
       setDebouncedSearch(search);
@@ -871,12 +870,6 @@ export function GuestCompanyDirectory({
                   onLinkGuest={() => openCompanyTravelersLink(row.id)}
                   onEdit={() => {
                     setEditId(row.id);
-                    setCreditFocus(false);
-                    setFormOpen(true);
-                  }}
-                  onCredit={() => {
-                    setEditId(row.id);
-                    setCreditFocus(true);
                     setFormOpen(true);
                   }}
                   onStatus={(next) => statusMutation.mutate({ ids: [row.id], status: next })}
@@ -909,19 +902,16 @@ export function GuestCompanyDirectory({
           setFormOpen(next);
           if (!next) {
             setEditId(null);
-            setCreditFocus(false);
           }
         }}
         onSaved={() => {
           setFormOpen(false);
           setEditId(null);
-          setCreditFocus(false);
           invalidate();
         }}
         onCancel={() => {
           setFormOpen(false);
           setEditId(null);
-          setCreditFocus(false);
         }}
       />
 
@@ -936,7 +926,6 @@ function CompanyRow({
   onView,
   onLinkGuest,
   onEdit,
-  onCredit,
   onStatus,
 }: {
   row: CompanyWorkspaceRow;
@@ -945,7 +934,6 @@ function CompanyRow({
   onView: () => void;
   onLinkGuest: () => void;
   onEdit: () => void;
-  onCredit: () => void;
   onStatus: (status: "active" | "inactive") => void;
 }) {
   return (
@@ -1030,12 +1018,6 @@ function CompanyRow({
               <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
                 <Pencil className="mr-1.5 size-3.5 text-[#8A641A]" />
                 Edit Company
-              </DropdownMenuItem>
-            ) : null}
-            {canEdit && row.creditAccountAllowed ? (
-              <DropdownMenuItem onClick={onCredit} className="cursor-pointer">
-                <CreditCard className="mr-1.5 size-3.5 text-[#8A641A]" />
-                Manage Credit Account
               </DropdownMenuItem>
             ) : null}
             {canActivate ? (

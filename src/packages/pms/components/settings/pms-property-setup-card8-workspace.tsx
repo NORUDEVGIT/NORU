@@ -9,6 +9,7 @@ export function PmsPropertySetupCard8Workspace({
   status,
   actions,
   children,
+  fullWidth = false,
 }: {
   lifecycle?: ReactNode;
   validation?: ReactNode;
@@ -17,10 +18,15 @@ export function PmsPropertySetupCard8Workspace({
   status?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
+  /** Drop the right-hand summary rail so content uses the setup column width. */
+  fullWidth?: boolean;
 }) {
   return (
-    <div className="space-y-4" data-testid="pms-card8-tab-workspace">
-      <div className="rounded-2xl border bg-card p-4" data-testid="pms-card8-lifecycle-slot">
+    <div className={fullWidth ? "space-y-3" : "space-y-4"} data-testid="pms-card8-tab-workspace">
+      <div
+        className={fullWidth ? undefined : "rounded-2xl border bg-card p-4"}
+        data-testid="pms-card8-lifecycle-slot"
+      >
         {lifecycle ?? (
           <p className="text-sm text-muted-foreground">
             Readiness is derived from current setup and governance state.
@@ -29,10 +35,14 @@ export function PmsPropertySetupCard8Workspace({
       </div>
 
       <div
-        className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
+        className={
+          fullWidth
+            ? "min-w-0 space-y-3"
+            : "grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
+        }
         data-testid="pms-card8-workspace-layout"
       >
-        <div className="min-w-0 space-y-4 overflow-x-auto">
+        <div className={fullWidth ? "min-w-0 space-y-3" : "min-w-0 space-y-4 overflow-x-auto"}>
           <div data-testid="pms-card8-content-slot">{children}</div>
           <div data-testid="pms-card8-validation-slot">
             {validation ?? <p className="sr-only">Validation result area</p>}
@@ -42,16 +52,18 @@ export function PmsPropertySetupCard8Workspace({
           </div>
         </div>
 
-        <aside
-          className="min-w-0 rounded-2xl border bg-card p-4"
-          data-testid="pms-card8-summary-slot"
-        >
-          {summary ?? (
-            <p className="text-sm text-muted-foreground">
-              No summary is available for this domain.
-            </p>
-          )}
-        </aside>
+        {fullWidth ? null : (
+          <aside
+            className="min-w-0 rounded-2xl border bg-card p-4"
+            data-testid="pms-card8-summary-slot"
+          >
+            {summary ?? (
+              <p className="text-sm text-muted-foreground">
+                No summary is available for this domain.
+              </p>
+            )}
+          </aside>
+        )}
       </div>
 
       <footer className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t bg-[#F7F4EE] pt-4">

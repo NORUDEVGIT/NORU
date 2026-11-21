@@ -13,10 +13,14 @@ import {
   CREATE_RESERVATION_OCCUPANCY_WARN_CONTINUE,
   ROOM_TYPE_AVAILABILITY_LABELS,
   isRoomTypeSelectable,
-  occupancySoftWarn,
+  occupancyCapacityWarn,
   roomTypeAvailabilityState,
   type RoomTypeAvailabilityState,
 } from "@/packages/pms/lib/create-reservation-phase1-section4";
+import {
+  roomTypeOccupancyFits,
+  roomTypeOccupancyIneligibility,
+} from "@/packages/pms/lib/room-type-occupancy";
 import { PMS_OP_BTN_COMPACT, PMS_OP_PANEL } from "@/packages/pms/lib/pms-operational-surface";
 import { Button } from "@/shared/components/ui/button";
 
@@ -100,14 +104,28 @@ export function OccupancySoftWarn({
   adults,
   childCount,
   maxOccupancy,
+  adultCapacity,
+  childCapacity,
   testId = "occupancy-warn",
 }: {
   adults: number;
   childCount: number;
   maxOccupancy: number | undefined;
+  adultCapacity?: number;
+  childCapacity?: number;
   testId?: string;
 }) {
-  const message = occupancySoftWarn(adults, childCount, maxOccupancy);
+  const message = occupancyCapacityWarn(
+    adults,
+    childCount,
+    maxOccupancy == null
+      ? null
+      : {
+          maxOccupancy,
+          adultCapacity: adultCapacity ?? 0,
+          childCapacity: childCapacity ?? 0,
+        },
+  );
   if (!message) return null;
   return (
     <div
@@ -220,6 +238,8 @@ export function CreateReservationRoomType({
   adults,
   childCount,
   selectedMaxOccupancy,
+  selectedAdultCapacity,
+  selectedChildCapacity,
   catalog,
   filterRoomTypeId,
   currencyCode,
@@ -244,6 +264,8 @@ export function CreateReservationRoomType({
   adults: number;
   childCount: number;
   selectedMaxOccupancy: number | undefined;
+  selectedAdultCapacity?: number;
+  selectedChildCapacity?: number;
   catalog?: Record<string, RoomTypeCatalogDetails>;
   filterRoomTypeId?: string;
   currencyCode?: string;
@@ -263,6 +285,8 @@ export function CreateReservationRoomType({
 }) {
   const selected = availability.find((row) => row.roomTypeId === roomTypeId);
   const occupancyCeiling = selected?.maxOccupancy ?? selectedMaxOccupancy;
+  const occupancyAdultCapacity = selected?.adultCapacity ?? selectedAdultCapacity ?? 0;
+  const occupancyChildCapacity = selected?.childCapacity ?? selectedChildCapacity ?? 0;
   const rows = filterRoomTypeId
     ? availability.filter((row) => row.roomTypeId === filterRoomTypeId)
     : availability;
@@ -432,9 +456,19 @@ export function CreateReservationRoomType({
                 <ul className="divide-y divide-[#E7E0D4]">
                   {visibleRows.map((row) => {
                     const state = roomTypeAvailabilityState(row.available);
-                    const disabled =
+                    const capacity = {
+                      maxOccupancy: row.maxOccupancy,
+                      adultCapacity: row.adultCapacity,
+                      childCapacity: row.childCapacity,
+                    };
+                    const occupancyFit = roomTypeOccupancyFits(adults, childCount, capacity);
+                    const occupancyBlock = occupancyFit
+                      ? null
+                      : roomTypeOccupancyIneligibility(adults, childCount, capacity);
+                    const inventoryDisabled =
                       !isRoomTypeSelectable(row.available) &&
                       !(allowExhaustedSelection && row.available <= 0);
+                    const disabled = inventoryDisabled || !occupancyFit;
                     const selectedCard = row.roomTypeId === roomTypeId;
                     const details = catalog?.[row.roomTypeId];
                     const amenityLabels = (details?.amenityLabels ?? []).filter((label) =>
@@ -447,6 +481,7 @@ export function CreateReservationRoomType({
                         key={row.roomTypeId}
                         className={cn(selectedCard && "bg-[#FAF7EF]")}
                         data-testid="availability-room-block"
+                        data-occupancy-eligible={occupancyFit ? "true" : "false"}
                       >
                         <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(13.5rem,17rem)_minmax(8.75rem,11rem)_minmax(0,1fr)]">
                           <div className="min-w-0 border-b border-[#E7E0D4] p-3 lg:border-b-0 lg:border-r">
@@ -454,8 +489,12 @@ export function CreateReservationRoomType({
                               type="button"
                               data-testid={`room-type-${row.roomTypeId}`}
                               data-availability={row.available}
+                              data-occupancy-eligible={occupancyFit ? "true" : "false"}
                               disabled={disabled}
-                              onClick={() => onSelect(row)}
+                              onClick={() => {
+                                if (!occupancyFit) return;
+                                onSelect(row);
+                              }}
                               className={cn(
                                 "flex w-full min-w-0 gap-3 text-left",
                                 disabled && "cursor-not-allowed opacity-60",
@@ -496,7 +535,19 @@ export function CreateReservationRoomType({
                           <div className="flex items-center justify-center border-b border-[#E7E0D4] px-2 py-2 lg:border-b-0 lg:border-r">
                             <AvailabilityBadge state={state} available={row.available} />
                           </div>
-                          <div className="min-w-0">{renderRates?.(row)}</div>
+                          <div className="min-w-0">
+                            {occupancyBlock ? (
+                              <div
+                                className="flex h-full flex-col justify-center gap-1 px-3 py-3 text-xs text-[#9B3A3A]"
+                                data-testid={`room-type-occupancy-ineligible-${row.roomTypeId}`}
+                              >
+                                <p className="font-medium">{occupancyBlock.reason}</p>
+                                <p className="text-[#6B5E4E]">{occupancyBlock.maximum}</p>
+                              </div>
+                            ) : (
+                              renderRates?.(row)
+                            )}
+                          </div>
                         </div>
                       </li>
                     );
@@ -514,6 +565,8 @@ export function CreateReservationRoomType({
             adults={adults}
             childCount={childCount}
             maxOccupancy={occupancyCeiling}
+            adultCapacity={occupancyAdultCapacity}
+            childCapacity={occupancyChildCapacity}
           />
           <p className="text-xs text-muted-foreground">
             {CREATE_RESERVATION_CAPACITY_DISPLAY_ONLY}

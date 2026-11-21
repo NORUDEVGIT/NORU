@@ -34,6 +34,10 @@
 
 import { addDays, nightsBetween } from "../../../shared/lib/property-dates.ts";
 import type { PmsSet6CatalogueItem } from "./pms-set6-sales-distribution.ts";
+import {
+  roomTypeOccupancyIneligibility,
+  roomTypeOccupancyIssues,
+} from "./room-type-occupancy.ts";
 
 export const CREATE_RESERVATION_SECTION1_ISSUE = 121;
 export const CREATE_RESERVATION_SECTION2_ISSUE = 127;
@@ -534,49 +538,19 @@ export function occupancyCapacityIssues(
   children: number,
   capacity: StayOccupancyCapacity | null | undefined,
 ): OccupancyCapacityIssue[] {
-  if (!capacity) return [];
-  const issues: OccupancyCapacityIssue[] = [];
-  const total = Math.max(0, adults) + Math.max(0, children);
-  if (
-    Number.isFinite(capacity.maxOccupancy) &&
-    capacity.maxOccupancy > 0 &&
-    total > capacity.maxOccupancy
-  ) {
-    issues.push("maxOccupancy");
-  }
-  if (
-    Number.isFinite(capacity.adultCapacity) &&
-    capacity.adultCapacity > 0 &&
-    adults > capacity.adultCapacity
-  ) {
-    issues.push("adultCapacity");
-  }
-  if (Number.isFinite(capacity.childCapacity) && children > capacity.childCapacity) {
-    issues.push("childCapacity");
-  }
-  return issues;
+  // Shared hard-capacity rules (max + adult/child). Pricing uses included occupancy separately.
+  return roomTypeOccupancyIssues(adults, children, capacity) as OccupancyCapacityIssue[];
 }
 
-/** Soft-warn only. Does not block create — hard invent is Section 4. */
+/** Soft-warn copy. Create/quote hard-block uses assertRoomTypeOccupancy / room-type-occupancy. */
 export function occupancyCapacitySoftWarn(
   adults: number,
   children: number,
   capacity: StayOccupancyCapacity | null | undefined,
 ): string | null {
-  const issues = occupancyCapacityIssues(adults, children, capacity);
-  if (!capacity || issues.length === 0) return null;
-  const parts: string[] = [];
-  const total = Math.max(0, adults) + Math.max(0, children);
-  if (issues.includes("maxOccupancy")) {
-    parts.push(`${total} guests vs sleeps ${capacity.maxOccupancy}`);
-  }
-  if (issues.includes("adultCapacity")) {
-    parts.push(`${adults} adults vs adult capacity ${capacity.adultCapacity}`);
-  }
-  if (issues.includes("childCapacity")) {
-    parts.push(`${children} children vs child capacity ${capacity.childCapacity}`);
-  }
-  return `${CREATE_RESERVATION_OCCUPANCY_SOFT_WARN} (${parts.join("; ")}).`;
+  const blocked = roomTypeOccupancyIneligibility(adults, children, capacity);
+  if (!blocked) return null;
+  return `${CREATE_RESERVATION_OCCUPANCY_SOFT_WARN} ${blocked.reason}. ${blocked.maximum}.`;
 }
 
 /** Step 0 (Guest, Stay & Availability) — same pricing/occupancy rules as legacy availability step, plus guest + dates. */

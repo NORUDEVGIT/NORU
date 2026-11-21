@@ -60,12 +60,12 @@ describe("Create Reservation Step 4 review workspace", () => {
     assert.doesNotMatch(reviewUi, /Guest informed about cancellation policy/);
     assert.doesNotMatch(reviewUi, /Guest consent for deposit and guarantee/);
     assert.doesNotMatch(reviewUi, /Special terms and conditions apply/);
-    assert.match(reviewUi, /No packages selected/);
+    assert.match(reviewUi, /No add-ons selected/);
     assert.match(reviewUi, /chargeBasisLabel/);
     assert.match(reviewUi, /priceLabel/);
     assert.match(reviewUi, /Includes:/);
-    assert.match(reviewUi, /No saved preferences/);
-    assert.match(reviewUi, /No service requests selected/);
+    assert.doesNotMatch(reviewUi, /No saved preferences/);
+    assert.match(reviewUi, /No guest service requests/);
     assert.match(reviewUi, /Print a clean reservation review before confirmation/);
     assert.match(page, /CreateReservationReview/);
     assert.match(page, /savedPreferences=\{savedPreferenceRows\}/);
@@ -87,14 +87,14 @@ describe("Create Reservation Step 4 review workspace", () => {
     assert.match(reviewUi, /onEdit\(CREATE_REVIEW_STEPS.policies\)/);
     assert.match(page, /onEdit=\{setWorkflowStep\}/);
     assert.match(reviewUi, /testId="review-card-packages"/);
-    assert.match(reviewUi, /No packages selected/);
+    assert.match(reviewUi, /No add-ons selected/);
     assert.match(reviewUi, /Includes:/);
     const packagesCard = reviewUi.slice(reviewUi.indexOf('testId="review-card-packages"') - 220);
     assert.match(packagesCard.slice(0, 260), /CREATE_REVIEW_STEPS\.bookingDetails/);
     assert.match(page, /selectedPackages=/);
     assert.match(reviewUi, /testId="review-card-requests"/);
-    assert.match(reviewUi, /No saved preferences/);
-    assert.match(reviewUi, /No service requests selected/);
+    assert.doesNotMatch(reviewUi, /No saved preferences/);
+    assert.match(reviewUi, /No guest service requests/);
     assert.match(page, /savedPreferences=\{savedPreferenceRows\}/);
     assert.match(page, /selectedServiceRequests=\{selectedServiceRequests\}/);
     assert.match(

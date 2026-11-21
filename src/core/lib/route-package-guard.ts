@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMyRestaurants } from "./restaurant.functions";
 import { getMyRoutePackageAccess } from "./package-entitlements.functions";
 import type { PackageKey } from "./package-entitlements";
+import { PMS_OPERATIONAL_HOME_PATH } from "./pms-operational-home";
 
 const TTL_MS = 30_000;
 
@@ -70,6 +71,12 @@ async function resolve(packageKey: PackageKey): Promise<GuardResult> {
   }
 }
 
+/**
+ * Failures land on `/restaurant/home` with an access notice only — never the
+ * legacy Available Packages launcher for live PMS users (home redirects those).
+ * `verify=failed` means the entitlement check threw (temporary/read failure),
+ * not a proven “package disabled” answer.
+ */
 export async function requireRoutePackage(packageKey: PackageKey): Promise<void> {
   const result = await resolve(packageKey);
   if (result === "allowed") return;
@@ -77,6 +84,11 @@ export async function requireRoutePackage(packageKey: PackageKey): Promise<void>
     throw redirect({ to: "/restaurant/home", search: { blocked: packageKey }, replace: true });
   }
   throw redirect({ to: "/restaurant/home", search: { verify: "failed" }, replace: true });
+}
+
+/** Canonical landing after a successful package check for live PMS staff. */
+export function pmsOperationalHomePath(): string {
+  return PMS_OPERATIONAL_HOME_PATH;
 }
 
 /** Core operational routes: pending/suspended/rejected owners are sent home. */

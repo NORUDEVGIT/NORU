@@ -377,8 +377,16 @@ export function ReservationDetailStayTab({
           note: lateNote || null,
         },
       }),
-    onSuccess: () => {
-      toast.success("Late checkout updated.");
+    onSuccess: (result) => {
+      if (!result.lateCheckoutGranted) {
+        toast.success("Late checkout cleared.");
+      } else if (result.fee.status === "posted") {
+        toast.success("Late checkout granted. Late checkout fee added to the folio.");
+      } else if (result.fee.status === "already_posted") {
+        toast.success("Late checkout granted. The late checkout fee was already on the folio.");
+      } else {
+        toast.success("Late checkout granted.");
+      }
       onSaved();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -795,6 +803,21 @@ export function ReservationDetailStayTab({
                     Property policy requires approval before late checkout.
                   </p>
                 ) : null}
+                <div className="rounded-lg border border-[#E8DFD0] bg-[#FBF8F3] px-3 py-2 text-xs text-[#251605]">
+                  <p>
+                    Late checkout until:{" "}
+                    <span className="font-medium">{lateClock || "—"}</span>
+                  </p>
+                  <p className="mt-1">
+                    Late checkout fee:{" "}
+                    <span className="font-medium">
+                      {lateApproval.data?.lateCheckoutFee != null &&
+                      lateApproval.data.lateCheckoutFee > 0
+                        ? money(lateApproval.data.lateCheckoutFee)
+                        : "No late checkout fee"}
+                    </span>
+                  </p>
+                </div>
                 <div className="flex flex-wrap items-center gap-2 pt-0.5">
                   <Button
                     type="button"

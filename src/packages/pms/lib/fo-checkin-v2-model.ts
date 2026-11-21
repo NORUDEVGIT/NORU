@@ -23,7 +23,7 @@ import {
   pairMismatchRejection,
   requirementRejectionMessage,
 } from "@/packages/pms/lib/room-requirement-rejection";
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { nightsBetween } from "@/shared/lib/property-dates";
 
 export const CHECKIN_V2_STEPS = [
@@ -287,7 +287,7 @@ export function projectCheckInStep1Readiness(
   let arrivalVersusBusinessDate: ArrivalVersusBusinessDate | null = null;
   const arrivalDate = dates?.arrivalDate ?? null;
   if (arrivalDate) {
-    const businessDate = resolvePropertyBusinessDate(
+    const businessDate = operationalBusinessDate(
       dates?.persistedBusinessDate ?? null,
       dates?.timezone?.trim() || "UTC",
     );

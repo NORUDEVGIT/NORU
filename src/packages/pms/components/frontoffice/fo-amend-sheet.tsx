@@ -1256,7 +1256,7 @@ export function FoGuestRequestSheet({
         open={open}
         onOpenChange={onOpenChange}
         stay={stay}
-        title="Guest Request"
+        title="Add Guest Service Request"
         message={deny ?? errorText(summaryQuery.error)}
       />
     );
@@ -1268,7 +1268,7 @@ export function FoGuestRequestSheet({
         open={open}
         onOpenChange={onOpenChange}
         stay={stay}
-        title="Guest Request"
+        title="Add Guest Service Request"
         message="You don't have access to Guest Services for this stay."
       />
     );
@@ -1278,7 +1278,7 @@ export function FoGuestRequestSheet({
     <FoAmendSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Guest Request"
+      title="Add Guest Service Request"
       stay={stay}
       confirmLabel="Create Request"
       confirmDisabled={!canConfirm}

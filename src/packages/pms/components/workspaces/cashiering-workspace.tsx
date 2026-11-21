@@ -80,9 +80,12 @@ export function CashieringWorkspace({
     returnToLabel: search.returnToLabel,
   });
 
-  const [weekStart, setWeekStart] = useState(
-    () => readSharedWeekStart(restaurantId) ?? mondayOf(businessDate),
-  );
+  const [weekStart, setWeekStart] = useState(() => readSharedWeekStart(restaurantId) ?? "");
+  useEffect(() => {
+    if (weekStart || !businessDate) return;
+    const monday = mondayOf(businessDate);
+    if (monday) setWeekStart(monday);
+  }, [weekStart, businessDate]);
   const [toolbarSlot, setToolbarSlot] = useState<HTMLElement | null>(null);
   const [shellSlots, setShellSlots] = useState<CashieringShellSlots>({
     search: null,

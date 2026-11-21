@@ -29,7 +29,7 @@ import { loadGuestProfileRules } from "./pms-set3-rates-guest.functions";
 import type { GuestProfileRules } from "./pms-set3-rates-guest";
 import { normalizeClock } from "./pms-set1-foundation";
 import { assertDateOnly } from "./reservations.server";
-import { resolvePropertyBusinessDate } from "./reservation-workspace/business-date";
+import { operationalBusinessDate } from "./reservation-workspace/business-date";
 import {
   financialFromSignal,
   outstandingBalance,
@@ -396,7 +396,7 @@ export const listFrontOfficeArrivalsDesk = createServerFn({ method: "POST" })
     const settings = await loadPropertySettings(supabaseAdmin, data.restaurantId);
     const date = data.date
       ? assertDateOnly(data.date, "Arrival date")
-      : resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
+      : operationalBusinessDate(settings.businessDate, settings.timezone);
     const stays = await loadFrontOfficeArrivals(context.supabase, {
       restaurantId: data.restaurantId,
       date,
@@ -447,7 +447,7 @@ export const getFrontOfficeArrivalQuickView = createServerFn({ method: "POST" })
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadPropertySettings(supabaseAdmin, data.restaurantId);
-    const today = resolvePropertyBusinessDate(settings.businessDate, settings.timezone);
+    const today = operationalBusinessDate(settings.businessDate, settings.timezone);
     let stay = await loadFrontOfficeStay(context.supabase, {
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,

@@ -11,7 +11,9 @@ import {
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { finishPropertySetupCardAndAdvance } from "@/packages/pms/lib/pms-property-setup-navigation";
 import {
+  CARD6_HASH,
   CARD6_SUBTITLE,
   CARD6_OPEN_DISTRIBUTION_EVENT,
   CARD6_TABS,
@@ -104,6 +106,19 @@ export function PmsPropertySetupCard6Section({
     window.dispatchEvent(new HashChangeEvent("hashchange"));
   }
 
+  const availableTabs = CARD6_TABS.filter((item) => item.available);
+  const tabIndex = availableTabs.findIndex((item) => item.id === tab);
+  const nextTab =
+    tabIndex >= 0 && tabIndex < availableTabs.length - 1 ? availableTabs[tabIndex + 1] : null;
+
+  function goContinue() {
+    if (nextTab) {
+      setTab(nextTab.id);
+      return;
+    }
+    finishPropertySetupCardAndAdvance(CARD6_HASH);
+  }
+
   return (
     <section
       className="flex min-h-[calc(100dvh-3.75rem)] min-w-0 flex-1 flex-col bg-[#F7F4EE]"
@@ -116,6 +131,8 @@ export function PmsPropertySetupCard6Section({
           status={cardStatus}
           description={CARD6_SUBTITLE}
           onBack={goBack}
+          onContinue={goContinue}
+          continueLabel={nextTab ? "Save & Continue" : "Save & Finish"}
           footerTestId="pms-card6-chrome"
           rail={
             <div data-testid="pms-card6-status-rail">

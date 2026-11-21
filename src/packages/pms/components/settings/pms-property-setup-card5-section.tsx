@@ -13,6 +13,7 @@ import {
   PropertySetupWorkspaceShell,
 } from "@/packages/pms/components/settings/setup-kit";
 import { SET1_HUB_HREF } from "@/packages/pms/lib/pms-set1-foundation";
+import { finishPropertySetupCardAndAdvance } from "@/packages/pms/lib/pms-property-setup-navigation";
 import { propertySetupRailCounts } from "@/packages/pms/lib/pms-property-setup-ui";
 import { propertySetupStatusLabel } from "@/packages/pms/lib/pms-property-setup-card1";
 import { getCard5Validation } from "@/packages/pms/lib/pms-property-setup-card5.functions";
@@ -100,6 +101,24 @@ export function PmsPropertySetupCard5Section({
     },
   ] as const;
   const counts = propertySetupRailCounts(railSections.map((row) => row.status));
+  const orgTabIds = CARD5_TABS.map((row) => row.id);
+  const journeyTabs: Card5WorkspaceTab[] = [
+    ...(showStaff ? ([STAFF_ACCESS_STEP_ID] as const) : []),
+    ...(showOrg ? orgTabIds : []),
+  ];
+  const journeyIndex = journeyTabs.findIndex((id) => id === tab);
+  const nextJourneyTab =
+    journeyIndex >= 0 && journeyIndex < journeyTabs.length - 1
+      ? journeyTabs[journeyIndex + 1]
+      : null;
+
+  function goContinue() {
+    if (nextJourneyTab) {
+      selectStep(nextJourneyTab);
+      return;
+    }
+    finishPropertySetupCardAndAdvance(CARD5_HASH);
+  }
 
   return (
     <section
@@ -114,7 +133,6 @@ export function PmsPropertySetupCard5Section({
           description={CARD5_SUBTITLE}
           hideTitle
           wide
-          footer={null}
           sections={[...railSections]}
           complete={counts.complete}
           inProgress={counts.inProgress}
@@ -122,6 +140,9 @@ export function PmsPropertySetupCard5Section({
           blockers={overall?.blockers}
           warnings={overall?.warnings}
           onBack={goBack}
+          onContinue={goContinue}
+          continueLabel={nextJourneyTab ? "Save & Continue" : "Save & Finish"}
+          continueDisabled={access.isLoading || journeyTabs.length === 0}
           footerTestId="pms-card5-chrome"
           rail={
             <div data-testid="pms-card5-status-rail">

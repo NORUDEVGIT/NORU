@@ -1,18 +1,30 @@
 /**
- * Night Audit Window: the property-local interval in which a normal
- * authorized user may manually close the business date. It only gates manual
- * close availability. It never starts, closes, schedules, or rolls anything.
+ * Night Audit Window: the property-local interval for normal business-date close.
+ * It only gates manual close. It never starts, closes, schedules, or rolls the hotel day.
+ *
+ * Phases:
+ * - before_start — prepare End of Day; normal close blocked; early close needs explicit override
+ * - open — normal close allowed
+ * - after_end — End of Day overdue; normal close still allowed (hotel must not be trapped)
+ * - invalid — misconfigured window
  */
 
 export const NIGHT_AUDIT_OUTSIDE_WINDOW = "NIGHT_AUDIT_OUTSIDE_WINDOW";
 export const NIGHT_AUDIT_INVALID_WINDOW = "NIGHT_AUDIT_INVALID_WINDOW";
+export const NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED = "NIGHT_AUDIT_EARLY_OVERRIDE_REQUIRED";
 export const NIGHT_AUDIT_WINDOW_EQUAL_TIMES_MESSAGE =
   "Night Audit window start and end times must be different.";
 
 export const NIGHT_AUDIT_WINDOW_DEFAULT = { start: "00:00", end: "04:00" } as const;
 
 export const WINDOW_OVERRIDE_COPY =
-  "You are authorized to close outside the configured Night Audit window. Blockers still apply.";
+  "Closing the business date before the configured Night Audit window is an exceptional action.";
+
+export const EARLY_WINDOW_STATUS = "Waiting for Night Audit window";
+export const OPEN_WINDOW_STATUS = "Ready to Close";
+export const OVERDUE_WINDOW_STATUS = "End of Day overdue";
+export const OVERDUE_WINDOW_COPY =
+  "The configured Night Audit window has passed. Complete End of Day to advance the hotel business date.";
 
 /** "HH:MM" -> minutes after midnight, or null when malformed. */
 export function parseWindowTime(value: string | null | undefined): number | null {
@@ -45,9 +57,9 @@ export function propertyLocalMinutes(timezone: string, now: Date = new Date()): 
 }
 
 /**
- * Inclusive start, exclusive end. When end is earlier than start the window
- * crosses midnight (23:00 -> 04:00). Equal start and end is invalid and never
- * opens the close gate.
+ * Inclusive start and inclusive end.
+ * When end is earlier than start the window crosses midnight (22:00 → 02:00).
+ * Equal start and end is invalid and never opens the close gate.
  */
 export function isWithinNightAuditWindow(
   startMinutes: number,
@@ -55,8 +67,35 @@ export function isWithinNightAuditWindow(
   nowMinutes: number,
 ): boolean {
   if (startMinutes === endMinutes) return false;
-  if (startMinutes < endMinutes) return nowMinutes >= startMinutes && nowMinutes < endMinutes;
-  return nowMinutes >= startMinutes || nowMinutes < endMinutes;
+  if (startMinutes < endMinutes) {
+    return nowMinutes >= startMinutes && nowMinutes <= endMinutes;
+  }
+  return nowMinutes >= startMinutes || nowMinutes <= endMinutes;
+}
+
+export type NightAuditWindowPhase = "before_start" | "open" | "after_end" | "invalid";
+
+/**
+ * Classify relative to the configured window.
+ * Wrapping outside gap (end < now < start) splits at the midpoint:
+ * nearer the morning end → after_end (missed overnight close; normal close still allowed);
+ * nearer the evening start → before_start (waiting for tonight; early close needs override).
+ */
+export function classifyNightAuditWindowPhase(
+  startMinutes: number,
+  endMinutes: number,
+  nowMinutes: number,
+  configValid: boolean,
+): NightAuditWindowPhase {
+  if (!configValid || startMinutes === endMinutes) return "invalid";
+  if (isWithinNightAuditWindow(startMinutes, endMinutes, nowMinutes)) return "open";
+  if (startMinutes < endMinutes) {
+    return nowMinutes < startMinutes ? "before_start" : "after_end";
+  }
+  // Wrapping: end < now < start. Split the gap so morning after end is overdue
+  // and afternoon/evening before start is still "waiting for window".
+  const midpoint = Math.floor((endMinutes + startMinutes) / 2);
+  return nowMinutes <= midpoint ? "after_end" : "before_start";
 }
 
 function hhmm(minutes: number): string {
@@ -74,22 +113,40 @@ export function outsideWindowMessage(startMinutes: number, endMinutes: number): 
   return `Night Audit can be closed between ${twelveHour(startMinutes)} and ${twelveHour(endMinutes)}.`;
 }
 
+export function nightAuditWindowHasNotStartedMessage(
+  startMinutes: number,
+  endMinutes: number,
+  localTime: string,
+): string {
+  return `Night Audit window has not started (${hhmm(startMinutes)} – ${hhmm(endMinutes)}). Current property time ${localTime}.`;
+}
+
 export type NightAuditWindowState = {
   start: string;
   end: string;
-  /** e.g. "23:00 – 04:00" */
+  /** e.g. "22:00 – 23:00" */
   label: string;
   timezone: string;
   /** Property-local "HH:MM" when evaluated. */
   localTime: string;
+  phase: NightAuditWindowPhase;
   open: boolean;
-  /** This caller may close now as far as the window is concerned. */
+  /**
+   * Normal close is allowed (inside window or overdue after end).
+   * Does NOT include early-before-start override capability.
+   */
   allowsClose: boolean;
-  /** Closed window, but the caller holds night_audit.business_date.window_override. */
+  /** True when phase is before_start and the actor holds window_override. */
+  canOfferEarlyOverride: boolean;
+  /**
+   * @deprecated Prefer phase + allowsClose + canOfferEarlyOverride.
+   * Kept true only when an explicit early override is being applied for audit helpers.
+   */
   windowOverride: boolean;
   /** False when saved configuration cannot safely describe a close window. */
   configValid: boolean;
   message: string;
+  statusLabel: string;
 };
 
 /** One evaluation used by the close server action and the UI. Malformed config falls back to the default. */
@@ -97,8 +154,13 @@ export function evaluateNightAuditWindow(input: {
   start: string | null | undefined;
   end: string | null | undefined;
   timezone: string;
-  /** night_audit.business_date.window_override, resolved by the server. Owner holds it implicitly. */
+  /** night_audit.business_date.window_override — capability only, not silent bypass. */
   canOverride: boolean;
+  /**
+   * Explicit early-close intent from the exceptional UI/server path.
+   * Permission alone never sets this.
+   */
+  earlyOverrideIntent?: boolean;
   /** Passed by the persisted-config reader for invalid legacy values. */
   configValid?: boolean;
   now?: Date;
@@ -109,21 +171,44 @@ export function evaluateNightAuditWindow(input: {
     parseWindowTime(input.end) ?? (parseWindowTime(NIGHT_AUDIT_WINDOW_DEFAULT.end) as number);
   const configValid = input.configValid !== false && start !== end;
   const nowMinutes = propertyLocalMinutes(input.timezone, input.now);
-  const open = configValid && isWithinNightAuditWindow(start, end, nowMinutes);
-  const bypass = input.canOverride;
+  const localTime = hhmm(nowMinutes);
+  const phase = classifyNightAuditWindowPhase(start, end, nowMinutes, configValid);
+  const open = phase === "open";
+  const allowsClose = phase === "open" || phase === "after_end";
+  const canOfferEarlyOverride = phase === "before_start" && input.canOverride === true;
+  const earlyOverrideActive =
+    phase === "before_start" && input.canOverride === true && input.earlyOverrideIntent === true;
+
+  let message: string;
+  let statusLabel: string;
+  if (!configValid) {
+    message = NIGHT_AUDIT_WINDOW_EQUAL_TIMES_MESSAGE;
+    statusLabel = "Night Audit window invalid";
+  } else if (phase === "before_start") {
+    message = nightAuditWindowHasNotStartedMessage(start, end, localTime);
+    statusLabel = EARLY_WINDOW_STATUS;
+  } else if (phase === "after_end") {
+    message = OVERDUE_WINDOW_COPY;
+    statusLabel = OVERDUE_WINDOW_STATUS;
+  } else {
+    message = outsideWindowMessage(start, end);
+    statusLabel = OPEN_WINDOW_STATUS;
+  }
+
   return {
     start: hhmm(start),
     end: hhmm(end),
     label: `${hhmm(start)} – ${hhmm(end)}`,
     timezone: input.timezone,
-    localTime: hhmm(nowMinutes),
+    localTime,
+    phase,
     open,
-    allowsClose: open || bypass,
-    windowOverride: !open && bypass,
+    allowsClose: allowsClose || earlyOverrideActive,
+    canOfferEarlyOverride,
+    windowOverride: earlyOverrideActive,
     configValid,
-    message: configValid
-      ? outsideWindowMessage(start, end)
-      : NIGHT_AUDIT_WINDOW_EQUAL_TIMES_MESSAGE,
+    message,
+    statusLabel,
   };
 }
 
@@ -160,30 +245,146 @@ export function nightAuditWindowConfigProblem(start: string, end: string): strin
   return null;
 }
 
-/** Run-summary audit fact written only when an authorized user closes outside the window. */
+/**
+ * Shared chrome operational notice — never advances the hotel day.
+ * - none: before window (or no attention needed)
+ * - due: inside the configured Night Audit window while business date is still open
+ * - overdue: after window end (or calendar past business date outside the window) while still open
+ */
+export type EndOfDayBannerKind = "none" | "due" | "overdue";
+
+/**
+ * Classify the shared PMS Night Audit banner from authoritative business date +
+ * property-local window phase. Does not invent or roll the hotel day.
+ */
+export function classifyEndOfDayBanner(input: {
+  businessDate: string;
+  timezone: string;
+  windowStart: string | null | undefined;
+  windowEnd: string | null | undefined;
+  propertyCalendarDate: string;
+  now?: Date;
+}): EndOfDayBannerKind {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.businessDate)) return "none";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.propertyCalendarDate)) return "none";
+  // Hotel day ahead of the property calendar is not an End of Day attention state.
+  if (input.propertyCalendarDate < input.businessDate) return "none";
+
+  const window = nightAuditWindowConfig({
+    nightAuditWindowStart: input.windowStart,
+    nightAuditWindowEnd: input.windowEnd,
+  });
+  const startMinutes = parseWindowTime(window.start);
+  const endMinutes = parseWindowTime(window.end);
+  if (startMinutes == null || endMinutes == null || !window.configValid) return "none";
+  const nowMinutes = propertyLocalMinutes(input.timezone, input.now);
+  const phase = classifyNightAuditWindowPhase(
+    startMinutes,
+    endMinutes,
+    nowMinutes,
+    window.configValid,
+  );
+
+  // Inside the window (including wrapping after midnight) → due, not overdue.
+  if (phase === "open") return "due";
+  if (phase === "after_end") return "overdue";
+  if (phase === "before_start") {
+    // Still on a prior hotel day after the calendar moved on → overdue (no silent hide).
+    if (input.propertyCalendarDate > input.businessDate) return "overdue";
+    // Same calendar day, window not started → keep operational chrome clean.
+    return "none";
+  }
+  return "none";
+}
+
+/** @deprecated Prefer classifyEndOfDayBanner — kept for callers that only need overdue. */
+export function isEndOfDayPending(input: {
+  businessDate: string;
+  timezone: string;
+  windowStart: string | null | undefined;
+  windowEnd: string | null | undefined;
+  propertyCalendarDate: string;
+  now?: Date;
+}): boolean {
+  return classifyEndOfDayBanner(input) === "overdue";
+}
+
+export function endOfDayPendingCopy(businessDate: string): { title: string; detail: string } {
+  const label = formatBusinessDateLabel(businessDate);
+  return {
+    title: "End of Day overdue",
+    detail: `Business date ${label} has not been closed. Complete Night Audit to advance the hotel business date.`,
+  };
+}
+
+/** Shared chrome copy while the Night Audit window is open and the hotel day is still open. */
+export function endOfDayDueCopy(input: {
+  businessDate: string;
+  windowLabel: string;
+}): { title: string; detail: string } {
+  const label = formatBusinessDateLabel(input.businessDate);
+  return {
+    title: "Night Audit due",
+    detail: `Business date ${label} is ready for End of Day. Complete Night Audit to close the hotel day. Window ${input.windowLabel}.`,
+  };
+}
+
+/** @deprecated Prefer endOfDayDueCopy — scheduled banners are no longer shown globally. */
+export function endOfDayScheduledCopy(input: {
+  businessDate: string;
+  windowLabel: string;
+  localTime: string;
+}): { title: string; detail: string } {
+  return endOfDayDueCopy({
+    businessDate: input.businessDate,
+    windowLabel: input.windowLabel,
+  });
+}
+
+function formatBusinessDateLabel(businessDate: string): string {
+  try {
+    return new Date(`${businessDate}T00:00:00Z`).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  } catch {
+    return businessDate;
+  }
+}
+
+/** Run-summary audit fact for an explicit early-window override close. */
 export type OutsideWindowClose = {
   outsideWindow: true;
+  earlyOverride: true;
   windowStart: string;
   windowEnd: string;
   timezone: string;
   localTime: string;
   requestedAt: string;
   actorMembershipId: string;
+  reason: string;
 };
 
 export function outsideWindowCloseRecord(
   state: NightAuditWindowState,
   actorMembershipId: string,
   requestedAt: string,
+  reason: string,
 ): OutsideWindowClose | null {
   if (!state.windowOverride) return null;
+  const trimmed = reason.trim();
+  if (!trimmed) return null;
   return {
     outsideWindow: true,
+    earlyOverride: true,
     windowStart: state.start,
     windowEnd: state.end,
     timezone: state.timezone,
     localTime: state.localTime,
     requestedAt,
     actorMembershipId,
+    reason: trimmed.slice(0, 500),
   };
 }

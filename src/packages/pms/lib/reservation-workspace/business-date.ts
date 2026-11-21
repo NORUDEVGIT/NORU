@@ -2,9 +2,9 @@ import { propertyToday } from "../../../../shared/lib/property-dates.ts";
 import { isValidTimeZone } from "../../../../shared/lib/property-time.ts";
 
 /**
- * Property operational date contract shared with Night Audit and Reservation
- * reads: use the persisted business date, falling back to the property-local
- * calendar date only when the persisted value is absent.
+ * Setup / pre-live helper only.
+ * Persisted hotel day when present; otherwise property-local calendar today.
+ * Operational live modules must not use this as their hotel-day source.
  */
 export function resolvePropertyBusinessDate(
   persistedBusinessDate: string | null,
@@ -15,23 +15,69 @@ export function resolvePropertyBusinessDate(
 
 export const BUSINESS_DATE_UNRESOLVED = "BUSINESS_DATE_UNRESOLVED";
 
+/** Thrown when a live/operational path needs restaurants.business_date and it is null. */
+export const BUSINESS_DATE_MISSING = "BUSINESS_DATE_MISSING";
+
+export const BUSINESS_DATE_MISSING_MESSAGE =
+  "Hotel business date is not configured. Complete Go-Live business-date initialization before using this module.";
+
+export type ResolvedPropertyBusinessDate = {
+  businessDate: string;
+  persistedBusinessDate: string | null;
+  timezone: string;
+};
+
+function timezoneOf(row: { timezone: string | null } | null | undefined): string {
+  return row?.timezone?.trim() || "UTC";
+}
+
+function persistedOf(row: { business_date: string | null } | null | undefined): string | null {
+  return row?.business_date ? String(row.business_date).slice(0, 10) : null;
+}
+
 /**
- * Strict form for writes and daily totals. Same rule as the database's
- * current_property_business_date: a missing property, or a never-closed
- * property without a valid zone, fails instead of guessing today.
+ * Operational hotel day for live PMS modules.
+ * Requires restaurants.business_date — never invents wall-clock / UTC / browser today.
  */
-export function strictPropertyBusinessDate(
+export function requirePersistedBusinessDate(
   row: { business_date: string | null; timezone: string | null } | null | undefined,
-): { businessDate: string; persistedBusinessDate: string | null; timezone: string } {
+): ResolvedPropertyBusinessDate {
   if (!row) throw new Error(BUSINESS_DATE_UNRESOLVED);
-  const persisted = row.business_date ? row.business_date.slice(0, 10) : null;
-  const timezone = row.timezone?.trim() ?? "";
-  if (!persisted && (!timezone || !isValidTimeZone(timezone))) {
+  const persisted = persistedOf(row);
+  const timezone = timezoneOf(row);
+  if (!persisted) {
+    throw new Error(BUSINESS_DATE_MISSING_MESSAGE);
+  }
+  if (timezone !== "UTC" && !isValidTimeZone(timezone) && !row.timezone?.trim()) {
     throw new Error(BUSINESS_DATE_UNRESOLVED);
   }
   return {
-    businessDate: resolvePropertyBusinessDate(persisted, timezone),
+    businessDate: persisted,
     persistedBusinessDate: persisted,
-    timezone: timezone || "UTC",
+    timezone: row.timezone?.trim() ? timezone : "UTC",
   };
+}
+
+/**
+ * Strict operational form for writes and daily totals.
+ * Same contract as requirePersistedBusinessDate: no calendar invent.
+ */
+export function strictPropertyBusinessDate(
+  row: { business_date: string | null; timezone: string | null } | null | undefined,
+): ResolvedPropertyBusinessDate {
+  return requirePersistedBusinessDate(row);
+}
+
+/**
+ * Read helper for loaders that already selected business_date + timezone.
+ * Prefer this over resolvePropertyBusinessDate in FO / HK / Cashiering / Reports.
+ */
+export function operationalBusinessDate(
+  businessDate: string | null | undefined,
+  timezone: string | null | undefined,
+): string {
+  return requirePersistedBusinessDate({
+    business_date: businessDate ?? null,
+    timezone: timezone ?? null,
+  }).businessDate;
 }

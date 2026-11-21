@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePmsActor } from "../pms-permissions.server";
 import { PMS_PERMISSIONS } from "../pms-permissions";
-import { resolvePropertyBusinessDate } from "./business-date";
+import { operationalBusinessDate } from "./business-date";
 import {
   operationalReservationSearchInputSchema,
   operationalViewStatuses,
@@ -146,7 +146,7 @@ export const getReservationDesk = createServerFn({ method: "POST" })
       .maybeSingle();
     if (propertyResult.error) throw new Error(propertyResult.error.message);
     if (!propertyResult.data) throw new Error("Property not found.");
-    const businessDate = resolvePropertyBusinessDate(
+    const businessDate = operationalBusinessDate(
       propertyResult.data.business_date,
       propertyResult.data.timezone,
     );

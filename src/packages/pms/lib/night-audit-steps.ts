@@ -29,7 +29,8 @@ export const END_OF_DAY_STEPS = [
     id: "departures",
     number: 3,
     title: "Departures",
-    summary: "No guest is still checked in after their departure date.",
+    summary:
+      "No guest is past their departure date, and every departure-day guest is checked out or still within the approved checkout time.",
   },
   {
     id: "in_house",
@@ -197,14 +198,21 @@ const CATALOG: Readonly<Record<string, CatalogEntry>> = {
   // Step 3 — departures
   overstay: {
     step: "departures",
-    title: "Guest past departure date",
+    title: "Departure overdue",
+    kind: "blocker",
+    sourceModule: "Front Office",
+    resolve: [P.FRONT_OFFICE_CHECK_OUT, P.FRONT_OFFICE_STAY_EDIT],
+  },
+  departure_overdue: {
+    step: "departures",
+    title: "Departure overdue",
     kind: "blocker",
     sourceModule: "Front Office",
     resolve: [P.FRONT_OFFICE_CHECK_OUT, P.FRONT_OFFICE_STAY_EDIT],
   },
   departure_due_today: {
     step: "departures",
-    title: "Departing today, still in house",
+    title: "Approved late checkout",
     kind: "information",
     sourceModule: "Front Office",
     resolve: [P.FRONT_OFFICE_CHECK_OUT, P.FRONT_OFFICE_STAY_EDIT],
@@ -739,6 +747,10 @@ export type EndOfDayCondition = {
   persistentOverrideId?: string;
   /** hotel_cashier_shifts.membership_id for an open-shift blocker. */
   shiftMembershipId?: string | null;
+  guestName?: string | null;
+  roomNumber?: string | null;
+  dueDate?: string | null;
+  checkoutDeadlineLabel?: string | null;
 };
 
 /** One issue as the financial and operational reconcilers emit it. */
@@ -763,6 +775,8 @@ export type SourceIssue = {
   fiscalRegistrationId?: string | null;
   fiscalOverrideId?: string | null;
   shiftMembershipId?: string | null;
+  dueDate?: string | null;
+  checkoutDeadlineLabel?: string | null;
 };
 
 export const NIGHT_AUDIT_RETURN = {
@@ -793,7 +807,9 @@ function withReturn(
 
 function primaryLabel(code: string, route: string): string {
   if (code === "arrival_not_processed") return "Check In";
-  if (code === "overstay" || code === "departure_due_today") return "Check Out";
+  if (code === "overstay" || code === "departure_overdue" || code === "departure_due_today") {
+    return "Check Out";
+  }
   if (code === "open_cashier_shift") return "Close Shift";
   if (code === "closed_shift_variance") return "Open Shift";
   if (route.includes("/cashiering/folios/")) return "Open Folio";
@@ -875,9 +891,15 @@ export function conditionFromIssue(
       permissions: [P.CASHIERING_SHIFT_EDIT, P.CASHIERING_SHIFT_AUTHORIZE],
     };
   }
-  if ((issue.code === "overstay" || issue.code === "departure_due_today") && actions[1]) {
+  if (
+    (issue.code === "overstay" ||
+      issue.code === "departure_overdue" ||
+      issue.code === "departure_due_today") &&
+    actions[1]
+  ) {
     actions[1] = {
       ...actions[1],
+      label: "Check Out",
       search: {
         ...(actions[1].search ?? {}),
         ...(issue.reservationId ? { reservationId: issue.reservationId } : {}),
@@ -885,6 +907,23 @@ export function conditionFromIssue(
       },
       permissions: [P.FRONT_OFFICE_CHECK_OUT],
     };
+    if (issue.reservationId) {
+      actions.push({
+        label: "Extend Stay",
+        route: FRONT_OFFICE,
+        search: {
+          tab: "departures",
+          date: issue.dueDate ?? "",
+          reservationId: issue.reservationId,
+          ...(issue.reservationRoomId ? { reservationRoomId: issue.reservationRoomId } : {}),
+          ...NIGHT_AUDIT_RETURN,
+        },
+        permissions: [P.FRONT_OFFICE_STAY_EDIT],
+      });
+      if (actions[0]?.label === "Open Reservation") {
+        actions[0] = { ...actions[0], label: "Open Stay" };
+      }
+    }
   }
   return {
     key: exceptionSyncKey(identity.exceptionType, identity.referenceId),
@@ -912,6 +951,10 @@ export function conditionFromIssue(
     ...(issue.fiscalRegistrationId ? { fiscalRegistrationId: issue.fiscalRegistrationId } : {}),
     ...(issue.fiscalOverrideId ? { persistentOverrideId: issue.fiscalOverrideId } : {}),
     ...(issue.shiftMembershipId ? { shiftMembershipId: issue.shiftMembershipId } : {}),
+    guestName: issue.guestName ?? null,
+    roomNumber: issue.roomNumber ?? null,
+    dueDate: issue.dueDate ?? null,
+    checkoutDeadlineLabel: issue.checkoutDeadlineLabel ?? null,
   };
 }
 
@@ -1035,6 +1078,11 @@ const STEP_CHECKS: Partial<Record<EndOfDayStepId, readonly CheckDefinition[]>> =
       id: "no_overstays",
       label: "No guest is still checked in after their departure date",
       codes: ["overstay"],
+    },
+    {
+      id: "departures_resolved",
+      label: "Every departure-day guest has checked out, or is still within the approved checkout time",
+      codes: ["departure_overdue"],
     },
   ],
   in_house: [

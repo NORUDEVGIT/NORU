@@ -11,7 +11,7 @@
  * status + departure overlap index. Per-property stay volume is small enough
  * for this read. Add an index only if that scan shows up in production.
  */
-import { resolvePropertyBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
+import { operationalBusinessDate } from "@/packages/pms/lib/reservation-workspace/business-date";
 import { assertDateOnly } from "@/packages/pms/lib/reservations.server";
 import {
   loadPoliceStayDataset,
@@ -32,6 +32,6 @@ export async function loadPoliceStayReport(
     db,
     restaurantId,
     { ...filters, stayDate },
-    resolvePropertyBusinessDate,
+    operationalBusinessDate,
   );
 }

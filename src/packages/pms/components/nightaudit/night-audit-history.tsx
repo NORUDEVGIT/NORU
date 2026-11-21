@@ -585,6 +585,11 @@ function RunDetail({
               An authorized user closed outside {run.summary.nightAuditWindow.windowStart} –{" "}
               {run.summary.nightAuditWindow.windowEnd} (property time{" "}
               {run.summary.nightAuditWindow.localTime}).
+              {"reason" in run.summary.nightAuditWindow &&
+              typeof run.summary.nightAuditWindow.reason === "string" &&
+              run.summary.nightAuditWindow.reason.trim()
+                ? ` Reason: ${run.summary.nightAuditWindow.reason.trim()}`
+                : ""}
             </dd>
           </div>
         ) : null}

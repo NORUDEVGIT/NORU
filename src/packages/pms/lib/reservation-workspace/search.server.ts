@@ -9,7 +9,7 @@ import {
   nightsBetween,
   type ReservationStatus,
 } from "../reservations.server";
-import { resolvePropertyBusinessDate } from "./business-date";
+import { operationalBusinessDate } from "./business-date";
 import {
   OPERATIONAL_RESERVATION_SORT_FIELDS,
   OPERATIONAL_RESERVATION_VIEWS,
@@ -444,7 +444,7 @@ export const listOperationalReservations = createServerFn({ method: "POST" })
     return searchOperationalReservations({
       supabase: context.supabase,
       restaurantId: data.restaurantId,
-      businessDate: resolvePropertyBusinessDate(
+      businessDate: operationalBusinessDate(
         propertyResult.data.business_date,
         propertyResult.data.timezone,
       ),

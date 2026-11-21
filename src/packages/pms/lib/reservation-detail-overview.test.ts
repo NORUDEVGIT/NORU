@@ -63,7 +63,7 @@ describe("Reservation Detail Overview-first", () => {
       "Rates",
       "Packages",
       "Folio & Payments",
-      "Requests & Preferences",
+      "Guest Services",
       "Notes & Traces",
       "Communication",
       "Linked Reservations",

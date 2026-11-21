@@ -542,6 +542,42 @@ describe("PMS Property Setup Card 1 fidelity locks", () => {
     assert.equal((ui.match(/data-testid="pms-card1-status-rail"/g) ?? []).length, 1);
   });
 
+  it("merges Card1 late checkout from canonical runtime columns first", async () => {
+    const { mergeCard1LateCheckoutFromRuntime, lateCheckoutCheckinOpsSnapshot } = await import(
+      "./pms-property-setup-card1.ts"
+    );
+    const fromRuntime = mergeCard1LateCheckoutFromRuntime({
+      runtimeAllowed: true,
+      runtimeFee: 800,
+      runtimeNeedsApproval: true,
+      checkinOpsLate: { allowed: false, feeBasis: "percent_stay", feeValue: 10 },
+    });
+    assert.deepEqual(fromRuntime.lateCheckout, {
+      allowed: true,
+      feeBasis: "fixed",
+      feeValue: 800,
+    });
+    assert.equal(fromRuntime.needsApproval, true);
+
+    const fromSnapshotOnly = mergeCard1LateCheckoutFromRuntime({
+      runtimeAllowed: false,
+      runtimeFee: null,
+      runtimeNeedsApproval: false,
+      checkinOpsLate: { allowed: true, feeBasis: "fixed", feeValue: 800 },
+    });
+    assert.deepEqual(fromSnapshotOnly.lateCheckout, {
+      allowed: true,
+      feeBasis: "fixed",
+      feeValue: 800,
+    });
+    assert.equal(fromSnapshotOnly.needsApproval, false);
+
+    assert.deepEqual(
+      lateCheckoutCheckinOpsSnapshot({ allowed: true, feeBasis: "percent_stay", feeValue: 25 }),
+      { allowed: true, feeBasis: "fixed", feeValue: 25 },
+    );
+  });
+
   it("normalizes checkin_ops typed values without persisting blank numeric keys", () => {
     const liveState = parseCheckinOps({
       minLeadTime: "24",

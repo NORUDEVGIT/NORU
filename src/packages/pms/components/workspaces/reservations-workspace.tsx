@@ -538,6 +538,7 @@ export function ReservationsWorkspace({
           ...deskTableStayWindow(debouncedSearch, tableWeekStart, tableStayEnd),
         },
       }),
+    enabled: Boolean(tableWeekStart && tableStayEnd),
     placeholderData: keepPreviousData,
   });
 
@@ -1377,6 +1378,7 @@ export function ReservationsWorkspace({
           <CreateReservationPage
             membership={membership}
             embedded
+            businessDate={snapshot?.businessDate ?? null}
             initialGuestId={overlay.initialGuestId ?? null}
             initialCompanyMasterId={overlay.initialCompanyMasterId ?? null}
             initialTravelAgentMasterId={overlay.initialTravelAgentMasterId ?? null}

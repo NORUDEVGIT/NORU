@@ -84,7 +84,7 @@ function mapSettings(row: any): HousekeepingCard2Settings {
   if (!row) return emptyHousekeepingCard2Settings();
   return {
     enabled: row.enabled !== false,
-    defaultStatus: row.default_housekeeping_status ?? "dirty",
+    defaultStatus: row.default_housekeeping_status ?? "clean",
     cleanRequired: row.clean_required !== false,
     inspectionRequired: row.inspection_required !== false,
     maintenanceClearRequired: row.maintenance_clear_required !== false,
@@ -148,7 +148,8 @@ async function ensureCard2HousekeepingDefaults(db: DbClient, restaurantId: strin
     {
       restaurant_id: restaurantId,
       enabled: true,
-      default_housekeeping_status: "dirty",
+      // Canonical first-room default. ignoreDuplicates keeps existing property settings.
+      default_housekeeping_status: "clean",
       clean_required: true,
       inspection_required: true,
       maintenance_clear_required: true,

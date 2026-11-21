@@ -295,11 +295,11 @@ export function ReservationSideSheet({
           ) : null}
 
           <div className="rounded-xl border border-border p-3">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest requests</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Guest Services</p>
             {amendQuery.data?.guestRequestsError ? (
               <p className="mt-2 text-sm text-destructive">{amendQuery.data.guestRequestsError}</p>
             ) : (amendQuery.data?.guestRequests ?? []).length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No guest requests.</p>
+              <p className="mt-2 text-sm text-muted-foreground">No guest service requests.</p>
             ) : (
               <ul className="mt-2 space-y-2">
                 {amendQuery.data?.guestRequests.map((row) => (

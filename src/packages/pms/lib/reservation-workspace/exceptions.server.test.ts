@@ -109,7 +109,7 @@ describe("DB-04I-06 Reservation Exceptions / Control read model", () => {
   });
 
   it("uses property business date and FO operational scope, not history", () => {
-    assert.match(source, /resolvePropertyBusinessDate/);
+    assert.match(source, /operationalBusinessDate/);
     assert.match(source, /date: businessDate/);
     assert.match(source, /today: businessDate/);
     assert.doesNotMatch(source, /from\("hotel_reservation_history"\)/);

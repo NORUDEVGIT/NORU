@@ -1251,7 +1251,7 @@ function RequestsNotesRateSection({
           })
           .join(", ");
   return (
-    <SectionCard title="Requests, Notes & Rate" testId="fo-ci-v2-requests-notes-rate">
+    <SectionCard title="Guest Preferences, Notes & Rate" testId="fo-ci-v2-requests-notes-rate">
       <div className="grid gap-4 md:grid-cols-3">
         <div data-testid="fo-ci-v2-requests">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
@@ -1265,11 +1265,11 @@ function RequestsNotesRateSection({
         </div>
         <div data-testid="fo-ci-v2-internal-notes">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#6B5E4E]">
-            Internal Notes
+            Guest Notes
           </p>
           <ExpandableText
             text={reservation?.notes}
-            empty="No internal notes."
+            empty="No guest notes."
             testId="fo-ci-v2-internal-note"
           />
         </div>
