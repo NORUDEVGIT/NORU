@@ -648,6 +648,44 @@ export const listDepartures = createServerFn({ method: "POST" })
     return loadFrontOfficeDepartures(context.supabase, data);
   });
 
+/**
+ * Narrow Front Office read of canonical room cleanliness / maintenance state.
+ * Uses FRONT_OFFICE_VIEW (not HOUSEKEEPING_VIEW) — does not open the HK board
+ * or grant housekeeping mutations. Source of truth remains hotel_rooms.*.
+ */
+export type FrontOfficeRoomHkState = {
+  id: string;
+  housekeepingStatus: string | null;
+  maintenanceStatus: string | null;
+};
+
+export const listFrontOfficeRoomHkStates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ restaurantId: idSchema }).parse(input))
+  .handler(async ({ data, context }): Promise<FrontOfficeRoomHkState[]> => {
+    await requirePmsActorAny(context as never, data.restaurantId, [
+      PMS_PERMISSIONS.FRONT_OFFICE_VIEW,
+      PMS_PERMISSIONS.RESERVATION_VIEW,
+    ]);
+    const { data: rooms, error } = await context.supabase
+      .from("hotel_rooms")
+      .select("id, housekeeping_status, maintenance_status")
+      .eq("restaurant_id", data.restaurantId)
+      .eq("active", true);
+    if (error) throw new Error(error.message);
+    return (
+      (rooms ?? []) as Array<{
+        id: string;
+        housekeeping_status: string | null;
+        maintenance_status: string | null;
+      }>
+    ).map((room) => ({
+      id: room.id,
+      housekeepingStatus: room.housekeeping_status,
+      maintenanceStatus: room.maintenance_status,
+    }));
+  });
+
 /** Room-level occupancy view; occupancy is derived from checked-in stays. */
 export const listOccupancy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

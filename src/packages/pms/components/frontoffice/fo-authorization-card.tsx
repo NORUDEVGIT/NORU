@@ -45,7 +45,7 @@ export function FoAuthorizationCard({
         <p className="text-xs text-muted-foreground">Permission: {requirement.permissionCode}</p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Live authorizers: {requirement.liveAuthorizerRoles.join(", ")}
+        Live authorization uses the catalogue permission
         {requirement.approverRoleName ? ` · Configured hotel role: ${requirement.approverRoleName}` : ""}
       </p>
       {requirement.thresholdSummary ? (

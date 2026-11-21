@@ -4,6 +4,7 @@ import { Search, X } from "lucide-react";
 import { PmsFilterNoteRow } from "@/packages/pms/components/pms-filter-menu";
 import { PMS_FILTER_DATE } from "@/packages/pms/components/pms-filter-popover";
 import { Input } from "@/shared/components/ui/input";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * Toolbar search used by every report, matching the other module toolbars.
@@ -101,6 +102,47 @@ export function ReportFilterBar({
           Clear
         </button>
       ) : null}
+    </div>
+  );
+}
+
+/** Compact segmented choice for report toolbars (not a native select). */
+export function ReportToolbarSegmented<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+  testId,
+}: {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange: (value: T) => void;
+  ariaLabel: string;
+  testId?: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      data-testid={testId}
+      className="inline-flex h-9 shrink-0 items-center rounded-md border border-[#DDD4C5] bg-[#F7F4EE] p-0.5"
+    >
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "h-8 rounded-[5px] px-2.5 text-[11px] font-semibold transition-colors",
+            value === option.value
+              ? "bg-white text-[#251605] shadow-xs"
+              : "text-[#756A5B] hover:text-[#251605]",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

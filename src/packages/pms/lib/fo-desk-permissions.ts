@@ -35,12 +35,14 @@ export const FO_CHECK_OUT_FOLIO_READ: readonly PmsPermissionCode[] = [
   PMS_PERMISSIONS.FRONT_OFFICE_FOLIO_AUTHORIZE,
 ];
 
-/** Check-in deposit screen. Check-in can read; posting still needs a deposit grant. */
+/** Check-in deposit / payment screen. Check-in can read; posting still needs its own grant. */
 export const FO_CHECK_IN_FOLIO_READ: readonly PmsPermissionCode[] = [
   PMS_PERMISSIONS.CASHIERING_VIEW,
   PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
   PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST,
   PMS_PERMISSIONS.FRONT_OFFICE_DEPOSIT_POST,
+  PMS_PERMISSIONS.CASHIERING_PAYMENT_POST,
+  PMS_PERMISSIONS.FRONT_OFFICE_PAYMENT_POST,
   PMS_PERMISSIONS.CASHIERING_CHARGE_POST,
   PMS_PERMISSIONS.FRONT_OFFICE_CHARGE_POST,
 ];

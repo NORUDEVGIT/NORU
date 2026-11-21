@@ -5,7 +5,11 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
 import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
-import { ReportFilterDate, ReportToolbarSearch } from "@/packages/pms/components/reports/report-filter-bar";
+import {
+  ReportFilterDate,
+  ReportToolbarSearch,
+  ReportToolbarSegmented,
+} from "@/packages/pms/components/reports/report-filter-bar";
 import { ReportPageShell } from "@/packages/pms/components/reports/report-page-shell";
 import {
   ReportTableHeaderCell,
@@ -31,17 +35,17 @@ import {
 } from "@/packages/pms/lib/police-stay-export";
 import type { PoliceStayReportResult } from "@/packages/pms/lib/police-stay-report";
 import {
-  POLICE_EMPTY_BODY,
-  POLICE_EMPTY_TITLE,
   POLICE_HISTORICAL_NOTE,
   POLICE_PRINT_COLUMNS,
   POLICE_PRINT_SHOW_ROOM,
   policeBlank,
   policeClearedSearch,
+  policeEmptyCopy,
   policeFilterSearch,
   policeFilterSummary,
   policeGeneratedLabel,
   policePresence,
+  policePresenceCaption,
   policePresenceLabel,
   policePrintCells,
   policePrintIdentity,
@@ -296,6 +300,8 @@ export function PoliceStayReportScreen({
   const result = query.data;
   const unnamed = result?.summary.unnamedOccupantCount ?? 0;
   const warning = policeUnnamedWarning(unnamed);
+  const emptyCopy = policeEmptyCopy(presence);
+  const presenceCaption = policePresenceCaption(presence);
   const errorMessage = failure === "too-large" ? POLICE_STAY_TOO_LARGE_MESSAGE : undefined;
 
   const [knownRooms, setKnownRooms] = useState<Set<string>>(new Set());
@@ -381,18 +387,30 @@ export function PoliceStayReportScreen({
         ? { onRetry: () => void query.refetch(), ...(errorMessage ? { errorMessage } : {}) }
         : {})}
       dates={
-        <FolioDateRange
-          from={search.from ?? stayDate}
-          to={search.to ?? stayDate}
-          fromTestId="police-from"
-          toTestId="police-to"
-          allowClear={Boolean(search.from || search.to)}
-          onFrom={(next) => writeFilters({ from: next || null, resetPage: true })}
-          onTo={(next) => writeFilters({ to: next || null, resetPage: true })}
-          onRange={(nextFrom, nextTo) =>
-            writeFilters({ from: nextFrom || null, to: nextTo || null, resetPage: true })
-          }
-        />
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+          <FolioDateRange
+            from={search.from ?? stayDate}
+            to={search.to ?? stayDate}
+            fromTestId="police-from"
+            toTestId="police-to"
+            allowClear={Boolean(search.from || search.to)}
+            onFrom={(next) => writeFilters({ from: next || null, resetPage: true })}
+            onTo={(next) => writeFilters({ to: next || null, resetPage: true })}
+            onRange={(nextFrom, nextTo) =>
+              writeFilters({ from: nextFrom || null, to: nextTo || null, resetPage: true })
+            }
+          />
+          <ReportToolbarSegmented
+            ariaLabel="Presence"
+            testId="police-presence"
+            value={presence}
+            options={[
+              { value: "IN_HOUSE", label: "In House" },
+              { value: "HISTORICAL", label: "Historical" },
+            ]}
+            onChange={(next) => writeFilters({ presence: next, resetPage: true })}
+          />
+        </div>
       }
       search={
         <ReportToolbarSearch
@@ -406,7 +424,6 @@ export function PoliceStayReportScreen({
         <PmsFilterMenu
           activeCount={
             (stayDate !== businessDate ? 1 : 0) +
-            (presence === "HISTORICAL" ? 1 : 0) +
             (search.nationality ? 1 : 0) +
             (search.room ? 1 : 0)
           }
@@ -424,22 +441,6 @@ export function PoliceStayReportScreen({
             testId="police-stay-date"
             value={stayDate}
             onChange={(next) => writeFilters({ stayDate: next, resetPage: true })}
-          />
-          <PmsFilterChoiceRow
-            label="Presence"
-            value={presence}
-            neutralValue="IN_HOUSE"
-            current={presence === "HISTORICAL" ? "Historical" : ""}
-            options={[
-              ["IN_HOUSE", "In House"],
-              ["HISTORICAL", "Historical"],
-            ]}
-            onChange={(val) =>
-              writeFilters({
-                presence: val === "HISTORICAL" ? "HISTORICAL" : "IN_HOUSE",
-                resetPage: true,
-              })
-            }
           />
           <PmsFilterChoiceRow
             label="Nationality"
@@ -471,14 +472,12 @@ export function PoliceStayReportScreen({
     >
       {phase === "ready" && result ? (
         <div className="space-y-3">
-          {presence === "HISTORICAL" ? (
-            <p
-              className="report-print-hide rounded-xl border border-[#E8E1D7] bg-white px-4 py-3 text-xs text-[#7A7167]"
-              data-testid="police-historical-note"
-            >
-              {POLICE_HISTORICAL_NOTE}
-            </p>
-          ) : null}
+          <p
+            className="report-print-hide text-xs text-[#7A7167]"
+            data-testid="police-presence-caption"
+          >
+            {presenceCaption}
+          </p>
           {warning ? (
             <p
               className="report-print-hide rounded-xl border border-[#E7D7A8] bg-[#FBF6EA] px-4 py-3 text-xs text-[#251605]"
@@ -549,8 +548,12 @@ export function PoliceStayReportScreen({
               <div className="grid size-11 place-items-center rounded-full bg-[#FAF3E3] text-[#8A6A24]">
                 <Users className="size-5" />
               </div>
-              <h3 className="mt-3 font-display text-sm font-semibold text-[#251605]">{POLICE_EMPTY_TITLE}</h3>
-              <p className="mt-1 max-w-md text-xs text-[#7A7167]">{POLICE_EMPTY_BODY}</p>
+              <h3 className="mt-3 font-display text-sm font-semibold text-[#251605]">
+                {emptyCopy.title}
+              </h3>
+              {emptyCopy.body ? (
+                <p className="mt-1 max-w-md text-xs text-[#7A7167]">{emptyCopy.body}</p>
+              ) : null}
             </div>
           ) : (
             <div className="report-print-hide">

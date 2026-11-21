@@ -1,17 +1,20 @@
 /**
  * Check-In Step 3. Rendered inside the shared workspace sheet.
  * Deposit numbers come from getCheckInDepositReadiness. Collection uses postCheckInDeposit.
+ * Optional ordinary payments use postCheckInPayment (Cashiering payment ledger path).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, MoreHorizontal, ShieldAlert, Wallet } from "lucide-react";
+import { CheckCircle2, CreditCard, MoreHorizontal, ShieldAlert, Wallet } from "lucide-react";
+import { toast } from "sonner";
 
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   getCheckInDepositReadiness,
   postCheckInDeposit,
+  postCheckInPayment,
   waiveCheckInDeposit,
 } from "@/packages/pms/lib/fo-check-in.functions";
 import type { CheckInDepositReadiness } from "@/packages/pms/lib/fo-check-in";
@@ -69,6 +72,7 @@ export function FoCheckInV2Payment({
   const permissions = usePmsPermissions(restaurantId);
   const fetchReadiness = useServerFn(getCheckInDepositReadiness);
   const postDeposit = useServerFn(postCheckInDeposit);
+  const postPayment = useServerFn(postCheckInPayment);
   const waiveDeposit = useServerFn(waiveCheckInDeposit);
   const set1 = usePmsSet1Foundation(restaurantId);
   const tenders = cashieringTenderOptions({
@@ -76,6 +80,7 @@ export function FoCheckInV2Payment({
     methods: set1.data?.polish1?.paymentMethods ?? emptyPolish1Snapshot().paymentMethods,
   });
   const depositKey = useRef(crypto.randomUUID());
+  const paymentKey = useRef(crypto.randomUUID());
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("");
   const [reference, setReference] = useState("");
@@ -83,11 +88,25 @@ export function FoCheckInV2Payment({
   const [formError, setFormError] = useState<string | null>(null);
   const [postedTransactionId, setPostedTransactionId] = useState<string | null>(null);
   const [showWaiverForm, setShowWaiverForm] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState("");
+  const [payReceivedFrom, setPayReceivedFrom] = useState("");
+  const [payReference, setPayReference] = useState("");
+  const [payNote, setPayNote] = useState("");
+  const [payError, setPayError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   const canWaive =
     !permissions.isLoading &&
     !permissions.isError &&
     permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN_OVERRIDE);
+
+  const canRecordPayment =
+    !permissions.isLoading &&
+    !permissions.isError &&
+    (permissions.can(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST) ||
+      permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_PAYMENT_POST));
 
   const readinessQuery = useQuery({
     queryKey: ["fo-ci-v2-deposit", restaurantId, reservationId, reservationRoomId],
@@ -132,6 +151,10 @@ export function FoCheckInV2Payment({
   }, [method, tenders]);
 
   useEffect(() => {
+    if (!tenders.some((row) => row.code === payMethod)) setPayMethod(tenders[0]?.code ?? "");
+  }, [payMethod, tenders]);
+
+  useEffect(() => {
     if (readiness && !readiness.satisfied && readiness.outstanding > 0 && amount === "") {
       setAmount(String(readiness.outstanding));
     }
@@ -141,11 +164,18 @@ export function FoCheckInV2Payment({
     if (readiness?.satisfied) setShowWaiverForm(false);
   }, [readiness?.satisfied]);
 
+  useEffect(() => {
+    const guest = reservation?.guestName?.trim() ?? "";
+    if (guest && payReceivedFrom === "") setPayReceivedFrom(guest);
+  }, [reservation?.guestName, payReceivedFrom]);
+
   function refreshState() {
     void readinessQuery.refetch();
     void queryClient.invalidateQueries({
       queryKey: ["fo-ci-v2-deposit", restaurantId, reservationId],
     });
+    void queryClient.invalidateQueries({ queryKey: ["reservation-folio", restaurantId, reservationId] });
+    void queryClient.invalidateQueries({ queryKey: ["fo-ci-v2-cashiering", restaurantId, reservationId] });
     onRefresh();
   }
 
@@ -204,6 +234,40 @@ export function FoCheckInV2Payment({
     onError: (error) => setFormError(waiverFailureCopy(error)),
   });
 
+  const payMut = useMutation({
+    mutationFn: () => {
+      const parsed = Number(payAmount);
+      return postPayment({
+        data: {
+          restaurantId,
+          reservationId,
+          amount: parsed,
+          method: payMethod,
+          receivedFrom: payReceivedFrom.trim(),
+          ...(payReference.trim() ? { reference: payReference.trim() } : {}),
+          ...(payNote.trim() ? { note: payNote.trim() } : {}),
+          idempotencyKey: paymentKey.current,
+        },
+      });
+    },
+    onSuccess: async () => {
+      paymentKey.current = crypto.randomUUID();
+      setPayAmount("");
+      setPayReference("");
+      setPayNote("");
+      setPayError(null);
+      setPaymentSuccess(true);
+      setShowPaymentForm(false);
+      toast.success("Payment recorded");
+      await readinessQuery.refetch();
+      refreshState();
+    },
+    onError: (error) => {
+      setPaymentSuccess(false);
+      setPayError(depositActionFailureCopy(error));
+    },
+  });
+
   function collectDeposit() {
     if (postedTransactionId) return;
     const parsed = Number(amount);
@@ -217,6 +281,25 @@ export function FoCheckInV2Payment({
     }
     setFormError(null);
     postMut.mutate();
+  }
+
+  function recordPayment() {
+    if (payMut.isPending) return;
+    const parsed = Number(payAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setPayError("Enter a payment amount.");
+      return;
+    }
+    if (!payMethod) {
+      setPayError("Choose a payment method.");
+      return;
+    }
+    if (!payReceivedFrom.trim()) {
+      setPayError("Enter who the money was received from.");
+      return;
+    }
+    setPayError(null);
+    payMut.mutate();
   }
 
   if (readinessQuery.isLoading) {
@@ -626,6 +709,155 @@ export function FoCheckInV2Payment({
               {formError}
             </p>
           ) : null}
+        </Section>
+      ) : null}
+
+      {canRecordPayment ? (
+        <Section title="Ordinary Payment" testId="fo-ci-v2-record-payment">
+          <p className="text-xs text-[#6B5E4E]">
+            Optional. Record a guest payment against the reservation folio even when no deposit is
+            required. This does not replace Collect Deposit.
+          </p>
+          {paymentSuccess ? (
+            <p
+              className="mt-2 text-sm font-medium text-[#436436]"
+              data-testid="fo-ci-v2-payment-recorded"
+            >
+              Payment recorded
+            </p>
+          ) : null}
+          {!showPaymentForm ? (
+            <div className="mt-3">
+              <Button
+                type="button"
+                className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                onClick={() => {
+                  setPaymentSuccess(false);
+                  setPayError(null);
+                  setShowPaymentForm(true);
+                }}
+                data-testid="fo-ci-v2-record-payment-open"
+              >
+                <CreditCard className="mr-2 size-4" />
+                Record Payment
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-3" data-testid="fo-ci-v2-record-payment-form">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-[#6B5E4E]">
+                  Amount<span className="text-[#8B4513] font-semibold"> *</span>
+                  <Input
+                    className="mt-1 h-9"
+                    inputMode="decimal"
+                    value={payAmount}
+                    onChange={(event) => setPayAmount(event.target.value)}
+                    aria-required="true"
+                    data-testid="fo-ci-v2-payment-amount"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-[#6B5E4E]">
+                  Received From<span className="text-[#8B4513] font-semibold"> *</span>
+                  <Input
+                    className="mt-1 h-9"
+                    value={payReceivedFrom}
+                    onChange={(event) => setPayReceivedFrom(event.target.value)}
+                    aria-required="true"
+                    data-testid="fo-ci-v2-payment-received-from"
+                  />
+                </label>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-[#6B5E4E]">
+                  Payment method<span className="text-[#8B4513] font-semibold"> *</span>
+                </p>
+                {tenders.length === 0 ? (
+                  <p className="mt-2 text-xs text-[#8B6914]">No payment method is available.</p>
+                ) : (
+                  <div
+                    className="mt-1 flex flex-wrap gap-1 rounded-[6px] border border-[#CCCCCC] bg-white p-1"
+                    role="radiogroup"
+                    aria-label="Ordinary payment method"
+                    data-testid="fo-ci-v2-payment-method"
+                  >
+                    {tenders.map((tender) => (
+                      <button
+                        key={tender.code}
+                        type="button"
+                        role="radio"
+                        aria-checked={payMethod === tender.code}
+                        aria-pressed={payMethod === tender.code}
+                        className={cn(
+                          "flex-1 rounded-[4px] px-3 py-1 text-xs font-medium transition-colors",
+                          payMethod === tender.code
+                            ? "bg-[#C89933] text-white"
+                            : "text-[#6B5E4E] hover:bg-[#FAF8F5]",
+                        )}
+                        onClick={() => setPayMethod(tender.code)}
+                      >
+                        {tender.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-[#6B5E4E]">
+                  Reference
+                  <Input
+                    className="mt-1 h-9"
+                    value={payReference}
+                    onChange={(event) => setPayReference(event.target.value)}
+                    data-testid="fo-ci-v2-payment-reference"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-[#6B5E4E]">
+                  Note
+                  <Input
+                    className="mt-1 h-9"
+                    value={payNote}
+                    onChange={(event) => setPayNote(event.target.value)}
+                    data-testid="fo-ci-v2-payment-note"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
+                  disabled={payMut.isPending || tenders.length === 0}
+                  onClick={recordPayment}
+                  data-testid="fo-ci-v2-record-payment-submit"
+                >
+                  <CreditCard className="mr-2 size-4" />
+                  {payMut.isPending ? "Posting…" : "Post Payment"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-xs"
+                  disabled={payMut.isPending}
+                  onClick={() => {
+                    setShowPaymentForm(false);
+                    setPayError(null);
+                  }}
+                  data-testid="fo-ci-v2-record-payment-cancel"
+                >
+                  Cancel
+                </Button>
+              </div>
+              {payError ? (
+                <p
+                  className="text-sm text-red-800"
+                  role="alert"
+                  data-testid="fo-ci-v2-record-payment-error"
+                >
+                  {payError}
+                </p>
+              ) : null}
+            </div>
+          )}
         </Section>
       ) : null}
     </div>
