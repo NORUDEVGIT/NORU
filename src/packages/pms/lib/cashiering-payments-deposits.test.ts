@@ -118,10 +118,13 @@ describe("payments and deposits workspace", () => {
   });
 
   it("shows the supported workspace and leaves posting rules on the existing writers", () => {
-    assert.match(panel, /Receive Payment/);
-    assert.match(panel, /Record Deposit/);
+    const folioPage = read("../components/cashiering/guest-folio-page.tsx");
+    assert.match(folioPage, /Receive Payment/);
+    assert.match(folioPage, /Record Deposit/);
+    assert.doesNotMatch(folioPage, /Add Deposit/);
+    assert.doesNotMatch(panel, /Receive Payment|Record Deposit/);
     assert.match(panel, /Unapplied deposits/);
-    assert.match(panel, /Apply deposit/);
+    assert.match(panel, /Apply Deposit/);
     assert.match(panel, /Refund Payment/);
     assert.match(panel, /Refund Deposit/);
     assert.match(panel, /Guarantee Method/);

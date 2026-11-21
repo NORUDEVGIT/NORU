@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
+  ArrowLeftRight,
   BedDouble,
   CalendarDays,
   ChevronDown,
@@ -104,6 +105,7 @@ import {
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import {
   FOLIO_WORKSPACE_TABS,
+  settlementPaymentDefault,
   stayNights,
   type FolioWorkspaceTabId,
 } from "@/packages/pms/lib/folio-workspace";
@@ -721,54 +723,91 @@ function FolioWorkspaceBody({
                     Actions <ChevronDown className="ml-1 size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  {caps.canPostCharge ? (
-                    <ActionItem icon={Receipt} onSelect={() => openEntry("charge")}>
-                      Post Charge
-                    </ActionItem>
-                  ) : null}
-                  {caps.canPostPayment ? (
-                    <ActionItem icon={CreditCard} onSelect={() => openEntry("payment")}>
-                      Receive Payment
-                    </ActionItem>
-                  ) : null}
-                  {caps.canPostDeposit ? (
-                    <ActionItem icon={Landmark} onSelect={() => openEntry("deposit")}>
-                      Add Deposit
-                    </ActionItem>
-                  ) : null}
-                  {caps.canPostCharge || caps.canPostPayment || caps.canPostDeposit ? (
-                    <DropdownMenuSeparator />
-                  ) : null}
-                  <ActionItem icon={Printer} onSelect={() => printWith("statement")}>
-                    Print Statement
-                  </ActionItem>
-                  {caps.canIssueInvoice ? (
-                    <ActionItem icon={FileText} onSelect={() => selectTab("invoices")}>
-                      Create Invoice
-                    </ActionItem>
-                  ) : null}
-                  {caps.canReprintInvoice && folio.issuedInvoices[0] ? (
-                    <ActionItem
-                      icon={FileText}
-                      onSelect={() => reprintMut.mutate(folio.issuedInvoices[0])}
-                      disabled={reprintMut.isPending}
-                    >
-                      Reprint Invoice
-                    </ActionItem>
-                  ) : null}
-                  {workspace.grants.close && open ? (
+                <DropdownMenuContent align="end" className="w-64">
+                  {tab === "settlement" ? (
+                    open ? (
+                      <>
+                        {caps.canIssueInvoice && workspace.grants.invoiceAuthorize ? (
+                          <ActionItem icon={FileText} onSelect={() => setIssueOpen(true)}>
+                            Issue final invoice
+                          </ActionItem>
+                        ) : null}
+                        {workspace.canAllocateInvoices ? (
+                          <ActionItem
+                            icon={ArrowLeftRight}
+                            onSelect={() => {
+                              setAllocateInvoiceId(null);
+                              setAllocatePaymentId(null);
+                              setAllocateOpen(true);
+                            }}
+                          >
+                            Allocate payment or deposit
+                          </ActionItem>
+                        ) : null}
+                        {settlementPaymentDefault(workspace.financialSummary.currentBalance) > 0 &&
+                        caps.canPostPayment ? (
+                          <ActionItem icon={CreditCard} onSelect={() => openEntry("payment")}>
+                            Post payment
+                          </ActionItem>
+                        ) : null}
+                        {caps.canTransfer && workspace.financialSummary.currentBalance > 0.009 ? (
+                          <ActionItem icon={ArrowLeftRight} onSelect={() => openTransfer(null)}>
+                            Transfer charges
+                          </ActionItem>
+                        ) : null}
+                      </>
+                    ) : null
+                  ) : (
                     <>
-                      <DropdownMenuSeparator />
-                      <ActionItem
-                        icon={Lock}
-                        disabled={!caps.canClose}
-                        onSelect={() => setCloseOpen(true)}
-                      >
-                        Close Folio
+                      {caps.canPostCharge ? (
+                        <ActionItem icon={Receipt} onSelect={() => openEntry("charge")}>
+                          Post Charge
+                        </ActionItem>
+                      ) : null}
+                      {caps.canPostPayment ? (
+                        <ActionItem icon={CreditCard} onSelect={() => openEntry("payment")}>
+                          Receive Payment
+                        </ActionItem>
+                      ) : null}
+                      {caps.canPostDeposit ? (
+                        <ActionItem icon={Landmark} onSelect={() => openEntry("deposit")}>
+                          Record Deposit
+                        </ActionItem>
+                      ) : null}
+                      {caps.canPostCharge || caps.canPostPayment || caps.canPostDeposit ? (
+                        <DropdownMenuSeparator />
+                      ) : null}
+                      <ActionItem icon={Printer} onSelect={() => printWith("statement")}>
+                        Print Statement
                       </ActionItem>
+                      {caps.canIssueInvoice ? (
+                        <ActionItem icon={FileText} onSelect={() => selectTab("invoices")}>
+                          Create Invoice
+                        </ActionItem>
+                      ) : null}
+                      {caps.canReprintInvoice && folio.issuedInvoices[0] ? (
+                        <ActionItem
+                          icon={FileText}
+                          onSelect={() => reprintMut.mutate(folio.issuedInvoices[0])}
+                          disabled={reprintMut.isPending}
+                        >
+                          Reprint Invoice
+                        </ActionItem>
+                      ) : null}
+                      {workspace.grants.close && open ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <ActionItem
+                            icon={Lock}
+                            disabled={!caps.canClose}
+                            onSelect={() => setCloseOpen(true)}
+                          >
+                            Close Folio
+                          </ActionItem>
+                        </>
+                      ) : null}
                     </>
-                  ) : null}
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -828,7 +867,6 @@ function FolioWorkspaceBody({
                 actions={rowActions}
                 selectedChargeId={chargeId}
                 highlightLineId={initialLineId}
-                onPostCharge={() => openEntry("charge")}
                 onPostAdjustment={() => openEntry("adjustment")}
                 onTransferCharge={() => openTransfer(null)}
               />
@@ -840,8 +878,6 @@ function FolioWorkspaceBody({
                 dateTime={dateTime}
                 actions={rowActions}
                 highlightLineId={initialLineId}
-                onReceivePayment={() => openEntry("payment")}
-                onAddDeposit={() => openEntry("deposit")}
               />
             ) : null}
             {tab === "adjustments" ? (
@@ -996,14 +1032,11 @@ function FolioWorkspaceBody({
                 onPosted={onChanged}
                 onPrintStatement={() => printWith("statement")}
                 onRefund={() => openEntry("refund")}
-                onTransfer={() => openTransfer(null)}
-                onPostPayment={() => openEntry("payment")}
                 onAllocateInvoice={(invoiceId, paymentId) => {
                   setAllocateInvoiceId(invoiceId || null);
                   setAllocatePaymentId(paymentId ?? null);
                   setAllocateOpen(true);
                 }}
-                onIssueInvoice={() => setIssueOpen(true)}
               />
             ) : null}
         </div>

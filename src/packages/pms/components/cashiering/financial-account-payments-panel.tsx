@@ -161,7 +161,8 @@ export function FinancialAccountPayments({
     amount: number;
     activeAmount: number;
   } | null>(null);
-  const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
+  const [viewReceipt, setViewReceipt] = useState<TenderReceipt | null>(null);
+  const [printReceipt, setPrintReceipt] = useState<TenderReceipt | null>(null);
   const fetchProperty = useServerFn(getCashieringDocumentProperty);
   const propertyQuery = useQuery({
     queryKey: ["cashiering-document-property", restaurantId],
@@ -553,7 +554,7 @@ export function FinancialAccountPayments({
         documentProperty={documentProperty}
         onOpenChange={setPaymentOpen}
         onPosted={refreshMoney}
-        onReceipt={(r) => setReceipt(r)}
+        onReceipt={(r) => setViewReceipt(r)}
       />
       <WriteOffDialog
         open={writeOffOpen}
@@ -615,17 +616,24 @@ export function FinancialAccountPayments({
           if (!open) setReverseAllocation(null);
         }}
       />
-      {receipt ? (
-        <>
-          <DepositReceiptModal
-            receipt={receipt}
-            open={Boolean(receipt)}
-            money={money}
-            dateTime={dateTime}
-            onClose={() => setReceipt(null)}
-          />
-          <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} />
-        </>
+      <DepositReceiptModal
+        receipt={viewReceipt}
+        open={viewReceipt !== null}
+        money={money}
+        dateTime={dateTime}
+        onClose={() => setViewReceipt(null)}
+        onPrint={
+          viewReceipt
+            ? () => {
+                setPrintReceipt(viewReceipt);
+                setViewReceipt(null);
+                window.setTimeout(() => window.print(), 80);
+              }
+            : undefined
+        }
+      />
+      {printReceipt ? (
+        <TenderReceiptPrint receipt={printReceipt} money={money} dateTime={dateTime} />
       ) : null}
     </section>
   );
@@ -721,9 +729,6 @@ function PaymentDialog({
           folioBalance: projected ?? balance,
         };
         onReceipt?.(receiptData);
-        window.setTimeout(() => {
-          window.print();
-        }, 120);
       }
       toast.success("Payment posted.");
       onOpenChange(false);

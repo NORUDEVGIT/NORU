@@ -1380,7 +1380,7 @@ function FolioActionMenu({ folio }: { folio: FolioRow }) {
           <FolioPageItem
             folioId={folio.id}
             action="deposit"
-            label="Add Deposit"
+            label="Record Deposit"
             icon={Coins}
             disabled={!open}
           />
