@@ -279,9 +279,11 @@ export function GuestOverviewCard({
                     <Button variant="outline" size="sm" onClick={actions.openNotesPage}>
                       View All
                     </Button>
-                    <Button size="sm" onClick={actions.openNote} disabled={!actions.canManage}>
-                      Add Note
-                    </Button>
+                    {actions.canEdit ? (
+                      <Button size="sm" onClick={actions.openNote}>
+                        Add Note
+                      </Button>
+                    ) : null}
                   </>
                 ) : null}
               </div>

@@ -32,7 +32,9 @@ import {
   updateGuestServiceRequest,
   type GuestServiceHistoryItem,
 } from "@/packages/pms/lib/guests.functions";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { propertyToday } from "@/packages/pms/lib/reservation-dates";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -66,6 +68,11 @@ export function GuestServiceHistoryCard({
 }) {
   const queryClient = useQueryClient();
   const profileActions = useOptionalGuestProfileActions();
+  const permissions = usePmsPermissions(restaurantId);
+  const canEdit = profileActions?.canEdit ?? false;
+  const canPrint = profileActions?.canPrintExport ?? false;
+  const canOpenGuestServices = permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
+  const canOpenReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
   const fetchWorkspace = useServerFn(listGuestServiceWorkspace);
   const fetchStays = useServerFn(listGuestStays);
   const createRequest = useServerFn(createGuestServiceRequest);
@@ -254,10 +261,12 @@ export function GuestServiceHistoryCard({
           <h2 className="font-display text-xl">{GUEST_SERVICES_TITLE}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{GUEST_SERVICES_COPY}</p>
         </div>
-        <Button onClick={() => openCreate()} data-testid="guest-services-new">
-          <ConciergeBell className="mr-2 size-4" />
-          New Service Request
-        </Button>
+        {canEdit ? (
+          <Button onClick={() => openCreate()} data-testid="guest-services-new">
+            <ConciergeBell className="mr-2 size-4" />
+            New Service Request
+          </Button>
+        ) : null}
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -330,9 +339,11 @@ export function GuestServiceHistoryCard({
             ) : filtered.length === 0 ? (
               <div className="p-6">
                 <p className="text-sm text-muted-foreground">{GUEST_SERVICES_EMPTY}</p>
-                <Button className="mt-3" onClick={() => openCreate()}>
-                  New Service Request
-                </Button>
+                {canEdit ? (
+                  <Button className="mt-3" onClick={() => openCreate()}>
+                    New Service Request
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <table className="w-full text-left text-sm">
@@ -376,6 +387,7 @@ export function GuestServiceHistoryCard({
                         <RowActions
                           item={item}
                           staff={staff}
+                          canEdit={canEdit}
                           busy={updateMutation.isPending}
                           onView={() => {
                             setSelectedId(item.id);
@@ -414,14 +426,16 @@ export function GuestServiceHistoryCard({
                         </p>
                         <p className="text-xs text-muted-foreground">{type.count} requests</p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!type.active}
-                        onClick={() => openCreate(type.id)}
-                      >
-                        Request
-                      </Button>
+                      {canEdit ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!type.active}
+                          onClick={() => openCreate(type.id)}
+                        >
+                          Request
+                        </Button>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -431,15 +445,12 @@ export function GuestServiceHistoryCard({
             <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-services-notes">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="font-display text-lg">Guest Notes (Services)</h3>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => profileActions?.openNote()}
-                  disabled={!profileActions?.canManage}
-                >
-                  <StickyNote className="mr-2 size-4" />
-                  Add Note
-                </Button>
+                {canEdit ? (
+                  <Button size="sm" variant="outline" onClick={() => profileActions?.openNote()}>
+                    <StickyNote className="mr-2 size-4" />
+                    Add Note
+                  </Button>
+                ) : null}
               </div>
               {notes.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">No guest notes recorded yet.</p>
@@ -460,7 +471,7 @@ export function GuestServiceHistoryCard({
         </div>
 
         <div className="space-y-4">
-          {creating ? (
+          {creating && canEdit ? (
             <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-services-create">
               <h3 className="font-display text-lg">Create Service Request</h3>
               {activeTypes.length === 0 ? (
@@ -629,18 +640,22 @@ export function GuestServiceHistoryCard({
                 <DetailRow label="Assigned to" value={selected.assignedName} />
                 <DetailRow label="Description" value={selected.notes} />
               </dl>
-              <Button className="mt-3" variant="outline" onClick={() => setCreating(true)}>
-                New Service Request
-              </Button>
+              {canEdit ? (
+                <Button className="mt-3" variant="outline" onClick={() => setCreating(true)}>
+                  New Service Request
+                </Button>
+              ) : null}
             </section>
           ) : (
             <section className="rounded-2xl border border-dashed border-border bg-card p-5">
               <p className="text-sm text-muted-foreground">
                 Select a request to view details, or create a new service request.
               </p>
-              <Button className="mt-3" onClick={() => openCreate()}>
-                New Service Request
-              </Button>
+              {canEdit ? (
+                <Button className="mt-3" onClick={() => openCreate()}>
+                  New Service Request
+                </Button>
+              ) : null}
             </section>
           )}
 
@@ -650,7 +665,7 @@ export function GuestServiceHistoryCard({
           >
             <h3 className="font-display text-lg">Quick Actions</h3>
             <div className="mt-3 grid gap-2">
-              <Button onClick={() => openCreate()}>New Service Request</Button>
+              {canEdit ? <Button onClick={() => openCreate()}>New Service Request</Button> : null}
               <Button
                 variant="outline"
                 onClick={() => {
@@ -662,37 +677,41 @@ export function GuestServiceHistoryCard({
               >
                 View All Service Requests
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => profileActions?.openNote()}
-                disabled={!profileActions?.canManage}
-              >
-                <StickyNote className="mr-2 size-4" />
-                Add Note
-              </Button>
-              {currentStay ? (
-                <Button asChild variant="outline">
-                  <Link
-                    to="/restaurant/pms/reservations/$reservationId"
-                    params={{ reservationId: currentStay.id }}
-                    title={reservationHref(currentStay.id)}
-                    onClick={() => onOpenBookings?.()}
-                  >
+              {canEdit ? (
+                <Button variant="outline" onClick={() => profileActions?.openNote()}>
+                  <StickyNote className="mr-2 size-4" />
+                  Add Note
+                </Button>
+              ) : null}
+              {canOpenReservation ? (
+                currentStay ? (
+                  <Button asChild variant="outline">
+                    <Link
+                      to="/restaurant/pms/reservations/$reservationId"
+                      params={{ reservationId: currentStay.id }}
+                      title={reservationHref(currentStay.id)}
+                      onClick={() => onOpenBookings?.()}
+                    >
+                      Open Current Stay
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button variant="outline" disabled>
                     Open Current Stay
-                  </Link>
+                  </Button>
+                )
+              ) : null}
+              {canOpenGuestServices ? (
+                <Button asChild variant="outline">
+                  <Link to="/restaurant/pms/guest-services">Guest Services</Link>
                 </Button>
-              ) : (
-                <Button variant="outline" disabled>
-                  Open Current Stay
+              ) : null}
+              {canPrint ? (
+                <Button variant="outline" onClick={printHistory} data-testid="guest-services-print">
+                  <Printer className="mr-2 size-4" />
+                  Print Service History
                 </Button>
-              )}
-              <Button asChild variant="outline">
-                <Link to="/restaurant/pms/guest-services">Guest Services</Link>
-              </Button>
-              <Button variant="outline" onClick={printHistory} data-testid="guest-services-print">
-                <Printer className="mr-2 size-4" />
-                Print Service History
-              </Button>
+              ) : null}
             </div>
           </section>
         </div>
@@ -759,12 +778,14 @@ export function GuestServiceHistoryCard({
 function RowActions({
   item,
   staff,
+  canEdit = false,
   busy,
   onView,
   onUpdate,
 }: {
   item: GuestServiceHistoryItem;
   staff: Array<{ id: string; name: string }>;
+  canEdit?: boolean;
   busy: boolean;
   onView: () => void;
   onUpdate: (patch: { status?: GuestServiceStatus; assignedMembershipId?: string | null }) => void;
@@ -775,22 +796,22 @@ function RowActions({
       <Button size="sm" variant="ghost" onClick={onView}>
         View
       </Button>
-      {actions.start ? (
+      {canEdit && actions.start ? (
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => onUpdate({ status: "in_progress" })}>
           Start
         </Button>
       ) : null}
-      {actions.complete ? (
+      {canEdit && actions.complete ? (
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => onUpdate({ status: "completed" })}>
           Complete
         </Button>
       ) : null}
-      {actions.cancel ? (
+      {canEdit && actions.cancel ? (
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => onUpdate({ status: "cancelled" })}>
           Cancel
         </Button>
       ) : null}
-      {actions.assign && staff.length > 0 ? (
+      {canEdit && actions.assign && staff.length > 0 ? (
         <Select
           value={item.assignedMembershipId ?? "unassigned"}
           onValueChange={(value) =>

@@ -81,6 +81,7 @@ import {
   validateGuestFieldDraft,
 } from "@/packages/pms/lib/required-fields-card4.server";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: GuestFieldRecord): GuestFieldDraft {
   return {
@@ -176,7 +177,7 @@ export function GuestFieldEditorSheet({
       onSaved?.(res.field?.id ?? draft.id ?? undefined);
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save guest field."),
+      toast.error(friendlySetupError(error, "Unable to save guest field.")),
   });
 
   function mark<K extends keyof GuestFieldDraft>(key: K, value: GuestFieldDraft[K]) {
@@ -452,7 +453,7 @@ export function GuestFieldCatalogSheet({
       });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const reorderMutation = useMutation({
@@ -463,7 +464,7 @@ export function GuestFieldCatalogSheet({
       setReorderOpen(false);
       toast.success("Field order updated.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save field order."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save field order.")),
   });
 
   const deleteMutation = useMutation({
@@ -477,7 +478,7 @@ export function GuestFieldCatalogSheet({
       setPendingDelete(null);
       toast.success("Field deleted from catalog.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -504,17 +505,6 @@ export function GuestFieldCatalogSheet({
                   }}
                 >
                   Reorder
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="bg-[#C89933] text-[#251605]"
-                  onClick={() => {
-                    setSelectedField(null);
-                    setEditorOpen(true);
-                  }}
-                >
-                  <Plus className="mr-1 size-3.5" /> Add Field
                 </Button>
               </div>
             ) : null}
@@ -588,21 +578,8 @@ export function GuestFieldCatalogSheet({
                     <div className="flex flex-col items-center justify-center gap-2">
                       <span className="text-sm font-medium text-[#251605]">No guest fields in catalog</span>
                       <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                        No guest profile fields found for this property. Click &quot;Add Field&quot; to create custom fields.
+                        No guest profile fields found for this property.
                       </p>
-                      {canEdit ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="mt-2 bg-[#C89933] text-[#251605] hover:bg-[#C89933]/90 text-xs"
-                          onClick={() => {
-                            setSelectedField(null);
-                            setEditorOpen(true);
-                          }}
-                        >
-                          <Plus className="mr-1 size-3.5" /> Add Field
-                        </Button>
-                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>

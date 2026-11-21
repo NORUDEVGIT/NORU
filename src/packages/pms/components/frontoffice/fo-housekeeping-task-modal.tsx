@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
@@ -71,6 +72,7 @@ export function FoHousekeepingTaskModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const queryClient = useQueryClient();
   const create = useServerFn(createHousekeepingTask);
   const update = useServerFn(updateHousekeepingTask);
@@ -188,12 +190,12 @@ export function FoHousekeepingTaskModal({
       roomLabel={statusChip ?? occupancyChip ?? "Room"}
       size="small"
       confirmLabel="Create Task"
-      confirmDisabled={!target.roomId}
+      confirmDisabled={!target.roomId || !desk.canCreateHousekeepingTask}
       pending={createMutation.isPending}
-      hideConfirm={Boolean(openTask)}
+      hideConfirm={Boolean(openTask) || !desk.canCreateHousekeepingTask}
       onConfirm={() => createMutation.mutate()}
       footerLeft={
-        openTask && canStart ? (
+        openTask && canStart && desk.canEditHousekeepingTask ? (
           <Button
             type="button"
             variant="outline"

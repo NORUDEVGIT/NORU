@@ -24,6 +24,7 @@ import {
   savePmsPreferenceOption,
   type PmsPreferenceOption,
 } from "@/packages/pms/lib/pms-preference-options.functions";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 export function PmsPreferenceOptionsEditor({
   restaurantId,
@@ -61,7 +62,7 @@ export function PmsPreferenceOptionsEditor({
         queryKey: ["guest-preference-catalogues", restaurantId],
       });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -192,10 +193,12 @@ function PreferenceOptionDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   useEffect(() => {
     if (!open) return;
     setName(row?.name ?? "");
     setCode(row?.code ?? "");
+    setCodeTouched(Boolean(row));
     if (row) onCategoryChange(row.category);
   }, [open, row, onCategoryChange]);
 
@@ -227,7 +230,11 @@ function PreferenceOptionDialog({
             <Input
               id="pref-opt-name"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!row && !codeTouched) setCode(setupCodeFromName(next));
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -235,7 +242,10 @@ function PreferenceOptionDialog({
             <Input
               id="pref-opt-code"
               value={code}
-              onChange={(event) => setCode(event.target.value)}
+              onChange={(event) => {
+                setCodeTouched(true);
+                setCode(event.target.value.toUpperCase());
+              }}
             />
           </div>
         </div>

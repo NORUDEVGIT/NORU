@@ -55,6 +55,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 function recordToDraft(row: ServiceDepartmentAssignmentRecord): ServiceDepartmentAssignmentDraft {
   return {
     id: row.id,
@@ -163,7 +164,7 @@ export function PmsCard4ServiceDepartmentAssignment({
       toast.success("Department assignment saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save department assignment."),
+      toast.error(friendlySetupError(error, "Unable to save department assignment.")),
   });
 
   const toggleMutation = useMutation({
@@ -173,7 +174,7 @@ export function PmsCard4ServiceDepartmentAssignment({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Assignment enabled." : "Assignment disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -183,7 +184,7 @@ export function PmsCard4ServiceDepartmentAssignment({
       setPendingDelete(null);
       toast.success("Department assignment deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const busy = saveMutation.isPending || toggleMutation.isPending || deleteMutation.isPending;

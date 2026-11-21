@@ -221,7 +221,7 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.match(page, /getGuestsAccess/);
     assert.match(functions, /requirePmsActor/);
     assert.match(guests, /requirePmsActor/);
-    assert.match(page, /canCreateGuest=\{guestAccessQuery\.data\?\.canManage/);
+    assert.match(page, /canCreateGuest=\{access\.can\(PMS_PERMISSIONS\.GUEST_PROFILE_CREATE\)\}/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
   });
 
@@ -258,11 +258,29 @@ describe("Create Reservation Phase 1 Section 1 lock — AC-CR1-1…21", () => {
     assert.equal(defaults[0]?.origin, "default");
     assert.deepEqual(
       DEFAULT_BOOKING_SOURCES.map((row) => row.label),
-      ["Phone", "Walk-in", "Email", "Direct", "Corporate", "Travel agency", "Other"],
+      [
+        "Walk-In",
+        "Phone",
+        "Email",
+        "Hotel Website",
+        "Online Travel Agency",
+        "Travel Agency / Tour Operator",
+        "Company / Corporate",
+        "Referral",
+        "Other",
+      ],
     );
     assert.deepEqual(
       DEFAULT_MARKET_SEGMENTS.map((row) => row.label),
-      ["Leisure", "Corporate", "Government", "Complimentary / house", "Other"],
+      [
+        "Individual / Transient",
+        "Corporate",
+        "Group",
+        "Government",
+        "NGO / International Organization",
+        "Leisure",
+        "Other",
+      ],
     );
     const defaultSegments = resolveMarketSegmentOptions(undefined);
     assert.equal(defaultSegments.length, DEFAULT_MARKET_SEGMENTS.length);
@@ -630,7 +648,7 @@ describe("Create Reservation Phase 1 Section 2 lock — AC-CR2-1…18", () => {
     assert.match(page, /getGuestsAccess/);
     assert.match(functions, /requirePmsActor/);
     assert.match(accounts, /requirePmsActor/);
-    assert.match(page, /canCreateMaster=\{guestAccessQuery\.data\?\.canManage/);
+    assert.match(page, /canCreateMaster=\{access\.can\(PMS_PERMISSIONS\.GUEST_PROFILE_CREATE\)\}/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
     assert.match(migration, /RLS model: UNCHANGED/);
     assert.match(migration, /Flag Abel: NOT required/);
@@ -1222,7 +1240,7 @@ describe("Create Reservation Individual Associations lock — AC-CR2A-1…15", (
     assert.match(page, /getGuestsAccess/);
     assert.match(functions, /requirePmsActor/);
     assert.match(accounts, /requirePmsActor/);
-    assert.match(page, /canCreateMaster=\{guestAccessQuery\.data\?\.canManage/);
+    assert.match(page, /canCreateMaster=\{access\.can\(PMS_PERMISSIONS\.GUEST_PROFILE_CREATE\)\}/);
     assert.doesNotMatch(page, /new entitlement|createReservationRole|requirePackage\("create-reservation"\)/);
     assert.match(migration, /RLS model: UNCHANGED/);
     assert.match(migration, /Flag Abel: NOT required/);

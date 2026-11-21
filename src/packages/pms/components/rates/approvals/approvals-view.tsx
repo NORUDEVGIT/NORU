@@ -10,8 +10,6 @@ import {
   Clock,
   FileText,
   RotateCcw,
-  Search,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +53,7 @@ import {
   revenueApprovalActorsQueryKey,
   revenueApprovalDomainLabel,
   revenueApprovalMetricsQueryKey,
+  revenueApprovalStatusLabel,
   revenueApprovalQueryKey,
 } from "@/packages/pms/lib/revenue/revenue-approval-ui";
 import {
@@ -66,54 +65,9 @@ import { historyPaginationRange } from "@/packages/pms/lib/revenue/rate-history"
 import { revenueUiError } from "@/packages/pms/lib/revenue/revenue-read-error";
 import { ApprovalActionDialog, type ApprovalDialogKind } from "./approval-action-dialog";
 import { ApprovalDetailDrawer } from "./approval-detail-drawer";
-import { ApprovalPolicyControl } from "./approval-policy-control";
 import { ApprovalTable } from "./approval-table";
-import { ApprovalTabs } from "./approval-tabs";
 import { useRevenueApprovalPolicy } from "./use-revenue-approval-policy";
-
-function KpiCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-  hint,
-  active,
-  onClick,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string | number;
-  tone: string;
-  hint?: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "flex min-w-0 flex-1 items-center gap-3.5 rounded-xl border bg-card p-4 text-left transition-all shadow-2xs hover:shadow-sm",
-        active
-          ? "border-[#C89933] ring-2 ring-[#C89933]/30 bg-[#FAF7F0]"
-          : "border-[#E8E1D7] hover:border-[#D5C7B3] hover:bg-[#FAF8F4]/70",
-      ].join(" ")}
-    >
-      <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${tone}`}>
-        <Icon className="size-5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-          {label}
-        </p>
-        <p className="mt-0.5 font-display text-2xl font-bold leading-tight text-[#251605]">
-          {value}
-        </p>
-        {hint ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</p> : null}
-      </div>
-    </button>
-  );
-}
+import { useRateRevenueExtras } from "../rate-revenue-shell-slots";
 
 function TableSkeleton() {
   return (
@@ -158,12 +112,14 @@ export function ApprovalsView({
   context,
   approvalTab,
   approvalRequest,
+  searchQuery = "",
 }: {
   restaurantId: string;
   access: RevenueAccessResolution;
   context: RevenueContext;
   approvalTab?: string | undefined;
   approvalRequest?: string | undefined;
+  searchQuery?: string;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -304,8 +260,8 @@ export function ApprovalsView({
 
   const filteredRows = useMemo(() => {
     const rows = listQuery.data?.rows ?? [];
-    if (!currentFilters.search.trim()) return rows;
-    const q = currentFilters.search.trim().toLowerCase();
+    if (!searchQuery.trim()) return rows;
+    const q = searchQuery.trim().toLowerCase();
     return rows.filter((row) => {
       const summaryMatch = row.summary.toLowerCase().includes(q);
       const reqReasonMatch = Boolean(
@@ -332,26 +288,7 @@ export function ApprovalsView({
         scopeMatch
       );
     });
-  }, [listQuery.data?.rows, currentFilters.search]);
-
-  const hasActiveFilters = Boolean(
-    currentFilters.search.trim() ||
-      currentFilters.domain ||
-      currentFilters.status ||
-      currentFilters.requestedBy ||
-      currentFilters.reviewedBy ||
-      currentFilters.fromDate ||
-      currentFilters.toDate,
-  );
-
-  const activeFilterCount =
-    (currentFilters.search.trim() ? 1 : 0) +
-    (currentFilters.domain ? 1 : 0) +
-    (currentFilters.status ? 1 : 0) +
-    (currentFilters.requestedBy ? 1 : 0) +
-    (currentFilters.reviewedBy ? 1 : 0) +
-    (currentFilters.fromDate ? 1 : 0) +
-    (currentFilters.toDate ? 1 : 0);
+  }, [listQuery.data?.rows, searchQuery]);
 
   const detailQuery = useQuery<RevenueApprovalDetail>({
     queryKey: ["revenue-approval-detail", restaurantId, selectedId],
@@ -455,6 +392,133 @@ export function ApprovalsView({
           ? `${APPROVAL_PENDING_EMPTY} ${APPROVAL_DISABLED_EMPTY}`
           : APPROVAL_PENDING_EMPTY;
 
+  const statusOptions: ReadonlyArray<readonly [string, string]> =
+    tab === "history"
+      ? [
+          ["all", "All terminal"],
+          ...REVENUE_APPROVAL_TERMINAL_STATUSES.map(
+            (status) => [status, revenueApprovalStatusLabel(status)] as const,
+          ),
+        ]
+      : [
+          ["all", "All statuses"],
+          ["pending", "Pending"] as const,
+          ...REVENUE_APPROVAL_TERMINAL_STATUSES.map(
+            (status) => [status, revenueApprovalStatusLabel(status)] as const,
+          ),
+        ];
+  const actorOptions = [
+    ["all", "Anyone"] as const,
+    ...actors.map((actor) => [actor.id, actor.label] as const),
+  ];
+
+  useRateRevenueExtras({
+    searchPlaceholder: "Search summary, room, plan, reason, or staff…",
+    filters: [
+      {
+        id: "approval-queue",
+        label: "Queue",
+        value: tab,
+        current: tab === "pending" ? "Pending" : tab === "mine" ? "My Requests" : "History",
+        options: [
+          ["pending", "Pending"],
+          ["mine", "My Requests"],
+          ["history", "History"],
+        ],
+        onChange: (value) => handleTabChange(value as RevenueApprovalTab),
+      },
+      {
+        id: "approval-domain",
+        label: "Domain",
+        value: currentFilters.domain || "all",
+        current: currentFilters.domain ? revenueApprovalDomainLabel(currentFilters.domain) : "",
+        options: [
+          ["all", "All domains"] as const,
+          ...REVENUE_APPROVAL_DOMAINS.map(
+            (domain) => [domain, revenueApprovalDomainLabel(domain)] as const,
+          ),
+        ],
+        onChange: (value) =>
+          updateFilter("domain", value === "all" ? "" : (value as RevenueApprovalDomain)),
+      },
+      ...(tab === "pending"
+        ? []
+        : [
+            {
+              id: "approval-status",
+              label: "Status",
+              value: currentFilters.status || "all",
+              current: currentFilters.status ? revenueApprovalStatusLabel(currentFilters.status) : "",
+              options: statusOptions,
+              onChange: (value: string) =>
+                updateFilter("status", value === "all" ? "" : (value as RevenueApprovalStatus)),
+            },
+          ]),
+      ...(tab === "mine"
+        ? []
+        : [
+            {
+              id: "approval-requested-by",
+              label: "Requested By",
+              value: currentFilters.requestedBy || "all",
+              current: actors.find((actor) => actor.id === currentFilters.requestedBy)?.label ?? "",
+              options: actorOptions,
+              onChange: (value: string) => updateFilter("requestedBy", value === "all" ? "" : value),
+            },
+          ]),
+      ...(tab === "history"
+        ? [
+            {
+              id: "approval-reviewed-by",
+              label: "Reviewed By",
+              value: currentFilters.reviewedBy || "all",
+              current: actors.find((actor) => actor.id === currentFilters.reviewedBy)?.label ?? "",
+              options: actorOptions,
+              onChange: (value: string) => updateFilter("reviewedBy", value === "all" ? "" : value),
+            },
+          ]
+        : []),
+    ],
+    actions: [
+      {
+        id: "approval-policy",
+        label: policyEnabled ? "Disable Approval Workflow" : "Enable Approval Workflow",
+        disabled: policyQuery.isLoading || setPolicyMutation.isPending,
+        onSelect: () => {
+          setActionError(null);
+          setDialog(policyEnabled ? "policy-disable" : "policy-enable");
+        },
+      },
+    ],
+    kpis: [
+      {
+        label: "Pending Review",
+        value: metricsQuery.isLoading ? "…" : String(metricsQuery.data?.pending ?? 0),
+        icon: Clock,
+        tone: "bg-amber-50 text-amber-800",
+      },
+      {
+        label: "My Requests",
+        value: metricsQuery.isLoading ? "…" : String(metricsQuery.data?.mine ?? 0),
+        icon: FileText,
+        tone: "bg-sky-50 text-sky-700",
+      },
+      {
+        label: "Approved & Applied",
+        value: metricsQuery.isLoading ? "…" : String(metricsQuery.data?.approved ?? 0),
+        icon: CheckCircle2,
+        tone: "bg-emerald-50 text-emerald-700",
+      },
+      {
+        label: "Rejected / Stale",
+        value: metricsQuery.isLoading ? "…" : String(metricsQuery.data?.rejectedOrStale ?? 0),
+        icon: AlertTriangle,
+        tone: "bg-rose-50 text-rose-700",
+      },
+    ],
+    onClear: clearFilters,
+  });
+
   function openRow(row: RevenueApprovalListItem) {
     setStaleCopy(false);
     setActionError(null);
@@ -463,253 +527,8 @@ export function ApprovalsView({
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-display text-2xl font-semibold text-[#251605]">Approvals</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Review submitted Rate & Revenue changes before they are applied.
-        </p>
-      </div>
-
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard
-          icon={Clock}
-          label="Pending Review"
-          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.pending ?? 0)}
-          tone="bg-amber-100 text-amber-900 border border-amber-200/80"
-          hint="Requires manager review"
-          active={tab === "pending"}
-          onClick={() => handleTabChange("pending")}
-        />
-        <KpiCard
-          icon={FileText}
-          label="My Requests"
-          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.mine ?? 0)}
-          tone="bg-blue-100 text-blue-900 border border-blue-200/80"
-          hint="Submitted by you"
-          active={tab === "mine"}
-          onClick={() => handleTabChange("mine")}
-        />
-        <KpiCard
-          icon={CheckCircle2}
-          label="Approved & Applied"
-          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.approved ?? 0)}
-          tone="bg-emerald-100 text-emerald-900 border border-emerald-200/80"
-          hint="Active in property rates"
-          active={tab === "history" && currentFilters.status === "approved"}
-          onClick={() => handleTabChange("history", { status: "approved" })}
-        />
-        <KpiCard
-          icon={AlertTriangle}
-          label="Rejected / Stale"
-          value={metricsQuery.isLoading ? "…" : (metricsQuery.data?.rejectedOrStale ?? 0)}
-          tone="bg-rose-100 text-rose-900 border border-rose-200/80"
-          hint="Unapplied changes"
-          active={
-            tab === "history" &&
-            (currentFilters.status === "rejected" || currentFilters.status === "stale")
-          }
-          onClick={() => handleTabChange("history", { status: "rejected" })}
-        />
-      </div>
-
-      <ApprovalPolicyControl
-        enabled={policyEnabled}
-        loading={policyQuery.isLoading}
-        busy={setPolicyMutation.isPending}
-        onRequestChange={(next) => {
-          setActionError(null);
-          setDialog(next ? "policy-enable" : "policy-disable");
-        }}
-      />
-
-      <ApprovalTabs
-        tab={tab}
-        onChange={(next) => handleTabChange(next)}
-      />
-
-      {/* Unified Search and Filters Toolbar */}
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E8E1D7] bg-card p-4 shadow-2xs">
-        {/* Search Input */}
-        <div className="min-w-64 flex-1">
-          <label htmlFor="approval-search" className="block text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-            Search requests
-          </label>
-          <div className="relative mt-1.5 flex items-center">
-            <Search className="absolute left-3 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              id="approval-search"
-              type="text"
-              value={currentFilters.search}
-              onChange={(e) => updateFilter("search", e.target.value)}
-              placeholder="Search summary, room, plan, reason, or staff…"
-              className="flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white pl-9 pr-8 text-sm text-[#251605] placeholder:text-muted-foreground/70 focus:border-[#C89933] focus:outline-hidden"
-            />
-            {currentFilters.search ? (
-              <button
-                type="button"
-                onClick={() => updateFilter("search", "")}
-                className="absolute right-2.5 text-muted-foreground hover:text-[#251605]"
-                aria-label="Clear search"
-              >
-                <X className="size-4" />
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Domain Filter (available across tabs) */}
-        <label className="min-w-36 flex-1 sm:flex-none">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-            Domain
-          </span>
-          <select
-            value={currentFilters.domain}
-            onChange={(event) =>
-              updateFilter("domain", event.target.value as RevenueApprovalDomain | "")
-            }
-            className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-          >
-            <option value="">All domains</option>
-            {REVENUE_APPROVAL_DOMAINS.map((domain) => (
-              <option key={domain} value={domain}>
-                {revenueApprovalDomainLabel(domain)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Status Filter */}
-        {tab === "history" ? (
-          <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-              Status
-            </span>
-            <select
-              value={currentFilters.status}
-              onChange={(event) =>
-                updateFilter("status", event.target.value as RevenueApprovalStatus | "")
-              }
-              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-            >
-              <option value="">All terminal</option>
-              {REVENUE_APPROVAL_TERMINAL_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : tab === "mine" ? (
-          <label className="min-w-36 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-              Status
-            </span>
-            <select
-              value={currentFilters.status}
-              onChange={(event) =>
-                updateFilter("status", event.target.value as RevenueApprovalStatus | "")
-              }
-              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-            >
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              {REVENUE_APPROVAL_TERMINAL_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {/* Requested By Filter (History and Pending tabs) */}
-        {tab !== "mine" ? (
-          <label className="min-w-40 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-              Requested By
-            </span>
-            <select
-              value={currentFilters.requestedBy}
-              onChange={(event) => updateFilter("requestedBy", event.target.value)}
-              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-            >
-              <option value="">Anyone</option>
-              {actors.map((actor) => (
-                <option key={actor.id} value={actor.id}>
-                  {actor.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {/* Reviewed By Filter (History tab) */}
-        {tab === "history" ? (
-          <label className="min-w-40 flex-1 sm:flex-none">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-              Reviewed By
-            </span>
-            <select
-              value={currentFilters.reviewedBy}
-              onChange={(event) => updateFilter("reviewedBy", event.target.value)}
-              className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-            >
-              <option value="">Anyone</option>
-              {actors.map((actor) => (
-                <option key={actor.id} value={actor.id}>
-                  {actor.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {/* Date Range Filters (History tab) */}
-        {tab === "history" ? (
-          <>
-            <label className="min-w-36 flex-1 sm:flex-none">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-                From
-              </span>
-              <input
-                type="date"
-                value={currentFilters.fromDate}
-                onChange={(event) => updateFilter("fromDate", event.target.value)}
-                className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-              />
-            </label>
-            <label className="min-w-36 flex-1 sm:flex-none">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#736B5E]">
-                To
-              </span>
-              <input
-                type="date"
-                value={currentFilters.toDate}
-                onChange={(event) => updateFilter("toDate", event.target.value)}
-                className="mt-1.5 flex h-10 w-full rounded-lg border border-[#DED7CD] bg-white px-3 text-sm text-[#251605] focus:border-[#C89933] focus:outline-hidden"
-              />
-            </label>
-          </>
-        ) : null}
-
-        {/* Clear Filters Action */}
-        {hasActiveFilters ? (
-          <div className="flex items-center">
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DED7CD] bg-white px-3.5 text-sm font-semibold text-[#251605] hover:bg-[#FAF8F4] transition-colors"
-            >
-              <RotateCcw className="size-3.5" />
-              Clear ({activeFilterCount})
-            </button>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="min-w-0 space-y-4">
+    <div className="space-y-3">
+      <div className="min-w-0 space-y-3">
         {listQuery.isLoading ? (
           <TableSkeleton />
         ) : listQuery.isError ? (
@@ -750,8 +569,8 @@ export function ApprovalsView({
             />
             <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E8E1D7] bg-card px-4 py-3 shadow-2xs">
               <p className="text-sm text-muted-foreground">
-                Showing {range.start}–{currentFilters.search.trim() ? Math.min(range.end, filteredRows.length) : range.end} of{" "}
-                {currentFilters.search.trim() ? filteredRows.length : range.total}
+                Showing {range.start}–{searchQuery.trim() ? Math.min(range.end, filteredRows.length) : range.end} of{" "}
+                {searchQuery.trim() ? filteredRows.length : range.total}
               </p>
               <div className="flex items-center gap-1.5">
                 <button

@@ -1,3 +1,4 @@
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -139,6 +140,8 @@ function calculateAge(dob: string | null | undefined): string {
 
 export function ReservationDetailGuestTab({
   restaurantId,
+  grants,
+  stayOpen,
   reservation,
   guest,
   preferences,
@@ -156,6 +159,8 @@ export function ReservationDetailGuestTab({
   onSaved,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  stayOpen: boolean;
   reservation: ReservationDetail;
   guest: GuestProfile | null;
   preferences: GuestPreferences | null;
@@ -498,6 +503,10 @@ export function ReservationDetailGuestTab({
             <AccompanyingGuestsCard
               rows={draft.accompanying}
               editable={editable}
+              profileEditable={stayOpen && !cancelled}
+              showAdd={grants.edit && grants.guestCreate}
+              showEdit={grants.guestEdit}
+              showRemove={grants.edit}
               onAdd={openCompanionForAdd}
               onEdit={openCompanionForEdit}
               onRemove={(id) => {
@@ -513,11 +522,13 @@ export function ReservationDetailGuestTab({
               chips={chips}
               onEdit={handleOpenPreferences}
               editable={editable}
+              showEdit={grants.edit}
             />
             <SpecialRequestsCard
               requests={draft.specialRequests}
               onEdit={handleOpenSpecialRequests}
               editable={editable}
+              showEdit={grants.edit}
             />
           </div>
 
@@ -609,25 +620,29 @@ export function ReservationDetailGuestTab({
               Unsaved changes
             </span>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
-            disabled={!editable || !isDirty}
-            onClick={() => setDraft(buildGuestDraft(reservation, guest))}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
-            disabled={!editable || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? "Saving…" : "Save Changes"}
-          </Button>
+          {grants.edit ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-lg border-[#DDD4C5] bg-white text-[#251605] hover:bg-[#F7F2EA]"
+                disabled={!editable || !isDirty}
+                onClick={() => setDraft(buildGuestDraft(reservation, guest))}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="rounded-lg bg-[#251605] px-4 text-xs font-medium text-white hover:bg-[#3D2810]"
+                disabled={!editable || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                {save.isPending ? "Saving…" : "Save Changes"}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -1164,12 +1179,20 @@ function PrimaryGuestCard({
 function AccompanyingGuestsCard({
   rows,
   editable,
+  profileEditable,
+  showAdd,
+  showEdit,
+  showRemove,
   onAdd,
   onEdit,
   onRemove,
 }: {
   rows: AccompanyingGuestDraft[];
   editable: boolean;
+  profileEditable: boolean;
+  showAdd: boolean;
+  showEdit: boolean;
+  showRemove: boolean;
   onAdd: () => void;
   onEdit: (row: AccompanyingGuestDraft) => void;
   onRemove: (id: string) => void;
@@ -1191,16 +1214,18 @@ function AccompanyingGuestsCard({
             </p>
           </div>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 rounded-lg bg-[#251605] px-3 text-xs font-medium text-white hover:bg-[#3D2810]"
-          disabled={!editable}
-          onClick={onAdd}
-        >
-          <Plus className="mr-1 size-3.5" />
-          Add Guest
-        </Button>
+        {showAdd ? (
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 rounded-lg bg-[#251605] px-3 text-xs font-medium text-white hover:bg-[#3D2810]"
+            disabled={!editable}
+            onClick={onAdd}
+          >
+            <Plus className="mr-1 size-3.5" />
+            Add Guest
+          </Button>
+        ) : null}
       </div>
 
       <div className="overflow-x-auto">
@@ -1264,28 +1289,32 @@ function AccompanyingGuestsCard({
                   <td className="py-2 pr-2 text-muted-foreground">{reviewDash(row.contact)}</td>
                   <td className="py-2 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-7"
-                        disabled={!editable}
-                        onClick={() => onEdit(row)}
-                        aria-label="Edit accompanying guest"
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="size-7 text-destructive hover:bg-destructive/10"
-                        disabled={!editable}
-                        onClick={() => onRemove(row.id)}
-                        aria-label="Remove accompanying guest"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      {showEdit ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-7"
+                          disabled={!profileEditable}
+                          onClick={() => onEdit(row)}
+                          aria-label="Edit accompanying guest"
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      ) : null}
+                      {showRemove ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-7 text-destructive hover:bg-destructive/10"
+                          disabled={!editable}
+                          onClick={() => onRemove(row.id)}
+                          aria-label="Remove accompanying guest"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -1302,10 +1331,12 @@ function GuestPreferencesCard({
   chips,
   onEdit,
   editable,
+  showEdit,
 }: {
   chips: Array<{ id: string; label: string }>;
   onEdit: () => void;
   editable: boolean;
+  showEdit: boolean;
 }) {
   return (
     <section
@@ -1324,17 +1355,19 @@ function GuestPreferencesCard({
             </p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!editable}
-          onClick={onEdit}
-          className="h-7 gap-1 rounded-lg border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:bg-[#F7F2EA]"
-        >
-          <Pencil className="size-3" />
-          Edit
-        </Button>
+        {showEdit ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!editable}
+            onClick={onEdit}
+            className="h-7 gap-1 rounded-lg border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:bg-[#F7F2EA]"
+          >
+            <Pencil className="size-3" />
+            Edit
+          </Button>
+        ) : null}
       </div>
       <div className="rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-3">
         {chips.length === 0 ? (
@@ -1360,10 +1393,12 @@ function SpecialRequestsCard({
   requests,
   onEdit,
   editable,
+  showEdit,
 }: {
   requests: string;
   onEdit: () => void;
   editable: boolean;
+  showEdit: boolean;
 }) {
   const lines = requests
     .split(/\n+/)
@@ -1385,17 +1420,19 @@ function SpecialRequestsCard({
             <p className="text-xs text-muted-foreground">Special requests for this reservation.</p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!editable}
-          onClick={onEdit}
-          className="h-7 gap-1 rounded-lg border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:bg-[#F7F2EA]"
-        >
-          <Pencil className="size-3" />
-          Edit
-        </Button>
+        {showEdit ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!editable}
+            onClick={onEdit}
+            className="h-7 gap-1 rounded-lg border-[#DDD4C5] bg-white px-2.5 text-xs font-medium text-[#251605] hover:bg-[#F7F2EA]"
+          >
+            <Pencil className="size-3" />
+            Edit
+          </Button>
+        ) : null}
       </div>
       <div className="rounded-lg border border-[#DDD4C5] bg-[#FAF8F5] p-3">
         {lines.length === 0 ? (

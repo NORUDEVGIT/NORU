@@ -54,6 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 function recordToDraft(row: ServiceSlaRuleRecord): ServiceSlaRuleDraft {
   return {
     id: row.id,
@@ -147,7 +148,7 @@ export function PmsCard4ServiceSlaRules({
       setDirty(false);
       toast.success("SLA rule saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save SLA rule."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save SLA rule.")),
   });
 
   const toggleMutation = useMutation({
@@ -157,7 +158,7 @@ export function PmsCard4ServiceSlaRules({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "SLA rule enabled." : "SLA rule disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -167,7 +168,7 @@ export function PmsCard4ServiceSlaRules({
       setPendingDelete(null);
       toast.success("SLA rule deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const busy = saveMutation.isPending || toggleMutation.isPending || deleteMutation.isPending;

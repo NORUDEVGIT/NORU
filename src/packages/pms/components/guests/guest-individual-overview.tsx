@@ -616,7 +616,7 @@ export function GuestIndividualOverview({
         icon={ShieldAlert}
         data-testid="guest-overview-notes"
         actions={
-          actions?.canManage ? (
+          actions?.canEdit ? (
             <Button
               variant="outline"
               size="sm"

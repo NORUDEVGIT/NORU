@@ -81,6 +81,7 @@ import {
 import { unicodeFlagFromIso } from "@/packages/pms/lib/pms-property-setup-phone";
 import { propertyToday } from "@/shared/lib/property-dates";
 import { useRestaurantTime } from "@/core/state/property-format";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog, DialogContent, DialogOverlay } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
@@ -242,6 +243,7 @@ export const FoCheckInV2Registration = forwardRef<
   },
   ref,
 ) {
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const { timezone } = useRestaurantTime();
   const today = propertyToday(timezone);
   const queryClient = useQueryClient();
@@ -677,6 +679,7 @@ export const FoCheckInV2Registration = forwardRef<
             ) : null}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
+            {desk.canViewGuest ? (
             <Button
               type="button"
               variant="outline"
@@ -688,6 +691,7 @@ export const FoCheckInV2Registration = forwardRef<
             >
               Check for possible duplicate profiles
             </Button>
+            ) : null}
             {duplicateChecking ? (
               <p className="text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-duplicate-checking">
                 Checking for duplicate profiles…
@@ -927,7 +931,8 @@ export const FoCheckInV2Registration = forwardRef<
           </Dialog>
         ) : null}
 
-        {/* Action buttons — hierarchical */}
+        {/* Action buttons — hierarchical. Saving an ID updates the guest profile. */}
+        {desk.canEditGuest ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {/* Primary action */}
           <Button
@@ -1011,6 +1016,7 @@ export const FoCheckInV2Registration = forwardRef<
             }}
           />
         </div>
+        ) : null}
         {scanNote ? (
           <p className="mt-2 text-xs text-[#6B5E4E]" data-testid="fo-ci-v2-scan-unavailable">
             Scanner integration not configured.

@@ -86,22 +86,18 @@ function FolioPageItem({
 
 export function FolioActionMenu({
   folio,
-  canOperate,
-  canManage,
   grants,
   onOpenChange,
   triggerClassName,
 }: {
   folio: FolioActionTarget;
-  canOperate: boolean;
-  canManage: boolean;
-  grants?: Partial<FolioPermissionGrants> | null;
+  /** Cashiering-only grants; a missing key hides the action. */
+  grants: Partial<FolioPermissionGrants>;
   onOpenChange?: (open: boolean) => void;
   triggerClassName?: string;
 }) {
   const open = folio.status === "open";
-  const allow = (key: keyof FolioPermissionGrants, bundled: boolean) =>
-    grants ? grants[key] === true : bundled;
+  const allow = (key: keyof FolioPermissionGrants) => grants[key] === true;
   const item = (shown: boolean, node: ReactNode) => (shown ? node : null);
   return (
     <DropdownMenu onOpenChange={onOpenChange}>
@@ -121,7 +117,7 @@ export function FolioActionMenu({
       <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
         <FolioPageItem folioId={folio.id} label="Open Folio" icon={Eye} />
         <DropdownMenuSeparator />
-        {item(allow("charge", canManage), (
+        {item(allow("charge"), (
           <FolioPageItem
             folioId={folio.id}
             action="charge"
@@ -130,7 +126,7 @@ export function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item(allow("payment", canOperate), (
+        {item(allow("payment"), (
           <FolioPageItem
             folioId={folio.id}
             action="payment"
@@ -139,17 +135,17 @@ export function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item(allow("deposit", canOperate), (
+        {item(allow("deposit"), (
           <FolioPageItem
             folioId={folio.id}
             action="deposit"
-            label="Add Deposit"
+            label="Record Deposit"
             icon={Landmark}
             disabled={!open}
           />
         ))}
         <DropdownMenuSeparator />
-        {item(allow("adjustment", canManage), (
+        {item(allow("adjustment"), (
           <FolioPageItem
             folioId={folio.id}
             action="adjustment"
@@ -158,7 +154,7 @@ export function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item(allow("refund", canManage), (
+        {item(allow("refund"), (
           <FolioPageItem
             folioId={folio.id}
             action="refund"
@@ -168,7 +164,7 @@ export function FolioActionMenu({
             destructive
           />
         ))}
-        {item(allow("discount", canManage), (
+        {item(allow("discount"), (
           <FolioPageItem
             folioId={folio.id}
             action="discount"
@@ -177,7 +173,7 @@ export function FolioActionMenu({
             disabled={!open}
           />
         ))}
-        {item(allow("transfer", canManage), (
+        {item(allow("transfer"), (
           <FolioPageItem
             folioId={folio.id}
             toTab="transfers"
@@ -188,7 +184,7 @@ export function FolioActionMenu({
         ))}
         <DropdownMenuSeparator />
         <FolioPageItem folioId={folio.id} label="View Transactions" icon={ScrollText} />
-        {item(allow("close", canManage), (
+        {item(allow("close"), (
           <FolioPageItem
             folioId={folio.id}
             action="close"

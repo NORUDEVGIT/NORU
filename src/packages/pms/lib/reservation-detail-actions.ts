@@ -38,6 +38,48 @@ export function reservationDetailActionAccess(access: PmsAccessSnapshot): Reserv
   };
 }
 
+/** Exact grants for detail-tab buttons. A missing grant hides the button; stay state only disables it. */
+export type ReservationDetailGrants = {
+  edit: boolean;
+  assignRoom: boolean;
+  rateOverride: boolean;
+  guestCreate: boolean;
+  guestEdit: boolean;
+  guestServiceCreate: boolean;
+  stayEdit: boolean;
+  checkIn: boolean;
+  openFolio: boolean;
+};
+
+export function reservationDetailGrants(access: PmsAccessSnapshot): ReservationDetailGrants {
+  const can = (code: string) => access.isOwner || access.codes.includes(code);
+  return {
+    edit: can(PMS_PERMISSIONS.RESERVATION_EDIT),
+    assignRoom: can(PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT),
+    rateOverride: can(PMS_PERMISSIONS.RESERVATION_RATE_OVERRIDE),
+    guestCreate: can(PMS_PERMISSIONS.GUEST_PROFILE_CREATE),
+    guestEdit: can(PMS_PERMISSIONS.GUEST_PROFILE_EDIT),
+    guestServiceCreate:
+      can(PMS_PERMISSIONS.GUEST_PROFILE_EDIT) ||
+      can(PMS_PERMISSIONS.FRONT_OFFICE_GUEST_SERVICE_CREATE),
+    stayEdit: can(PMS_PERMISSIONS.FRONT_OFFICE_STAY_EDIT),
+    checkIn: can(PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN),
+    openFolio: can(PMS_PERMISSIONS.CASHIERING_VIEW),
+  };
+}
+
+export const NO_RESERVATION_DETAIL_GRANTS: ReservationDetailGrants = {
+  edit: false,
+  assignRoom: false,
+  rateOverride: false,
+  guestCreate: false,
+  guestEdit: false,
+  guestServiceCreate: false,
+  stayEdit: false,
+  checkIn: false,
+  openFolio: false,
+};
+
 export function reservationDetailActionInput(input: {
   status: ReservationStatus;
   businessDate: string;

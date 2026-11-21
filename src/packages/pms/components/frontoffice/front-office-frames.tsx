@@ -34,7 +34,9 @@ import {
   StayDatesDialog,
 } from "@/packages/pms/components/frontoffice/front-office-dialogs";
 import { FoCancelStepper } from "@/packages/pms/components/frontoffice/fo-cancel-stepper";
+import { foDeskMenuAllowed } from "@/packages/pms/lib/front-office-desk-access";
 import { isPermissionDeniedMessage, stayFromReservation } from "@/packages/pms/lib/front-office-shell";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { listArrivals, listInHouse, type FrontOfficeStay } from "@/packages/pms/lib/frontoffice.functions";
 import {
   amendReservation,
@@ -243,6 +245,7 @@ export function AmendNotesDialog({
           children: reservation.children,
           specialRequests: reservation.specialRequests,
           notes,
+          ratePlanId: reservation.ratePlanId,
         },
       });
     },
@@ -488,6 +491,7 @@ export function GuestSearchDialog({
   onCheckOut: (stay: FrontOfficeStay) => void;
   onCancel: (stay: FrontOfficeStay) => void;
 }) {
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const [term, setTerm] = useState(initialTerm);
   const [debounced, setDebounced] = useState(initialTerm);
   const fetchStays = useServerFn(searchFrontOfficeStays);
@@ -604,7 +608,7 @@ export function GuestSearchDialog({
                     </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {hit.actions.map((action) => (
+                    {hit.actions.filter((action) => foDeskMenuAllowed(desk, action)).map((action) => (
                       <Button
                         key={action}
                         type="button"

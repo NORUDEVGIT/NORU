@@ -3435,7 +3435,7 @@ export function CreateReservationPage({
   const guestStayAvailabilitySection = (
     <CreateReservationGuest
       restaurantId={restaurantId}
-      canCreateGuest={guestAccessQuery.data?.canManage ?? false}
+      canCreateGuest={access.can(PMS_PERMISSIONS.GUEST_PROFILE_CREATE)}
       guest={guest}
       onGuestChange={setGuest}
       listEnabled={workflowStep === 0}
@@ -3507,7 +3507,7 @@ export function CreateReservationPage({
         {reservationMode === "group" ? (
           <CreateReservationRoomingList
             restaurantId={restaurantId}
-            canCreateGuest={guestAccessQuery.data?.canManage ?? false}
+            canCreateGuest={access.can(PMS_PERMISSIONS.GUEST_PROFILE_CREATE)}
             leadGuestName={guest?.fullName ?? null}
             room1Adults={adults}
             room1Children={children}
@@ -3684,7 +3684,7 @@ export function CreateReservationPage({
       ) : null}
       <CreateReservationBookingDetails
         restaurantId={restaurantId}
-        canCreateMaster={guestAccessQuery.data?.canManage ?? false}
+        canCreateMaster={access.can(PMS_PERMISSIONS.GUEST_PROFILE_CREATE)}
         guest={guest}
         reservationType={reservationType}
         onRequestTypeChange={requestTypeChange}

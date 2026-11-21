@@ -224,21 +224,25 @@ export const RESERVATION_TYPE_LABELS: Record<ReservationTypeMode, string> = {
 };
 
 export const DEFAULT_BOOKING_SOURCES = [
-  { value: "phone", label: "Phone" },
-  { value: "walk_in", label: "Walk-in" },
-  { value: "email", label: "Email" },
-  { value: "direct", label: "Direct" },
-  { value: "corporate", label: "Corporate" },
-  { value: "travel_agency", label: "Travel agency" },
-  { value: "other", label: "Other" },
+  { value: "WALK_IN", label: "Walk-In" },
+  { value: "PHONE", label: "Phone" },
+  { value: "EMAIL", label: "Email" },
+  { value: "WEBSITE", label: "Hotel Website" },
+  { value: "OTA", label: "Online Travel Agency" },
+  { value: "TRAVEL_AGENT", label: "Travel Agency / Tour Operator" },
+  { value: "CORPORATE", label: "Company / Corporate" },
+  { value: "REFERRAL", label: "Referral" },
+  { value: "OTHER", label: "Other" },
 ] as const;
 
 export const DEFAULT_MARKET_SEGMENTS = [
-  { value: "leisure", label: "Leisure" },
-  { value: "corporate", label: "Corporate" },
-  { value: "government", label: "Government" },
-  { value: "complimentary_house", label: "Complimentary / house" },
-  { value: "other", label: "Other" },
+  { value: "INDIVIDUAL", label: "Individual / Transient" },
+  { value: "CORPORATE", label: "Corporate" },
+  { value: "GROUP", label: "Group" },
+  { value: "GOVERNMENT", label: "Government" },
+  { value: "NGO", label: "NGO / International Organization" },
+  { value: "LEISURE", label: "Leisure" },
+  { value: "OTHER", label: "Other" },
 ] as const;
 
 export type ContextPickOption = {

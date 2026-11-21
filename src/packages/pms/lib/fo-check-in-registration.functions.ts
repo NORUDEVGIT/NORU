@@ -4,8 +4,9 @@
  * amend occupancy, merge duplicates, or create a guest.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { requirePmsActor } from "./pms-permissions.server";
+import { requirePmsActor, requirePmsActorAny } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -246,6 +247,11 @@ export const saveCheckInUnitRegistration = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ ok: true; guestId: string }> => {
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN);
+    await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.GUEST_PROFILE_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT),
+    );
     const target = await loadCheckInUnitTarget({
       restaurantId: data.restaurantId,
       reservationId: data.reservationId,
@@ -422,7 +428,7 @@ export const reviewCheckInGuestDocument = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     return reviewGuestDocument({
       data: {
         restaurantId: data.restaurantId,
@@ -431,5 +437,6 @@ export const reviewCheckInGuestDocument = createServerFn({ method: "POST" })
         status: data.status,
         ...(data.reason !== undefined ? { reason: data.reason } : {}),
       },
+      context,
     });
   });

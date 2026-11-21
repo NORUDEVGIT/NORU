@@ -55,6 +55,7 @@ import {
   type ServiceTypeDraft,
   type ServiceTypeRecord,
 } from "@/packages/pms/lib/service-types-card4.server";
+import { draftWithGeneratedCode, friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 function recordToDraft(row: ServiceTypeRecord): ServiceTypeDraft {
   return {
     id: row.id,
@@ -99,6 +100,7 @@ export function PmsCard4ServiceTypes({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<ServiceTypeDraft>(emptyServiceTypeDraft());
+  const [codeTouched, setCodeTouched] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ServiceTypeRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
@@ -146,7 +148,7 @@ export function PmsCard4ServiceTypes({
       setDirty(false);
       toast.success("Service type saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save service type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save service type.")),
   });
 
   const toggleMutation = useMutation({
@@ -156,7 +158,7 @@ export function PmsCard4ServiceTypes({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Service type enabled." : "Service type disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -166,7 +168,7 @@ export function PmsCard4ServiceTypes({
       setPendingDelete(null);
       toast.success("Service type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const editorValid = !editorOpen || errors.length === 0;
@@ -204,6 +206,7 @@ export function PmsCard4ServiceTypes({
 
   function openCreate() {
     const categoryId = defaultCategoryId();
+    setCodeTouched(false);
     setDraft(
       emptyServiceTypeDraft(
         categoryId,
@@ -215,13 +218,20 @@ export function PmsCard4ServiceTypes({
   }
 
   function openEdit(row: ServiceTypeRecord) {
+    setCodeTouched(true);
     setDraft(recordToDraft(row));
     setDirty(false);
     setEditorOpen(true);
   }
 
   function mark<K extends keyof ServiceTypeDraft>(key: K, value: ServiceTypeDraft[K]) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    if (key === "code") setCodeTouched(true);
+    setDraft((prev) =>
+      draftWithGeneratedCode(prev, key, value, {
+        codeTouched: key === "code" ? true : codeTouched,
+        normalize: normalizeServiceTypeCode,
+      }),
+    );
     setDirty(true);
   }
 

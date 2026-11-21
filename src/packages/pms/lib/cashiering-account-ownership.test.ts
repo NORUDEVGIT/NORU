@@ -375,8 +375,10 @@ describe("financial account ownership", () => {
     assert.equal(groups[0]?.invoiceNumber, "INV-000111");
     assert.equal(rollupSourceFolios(groups)[0]?.invoicedGroupCount, 1);
     const caps = chargeCapabilities({
-      role: "manager",
       accountStatus: "open",
+      canAdjust: true,
+      canDiscount: false,
+      canTransfer: true,
       group: groups[0]!,
     });
     assert.equal(caps.canCorrect, false);
@@ -385,7 +387,7 @@ describe("financial account ownership", () => {
     assert.equal(caps.canViewSourceFolio, true);
   });
 
-  it("lets a manager correct or return an uninvoiced direct charge, and keeps other roles read only", () => {
+  it("gates correct on adjustment and return on transfer permission for an uninvoiced direct charge", () => {
     const groups = buildAccountChargeGroups({
       accountId: ACCOUNT,
       rows: [
@@ -411,22 +413,57 @@ describe("financial account ownership", () => {
     assert.equal(groups[0]?.correctedAmount, 1000);
     assert.equal(groups[0]?.remainingAmount, 5000);
     assert.equal(groups[0]?.actorMembershipId, "ada");
-    const manager = chargeCapabilities({
-      role: "manager",
+    const both = chargeCapabilities({
       accountStatus: "open",
+      canAdjust: true,
+      canDiscount: false,
+      canTransfer: true,
       group: groups[0]!,
     });
-    assert.equal(manager.canCorrect, true);
-    assert.equal(manager.canReturnToGuest, true);
-    for (const role of ["cashier", "accountant"]) {
-      const caps = chargeCapabilities({ role, accountStatus: "open", group: groups[0]! });
-      assert.equal(caps.canCorrect, false);
-      assert.equal(caps.canReturnToGuest, false);
-      assert.equal(caps.canView, true);
-    }
+    assert.equal(both.canCorrect, true);
+    assert.equal(both.canReturnToGuest, true);
+    const adjustOnly = chargeCapabilities({
+      accountStatus: "open",
+      canAdjust: true,
+      canDiscount: false,
+      canTransfer: false,
+      group: groups[0]!,
+    });
+    assert.equal(adjustOnly.canCorrect, true);
+    assert.equal(adjustOnly.canReturnToGuest, false);
+    const discountOnly = chargeCapabilities({
+      accountStatus: "open",
+      canAdjust: false,
+      canDiscount: true,
+      canTransfer: false,
+      group: groups[0]!,
+    });
+    assert.equal(discountOnly.canCorrect, true);
+    assert.equal(discountOnly.canReturnToGuest, false);
+    const transferOnly = chargeCapabilities({
+      accountStatus: "open",
+      canAdjust: false,
+      canDiscount: false,
+      canTransfer: true,
+      group: groups[0]!,
+    });
+    assert.equal(transferOnly.canCorrect, false);
+    assert.equal(transferOnly.canReturnToGuest, true);
+    const none = chargeCapabilities({
+      accountStatus: "open",
+      canAdjust: false,
+      canDiscount: false,
+      canTransfer: false,
+      group: groups[0]!,
+    });
+    assert.equal(none.canCorrect, false);
+    assert.equal(none.canReturnToGuest, false);
+    assert.equal(none.canView, true);
     const closed = chargeCapabilities({
-      role: "owner",
       accountStatus: "closed",
+      canAdjust: true,
+      canDiscount: false,
+      canTransfer: true,
       group: groups[0]!,
     });
     assert.equal(closed.canCorrect, false);
@@ -444,8 +481,10 @@ describe("financial account ownership", () => {
       }),
     });
     const caps = chargeCapabilities({
-      role: "owner",
       accountStatus: "open",
+      canAdjust: true,
+      canDiscount: false,
+      canTransfer: true,
       group: groups[0]!,
     });
     assert.equal(groups[0]?.sourceKind, "transferred");

@@ -38,6 +38,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const CATEGORY_LABELS = {
   property: "Property",
@@ -145,7 +146,7 @@ export function Card8GoliveTab({
       void queryClient.invalidateQueries({ queryKey: ["pms-card1", restaurantId] });
       toast.success("Go-Live preparation saved.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const initMutation = useMutation({

@@ -35,6 +35,7 @@ import {
   suggestTaxSetupCode,
   taxSetupCodeIsTaken,
 } from "@/packages/pms/lib/taxes-card3-code";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 import {
   getTaxesCard3,
   saveDefaultRoomTaxGroupCard3,
@@ -236,7 +237,7 @@ export function PmsPropertySetupCard3Taxes({
     if (/check constraint|invalid input|zod/i.test(raw)) {
       return "Please check the form and try again.";
     }
-    return raw || "Please check the form and try again.";
+    return friendlySetupError(error, "Please check the form and try again.");
   }
 
   const taxMut = useMutation({

@@ -1,6 +1,6 @@
 /**
  * FO Phase 8 — approval/authorization read model.
- * Reads pms_approval_rules for display. Live gate remains restaurant_users.role.
+ * Reads pms_approval_rules for display. Live gate is the catalogue permission.
  * No approval_requests table and no inbox writer.
  */
 import { createServerFn } from "@tanstack/react-start";
@@ -9,8 +9,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isPermissionDeniedMessage } from "./front-office-shell";
 import { isMissingSchemaError } from "./pms-set2-structure";
-import { requirePmsActor } from "./pms-permissions.server";
-import { PMS_PERMISSIONS } from "./pms-permissions";
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
+import { PMS_PERMISSIONS, type PmsPermissionCode } from "./pms-permissions";
 import { CARD7_SECURITY_UNAVAILABLE } from "./security-roles-card7.server";
 import {
   evaluateFoApprovalRequirement,
@@ -21,6 +21,13 @@ import {
 } from "./fo-approvals";
 
 const idSchema = z.string().uuid();
+
+const APPROVAL_GRANT: Partial<Record<FoAuthorizationKey, PmsPermissionCode>> = {
+  "front_office.check_in.override": PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN_OVERRIDE,
+  "front_office.check_out.override": PMS_PERMISSIONS.FRONT_OFFICE_CHECK_OUT_OVERRIDE,
+  "front_office.fee.override": PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+  "late_checkout.authorize": PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+};
 
 export const getFrontOfficeApprovalRequirement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -124,9 +131,14 @@ export const getFrontOfficeApprovalRequirement = createServerFn({ method: "POST"
       }
     }
 
+    const grant = APPROVAL_GRANT[data.actionKey as FoAuthorizationKey];
+    const canAuthorize = grant
+      ? hasEffectivePermission(await resolveEffectivePermissions(context as never, data.restaurantId), grant)
+      : false;
+
     return evaluateFoApprovalRequirement({
       actionKey: data.actionKey,
-      staffRole: membership.role,
+      canAuthorize,
       catalogueConfigured,
       ruleActive,
       approverRoleName,

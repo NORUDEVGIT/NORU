@@ -198,6 +198,8 @@ describe("charge correction", () => {
     assert.match(dialog, /Reason \*/);
     assert.match(dialog, /Reverse Charge/);
     assert.match(dialog, /Apply Discount/);
+    assert.match(dialog, /CASHIERING_ADJUSTMENT_POST/);
+    assert.match(dialog, /CASHIERING_DISCOUNT_POST/);
     assert.match(dialog, /Post Adjustment/);
     assert.match(dialog, /wrong service/);
     assert.match(page, /allowReplacement/);

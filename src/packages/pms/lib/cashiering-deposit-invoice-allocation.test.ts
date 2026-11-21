@@ -50,10 +50,18 @@ describe("guest deposit invoice allocation", () => {
       panels.indexOf("export function SettlementTab"),
       panels.indexOf("function SettlementPaymentCard"),
     );
-    assert.match(settlement, /Issue final invoice/);
-    assert.match(settlement, /Allocate payment or deposit/);
-    assert.match(settlement, /Post payment/);
-    assert.match(settlement, /Transfer charges/);
+    const folioPage = read("../components/cashiering/guest-folio-page.tsx");
+    const settlementMenu = folioPage.slice(
+      folioPage.indexOf('tab === "settlement"'),
+      folioPage.indexOf("Post Charge"),
+    );
+    assert.match(settlementMenu, /Issue final invoice/);
+    assert.match(settlementMenu, /Allocate payment or deposit/);
+    assert.match(settlementMenu, /Post payment/);
+    assert.match(settlementMenu, /Transfer charges/);
+    assert.doesNotMatch(settlement, /Issue final invoice/);
+    assert.doesNotMatch(settlement, /Allocate payment or deposit/);
+    assert.doesNotMatch(settlement, /Transfer charges/);
     assert.match(settlement, /paymentOpen && outstanding/);
     assert.doesNotMatch(settlement, /> Allocate deposit/);
     assert.match(workspaceLoader, /invoiceDepositAllocations/);

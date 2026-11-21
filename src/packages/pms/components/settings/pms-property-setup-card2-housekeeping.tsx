@@ -58,6 +58,7 @@ import {
   type HousekeepingTransitionEvent,
 } from "@/packages/pms/lib/housekeeping-card2.server";
 import type { PropertySetupCardStatus } from "@/packages/pms/lib/pms-property-setup-card1";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 type StepActions = {
   saveDraft: () => Promise<boolean>;
@@ -467,6 +468,7 @@ export function PmsPropertySetupCard2Housekeeping({
   const saveTransition = useServerFn(savePmsCard2Transition);
 
   const [draft, setDraft] = useState<HousekeepingCard2Snapshot | null>(null);
+  const [customCodeTouched, setCustomCodeTouched] = useState(false);
   const [custom, setCustom] = useState<CustomStatusDraft>(
     emptyCustomStatus(),
   );
@@ -586,7 +588,7 @@ export function PmsPropertySetupCard2Housekeeping({
       );
       toast.success("Custom status saved.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteStatusMutation = useMutation({
@@ -605,7 +607,7 @@ export function PmsPropertySetupCard2Housekeeping({
       });
       toast.success("Housekeeping status deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const saveTransitionMutation = useMutation({
@@ -633,7 +635,7 @@ export function PmsPropertySetupCard2Housekeeping({
         selectedTransition?.id ? "Transition updated." : "Transition added.",
       );
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   async function saveDraft(): Promise<boolean> {
@@ -771,6 +773,7 @@ export function PmsPropertySetupCard2Housekeeping({
   }
 
   function openNewCustomStatus() {
+    setCustomCodeTouched(false);
     setCustom(emptyCustomStatus());
     setCustomStatusOpen(true);
   }
@@ -780,6 +783,7 @@ export function PmsPropertySetupCard2Housekeeping({
     code: string;
     name: string;
   }) {
+    setCustomCodeTouched(true);
     setCustom({
       id: status.id,
       code: status.code,
@@ -1477,7 +1481,10 @@ export function PmsPropertySetupCard2Housekeeping({
         open={customStatusOpen}
         onOpenChange={(open) => {
           setCustomStatusOpen(open);
-          if (!open) setCustom(emptyCustomStatus());
+          if (!open) {
+            setCustom(emptyCustomStatus());
+            setCustomCodeTouched(false);
+          }
         }}
       >
         <DialogContent className="block max-h-[88dvh] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto rounded-xl border border-[#CCCCCC] bg-white p-0 shadow-xl">
@@ -1502,12 +1509,17 @@ export function PmsPropertySetupCard2Housekeeping({
                 id="hk-custom-name"
                 value={custom.name}
                 disabled={!canEdit}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const name = event.target.value;
                   setCustom({
                     ...custom,
-                    name: event.target.value,
-                  })
-                }
+                    name,
+                    code:
+                      custom.id || customCodeTouched
+                        ? custom.code
+                        : setupCodeFromName(name, { max: 30 }).toLowerCase(),
+                  });
+                }}
               />
             </div>
 
@@ -1518,12 +1530,13 @@ export function PmsPropertySetupCard2Housekeeping({
                 value={custom.code}
                 disabled={!canEdit || Boolean(custom.id)}
                 placeholder="stayover_clean"
-                onChange={(event) =>
+                onChange={(event) => {
+                  setCustomCodeTouched(true);
                   setCustom({
                     ...custom,
-                    code: event.target.value,
-                  })
-                }
+                    code: event.target.value.toLowerCase().replace(/\s+/g, "_"),
+                  });
+                }}
               />
               {custom.id ? (
                 <p className="text-xs text-muted-foreground">

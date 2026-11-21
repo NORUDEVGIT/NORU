@@ -49,6 +49,7 @@ import {
   type Card7AuditSeverity,
   type Card7AuditSnapshot,
 } from "@/packages/pms/lib/audit-card7.server";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const INNER_TABS = [
   { id: "policy", label: "Policy & retention" },
@@ -203,7 +204,7 @@ export function Card7AuditTab({
       setPolicy(result.snapshot.policy);
       setValidated(null);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const categoryMutation = useMutation({
@@ -226,7 +227,7 @@ export function Card7AuditTab({
       setSettingsDraft(null);
       setValidated(null);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const coverageMutation = useMutation({
@@ -248,7 +249,7 @@ export function Card7AuditTab({
       setCoverageDraft(null);
       setValidated(null);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const shownReadiness = validated ?? readiness;

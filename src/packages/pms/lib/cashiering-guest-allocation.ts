@@ -16,11 +16,6 @@ export const GUEST_SETTLEMENT_STATES = [
 
 export type GuestSettlementState = (typeof GUEST_SETTLEMENT_STATES)[number];
 
-const ALLOCATE_ROLES = ["owner", "manager", "accountant"] as const;
-const VIEW_ROLES = ["owner", "manager", "cashier", "accountant"] as const;
-const OPERATE_ROLES = ["owner", "manager", "cashier"] as const;
-const MANAGE_ROLES = ["owner", "manager"] as const;
-
 export function roundGuestMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -134,7 +129,12 @@ export function guestSettlementLabel(state: GuestSettlementState): string {
 }
 
 export function guestAllocationCapabilities(input: {
-  role: string;
+  granted: {
+    view: boolean;
+    allocate: boolean;
+    postPayment: boolean;
+    refund: boolean;
+  };
   folioStatus: "open" | "closed";
 }): {
   canView: boolean;
@@ -143,15 +143,15 @@ export function guestAllocationCapabilities(input: {
   canPostPayment: boolean;
   canRefund: boolean;
 } {
-  const view = (VIEW_ROLES as readonly string[]).includes(input.role);
-  const allocate = (ALLOCATE_ROLES as readonly string[]).includes(input.role);
+  const view = input.granted.view;
+  const allocate = input.granted.allocate;
   const open = input.folioStatus === "open";
   return {
     canView: view,
     canAllocate: view && allocate,
     canReverse: view && allocate && open,
-    canPostPayment: (OPERATE_ROLES as readonly string[]).includes(input.role),
-    canRefund: (MANAGE_ROLES as readonly string[]).includes(input.role),
+    canPostPayment: input.granted.postPayment,
+    canRefund: input.granted.refund,
   };
 }
 

@@ -141,6 +141,7 @@ import {
   formatRatePlanMoney,
 } from "@/packages/pms/lib/rate-plan-price-summary";
 import { cn } from "@/shared/lib/utils";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 /** Active policy catalogue families (Refundability is legacy — not a catalogue). */
 type PolicySectionType = "cancellation" | "no-show" | "early-departure";
@@ -280,7 +281,7 @@ export function PmsPropertySetupCard2Rates({
         setInlineCategoryTarget(false);
       }
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   async function handleSavePredefined(presets: PredefinedRateCategory[]) {
@@ -429,7 +430,7 @@ export function PmsPropertySetupCard2Rates({
       invalidate();
       // PlanDrawer closes itself after package-link reconciliation.
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const cancelMut = useMutation({
@@ -454,7 +455,7 @@ export function PmsPropertySetupCard2Rates({
         setInlineTargetPolicy(null);
       }
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const noShowMut = useMutation({
@@ -477,7 +478,7 @@ export function PmsPropertySetupCard2Rates({
         setInlineTargetPolicy(null);
       }
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const earlyDepartureMut = useMutation({
@@ -502,7 +503,7 @@ export function PmsPropertySetupCard2Rates({
         setInlineTargetPolicy(null);
       }
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const mealPlanMut = useMutation({
@@ -525,7 +526,7 @@ export function PmsPropertySetupCard2Rates({
       }
       setInlineMealPlanTarget(false);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const depositMut = useMutation({
@@ -548,7 +549,7 @@ export function PmsPropertySetupCard2Rates({
         setInlineTargetPolicy(null);
       }
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -3314,6 +3315,7 @@ function NoShowDrawer({
   }) => void;
 }) {
   const [code, setCode] = useState(value?.code ?? "");
+  const [codeTouched, setCodeTouched] = useState(Boolean(value?.code));
   const [name, setName] = useState(value?.name ?? "");
   const [description, setDescription] = useState(value?.description ?? "");
   const [penaltyType, setPenaltyType] = useState<PolicyPenaltyType>(
@@ -3373,7 +3375,10 @@ function NoShowDrawer({
             maxLength={30}
             disabled={!canEdit}
             placeholder="e.g. NS_1N, NS_FULL, NS_FREE"
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onChange={(e) => {
+              setCodeTouched(true);
+              setCode(e.target.value.toUpperCase());
+            }}
           />
         </div>
         <div className="space-y-1">
@@ -3384,7 +3389,11 @@ function NoShowDrawer({
             maxLength={120}
             disabled={!canEdit}
             placeholder="e.g. Standard First Night No-Show"
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setName(next);
+              if (!value && !codeTouched) setCode(setupCodeFromName(next, { max: 30 }));
+            }}
           />
         </div>
         <div className="space-y-1">

@@ -6,7 +6,10 @@ import { toast } from "sonner";
 import { RefreshCw, Search, SlidersHorizontal, TriangleAlert, X } from "lucide-react";
 
 import { ReservationContextMenu } from "@/packages/pms/components/reservations/reservation-context-menu";
-import type { ReservationContextActionId } from "@/packages/pms/components/reservations/reservation-context-actions";
+import type {
+  ReservationActionCapabilities,
+  ReservationContextActionId,
+} from "@/packages/pms/components/reservations/reservation-context-actions";
 import { reservationBarPlacement } from "@/packages/pms/lib/front-office-shell";
 import { addDays } from "@/packages/pms/lib/reservation-dates";
 import { reservationAmendImpact } from "@/packages/pms/lib/reservation-amend-impact";
@@ -21,7 +24,8 @@ import {
   calendarExceptionLabel,
   calendarMoveKind,
   calendarStatusBarClass,
-  canDragCalendarBar,
+  calendarDropRefusal,
+  canDragCalendarBarWith,
   DEFAULT_CALENDAR_DISPLAY,
   densityRowPx,
   parseCalendarDragPayload,
@@ -196,7 +200,7 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 
 export function BookingCalendarPanel({
   restaurantId,
-  canManage,
+  capabilities,
   selectedId,
   selectedReservationRoomId = null,
   shared,
@@ -205,7 +209,7 @@ export function BookingCalendarPanel({
   onAction,
 }: {
   restaurantId: string;
-  canManage: boolean;
+  capabilities: ReservationActionCapabilities;
   selectedId: string | null;
   selectedReservationRoomId?: string | null;
   /** Search + filters from the Reservation Desk. When set, the calendar follows them. */
@@ -517,6 +521,23 @@ export function BookingCalendarPanel({
     const row = calendarBarToDeskRow(bar, snapshot?.rooms ?? [], snapshot?.roomTypes ?? []);
 
     if (kind === "invalid") return;
+
+    const refusal = calendarDropRefusal(
+      {
+        kind,
+        currentRoomId: bar.roomId,
+        proposedRoomId: target.room.roomId,
+        currentArrival: bar.arrivalDate,
+        proposedArrival: dates.arrivalDate,
+        currentDeparture: bar.departureDate,
+        proposedDeparture: dates.departureDate,
+      },
+      capabilities,
+    );
+    if (refusal) {
+      toast.error(refusal);
+      return;
+    }
 
     if (kind === "fo_room_move") {
       onSelect(row);
@@ -1078,7 +1099,7 @@ export function BookingCalendarPanel({
             selectedId={selectedId}
             selectedReservationRoomId={selectedReservationRoomId}
             highlightId={highlightId}
-            canManage={canManage}
+            capabilities={capabilities}
             onSelectBar={selectBar}
             onOpen={onOpen}
             onAction={onAction}
@@ -1118,7 +1139,7 @@ function CalendarBoard({
   selectedId,
   selectedReservationRoomId,
   highlightId,
-  canManage,
+  capabilities,
   onSelectBar,
   onOpen,
   onAction,
@@ -1136,7 +1157,7 @@ function CalendarBoard({
   selectedId: string | null;
   selectedReservationRoomId: string | null;
   highlightId: string | null;
-  canManage: boolean;
+  capabilities: ReservationActionCapabilities;
   onSelectBar: (bar: CalendarBar) => void;
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
@@ -1230,7 +1251,7 @@ function CalendarBoard({
                     selectedReservationRoomId,
                     highlightReservationId: highlightId,
                   })}
-                  canManage={canManage}
+                  capabilities={capabilities}
                   onSelectBar={onSelectBar}
                   onOpen={onOpen}
                   onAction={onAction}
@@ -1298,7 +1319,7 @@ function CalendarBoard({
             selectedId={selectedId}
             selectedReservationRoomId={selectedReservationRoomId}
             highlightId={highlightId}
-            canManage={canManage}
+            capabilities={capabilities}
             onSelectBar={onSelectBar}
             onOpen={onOpen}
             onAction={onAction}
@@ -1328,7 +1349,7 @@ function LaneRow({
   selectedId,
   selectedReservationRoomId,
   highlightId,
-  canManage,
+  capabilities,
   onSelectBar,
   onOpen,
   onAction,
@@ -1350,7 +1371,7 @@ function LaneRow({
   selectedId: string | null;
   selectedReservationRoomId: string | null;
   highlightId: string | null;
-  canManage: boolean;
+  capabilities: ReservationActionCapabilities;
   onSelectBar: (bar: CalendarBar) => void;
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
@@ -1445,7 +1466,7 @@ function LaneRow({
                 selectedReservationRoomId,
                 highlightReservationId: highlightId,
               })}
-              canManage={canManage}
+              capabilities={capabilities}
               onSelectBar={onSelectBar}
               onOpen={onOpen}
               onAction={onAction}
@@ -1467,7 +1488,7 @@ function CalendarStayBar({
   dayCount,
   clipped,
   selected,
-  canManage,
+  capabilities,
   onSelectBar,
   onOpen,
   onAction,
@@ -1481,7 +1502,7 @@ function CalendarStayBar({
   dayCount: number;
   clipped: boolean;
   selected: boolean;
-  canManage: boolean;
+  capabilities: ReservationActionCapabilities;
   onSelectBar: (bar: CalendarBar) => void;
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
@@ -1501,7 +1522,7 @@ function CalendarStayBar({
         left: `${((startCol - 1) / dayCount) * 100}%`,
         width: `${((endCol - startCol) / dayCount) * 100}%`,
       }}
-      draggable={canDragCalendarBar(bar.status)}
+      draggable={canDragCalendarBarWith(bar.status, capabilities)}
       onDragStart={(event) => {
         event.dataTransfer.setData(
           BOOKING_CALENDAR_DRAG_MIME,
@@ -1532,7 +1553,8 @@ function CalendarStayBar({
             arrivalDate: row.arrivalDate,
             businessDate: snapshot.businessDate,
             hints: row.hints,
-            canManage,
+            canManage: false,
+            capabilities,
           }}
           onAction={(actionId) => onAction(actionId, row)}
           triggerLabel={`Actions for reservation ${row.confirmationNumber}`}
@@ -1547,7 +1569,7 @@ function CalendarBarChip({
   snapshot,
   display,
   selected,
-  canManage,
+  capabilities,
   onSelectBar,
   onOpen,
   onAction,
@@ -1557,7 +1579,7 @@ function CalendarBarChip({
   snapshot: CalendarRead;
   display: CalendarDisplayOptions;
   selected: boolean;
-  canManage: boolean;
+  capabilities: ReservationActionCapabilities;
   onSelectBar: (bar: CalendarBar) => void;
   onOpen: (reservationId: string) => void;
   onAction: (actionId: ReservationContextActionId, row: ReservationDeskRow) => void;
@@ -1572,7 +1594,7 @@ function CalendarBarChip({
         calendarStatusBarClass(bar.status),
         selected && "ring-2 ring-[#C89933]",
       )}
-      draggable={canDragCalendarBar(bar.status)}
+      draggable={canDragCalendarBarWith(bar.status, capabilities)}
       onDragStart={(event) => {
         event.dataTransfer.setData(
           BOOKING_CALENDAR_DRAG_MIME,
@@ -1597,7 +1619,8 @@ function CalendarBarChip({
             arrivalDate: row.arrivalDate,
             businessDate: snapshot.businessDate,
             hints: row.hints,
-            canManage,
+            canManage: false,
+            capabilities,
           }}
           onAction={(actionId) => onAction(actionId, row)}
           triggerLabel={`Actions for reservation ${row.confirmationNumber}`}

@@ -20,6 +20,13 @@ export const OVERVIEW_LABEL_UNAVAILABLE = "Not available";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Codes saved before the Card 5 defaults. Display only; they are not new options. */
+const LEGACY_COMMERCIAL_CATALOGUE_LABELS: Record<string, string> = {
+  direct: "Direct",
+  travel_agency: "Travel agency",
+  complimentary_house: "Complimentary / house",
+};
+
 export type OverviewCatalogueRow = {
   id: string;
   code: string;
@@ -161,6 +168,8 @@ export function overviewCatalogueLabel(
     (row) => row.value === raw || row.value.toLowerCase() === raw.toLowerCase(),
   );
   if (defSource) return defSource.label;
+  const legacy = LEGACY_COMMERCIAL_CATALOGUE_LABELS[raw.toLowerCase()];
+  if (legacy) return legacy;
   if (UUID_RE.test(raw)) return OVERVIEW_LABEL_UNAVAILABLE;
   return raw;
 }

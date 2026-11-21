@@ -93,6 +93,7 @@ import {
   TableRow,
 } from "@/shared/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { draftWithGeneratedCode, friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const PAGE_SIZE = 8;
 type StatusFilter = "all" | "active" | "inactive";
@@ -140,6 +141,7 @@ export function PmsCard4CommunicationTemplates({
   const [page, setPage] = useState(1);
   const [editorOpen, setEditorOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [codeTouched, setCodeTouched] = useState(false);
   const [draft, setDraft] = useState<CommunicationTemplateDraft>(emptyCommunicationTemplateDraft());
   const [dirty, setDirty] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
@@ -208,7 +210,7 @@ export function PmsCard4CommunicationTemplates({
       toast.success("Communication template saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save communication template."),
+      toast.error(friendlySetupError(error, "Unable to save communication template.")),
   });
   const toggleMutation = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
@@ -217,7 +219,7 @@ export function PmsCard4CommunicationTemplates({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Template activated." : "Template deactivated.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
@@ -229,7 +231,7 @@ export function PmsCard4CommunicationTemplates({
       setEditorOpen(false);
       toast.success("Communication template deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const previewMutation = useMutation({
     mutationFn: () =>
@@ -246,7 +248,7 @@ export function PmsCard4CommunicationTemplates({
           message: draft.message,
         },
       }),
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const testMutation = useMutation({
     mutationFn: () => sendTest({ data: { ...payload, restaurantId } }),
@@ -255,7 +257,7 @@ export function PmsCard4CommunicationTemplates({
       else if (outcome.result === "unsupported") toast.warning(outcome.message);
       else toast.error(outcome.message);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to send a test."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to send a test.")),
   });
 
   const busy =
@@ -298,12 +300,18 @@ export function PmsCard4CommunicationTemplates({
     key: K,
     value: CommunicationTemplateDraft[K],
   ) {
-    setDraft((current) => ({ ...current, [key]: value }));
+    if (key === "code") setCodeTouched(true);
+    setDraft((current) =>
+      draftWithGeneratedCode(current, key, value, {
+        codeTouched: key === "code" ? true : codeTouched,
+      }),
+    );
     setDirty(true);
   }
 
   function selectTemplate(row: CommunicationTemplateRecord) {
     setCreating(false);
+    setCodeTouched(true);
     setDraft(communicationTemplateToDraft(row));
     setDirty(false);
     setAttemptedSave(false);
@@ -312,6 +320,7 @@ export function PmsCard4CommunicationTemplates({
 
   function startAdd() {
     setCreating(true);
+    setCodeTouched(false);
     setDraft(emptyCommunicationTemplateDraft());
     setDirty(true);
     setAttemptedSave(false);
@@ -320,6 +329,7 @@ export function PmsCard4CommunicationTemplates({
 
   function startDuplicate(row: CommunicationTemplateRecord) {
     setCreating(true);
+    setCodeTouched(true);
     setDraft({
       ...communicationTemplateToDraft(row),
       id: null,

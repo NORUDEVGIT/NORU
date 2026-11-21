@@ -74,6 +74,7 @@ import {
 } from "@/shared/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -169,7 +170,7 @@ export function PmsCard4CommunicationChannels({
       toast.success("Communication channel saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save communication channel."),
+      toast.error(friendlySetupError(error, "Unable to save communication channel.")),
   });
 
   const toggleMutation = useMutation({
@@ -182,7 +183,7 @@ export function PmsCard4CommunicationChannels({
         input.active ? "Communication channel activated." : "Communication channel deactivated.",
       );
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const testMutation = useMutation({
@@ -205,7 +206,7 @@ export function PmsCard4CommunicationChannels({
       else if (outcome.result === "unsupported") toast.warning(outcome.message);
       else toast.error(outcome.message);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to test this channel."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to test this channel.")),
   });
 
   const busy = saveMutation.isPending || toggleMutation.isPending || testMutation.isPending;

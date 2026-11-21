@@ -63,6 +63,7 @@ export type StepContext = {
   dateTime: (value: string) => string;
   time: (value: string) => string;
   money: (value: number | null | undefined) => string;
+  restaurantId: string;
   onSelectStep: (id: EndOfDayStepId) => void;
   notes: {
     value: string;
@@ -100,6 +101,11 @@ function StepConditions({ ctx, step }: { ctx: StepContext; step: EndOfDayStepId 
         fiscal={ctx.fiscal}
           dateTime={ctx.dateTime}
           emptyCopy="No blockers."
+          shiftClose={{
+            restaurantId: ctx.restaurantId,
+            businessDate: ctx.data.businessDate,
+            money: (value) => ctx.money(value),
+          }}
           {...(ctx.arrival ? { arrival: ctx.arrival } : {})}
         />
       {blockers.length > MAX_LISTED ? (

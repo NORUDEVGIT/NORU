@@ -123,8 +123,14 @@ export async function cashieringPermissionFlags(context: AuthedCtx, restaurantId
       has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE) ||
       has(PMS_PERMISSIONS.CASHIERING_SHIFT_AUTHORIZE),
     receivePayment: has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST),
+    receiveDeposit: has(PMS_PERMISSIONS.CASHIERING_DEPOSIT_POST),
+    receiveInvoicePayment:
+      has(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST) && has(PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT),
     refund: has(PMS_PERMISSIONS.CASHIERING_REFUND),
     adjust: has(PMS_PERMISSIONS.CASHIERING_ADJUSTMENT_POST),
+    discount: has(PMS_PERMISSIONS.CASHIERING_DISCOUNT_POST),
+    transfer: has(PMS_PERMISSIONS.CASHIERING_TRANSFER_POST),
+    viewGuestProfile: has(PMS_PERMISSIONS.GUEST_PROFILE_VIEW),
     allocate: has(PMS_PERMISSIONS.CASHIERING_ALLOCATION_EDIT),
     writeOff: has(PMS_PERMISSIONS.CASHIERING_WRITE_OFF),
     close: has(PMS_PERMISSIONS.CASHIERING_FOLIO_CLOSE),
@@ -321,7 +327,7 @@ export function isCreditType(type: TransactionType): boolean {
   return type === "payment" || type === "deposit" || type === "discount";
 }
 
-export const CORRECTION_AUTHORIZER = "Only an owner or manager can post this correction.";
+export const CORRECTION_AUTHORIZER = "The matching cashiering permission allows this post.";
 
 /** Settings threshold text. The number is not a live posting limit. */
 export function correctionThresholdNotice(

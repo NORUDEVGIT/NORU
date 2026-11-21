@@ -25,6 +25,7 @@ import {
   type PmsShiftDefinition,
 } from "@/packages/pms/lib/pms-polish1-payment-admin";
 import { savePmsPaymentMethod, savePmsShiftDefinition } from "@/packages/pms/lib/pms-polish1-payment-admin.functions";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function refreshPolish1(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -85,6 +86,7 @@ export function Polish1PaymentMethodsSection({
   const [editing, setEditing] = useState<PmsPaymentMethod | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [typeClass, setTypeClass] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -92,6 +94,7 @@ export function Polish1PaymentMethodsSection({
     if (!open) return;
     setName(editing?.name ?? "");
     setCode(editing?.code ?? "");
+    setCodeTouched(Boolean(editing));
     setTypeClass(editing?.typeClass ?? "");
     setNotes(editing?.notes ?? "");
   }, [open, editing]);
@@ -104,7 +107,7 @@ export function Polish1PaymentMethodsSection({
       setOpen(false);
       refreshPolish1(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["payment-methods"];
@@ -178,11 +181,26 @@ export function Polish1PaymentMethodsSection({
           <div className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="polish1-pm-name">Name</Label>
-              <Input id="polish1-pm-name" value={name} onChange={(event) => setName(event.target.value)} />
+              <Input
+                id="polish1-pm-name"
+                value={name}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setName(next);
+                  if (!editing && !codeTouched) setCode(setupCodeFromName(next));
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="polish1-pm-code">Code</Label>
-              <Input id="polish1-pm-code" value={code} onChange={(event) => setCode(event.target.value)} />
+              <Input
+                id="polish1-pm-code"
+                value={code}
+                onChange={(event) => {
+                  setCodeTouched(true);
+                  setCode(event.target.value.toUpperCase());
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="polish1-pm-class">Type class (optional)</Label>
@@ -239,6 +257,7 @@ export function Polish1AdministrationSection({
   const [editing, setEditing] = useState<PmsShiftDefinition | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [typeClass, setTypeClass] = useState("");
   const [notes, setNotes] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -248,6 +267,7 @@ export function Polish1AdministrationSection({
     if (!open) return;
     setName(editing?.name ?? "");
     setCode(editing?.code ?? "");
+    setCodeTouched(Boolean(editing));
     setTypeClass(editing?.typeClass ?? "");
     setNotes(editing?.notes ?? "");
     setStartTime(editing?.startTime ?? "");
@@ -270,7 +290,7 @@ export function Polish1AdministrationSection({
       setOpen(false);
       refreshPolish1(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains.administration;
@@ -377,11 +397,26 @@ export function Polish1AdministrationSection({
           <div className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="polish1-shift-name">Name</Label>
-              <Input id="polish1-shift-name" value={name} onChange={(event) => setName(event.target.value)} />
+              <Input
+                id="polish1-shift-name"
+                value={name}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setName(next);
+                  if (!editing && !codeTouched) setCode(setupCodeFromName(next));
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="polish1-shift-code">Code</Label>
-              <Input id="polish1-shift-code" value={code} onChange={(event) => setCode(event.target.value)} />
+              <Input
+                id="polish1-shift-code"
+                value={code}
+                onChange={(event) => {
+                  setCodeTouched(true);
+                  setCode(event.target.value.toUpperCase());
+                }}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">

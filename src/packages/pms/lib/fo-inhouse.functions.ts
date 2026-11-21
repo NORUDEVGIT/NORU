@@ -15,7 +15,7 @@ import {
   type FrontOfficeStay,
 } from "./frontoffice.functions";
 import { normalizeClock } from "./pms-set1-foundation";
-import { requirePmsActor } from "./pms-permissions.server";
+import { hasEffectivePermission, requirePmsActor, resolveEffectivePermissions } from "./pms-permissions.server";
 import { PMS_PERMISSIONS } from "./pms-permissions";
 import { assertDateOnly } from "./reservations.server";
 import { operationalBusinessDate } from "./reservation-workspace/business-date";
@@ -36,6 +36,13 @@ import {
 
 const idSchema = z.string().uuid();
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.");
+
+async function mayAuthorizeLateCheckout(context: unknown, restaurantId: string): Promise<boolean> {
+  return hasEffectivePermission(
+    await resolveEffectivePermissions(context as never, restaurantId),
+    PMS_PERMISSIONS.FRONT_OFFICE_FEE_OVERRIDE,
+  );
+}
 
 type WorkspaceClient = Parameters<typeof requirePmsActor>[0]["supabase"];
 
@@ -174,6 +181,7 @@ function mapDeskRow(params: {
   folioLane: FolioSignalLane;
   signal: StayMoneySignal | undefined;
   staffRole: string;
+  canAuthorizeLateCheckout?: boolean;
 }): FoInHouseDeskRow {
   const assigned = params.stay.roomId !== null;
   const financial = financialFromSignal(params.folioLane, params.signal);
@@ -213,6 +221,7 @@ function mapDeskRow(params: {
       blockingKeys: blocking,
       lateCheckoutNeedsApproval: params.settings.lateCheckout.needsApproval,
       staffRole: params.staffRole,
+      canAuthorizeLateCheckout: params.canAuthorizeLateCheckout === true,
     }),
   };
 }
@@ -224,6 +233,7 @@ export const listFrontOfficeInHouseDesk = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ date: string; rows: FoInHouseDeskRow[] }> => {
     const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
+    const canAuthorizeLateCheckout = await mayAuthorizeLateCheckout(context, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await loadInHouseSettings(supabaseAdmin, data.restaurantId);
     const today = data.today
@@ -252,6 +262,7 @@ export const listFrontOfficeInHouseDesk = createServerFn({ method: "POST" })
           folioLane: signals.folioLane,
           signal: signals.byStay[stay.id],
           staffRole: me.role,
+          canAuthorizeLateCheckout,
         }),
       ),
     };
@@ -375,6 +386,7 @@ export const getFrontOfficeInHouseQuickView = createServerFn({ method: "POST" })
       blockingKeys: blocking,
       lateCheckoutNeedsApproval: settings.lateCheckout.needsApproval,
       staffRole: me.role,
+      canAuthorizeLateCheckout: await mayAuthorizeLateCheckout(context, data.restaurantId),
     });
 
     return {

@@ -49,6 +49,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 export function PmsCard4CommunicationDefaults({
   restaurantId,
@@ -154,7 +155,7 @@ export function PmsCard4CommunicationDefaults({
       toast.success("Communication defaults saved successfully.");
     },
     onError: (error: Error) =>
-      toast.error(error.message || "Unable to save communication defaults."),
+      toast.error(friendlySetupError(error, "Unable to save communication defaults.")),
   });
 
   const busy = saveMutation.isPending;

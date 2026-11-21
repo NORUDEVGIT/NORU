@@ -11,6 +11,7 @@ import {
   accountWorkspaceCapabilities,
   roundAccountMoney,
   type AccountBalanceState,
+  type AccountWorkspaceGrants,
   type AccountWorkspaceKind,
 } from "./cashiering-account-workspace.ts";
 
@@ -156,17 +157,10 @@ export function writeOffAllowed(balance: number, amount: number): boolean {
 }
 
 export function accountPaymentCapabilities(input: {
-  role: string;
   status: "open" | "closed";
   balance: number;
   accountKind: AccountWorkspaceKind;
-  granted?: {
-    receivePayment: boolean;
-    refund: boolean;
-    createInvoice: boolean;
-    writeOff: boolean;
-    close: boolean;
-  };
+  granted: AccountWorkspaceGrants;
 }) {
   return accountWorkspaceCapabilities(input);
 }

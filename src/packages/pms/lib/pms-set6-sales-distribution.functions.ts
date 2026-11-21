@@ -117,13 +117,32 @@ async function writeAudit(
   return true;
 }
 
-function mapCatalogue(rows: Array<{ id: string; code: string; name: string; description?: string | null; active: boolean }>): PmsSet6CatalogueItem[] {
+function catalogueIsSystem(attrs: unknown): boolean {
+  return Boolean(
+    attrs &&
+      typeof attrs === "object" &&
+      !Array.isArray(attrs) &&
+      (attrs as { system?: unknown }).system === true,
+  );
+}
+
+function mapCatalogue(
+  rows: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description?: string | null;
+    active: boolean;
+    attrs?: unknown;
+  }>,
+): PmsSet6CatalogueItem[] {
   return rows.map((row) => ({
     id: row.id,
     code: row.code,
     name: row.name,
     description: String(row.description ?? ""),
     active: row.active,
+    ...(catalogueIsSystem(row.attrs) ? { system: true } : {}),
   }));
 }
 
@@ -134,7 +153,7 @@ async function loadCatalogue(
 ): Promise<{ available: boolean; rows: PmsSet6CatalogueItem[] }> {
   const result = await supabaseAdmin
     .from(table)
-    .select("id, code, name, description, active")
+    .select("id, code, name, description, active, attrs")
     .eq("restaurant_id", restaurantId)
     .order("name");
   if (result.error && isMissingSchemaError(result.error)) return { available: false, rows: [] };
@@ -253,14 +272,14 @@ export const savePmsSet6Catalogue = createServerFn({ method: "POST" })
     const before = await loadSet6Snapshot(supabaseAdmin, data.restaurantId);
     if (!catalogueAvailable(before, data.kind)) throw new Error(SET6_UNAVAILABLE_SALES);
     const table = CATALOGUE_TABLE[data.kind];
-    const payload = {
+    const fields = {
       restaurant_id: data.restaurantId,
       code: data.code.toUpperCase(),
       name: data.name,
       description: data.description ?? "",
-      attrs: {} as Json,
       active: data.active,
     };
+    const payload = data.id ? fields : { ...fields, attrs: {} as Json };
     const result = data.id
       ? await supabaseAdmin.from(table).update(payload).eq("id", data.id).eq("restaurant_id", data.restaurantId)
       : await supabaseAdmin.from(table).insert(payload);

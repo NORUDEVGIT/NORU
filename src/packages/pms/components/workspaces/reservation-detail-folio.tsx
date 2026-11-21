@@ -98,6 +98,18 @@ import {
 import { issueGuestFolioChargeInvoice } from "@/packages/pms/lib/cashiering-invoices.functions";
 import type { TransactionType } from "@/packages/pms/lib/cashiering.server";
 import { useRestaurantTime } from "@/core/state/property-format";
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
+
+type FolioButtonGrants = {
+  charge: boolean;
+  payment: boolean;
+  deposit: boolean;
+  refund: boolean;
+  discount: boolean;
+  adjustment: boolean;
+  close: boolean;
+  invoice: boolean;
+};
 
 export function ReservationDetailFolioTab({
   restaurantId,
@@ -115,6 +127,8 @@ export function ReservationDetailFolioTab({
   onReservationUpdated,
 }: {
   restaurantId: string;
+  /** The tab itself is only mounted with Cashiering view. */
+  grants?: ReservationDetailGrants;
   reservation: ReservationDetail;
   money: (value: number) => string;
   paymentReceived?: number | null;
@@ -182,8 +196,17 @@ export function ReservationDetailFolioTab({
   const summary = folioLedgerSummary(folio);
   const cards = folioKpiCards(folio, totalAmount);
   const issuedInvoice = folio?.issuedInvoice ?? folio?.issuedInvoices[0] ?? null;
-  const cashierCanOperate = accessQuery.data?.canOperate ?? false;
-  const cashierCanManage = accessQuery.data?.canManage ?? false;
+  const access = accessQuery.data;
+  const folioGrants: FolioButtonGrants = {
+    charge: access?.canCharge ?? false,
+    payment: access?.canPayment ?? false,
+    deposit: access?.canDeposit ?? false,
+    refund: access?.canRefund ?? false,
+    discount: access?.canDiscount ?? false,
+    adjustment: access?.canAdjustment ?? false,
+    close: access?.canClose ?? false,
+    invoice: access?.canInvoiceAuthorize ?? false,
+  };
   const open = folio?.status === "open";
 
   function refresh() {
@@ -294,9 +317,9 @@ export function ReservationDetailFolioTab({
             money={money}
             currency={currency}
             dateTime={dateTime}
-            canPostCharge={Boolean(open && cashierCanManage)}
-            canPostPayment={Boolean(open && cashierCanOperate)}
-            canIssueInvoice={Boolean(folio && cashierCanManage && !folio.legacyFolioInvoice)}
+            grants={folioGrants}
+            folioOpen={Boolean(open)}
+            canIssueInvoice={Boolean(folio && !folio.legacyFolioInvoice)}
             issuingInvoice={issuingInvoice}
             issuedNumber={folio?.legacyFolioInvoice ? (issuedInvoice?.issuedNumber ?? null) : null}
             onCharge={() => startEntry("charge")}
@@ -321,7 +344,8 @@ export function ReservationDetailFolioTab({
               money={money}
               currency={currency}
               dateTime={dateTime}
-              canAdd={Boolean(open && cashierCanOperate)}
+              canPay={folioGrants.payment}
+              canAdd={Boolean(open)}
               onAdd={() => startEntry("payment")}
             />
           </div>
@@ -398,8 +422,8 @@ function RoomFolioCard({
   money,
   currency,
   dateTime,
-  canPostCharge,
-  canPostPayment,
+  grants,
+  folioOpen,
   canIssueInvoice,
   issuingInvoice,
   issuedNumber,
@@ -413,8 +437,8 @@ function RoomFolioCard({
   money: (value: number) => string;
   currency: string;
   dateTime: (iso: string | null | undefined) => string;
-  canPostCharge: boolean;
-  canPostPayment: boolean;
+  grants: FolioButtonGrants;
+  folioOpen: boolean;
   canIssueInvoice: boolean;
   issuingInvoice: boolean;
   issuedNumber: string | null;
@@ -453,31 +477,37 @@ function RoomFolioCard({
           </p>
         </div>
         <div className="flex flex-wrap gap-1">
-          <Button type="button" size="sm" disabled={!canPostCharge} onClick={onCharge}>
-            Post Charge
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={!canPostPayment}
-            onClick={onPayment}
-          >
-            Post Payment
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={issuingInvoice || !canIssueInvoice}
-            onClick={onInvoice}
-          >
-            {issuedNumber
-              ? `Invoice ${issuedNumber}`
-              : issuingInvoice
-                ? "Issuing…"
-                : "Create Invoice"}
-          </Button>
+          {grants.charge ? (
+            <Button type="button" size="sm" disabled={!folioOpen} onClick={onCharge}>
+              Post Charge
+            </Button>
+          ) : null}
+          {grants.payment ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!folioOpen}
+              onClick={onPayment}
+            >
+              Post Payment
+            </Button>
+          ) : null}
+          {grants.invoice ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={issuingInvoice || !canIssueInvoice}
+              onClick={onInvoice}
+            >
+              {issuedNumber
+                ? `Invoice ${issuedNumber}`
+                : issuingInvoice
+                  ? "Issuing…"
+                  : "Create Invoice"}
+            </Button>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" size="icon" variant="outline" aria-label="More folio actions">
@@ -485,15 +515,31 @@ function RoomFolioCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onOverflow("deposit")}>
-                Add deposit credit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOverflow("refund")}>Refund</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOverflow("discount")}>Discount</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOverflow("adjustment")}>
-                Adjustment
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onClose}>Close folio</DropdownMenuItem>
+              {grants.deposit ? (
+                <DropdownMenuItem disabled={!folioOpen} onClick={() => onOverflow("deposit")}>
+                  Add deposit credit
+                </DropdownMenuItem>
+              ) : null}
+              {grants.refund ? (
+                <DropdownMenuItem disabled={!folioOpen} onClick={() => onOverflow("refund")}>
+                  Refund
+                </DropdownMenuItem>
+              ) : null}
+              {grants.discount ? (
+                <DropdownMenuItem disabled={!folioOpen} onClick={() => onOverflow("discount")}>
+                  Discount
+                </DropdownMenuItem>
+              ) : null}
+              {grants.adjustment ? (
+                <DropdownMenuItem disabled={!folioOpen} onClick={() => onOverflow("adjustment")}>
+                  Adjustment
+                </DropdownMenuItem>
+              ) : null}
+              {grants.close ? (
+                <DropdownMenuItem disabled={!folioOpen} onClick={onClose}>
+                  Close folio
+                </DropdownMenuItem>
+              ) : null}
               {folio ? (
                 <DropdownMenuItem asChild>
                   <Link
@@ -793,6 +839,7 @@ function PaymentMethodsCard({
   money,
   currency,
   dateTime,
+  canPay,
   canAdd,
   onAdd,
 }: {
@@ -800,6 +847,7 @@ function PaymentMethodsCard({
   money: (value: number) => string;
   currency: string;
   dateTime: (iso: string | null | undefined) => string;
+  canPay: boolean;
   canAdd: boolean;
   onAdd: () => void;
 }) {
@@ -814,9 +862,11 @@ function PaymentMethodsCard({
           <h2 className="font-display text-base text-[#251605]">Payments & Credits</h2>
           <p className="text-[11px] text-muted-foreground">Posted Cashiering transactions.</p>
         </div>
-        <Button type="button" size="sm" variant="outline" disabled={!canAdd} onClick={onAdd}>
-          Add Payment
-        </Button>
+        {canPay ? (
+          <Button type="button" size="sm" variant="outline" disabled={!canAdd} onClick={onAdd}>
+            Add Payment
+          </Button>
+        ) : null}
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No payments posted on this folio.</p>

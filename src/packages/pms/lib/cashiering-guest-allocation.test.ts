@@ -238,17 +238,26 @@ describe("guest payment allocation", () => {
     assert.equal(result.ok, true);
   });
 
-  it("keeps accountant allocation separate from cashier posting and manager refunds", () => {
-    const accountant = guestAllocationCapabilities({ role: "accountant", folioStatus: "open" });
-    assert.equal(accountant.canAllocate, true);
-    assert.equal(accountant.canReverse, true);
-    assert.equal(accountant.canPostPayment, false);
-    assert.equal(accountant.canRefund, false);
-    const cashier = guestAllocationCapabilities({ role: "cashier", folioStatus: "open" });
-    assert.equal(cashier.canView, true);
-    assert.equal(cashier.canAllocate, false);
-    assert.equal(cashier.canPostPayment, true);
-    const closed = guestAllocationCapabilities({ role: "owner", folioStatus: "closed" });
+  it("derives allocation, posting, and refund from granted permissions", () => {
+    const allocator = guestAllocationCapabilities({
+      granted: { view: true, allocate: true, postPayment: false, refund: false },
+      folioStatus: "open",
+    });
+    assert.equal(allocator.canAllocate, true);
+    assert.equal(allocator.canReverse, true);
+    assert.equal(allocator.canPostPayment, false);
+    assert.equal(allocator.canRefund, false);
+    const poster = guestAllocationCapabilities({
+      granted: { view: true, allocate: false, postPayment: true, refund: false },
+      folioStatus: "open",
+    });
+    assert.equal(poster.canView, true);
+    assert.equal(poster.canAllocate, false);
+    assert.equal(poster.canPostPayment, true);
+    const closed = guestAllocationCapabilities({
+      granted: { view: true, allocate: true, postPayment: true, refund: true },
+      folioStatus: "closed",
+    });
     assert.equal(closed.canView, true);
     assert.equal(closed.canAllocate, true);
     assert.equal(closed.canReverse, false);

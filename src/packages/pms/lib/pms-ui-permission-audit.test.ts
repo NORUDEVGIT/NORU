@@ -107,14 +107,18 @@ describe("current PMS action visibility", () => {
 
   it("wires reservation detail workspace to permission access not role manage", () => {
     const workspace = read("../components/workspaces/reservation-detail-workspace.tsx");
+    const actions = read("./reservation-detail-actions.ts");
     assert.match(workspace, /reservationDetailActionAccess/);
-    assert.match(workspace, /PMS_PERMISSIONS\.RESERVATION_EDIT/);
+    assert.match(workspace, /reservationDetailGrants\(/);
+    assert.match(workspace, /const canEditReservation = detailGrants\.edit/);
+    assert.match(actions, /edit: can\(PMS_PERMISSIONS\.RESERVATION_EDIT\)/);
     assert.doesNotMatch(workspace, /canManage = accessQuery\.data/);
   });
 
   it("does not use a role to flash account write-off before permissions load", () => {
     const panel = read("../components/cashiering/financial-account-payments-panel.tsx");
-    assert.match(panel, /writeOff: false/);
+    assert.match(panel, /granted: NO_ACCOUNT_WORKSPACE_GRANTS/);
+    assert.doesNotMatch(panel, /role === "owner"|role === "manager"/);
     assert.match(panel, /caps\.canWriteOff \?/);
   });
 

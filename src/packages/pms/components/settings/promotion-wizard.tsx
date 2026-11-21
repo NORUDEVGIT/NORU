@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Search, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveCommercialPromotionCard3 } from "@/packages/pms/lib/commercial-card3.functions";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 import {
   PROMOTION_CODE_STAFF_HINT,
   PROMOTION_WIZARD_STEPS,
@@ -151,7 +152,10 @@ function staffFacingPromotionSaveError(error: unknown): string {
   if (/Valid to must be/i.test(message)) {
     return "Stay To must be on or after Stay From.";
   }
-  return message || "Could not save promotion.";
+  return friendlySetupError(
+    error instanceof Error ? error : new Error(message),
+    "Could not save promotion.",
+  );
 }
 
 function WizardCard({ title, children }: { title: string; children: ReactNode }) {

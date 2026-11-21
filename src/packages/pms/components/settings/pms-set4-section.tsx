@@ -44,6 +44,7 @@ import {
   savePmsOooOosPosture,
   savePmsRestrictionReason,
 } from "@/packages/pms/lib/pms-set4-hk-inventory.functions";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function refreshSet4(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -126,11 +127,13 @@ function CatalogueDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [active, setActive] = useState(true);
   useEffect(() => {
     if (!open) return;
     setName(row?.name ?? "");
     setCode(row?.code ?? "");
+    setCodeTouched(Boolean(row));
     setActive(row?.active ?? true);
   }, [open, row]);
   return (
@@ -142,11 +145,26 @@ function CatalogueDialog({
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor={`set4-cat-name-${title}`}>Name</Label>
-            <Input id={`set4-cat-name-${title}`} value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              id={`set4-cat-name-${title}`}
+              value={name}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!row && !codeTouched) setCode(setupCodeFromName(next));
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor={`set4-cat-code-${title}`}>Code</Label>
-            <Input id={`set4-cat-code-${title}`} value={code} onChange={(event) => setCode(event.target.value)} />
+            <Input
+              id={`set4-cat-code-${title}`}
+              value={code}
+              onChange={(event) => {
+                setCodeTouched(true);
+                setCode(event.target.value.toUpperCase());
+              }}
+            />
           </div>
         </div>
         <DialogFooter>
@@ -196,7 +214,7 @@ export function Set4HousekeepingSection({
       toast.success("Housekeeping statuses saved.");
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const cleaningMutation = useMutation({
     mutationFn: () =>
@@ -213,7 +231,7 @@ export function Set4HousekeepingSection({
       toast.success("Cleaning posture saved.");
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["housekeeping-rules"];
@@ -443,7 +461,7 @@ export function Set4RoomInventorySection({
       toast.success("OOO and OOS meaning saved.");
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const reasonMutation = useMutation({
     mutationFn: (input: { id?: string; code: string; name: string; active: boolean }) =>
@@ -453,7 +471,7 @@ export function Set4RoomInventorySection({
       setReasonOpen(false);
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["room-inventory-rules"];
@@ -621,7 +639,7 @@ export function Set4MaintenanceSection({
       toast.success("Maintenance guidance saved.");
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const catMutation = useMutation({
     mutationFn: (input: { id?: string; code: string; name: string; active: boolean }) =>
@@ -631,7 +649,7 @@ export function Set4MaintenanceSection({
       setCatOpen(false);
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const priMutation = useMutation({
     mutationFn: (input: { id?: string; code: string; name: string; active: boolean }) =>
@@ -641,7 +659,7 @@ export function Set4MaintenanceSection({
       setPriOpen(false);
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const tagMutation = useMutation({
     mutationFn: (input: { id?: string; code: string; name: string; active: boolean }) =>
@@ -651,7 +669,7 @@ export function Set4MaintenanceSection({
       setTagOpen(false);
       refreshSet4(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["maintenance-rules"];

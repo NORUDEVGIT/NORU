@@ -53,6 +53,7 @@ import {
 import { Switch } from "@/shared/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function isInternalChannel(channelType: CommunicationChannelType) {
   return channelType === "guest_portal" || channelType === "pms_in_app";
@@ -268,7 +269,7 @@ export function PmsCard4SenderSettings({
       setDirty(false);
       toast.success("Sender settings saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save sender settings."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save sender settings.")),
   });
 
   const testMutation = useMutation({
@@ -291,7 +292,7 @@ export function PmsCard4SenderSettings({
       else if (outcome.result === "unsupported") toast.warning(outcome.message);
       else toast.error(outcome.message);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to test sender settings."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to test sender settings.")),
   });
 
   const busy = saveMutation.isPending || testMutation.isPending;

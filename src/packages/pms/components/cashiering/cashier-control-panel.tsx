@@ -113,6 +113,7 @@ export function CashierControl({
   void _canOperate;
   const [now, setNow] = useState(() => Date.now());
   const [mode, setMode] = useState<"desk" | "open" | "close">("desk");
+  const [movement, setMovement] = useState<"cash_in" | "cash_out" | null>(null);
   const [closeId, setCloseId] = useState<string | null>(null);
   const [closedSummary, setClosedSummary] = useState<CashierShiftRow | null>(null);
 
@@ -122,11 +123,11 @@ export function CashierControl({
   }, []);
 
   useEffect(() => {
-    if (selectedShiftId && initialAction === "close") {
+    if (selectedShiftId && initialAction === "close" && (canShiftEdit || canAuthorizeShifts)) {
       setCloseId(selectedShiftId);
       setMode("close");
     }
-  }, [selectedShiftId, initialAction]);
+  }, [selectedShiftId, initialAction, canShiftEdit, canAuthorizeShifts]);
 
   const fetchShifts = useServerFn(listCashierShifts);
   const fetchActivity = useServerFn(getCashieringBusinessDateActivity);
@@ -178,17 +179,37 @@ export function CashierControl({
       ) : null}
       {canShiftEdit && mine ? (
         <CashieringShellSlot name="cta">
-          <Button
-            type="button"
-            className={cn(CASHIERING_SHELL_PRIMARY_BUTTON, "gap-1.5 px-3.5 text-xs font-semibold")}
-            onClick={() => {
-              setCloseId(mine.id);
-              setMode("close");
-            }}
-            data-testid="cashiering-close-shift"
-          >
-            Close Shift
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 gap-1.5 border-[#DDD4C5] px-3 text-xs font-semibold text-[#251605] hover:bg-[#F7F4EE]"
+              onClick={() => setMovement("cash_in")}
+            >
+              <ArrowDownLeft className="size-3.5 text-[#146C43]" />
+              Cash In
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 gap-1.5 border-[#DDD4C5] px-3 text-xs font-semibold text-[#251605] hover:bg-[#F7F4EE]"
+              onClick={() => setMovement("cash_out")}
+            >
+              <ArrowUpRight className="size-3.5 text-[#B45309]" />
+              Cash Out
+            </Button>
+            <Button
+              type="button"
+              className={cn(CASHIERING_SHELL_PRIMARY_BUTTON, "gap-1.5 px-3.5 text-xs font-semibold")}
+              onClick={() => {
+                setCloseId(mine.id);
+                setMode("close");
+              }}
+              data-testid="cashiering-close-shift"
+            >
+              Close Shift
+            </Button>
+          </div>
         </CashieringShellSlot>
       ) : null}
 
@@ -219,14 +240,6 @@ export function CashierControl({
             dateTime={dateTime}
             now={now}
             canOperate={canShiftEdit}
-            restaurantId={restaurantId}
-            onOpen={() => setMode("open")}
-            onClose={() => {
-              if (!mine) return;
-              setCloseId(mine.id);
-              setMode("close");
-            }}
-            onMoved={refresh}
           />
         </div>
 
@@ -331,6 +344,20 @@ export function CashierControl({
         </Dialog>
       ) : null}
 
+      {mine && movement ? (
+        <MovementDialog
+          open
+          onOpenChange={(open) => !open && setMovement(null)}
+          restaurantId={restaurantId}
+          shiftId={mine.id}
+          kind={movement}
+          onMoved={() => {
+            setMovement(null);
+            refresh();
+          }}
+        />
+      ) : null}
+
       {/* Modal: Close Shift */}
       {closeId ? (
         <Dialog open={mode === "close"} onOpenChange={(open) => !open && setMode("desk")}>
@@ -368,10 +395,6 @@ function MyShiftCard({
   dateTime,
   now,
   canOperate,
-  restaurantId,
-  onOpen,
-  onClose,
-  onMoved,
 }: {
   shift: CashierShiftRow | null;
   businessDate: string;
@@ -379,13 +402,7 @@ function MyShiftCard({
   dateTime: (iso: string | null | undefined) => string;
   now: number;
   canOperate: boolean;
-  restaurantId: string;
-  onOpen: () => void;
-  onClose: () => void;
-  onMoved: () => void;
 }) {
-  const [movementModal, setMovementModal] = useState<"cash_in" | "cash_out" | null>(null);
-
   return (
     <section className={`${CARD} flex flex-col h-full`} data-testid="my-shift">
       {/* Header */}
@@ -503,58 +520,6 @@ function MyShiftCard({
             </div>
           </div>
 
-          {/* Operational Actions */}
-          {canOperate ? (
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 border-[#E8E1D7] text-xs font-semibold text-[#251605] hover:bg-[#FAF8F4]"
-                  onClick={() => setMovementModal("cash_in")}
-                >
-                  <ArrowDownLeft className="size-3.5 text-[#146C43]" />
-                  Cash In
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 border-[#E8E1D7] text-xs font-semibold text-[#251605] hover:bg-[#FAF8F4]"
-                  onClick={() => setMovementModal("cash_out")}
-                >
-                  <ArrowUpRight className="size-3.5 text-[#B45309]" />
-                  Cash Out
-                </Button>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 border-[#E8E1D7] text-xs font-semibold text-[#B91C1C] hover:bg-[#FEF2F2] hover:border-[#FCA5A5]"
-                onClick={onClose}
-              >
-                Close Shift
-              </Button>
-            </div>
-          ) : null}
-
-          {/* Movement Dialog Modal */}
-          {movementModal ? (
-            <MovementDialog
-              open={Boolean(movementModal)}
-              onOpenChange={(open) => !open && setMovementModal(null)}
-              restaurantId={restaurantId}
-              shiftId={shift.id}
-              kind={movementModal}
-              onMoved={() => {
-                setMovementModal(null);
-                onMoved();
-              }}
-            />
-          ) : null}
         </div>
       ) : (
         /* Empty State: Intentional, Compact & Purpose-built */
@@ -578,15 +543,7 @@ function MyShiftCard({
             <span className="font-semibold text-[#251605]">{businessDate}</span>
           </div>
 
-          {canOperate ? (
-            <Button
-              type="button"
-              className="mt-1 min-h-10 px-5 bg-[#C89933] text-[#251605] hover:bg-[#B5882D] font-semibold text-xs shadow-xs"
-              onClick={onOpen}
-            >
-              Open Shift
-            </Button>
-          ) : (
+          {canOperate ? null : (
             <p className="text-xs text-[#A89F91] italic">
               Drawer operations require cashier or manager permissions.
             </p>
@@ -1681,7 +1638,7 @@ function OpenShiftForm({
 // 9. CLOSE SHIFT FORM (STRUCTURED RECONCILIATION MODAL)
 // ============================================================================
 
-function CloseShiftForm({
+export function CloseShiftForm({
   restaurantId,
   shift,
   businessDate,

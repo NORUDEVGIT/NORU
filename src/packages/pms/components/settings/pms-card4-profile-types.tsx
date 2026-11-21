@@ -116,6 +116,7 @@ import {
 import { FIELD_ALIASES_MAP } from "@/packages/pms/lib/guest-company-create-workspace";
 import { TRAVEL_AGENCY_FIELD_ALIASES_MAP } from "@/packages/pms/lib/guest-travel-agent-create-workspace";
 import { ManageGuestFieldsDrawer } from "./catalog-sheets/manage-guest-fields-drawer";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: ProfileTypeRecord): ProfileTypeDraft {
   return {
@@ -575,7 +576,7 @@ export function PmsCard4ProfileTypes({
       toast.success("Profile type saved successfully.");
       onSaved(thenNextRef.current);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save profile type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save profile type.")),
   });
 
   const fieldFlagsMutation = useMutation({
@@ -634,7 +635,7 @@ export function PmsCard4ProfileTypes({
       if (draft.id === input.id) mark("active", input.active);
       toast.success(input.active ? "Profile type activated." : "Profile type deactivated.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const canSave = canEdit && errors.length === 0 && !saveMutation.isPending;

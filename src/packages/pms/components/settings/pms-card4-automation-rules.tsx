@@ -86,6 +86,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const PAGE_SIZE = 8;
 type StatusFilter = "all" | "active" | "inactive";
@@ -221,7 +222,7 @@ export function PmsCard4AutomationRules({
       setAttemptedSave(false);
       toast.success("Automation rule saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save automation rule."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save automation rule.")),
   });
   const toggleMutation = useMutation({
     mutationFn: (input: { id: string; active: boolean }) =>
@@ -230,7 +231,7 @@ export function PmsCard4AutomationRules({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Automation rule activated." : "Automation rule deactivated.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => remove({ data: { restaurantId, id } }),
@@ -242,7 +243,7 @@ export function PmsCard4AutomationRules({
       setEditorOpen(false);
       toast.success("Automation rule deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const testMutation = useMutation({
     mutationFn: (id: string) => sendTest({ data: { restaurantId, id } }),
@@ -251,7 +252,7 @@ export function PmsCard4AutomationRules({
       else if (outcome.result === "unsupported") toast.warning(outcome.message);
       else toast.error(outcome.message);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to test automation rule."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to test automation rule.")),
   });
 
   const busy =

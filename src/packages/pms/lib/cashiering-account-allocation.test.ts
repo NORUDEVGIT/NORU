@@ -237,33 +237,40 @@ describe("payment allocation formulas", () => {
 });
 
 describe("allocation permissions", () => {
-  it("lets owner, manager, and accountant allocate, and keeps cashier view-only", () => {
-    for (const role of ["owner", "manager", "accountant"] as const) {
-      const rights = allocationCapabilities({ role, status: "open" });
-      assert.equal(rights.canAllocate, true);
-      assert.equal(rights.canReverse, true);
-    }
-    const cashier = allocationCapabilities({ role: "cashier", status: "open" });
-    assert.equal(cashier.canView, true);
-    assert.equal(cashier.canAllocate, false);
-    assert.equal(cashier.canReverse, false);
-    const closed = allocationCapabilities({ role: "accountant", status: "closed" });
+  it("allows allocation only with the allocation permission", () => {
+    const rights = allocationCapabilities({ granted: { view: true, allocate: true }, status: "open" });
+    assert.equal(rights.canAllocate, true);
+    assert.equal(rights.canReverse, true);
+    const viewOnly = allocationCapabilities({ granted: { view: true, allocate: false }, status: "open" });
+    assert.equal(viewOnly.canView, true);
+    assert.equal(viewOnly.canAllocate, false);
+    assert.equal(viewOnly.canReverse, false);
+    const closed = allocationCapabilities({ granted: { view: true, allocate: true }, status: "closed" });
     assert.equal(closed.canView, true);
     assert.equal(closed.canAllocate, false);
     assert.equal(closed.canReverse, false);
   });
 
-  it("does not give accountant cash posting, refund, write-off, or close", () => {
-    const accountant = accountWorkspaceCapabilities({
-      role: "accountant",
+  it("does not turn allocation into cash posting, refund, write-off, or close", () => {
+    const allocator = accountWorkspaceCapabilities({
+      granted: {
+        receivePayment: false,
+        receiveDeposit: false,
+        receiveInvoicePayment: false,
+        refund: false,
+        createInvoice: false,
+        writeOff: false,
+        close: false,
+        viewGuestProfile: false,
+      },
       status: "open",
       balance: 100,
       accountKind: "company",
     });
-    assert.equal(accountant.canReceivePayment, false);
-    assert.equal(accountant.canRefund, false);
-    assert.equal(accountant.canWriteOff, false);
-    assert.equal(accountant.canClose, false);
+    assert.equal(allocator.canReceivePayment, false);
+    assert.equal(allocator.canRefund, false);
+    assert.equal(allocator.canWriteOff, false);
+    assert.equal(allocator.canClose, false);
     assert.match(roles, /CASHIER_ALLOCATE_ROLES = \["owner", "manager", "accountant"\]/);
     assert.match(roles, /CASHIER_MANAGE_ROLES = \["owner", "manager"\]/);
     assert.doesNotMatch(roles, /CASHIER_MANAGE_ROLES = \[[^\]]*accountant/);

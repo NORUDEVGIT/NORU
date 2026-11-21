@@ -145,6 +145,8 @@ export function WaitlistWorkspace({
   rangeStart,
   rangeEnd,
   canWrite,
+  canCreateGuest,
+  canCreateReservation,
   onOpenReservation,
 }: {
   restaurantId: string;
@@ -155,6 +157,8 @@ export function WaitlistWorkspace({
   rangeStart: string;
   rangeEnd: string;
   canWrite: boolean;
+  canCreateGuest: boolean;
+  canCreateReservation: boolean;
   onOpenReservation: (reservationId: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -401,7 +405,7 @@ export function WaitlistWorkspace({
               <WaitlistRequestForm
                 formId="waitlist-new-request-fields"
                 hideSubmit
-                canCreateGuest={canWrite}
+                canCreateGuest={canWrite && canCreateGuest}
                 roomTypes={roomTypesQuery.data ?? []}
                 restaurantId={restaurantId}
                 submitting={create.isPending}
@@ -562,6 +566,8 @@ export function WaitlistWorkspace({
             <WaitlistDetailWorkspace
               restaurantId={restaurantId}
               canWrite={canWrite}
+              canCreateGuest={canCreateGuest}
+              canCreateReservation={canCreateReservation}
               listRow={selected}
               detail={detailQuery.data}
               roomTypes={roomTypesQuery.data ?? []}
@@ -1083,6 +1089,8 @@ const FACT_ICON = "size-3 shrink-0";
 function WaitlistDetailWorkspace({
   restaurantId,
   canWrite,
+  canCreateGuest,
+  canCreateReservation,
   listRow,
   detail,
   roomTypes,
@@ -1098,6 +1106,8 @@ function WaitlistDetailWorkspace({
 }: {
   restaurantId: string;
   canWrite: boolean;
+  canCreateGuest: boolean;
+  canCreateReservation: boolean;
   listRow: WaitlistListRow | null;
   detail: WaitlistDetail;
   roomTypes: Array<{ id: string; name: string }>;
@@ -1311,7 +1321,7 @@ function WaitlistDetailWorkspace({
               <WaitlistRequestForm
                 formId="waitlist-amend-fields"
                 hideSubmit
-                canCreateGuest={canWrite}
+                canCreateGuest={canWrite && canCreateGuest}
                 restaurantId={restaurantId}
                 roomTypes={roomTypes}
                 submitting={amendPending}
@@ -1709,7 +1719,7 @@ function WaitlistDetailWorkspace({
                   </table>
                 </div>
               )}
-              {canWrite && acceptedOffer && !request.reservationId ? (
+              {canWrite && canCreateReservation && acceptedOffer && !request.reservationId ? (
                 <div className="space-y-2 border-t border-[#EEE6D8] px-3 py-2">
                   <Button
                     className={cn(SHELL_PRIMARY_BUTTON, "h-8 px-3 text-xs")}

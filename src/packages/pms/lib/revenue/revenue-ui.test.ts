@@ -274,8 +274,7 @@ describe("P8-STEP-03B Acceptance Fixes & UI Contracts", () => {
       "utf8",
     );
 
-    // Toolbar provides Action select control
-    assert.match(auditView, /<select[\s\S]*?value=\{auditAction \|\| ""\}/);
+    assert.match(auditView, /id: "audit-action"/);
     assert.match(auditView, /handleActionChange/);
     assert.match(auditView, /setPage\(1\)/);
 
@@ -296,8 +295,7 @@ describe("P8-STEP-03B Acceptance Fixes & UI Contracts", () => {
 
     // Loads staff actors
     assert.match(auditView, /listRevenueApprovalActorsFn/);
-    // Dedicated Actor dropdown
-    assert.match(auditView, /<select[\s\S]*?value=\{auditActor \|\| ""\}/);
+    assert.match(auditView, /id: "audit-actor"/);
     assert.match(auditView, /handleActorChange/);
 
     // Forwarded server-side in query
@@ -316,10 +314,7 @@ describe("P8-STEP-03B Acceptance Fixes & UI Contracts", () => {
     );
 
     // Truthful placeholder
-    assert.match(
-      auditView,
-      /placeholder="Search action, entity, scope, reason, or reference\.\.\."/,
-    );
+    assert.match(auditView, /Search action, entity, scope, reason, or reference\.\.\./);
     // Does NOT claim actor search in placeholder text
     assert.doesNotMatch(auditView, /Search by action, reason, or actor/);
   });

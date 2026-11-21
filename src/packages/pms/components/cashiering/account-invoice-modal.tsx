@@ -61,8 +61,8 @@ export function AccountInvoiceModal({
   restaurantId,
   accountId,
   accountOpen,
-  canManage,
-  canOperate,
+  canAuthorize,
+  canReceivePayment,
   canAllocate,
   money,
   dateTime,
@@ -79,8 +79,8 @@ export function AccountInvoiceModal({
   restaurantId: string;
   accountId: string;
   accountOpen: boolean;
-  canManage: boolean;
-  canOperate: boolean;
+  canAuthorize: boolean;
+  canReceivePayment: boolean;
   canAllocate: boolean;
   money: Money;
   dateTime: DateTimeFormat;
@@ -332,7 +332,7 @@ export function AccountInvoiceModal({
                   </p>
                 </div>
 
-                {canManage && onReprint ? (
+                {canAuthorize && onReprint ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -368,7 +368,7 @@ export function AccountInvoiceModal({
               expectedMode={isCompany ? fiscalMode : null}
               fiscalReason={isCompany ? fiscalReason : null}
               registered={fiscalRegistered}
-              canReceive={canOperate && accountOpen}
+              canReceive={canReceivePayment && accountOpen}
               canAllocate={canAllocate && accountOpen}
               canFiscalRegister={fiscal.canRegister}
               money={money}
@@ -430,7 +430,7 @@ export function AccountInvoiceModal({
                       <strong>{invoice.issuedNumber}</strong>
                     </span>
                   </div>
-                  {canManage && onReprint ? (
+                  {canAuthorize && onReprint ? (
                     <Button
                       size="sm"
                       variant="outline"

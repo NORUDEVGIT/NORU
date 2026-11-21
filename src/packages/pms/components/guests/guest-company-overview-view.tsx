@@ -472,10 +472,6 @@ export function GuestCompanyOverviewView({
               )
             }
           />
-          <InfoRow
-            label="Contact Policy"
-            value={data.businessType?.contactRequired ? "Mandatory" : "Optional"}
-          />
           <div className="flex items-center justify-between pt-2 border-t border-[#DDD4C5]/60">
             <span className="text-[#756A5B]">Folio Billing Access</span>
             {data.folioAccess ? (

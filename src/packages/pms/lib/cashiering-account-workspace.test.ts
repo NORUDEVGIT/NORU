@@ -22,6 +22,26 @@ function read(path: string): string {
 }
 
 const reader = read("./cashiering-account-workspace.functions.ts");
+const ALL_ACCOUNT_GRANTS = {
+  receivePayment: true,
+  receiveDeposit: true,
+  receiveInvoicePayment: true,
+  refund: true,
+  createInvoice: true,
+  writeOff: true,
+  close: true,
+  viewGuestProfile: true,
+};
+const NO_ACCOUNT_GRANTS = {
+  receivePayment: false,
+  receiveDeposit: false,
+  receiveInvoicePayment: false,
+  refund: false,
+  createInvoice: false,
+  writeOff: false,
+  close: false,
+  viewGuestProfile: false,
+};
 const page = read("../components/cashiering/financial-account-workspace.tsx");
 const route = read("../../../routes/restaurant/pms/cashiering.accounts.$accountId.tsx");
 const invoicePage = read("../components/cashiering/account-invoice-page.tsx");
@@ -225,11 +245,12 @@ describe("financial account workspace", () => {
 
   it("hides mutating actions when the account is closed", () => {
     const closed = accountWorkspaceCapabilities({
-      role: "owner",
+      granted: ALL_ACCOUNT_GRANTS,
       status: "closed",
       balance: 0,
       accountKind: "company",
     });
+    assert.equal(closed.showReceivePayment, true);
     assert.equal(closed.canReceivePayment, false);
     assert.equal(closed.canRefund, false);
     assert.equal(closed.canCreateInvoice, false);
@@ -240,19 +261,18 @@ describe("financial account workspace", () => {
     assert.doesNotMatch(page, /Reopen/);
   });
 
-  it("refuses to close a non-zero account", () => {
+  it("shows Close disabled on a non-zero account", () => {
+    const due = accountWorkspaceCapabilities({
+      granted: ALL_ACCOUNT_GRANTS,
+      status: "open",
+      balance: 12,
+      accountKind: "company",
+    });
+    assert.equal(due.showClose, true);
+    assert.equal(due.canClose, false);
     assert.equal(
       accountWorkspaceCapabilities({
-        role: "manager",
-        status: "open",
-        balance: 12,
-        accountKind: "company",
-      }).canClose,
-      false,
-    );
-    assert.equal(
-      accountWorkspaceCapabilities({
-        role: "owner",
+        granted: ALL_ACCOUNT_GRANTS,
         status: "open",
         balance: -3,
         accountKind: "group",
@@ -262,48 +282,48 @@ describe("financial account workspace", () => {
     assert.match(page, /Account balance must be zero before closing/);
   });
 
-  it("allows an owner or manager to close a zero account", () => {
-    for (const role of ["owner", "manager"] as const) {
-      assert.equal(
-        accountWorkspaceCapabilities({
-          role,
-          status: "open",
-          balance: 0,
-          accountKind: "company",
-        }).canClose,
-        true,
-      );
-    }
+  it("closes a zero account only with the close permission", () => {
+    const base = { status: "open", balance: 0, accountKind: "company" } as const;
+    assert.equal(accountWorkspaceCapabilities({ ...base, granted: ALL_ACCOUNT_GRANTS }).canClose, true);
+    const noClose = accountWorkspaceCapabilities({
+      ...base,
+      granted: { ...ALL_ACCOUNT_GRANTS, close: false },
+    });
+    assert.equal(noClose.showClose, false);
+    assert.equal(noClose.canClose, false);
   });
 
-  it("does not let a cashier close an account", () => {
-    const cashier = accountWorkspaceCapabilities({
-      role: "cashier",
+  it("derives each action from its own permission", () => {
+    const paymentOnly = accountWorkspaceCapabilities({
+      granted: { ...NO_ACCOUNT_GRANTS, receivePayment: true },
       status: "open",
       balance: 0,
       accountKind: "company",
     });
-    assert.equal(cashier.canClose, false);
-    assert.equal(cashier.canWriteOff, false);
-    assert.equal(cashier.canCreateInvoice, false);
-    assert.equal(cashier.canReceivePayment, true);
-    assert.equal(cashier.canRefund, false);
-    assert.match(page, /membership\.role === "owner" \|\| membership\.role === "manager"/);
+    assert.equal(paymentOnly.canReceivePayment, true);
+    assert.equal(paymentOnly.canReceiveDeposit, false);
+    assert.equal(paymentOnly.canClose, false);
+    assert.equal(paymentOnly.canWriteOff, false);
+    assert.equal(paymentOnly.canCreateInvoice, false);
+    assert.equal(paymentOnly.canRefund, false);
+    assert.equal(paymentOnly.canViewProfile, false);
+    assert.doesNotMatch(page, /membership\.role === "owner"/);
   });
 
-  it("keeps an accountant read only", () => {
-    const accountant = accountWorkspaceCapabilities({
-      role: "accountant",
+  it("keeps a user without action permissions read only", () => {
+    const readOnly = accountWorkspaceCapabilities({
+      granted: { ...NO_ACCOUNT_GRANTS, viewGuestProfile: true },
       status: "open",
       balance: 80,
       accountKind: "group",
     });
-    assert.equal(accountant.canReceivePayment, false);
-    assert.equal(accountant.canRefund, false);
-    assert.equal(accountant.canCreateInvoice, false);
-    assert.equal(accountant.canWriteOff, false);
-    assert.equal(accountant.canClose, false);
-    assert.equal(accountant.canViewProfile, true);
+    assert.equal(readOnly.showReceivePayment, false);
+    assert.equal(readOnly.canReceivePayment, false);
+    assert.equal(readOnly.canRefund, false);
+    assert.equal(readOnly.canCreateInvoice, false);
+    assert.equal(readOnly.canWriteOff, false);
+    assert.equal(readOnly.showClose, false);
+    assert.equal(readOnly.canViewProfile, true);
   });
 
   it("links company and group profiles on the existing guest route", () => {

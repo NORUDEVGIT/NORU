@@ -55,6 +55,7 @@ import {
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 type WizardStepId = (typeof CORPORATE_AGREEMENT_WIZARD_STEPS)[number]["id"];
 
@@ -322,7 +323,7 @@ export function CorporateAgreementWizard({
       void queryClient.invalidateQueries({ queryKey: ["pms-contract-types", restaurantId] });
       if (saved?.id) patchForm({ contractTypeId: saved.id });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function upsertRate(draft: DraftRate) {

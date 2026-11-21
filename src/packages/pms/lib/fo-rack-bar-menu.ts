@@ -3,6 +3,8 @@
  * Items come from the existing Stay Quick View and in-house hint menus.
  * This module does not decide permissions on its own and does not write.
  */
+import type { FrontOfficeDeskAccess } from "./front-office-desk-access";
+import { foDeskMenuAllowed } from "./front-office-desk-access";
 import type { FrontOfficeStay } from "./frontoffice.functions";
 import { foOpensPreArrivalCheckInWorkspace } from "./fo-check-in-workspace";
 import { isStayCancellable } from "./fo-cancel-noshow";
@@ -57,6 +59,8 @@ export type FoRackBarMenuInput = {
   maintenanceRelevant: boolean;
   staffRole?: string;
   lateCheckoutNeedsApproval?: boolean;
+  /** When set, items the caller cannot perform are omitted. */
+  grants?: FrontOfficeDeskAccess;
 };
 
 /** Same relevance the in-house Move / Change Room tab uses for its Maintenance button. */
@@ -95,7 +99,7 @@ export function foRackBarMenuItems(input: FoRackBarMenuInput): FoRackBarMenuItem
     if (quickIds.has("cancel_fees") && isStayCancellable(input.status)) {
       items.push({ id: "cancel", label: "Cancel Reservation", tone: "destructive" });
     }
-    return items;
+    return input.grants ? items.filter((item) => foDeskMenuAllowed(input.grants!, item.id)) : items;
   }
 
   if (input.status === "checked_in") {
@@ -106,6 +110,7 @@ export function foRackBarMenuItems(input: FoRackBarMenuInput): FoRackBarMenuItem
       guestId: null,
       blockingKeys: [],
       staffRole: input.staffRole,
+      canAuthorizeLateCheckout: input.grants?.canFeeOverride === true,
       lateCheckoutNeedsApproval: input.lateCheckoutNeedsApproval,
     });
     const housed = new Map(inHouseMenuItems(hints).map((item) => [item.id, item.label]));
@@ -142,7 +147,7 @@ export function foRackBarMenuItems(input: FoRackBarMenuInput): FoRackBarMenuItem
     if (input.maintenanceRelevant) {
       items.push({ id: "open_maintenance", label: "Maintenance", tone: "default" });
     }
-    return items;
+    return input.grants ? items.filter((item) => foDeskMenuAllowed(input.grants!, item.id)) : items;
   }
 
   if (
@@ -150,7 +155,8 @@ export function foRackBarMenuItems(input: FoRackBarMenuInput): FoRackBarMenuItem
     input.status === "cancelled" ||
     input.status === "no_show"
   ) {
-    return [...folio, { id: "view_details", label: "View stay details", tone: "default" }];
+    const closed = [...folio, { id: "view_details" as const, label: "View stay details", tone: "default" as const }];
+    return input.grants ? closed.filter((item) => foDeskMenuAllowed(input.grants!, item.id)) : closed;
   }
 
   return [];

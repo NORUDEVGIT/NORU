@@ -23,6 +23,8 @@ import {
   PREFERRED_CONTACT_TIME_LABELS,
 } from "@/packages/pms/lib/guest-profile-overview";
 import { PREFERENCE_SETUP_HREF } from "@/packages/pms/lib/guest-profile-wave2";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   listGuestPreferenceWorkspace,
   saveGuestPreferenceWorkspace,
@@ -189,16 +191,20 @@ export function GuestPreferencesCard({
   restaurantId,
   guestId,
   guest,
+  canEdit = false,
   onSaved,
 }: {
   restaurantId: string;
   guestId: string;
   guest?: GuestProfile;
   preferences?: GuestPreferences;
+  canEdit?: boolean;
   onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
-  const formRef = useRef<HTMLDivElement>(null);
+  const permissions = usePmsPermissions(restaurantId);
+  const canOpenSetup = permissions.can(PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
+  const formRef = useRef<HTMLFieldSetElement>(null);
   const fetchWorkspace = useServerFn(listGuestPreferenceWorkspace);
   const saveWorkspace = useServerFn(saveGuestPreferenceWorkspace);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -426,7 +432,7 @@ export function GuestPreferencesCard({
   );
 
   return (
-    <div className="space-y-4" data-testid="guest-preferences" ref={formRef}>
+    <fieldset disabled={!canEdit} className="min-w-0 space-y-4 border-0 p-0" data-testid="guest-preferences" ref={formRef}>
       <section className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -455,10 +461,15 @@ export function GuestPreferencesCard({
           {!hasTypes ? (
             <section className="rounded-2xl border border-border bg-card p-5">
               <p className="text-sm text-muted-foreground">
-                {PREFERENCES_EMPTY_TYPES}{" "}
-                <a className="underline" href={PREFERENCE_SETUP_HREF}>
-                  Open Property Setup
-                </a>
+                {PREFERENCES_EMPTY_TYPES}
+                {canOpenSetup ? (
+                  <>
+                    {" "}
+                    <a className="underline" href={PREFERENCE_SETUP_HREF}>
+                      Open Property Setup
+                    </a>
+                  </>
+                ) : null}
               </p>
             </section>
           ) : null}
@@ -477,14 +488,16 @@ export function GuestPreferencesCard({
           <section className="rounded-2xl border border-border bg-card p-5" data-testid="guest-pref-summary">
             <div className="flex items-center justify-between gap-2">
               <h4 className="font-medium">Preference Summary</h4>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              >
-                Edit
-              </Button>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                >
+                  Edit
+                </Button>
+              ) : null}
             </div>
             {summary.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">No preferences recorded yet.</p>
@@ -521,21 +534,23 @@ export function GuestPreferencesCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            if (dirty) setDiscardOpen(true);
-            else restore();
-          }}
-        >
-          Cancel
-        </Button>
-        <Button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? "Saving…" : "Save Preferences"}
-        </Button>
-      </div>
+      {canEdit ? (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              if (dirty) setDiscardOpen(true);
+              else restore();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? "Saving…" : "Save Preferences"}
+          </Button>
+        </div>
+      ) : null}
 
       <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
         <AlertDialogContent>
@@ -558,6 +573,6 @@ export function GuestPreferencesCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </fieldset>
   );
 }

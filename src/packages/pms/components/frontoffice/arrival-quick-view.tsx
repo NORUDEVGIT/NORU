@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from "@/shared/components/ui/sheet";
 import { cn } from "@/shared/lib/utils";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 
 function openArrivalException(
   key: FoArrivalExceptionKey,
@@ -97,6 +98,7 @@ export function ArrivalQuickViewSheet({
   onOpenFolio: (qv: FoArrivalQuickView) => void;
 }) {
   const money = useMoney();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const fetchQv = useServerFn(getFrontOfficeArrivalQuickView);
   const query = useQuery({
     queryKey: ["fo-arrival-qv", restaurantId, reservationId, reservationRoomId],
@@ -328,27 +330,27 @@ export function ArrivalQuickViewSheet({
               </div>
 
               <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-                {qv.hints.canAssignRoom ? (
+                {desk.canAssignRoom && qv.hints.canAssignRoom ? (
                   <Button size="sm" variant="outline" onClick={() => onAssign(qv)}>
                     {qv.room.assigned ? "Change room" : "Assign Room"}
                   </Button>
                 ) : null}
-                {qv.hints.canUpdateEta ? (
+                {desk.canStayEdit && qv.hints.canUpdateEta ? (
                   <Button size="sm" variant="outline" onClick={() => onEta(qv)}>
                     Update ETA
                   </Button>
                 ) : null}
-                {qv.hints.needsRegistration || qv.hints.needsGuestVerification ? (
+                {desk.canEditGuest && (qv.hints.needsRegistration || qv.hints.needsGuestVerification) ? (
                   <Button size="sm" variant="outline" onClick={() => onRegister(qv)}>
                     {qv.hints.needsGuestVerification ? "Verify / Complete Guest" : "Register Guest"}
                   </Button>
                 ) : null}
-                {qv.hints.needsDeposit ? (
+                {desk.canCheckIn && desk.canDeposit && qv.hints.needsDeposit ? (
                   <Button size="sm" variant="outline" onClick={() => onCheckIn(qv)}>
                     Deposit / Guarantee
                   </Button>
                 ) : null}
-                {qv.hints.canOpenCheckIn ? (
+                {desk.canCheckIn && qv.hints.canOpenCheckIn ? (
                   <Button
                     size="sm"
                     className="bg-[#C89933] text-[#251605] hover:bg-[#B98B2D]"
@@ -356,24 +358,26 @@ export function ArrivalQuickViewSheet({
                   >
                     Check In
                   </Button>
-                ) : (
+                ) : desk.canCheckIn ? (
                   <Button size="sm" disabled>
                     Check In
                   </Button>
-                )}
+                ) : null}
+                {desk.canOpenReservation ? (
                 <Button asChild size="sm" variant="outline">
                   <Link to="/restaurant/pms/reservations/$reservationId" params={{ reservationId: qv.stay.id }}>
                     Open Reservation
                   </Link>
                 </Button>
-                {qv.hints.canViewGuest ? (
+                ) : null}
+                {desk.canViewGuest && qv.hints.canViewGuest ? (
                   <Button asChild size="sm" variant="outline">
                     <Link to="/restaurant/pms/guests/$guestId" params={{ guestId: qv.stay.guestId }}>
                       Open Guest Profile
                     </Link>
                   </Button>
                 ) : null}
-                {qv.hints.canOpenFolio ? (
+                {desk.canOpenFolio && qv.hints.canOpenFolio ? (
                   <Button size="sm" variant="outline" onClick={() => onOpenFolio(qv)}>
                     Open Folio
                   </Button>

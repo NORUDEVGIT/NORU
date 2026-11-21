@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   ArrowLeft,
   ArrowRight,
@@ -326,6 +328,12 @@ export function ReservationEditWorkspace({
     retry: false,
   });
   const canManage = accessQuery.data?.canManage ?? false;
+  const permissions = usePmsPermissions(restaurantId);
+  const grantGuestEdit =
+    permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_EDIT) ||
+    permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_GUEST_EDIT);
+  const grantRateOverride = permissions.can(PMS_PERMISSIONS.RESERVATION_RATE_OVERRIDE);
+  const grantAssign = permissions.can(PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT);
   const set6Query = useQuery({
     queryKey: ["pms-set6", restaurantId, "edit-reservation"],
     queryFn: () => fetchSet6({ data: { restaurantId } }),
@@ -900,13 +908,16 @@ export function ReservationEditWorkspace({
   ];
 
   const guest = guestQuery.data?.guest;
-  const guestFieldsReady = Boolean(guest && hydratedGuestId.current === guest.id);
+  const guestFieldsReady =
+    grantGuestEdit && Boolean(guest && hydratedGuestId.current === guest.id);
   const coverUrl = selectedType?.coverUrl ?? null;
   const datesLocked = liveDraft ? datesEditLocked(liveDraft) : true;
   const occupancyLocked = liveDraft ? stayEditLocked(liveDraft) : true;
-  const roomTypeLocked = liveDraft ? roomTypeEditLocked(liveDraft) : true;
-  const assignmentLocked = liveDraft ? assignmentEditLocked(liveDraft) : true;
-  const rateLocked = liveDraft ? rateEditLocked(liveDraft) : true;
+  const roomTypeLocked =
+    (liveDraft ? roomTypeEditLocked(liveDraft) : true) ||
+    (!grantAssign && baseline?.roomId != null);
+  const assignmentLocked = (liveDraft ? assignmentEditLocked(liveDraft) : true) || !grantAssign;
+  const rateLocked = (liveDraft ? rateEditLocked(liveDraft) : true) || !grantRateOverride;
 
   const unsavedDraft = Boolean(
     step !== "confirm" && draft && baseline && editDraftDirty(baseline, draft),
@@ -1109,7 +1120,11 @@ export function ReservationEditWorkspace({
               <SectionCard
                 icon={<UserRound className="size-4" />}
                 title="Guest"
-                subtitle="Guest changes update the master guest profile."
+                subtitle={
+                  grantGuestEdit
+                    ? "Guest changes update the master guest profile."
+                    : "Editing the master guest profile needs guest profile edit permission."
+                }
               >
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="First Name" required changed={changed("guestFirstName")}>
@@ -1427,7 +1442,9 @@ export function ReservationEditWorkspace({
                     </IconControl>
                     {liveDraft.roomTypeId !== baseline.roomTypeId && !liveDraft.ratePlanId ? (
                       <p className="mt-1 text-xs text-[#8A641A]">
-                        Choose a rate plan for this room type.
+                        {grantRateOverride
+                          ? "Choose a rate plan for this room type."
+                          : "The current rate plan does not apply to this room type. Changing the rate plan needs rate override permission."}
                       </p>
                     ) : null}
                   </Field>

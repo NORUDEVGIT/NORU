@@ -29,6 +29,8 @@ import {
 import { FolioActionMenu } from "@/packages/pms/components/cashiering/folio-action-menu";
 import { FolioReservationQuickView } from "@/packages/pms/components/cashiering/folio-reservation-quick-view";
 import { GuestQuickViewDrawer } from "@/packages/pms/components/guests/guest-quick-view-drawer";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import type { FolioPermissionGrants } from "@/packages/pms/lib/folio-workspace";
 import {
   FolioSearchFolioStatusBadge,
@@ -407,6 +409,9 @@ export function FolioSearchPanel({
   const [selectedGuestRow, setSelectedGuestRow] = useState<GuestFolioSearchRow | null>(null);
   const [guestPreviewId, setGuestPreviewId] = useState<string | null>(null);
   const [reservationQuickId, setReservationQuickId] = useState<string | null>(null);
+  const permissions = usePmsPermissions(restaurantId);
+  const canViewGuest = permissions.can(PMS_PERMISSIONS.GUEST_PROFILE_VIEW);
+  const canViewReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
   const page = searchParams.page ?? 1;
   const pageSize = searchParams.pageSize ?? FOLIO_SEARCH_DEFAULT_PAGE_SIZE;
   const sortId = (searchParams.sort as FolioSearchSortId) ?? "arrival_date_desc";
@@ -824,8 +829,8 @@ export function FolioSearchPanel({
             canManage={canManage}
             grants={grants}
             onClose={closeDrawer}
-            onViewGuest={setGuestPreviewId}
-            onViewReservation={setReservationQuickId}
+            {...(canViewGuest ? { onViewGuest: setGuestPreviewId } : {})}
+            {...(canViewReservation ? { onViewReservation: setReservationQuickId } : {})}
           />
         </SheetContent>
       </Sheet>
@@ -1180,9 +1185,7 @@ function AllAccountsTable({
                               folioNumber: row.accountNumber,
                               status: row.status as "open" | "closed",
                             }}
-                            canOperate={canOperate}
-                            canManage={canManage}
-                            grants={grants}
+                            grants={grants ?? {}}
                           />
                         </div>
                       ) : (
@@ -1397,9 +1400,7 @@ function GuestFolioTable({
                         </Button>
                         <FolioActionMenu
                           folio={folio}
-                          canOperate={canOperate}
-                          canManage={canManage}
-                          grants={grants}
+                          grants={grants ?? {}}
                         />
                       </div>
                     </td>
@@ -1530,9 +1531,7 @@ function FolioDetailsDrawer({
           {folio.id ? (
             <FolioActionMenu
               folio={{ id: folio.id, folioNumber: folio.folioNumber, status: folio.status }}
-              canOperate={canOperate}
-              canManage={canManage}
-              grants={grants}
+              grants={grants ?? {}}
               triggerClassName="text-[#F6EFE4] hover:bg-white/10 hover:text-white"
             />
           ) : null}

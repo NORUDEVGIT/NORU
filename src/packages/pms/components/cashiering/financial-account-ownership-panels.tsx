@@ -5,14 +5,15 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRightLeft,
   Building2,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
   Receipt,
-  Search,
 } from "lucide-react";
 
+import { useAccountToolbarSearch } from "@/packages/pms/components/cashiering/financial-account-chrome";
+import { FolioChromeSlot, FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import { AccountReturnTransferDialog } from "@/packages/pms/components/cashiering/account-return-transfer-dialog";
 import { CorrectChargeDialog } from "@/packages/pms/components/cashiering/correct-charge-dialog";
 import { formatBalance } from "@/packages/pms/components/cashiering/folio-workspace-panels";
@@ -29,7 +30,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import { Input } from "@/shared/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -130,19 +130,76 @@ export function FinancialAccountSourceFolios({
   const result = query.data;
   const pageCount = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
 
+  useAccountToolbarSearch({
+    value: search,
+    placeholder: "Folio, guest, reservation, room",
+    testId: "account-folios-search",
+    onChange: (value) => {
+      setSearch(value);
+      setPage(1);
+    },
+  });
+
   return (
     <section className="space-y-4" data-testid="account-source-folios">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl text-[#251605]">Source Folios</h2>
-          <p className="text-sm text-muted-foreground">
-            Guest folios with charges currently owned by this financial account.
-          </p>
-        </div>
-      </header>
+      <FolioChromeSlot name="filter">
+        <PmsFilterMenu
+          activeCount={
+            (stay !== "all" ? 1 : 0) +
+            (coverage !== "all" ? 1 : 0) +
+            (scope !== "current" ? 1 : 0) +
+            (sort !== "recent" ? 1 : 0)
+          }
+          onClear={() => {
+            setStay("all");
+            setCoverage("all");
+            setScope("current");
+            setSort("recent");
+            setPage(1);
+          }}
+          buttonTestId="account-folios-filters-button"
+          menuTestId="account-folios-filters-menu"
+        >
+          <ChoiceRow
+            label="Stay"
+            value={stay}
+            options={FOLIO_STAY_OPTIONS}
+            onChange={(value) => {
+              setStay(value as typeof stay);
+              setPage(1);
+            }}
+          />
+          <ChoiceRow
+            label="Invoice coverage"
+            value={coverage}
+            options={FOLIO_COVERAGE_OPTIONS}
+            onChange={(value) => {
+              setCoverage(value as typeof coverage);
+              setPage(1);
+            }}
+          />
+          <ChoiceRow
+            label="Ownership"
+            value={scope}
+            neutralValue="current"
+            options={FOLIO_SCOPE_OPTIONS}
+            onChange={(value) => {
+              setScope(value as typeof scope);
+              setPage(1);
+            }}
+          />
+          <ChoiceRow
+            label="Order"
+            value={sort}
+            neutralValue="recent"
+            options={FOLIO_SORT_OPTIONS}
+            onChange={(value) => setSort(value as typeof sort)}
+          />
+        </PmsFilterMenu>
+      </FolioChromeSlot>
 
       {result ? (
-        <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Mini label="Source folios" value={String(result.summary.sourceFolios)} />
           <Mini label="Account-owned amount" value={money(result.summary.accountOwnedAmount)} />
           <Mini label="Uninvoiced groups" value={String(result.summary.uninvoicedGroups)} />
@@ -151,70 +208,6 @@ export function FinancialAccountSourceFolios({
       ) : null}
 
       <div className={cn(CARD, "p-3 space-y-3")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[220px] max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              placeholder="Folio, guest, reservation, room"
-              className="h-9 pl-8 text-sm border-[#E8E1D7] bg-white focus-visible:ring-1 focus-visible:ring-[#C89933]"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <Select
-            value={stay}
-            onChange={(value) => {
-              setStay(value as typeof stay);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All stays"],
-              ["in_house", "In-House"],
-              ["checked_out", "Checked-Out"],
-              ["folio_open", "Folio open"],
-              ["folio_closed", "Folio closed"],
-            ]}
-          />
-          <Select
-            value={coverage}
-            onChange={(value) => {
-              setCoverage(value as typeof coverage);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All coverage"],
-              ["uninvoiced", "Uninvoiced"],
-              ["partial", "Partially invoiced"],
-              ["invoiced", "Invoiced"],
-            ]}
-          />
-          <Select
-            value={scope}
-            onChange={(value) => {
-              setScope(value as typeof scope);
-              setPage(1);
-            }}
-            options={[
-              ["current", "Current ownership"],
-              ["history", "Include fully returned"],
-            ]}
-          />
-          <Select
-            value={sort}
-            onChange={(value) => setSort(value as typeof sort)}
-            options={[
-              ["recent", "Recent activity"],
-              ["guest", "Guest name"],
-              ["arrival", "Arrival date"],
-              ["departure", "Departure date"],
-              ["owned", "Account-owned amount"],
-            ]}
-          />
-        </div>
-
         <div className="rounded-lg border border-[#E8E1D7] overflow-hidden">
           {query.isLoading ? (
             <p className="px-4 py-8 text-sm text-center text-muted-foreground">Loading source folios…</p>
@@ -439,6 +432,16 @@ export function FinancialAccountCharges({
   const result = query.data;
   const pageCount = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
 
+  useAccountToolbarSearch({
+    value: search,
+    placeholder: "Description, guest, folio",
+    testId: "account-charges-search",
+    onChange: (value) => {
+      setSearch(value);
+      setPage(1);
+    },
+  });
+
   function refresh() {
     void queryClient.invalidateQueries({
       queryKey: ["financial-account-charge-groups", restaurantId, accountId],
@@ -449,21 +452,81 @@ export function FinancialAccountCharges({
     void queryClient.invalidateQueries({
       queryKey: ["financial-account-workspace", restaurantId, accountId],
     });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-board", restaurantId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-debit-preview", restaurantId] });
   }
 
   return (
     <section className="space-y-4" data-testid="account-charges">
-      <header>
-        <h2 className="font-display text-xl text-[#251605]">Charges</h2>
-        <p className="text-sm text-muted-foreground">
-          Direct and transferred charge groups owned by this financial account. Direct account
-          charges do not use the guest tax and service engine.
-        </p>
-      </header>
+      <FolioChromeSlot name="dates">
+        <FolioDateRange
+          from={from}
+          to={to}
+          onFrom={(value) => {
+            setFrom(value);
+            setPage(1);
+          }}
+          onTo={(value) => {
+            setTo(value);
+            setPage(1);
+          }}
+          onRange={(nextFrom, nextTo) => {
+            setFrom(nextFrom);
+            setTo(nextTo);
+            setPage(1);
+          }}
+          fromTestId="account-charges-from"
+          toTestId="account-charges-to"
+        />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="filter">
+        <PmsFilterMenu
+          activeCount={
+            (source !== "all" ? 1 : 0) + (coverage !== "all" ? 1 : 0) + (sort !== "newest" ? 1 : 0)
+          }
+          onClear={() => {
+            setSource("all");
+            setCoverage("all");
+            setSort("newest");
+            setPage(1);
+          }}
+          buttonTestId="account-charges-filters-button"
+          menuTestId="account-charges-filters-menu"
+        >
+          <ChoiceRow
+            label="Source"
+            value={source}
+            options={CHARGE_SOURCE_OPTIONS}
+            onChange={(value) => {
+              setSource(value as typeof source);
+              setPage(1);
+            }}
+          />
+          <ChoiceRow
+            label="Invoice coverage"
+            value={coverage}
+            options={CHARGE_COVERAGE_OPTIONS}
+            onChange={(value) => {
+              setCoverage(value as typeof coverage);
+              setPage(1);
+            }}
+          />
+          <ChoiceRow
+            label="Order"
+            value={sort}
+            neutralValue="newest"
+            options={CHARGE_SORT_OPTIONS}
+            onChange={(value) => setSort(value as typeof sort)}
+          />
+        </PmsFilterMenu>
+      </FolioChromeSlot>
+      <p className="text-xs text-muted-foreground">
+        Direct account charges do not use the guest tax and service engine.
+      </p>
 
       {result ? (
         <div className="space-y-1.5">
-          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Mini
               label="Current account-owned charges"
               value={money(result.summary.currentOwned)}
@@ -480,73 +543,6 @@ export function FinancialAccountCharges({
       ) : null}
 
       <div className={cn(CARD, "p-3 space-y-3")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              placeholder="Description, guest, folio"
-              className="h-9 pl-8 text-sm border-[#E8E1D7] bg-white focus-visible:ring-1 focus-visible:ring-[#C89933]"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <Select
-            value={source}
-            onChange={(value) => {
-              setSource(value as typeof source);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All sources"],
-              ["transferred", "Transferred from guest folio"],
-              ["direct", "Direct account charge"],
-            ]}
-          />
-          <Select
-            value={coverage}
-            onChange={(value) => {
-              setCoverage(value as typeof coverage);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All coverage"],
-              ["uninvoiced", "Uninvoiced"],
-              ["invoiced", "Invoiced"],
-              ["partial", "Partially invoiced"],
-            ]}
-          />
-          <div className="flex items-center gap-1.5">
-            <Input
-              type="date"
-              value={from}
-              aria-label="From date"
-              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
-              onChange={(event) => setFrom(event.target.value)}
-            />
-            <span className="text-xs text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={to}
-              aria-label="To date"
-              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
-              onChange={(event) => setTo(event.target.value)}
-            />
-          </div>
-          <Select
-            value={sort}
-            onChange={(value) => setSort(value as typeof sort)}
-            options={[
-              ["newest", "Newest first"],
-              ["oldest", "Oldest first"],
-              ["amount", "Gross amount"],
-              ["remaining", "Remaining amount"],
-            ]}
-          />
-        </div>
-
         {sourceFolioId ? (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FAF8F4] border border-[#E8E1D7] text-sm">
             <span className="text-xs text-muted-foreground">Filtered by source folio:</span>
@@ -836,6 +832,8 @@ export function FinancialAccountCharges({
         onClose={() => setReturnId(null)}
         onDone={refresh}
         money={money}
+        canTransfer
+        canCorrect={false}
       />
     </section>
   );
@@ -843,9 +841,11 @@ export function FinancialAccountCharges({
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className={cn(CARD, "p-3.5 transition-shadow hover:shadow-md")}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">{label}</p>
-      <p className="mt-1 font-display text-base font-semibold text-[#251605] tabular-nums">{value}</p>
+    <div className="min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-3 py-2 shadow-sm">
+      <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
+      <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605] tabular-nums">
+        {value}
+      </p>
     </div>
   );
 }
@@ -870,29 +870,78 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Select({
+function ChoiceRow({
+  label,
   value,
-  onChange,
   options,
+  neutralValue = "all",
+  onChange,
 }: {
-  value: string | undefined;
+  label: string;
+  value: string;
+  options: ReadonlyArray<readonly [string, string]>;
+  neutralValue?: string;
   onChange: (value: string) => void;
-  options: Array<[string, string]>;
 }) {
   return (
-    <select
-      value={value ?? ""}
-      className="h-9 rounded-md border border-[#E8E1D7] bg-white px-2.5 text-xs font-medium text-[#251605] shadow-xs hover:border-[#C89933] focus:border-[#C89933] focus:outline-hidden focus:ring-1 focus:ring-[#C89933]"
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {options.map(([id, label]) => (
-        <option key={id} value={id}>
-          {label}
-        </option>
-      ))}
-    </select>
+    <PmsFilterChoiceRow
+      label={label}
+      value={value}
+      neutralValue={neutralValue}
+      current={value === neutralValue ? "" : (options.find(([id]) => id === value)?.[1] ?? "")}
+      options={options}
+      onChange={onChange}
+    />
   );
 }
+
+const FOLIO_STAY_OPTIONS = [
+  ["all", "All stays"],
+  ["in_house", "In-House"],
+  ["checked_out", "Checked-Out"],
+  ["folio_open", "Folio open"],
+  ["folio_closed", "Folio closed"],
+] as const;
+
+const FOLIO_COVERAGE_OPTIONS = [
+  ["all", "All coverage"],
+  ["uninvoiced", "Uninvoiced"],
+  ["partial", "Partially invoiced"],
+  ["invoiced", "Invoiced"],
+] as const;
+
+const FOLIO_SCOPE_OPTIONS = [
+  ["current", "Current ownership"],
+  ["history", "Include fully returned"],
+] as const;
+
+const FOLIO_SORT_OPTIONS = [
+  ["recent", "Recent activity"],
+  ["guest", "Guest name"],
+  ["arrival", "Arrival date"],
+  ["departure", "Departure date"],
+  ["owned", "Account-owned amount"],
+] as const;
+
+const CHARGE_SOURCE_OPTIONS = [
+  ["all", "All sources"],
+  ["transferred", "Transferred from guest folio"],
+  ["direct", "Direct account charge"],
+] as const;
+
+const CHARGE_COVERAGE_OPTIONS = [
+  ["all", "All coverage"],
+  ["uninvoiced", "Uninvoiced"],
+  ["invoiced", "Invoiced"],
+  ["partial", "Partially invoiced"],
+] as const;
+
+const CHARGE_SORT_OPTIONS = [
+  ["newest", "Newest first"],
+  ["oldest", "Oldest first"],
+  ["amount", "Gross amount"],
+  ["remaining", "Remaining amount"],
+] as const;
 
 function Pager({
   page,

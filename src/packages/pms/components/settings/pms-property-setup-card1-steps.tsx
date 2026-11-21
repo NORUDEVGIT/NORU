@@ -157,6 +157,7 @@ import {
   resolveRegionForCountryChange,
   type AddressFieldKey,
 } from "@/packages/pms/lib/pms-geography";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const SELECT_TRIGGER_CLASS = `${PROPERTY_SETUP_CONTROL_CLASS} justify-between`;
 
@@ -2328,7 +2329,7 @@ export function StructureStep({
       }
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const floorMutation = useMutation({
     mutationFn: (input: {
@@ -2351,7 +2352,7 @@ export function StructureStep({
       }
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const wingMutation = useMutation({
     mutationFn: (input: {
@@ -2373,7 +2374,7 @@ export function StructureStep({
       }
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const deleteStructureMutation = useMutation({
     mutationFn: (node: StructureNode) =>
@@ -2385,7 +2386,7 @@ export function StructureStep({
       setSelected(null);
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const areaMutation = useMutation({
     mutationFn: () =>
@@ -2407,7 +2408,7 @@ export function StructureStep({
       setAreaComposerOpen(false);
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const deleteAreaMutation = useMutation({
     mutationFn: (id: string) => removeArea({ data: { restaurantId, id } }),
@@ -2415,7 +2416,7 @@ export function StructureStep({
       toast.success("Property area deleted.");
       refresh();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const hierarchy = useMemo(() => {

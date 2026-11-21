@@ -63,6 +63,7 @@ import {
   type Card5HoursWindow,
   type Card5OperatingHours,
 } from "../../lib/departments-card5.server";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 const DRAWER_SECTIONS = [
   "Basic",
   "Location",
@@ -210,6 +211,7 @@ export function Card5OutletsTab({
   const [category, setCategory] = useState<"all" | Card5FacilityCategory>("all");
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [draft, setDraft] = useState<Card5Facility | null>(null);
+  const [codeTouched, setCodeTouched] = useState(false);
   const [section, setSection] = useState<(typeof DRAWER_SECTIONS)[number]>("Basic");
   const [validated, setValidated] = useState<Card5FacilitiesReadiness | null>(null);
 
@@ -269,25 +271,11 @@ export function Card5OutletsTab({
       setValidated(null);
       toast.success("Facility saved.");
     },
-    onError: (error: Error) => {
-      try {
-        const issues = JSON.parse(error.message);
-        if (Array.isArray(issues) && issues.length > 0) {
-          const messages = issues.map((item: { path?: string[]; message?: string }) => {
-            const field = item.path?.[0] ? `${item.path[0]}: ` : "";
-            return `${field}${item.message ?? "Invalid value"}`;
-          });
-          toast.error(messages.join("; "));
-          return;
-        }
-      } catch {
-        // Not JSON
-      }
-      toast.error(error.message);
-    },
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function openCreate() {
+    setCodeTouched(false);
     setDraft(
       emptyFacilityDraft({
         operatingHours: emptyOperatingHours({ is24Hours: true }),
@@ -429,6 +417,7 @@ export function Card5OutletsTab({
                       <DropdownMenuContent align="end" className="w-44 border-[#DDD4C5]">
                         <DropdownMenuItem
                           onSelect={() => {
+                            setCodeTouched(true);
                             setDraft({
                               ...row,
                               operatingHours: emptyOperatingHours(row.operatingHours),
@@ -503,7 +492,14 @@ export function Card5OutletsTab({
                   <Label>Name</Label>
                   <Input
                     value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setDraft({
+                        ...draft,
+                        name,
+                        code: draft.id || codeTouched ? draft.code : setupCodeFromName(name),
+                      });
+                    }}
                     disabled={!editor}
                   />
                 </div>
@@ -511,7 +507,10 @@ export function Card5OutletsTab({
                   <Label>Unique code</Label>
                   <Input
                     value={draft.code}
-                    onChange={(e) => setDraft({ ...draft, code: e.target.value })}
+                    onChange={(e) => {
+                      setCodeTouched(true);
+                      setDraft({ ...draft, code: e.target.value.toUpperCase() });
+                    }}
                     disabled={!editor}
                   />
                 </div>

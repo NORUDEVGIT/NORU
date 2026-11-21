@@ -49,6 +49,7 @@ import {
   type Card8SyncMode,
   type Card8SyncPriority,
 } from "@/packages/pms/lib/pms-property-setup-card8-offline";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const INNER_TABS = [
   { id: "overview", label: "Overview / Policy" },
@@ -124,7 +125,7 @@ export function Card8OfflineTab({
       void queryClient.invalidateQueries({ queryKey: ["pms-card8-readiness", restaurantId] });
       void queryClient.invalidateQueries({ queryKey: ["pms-card1", restaurantId] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function updateCapability(code: string, patch: Partial<Card8OfflineCapabilityRow>) {

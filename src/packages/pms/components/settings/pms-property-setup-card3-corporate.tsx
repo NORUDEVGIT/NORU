@@ -44,6 +44,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function matchesQuery(query: string, ...values: string[]) {
   const normalized = query.trim().toLowerCase();
@@ -165,7 +166,7 @@ export function PmsPropertySetupCard3Corporate({
       toast.success("Agreement deactivated.");
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const contractTypeMutation = useMutation({
@@ -182,7 +183,7 @@ export function PmsPropertySetupCard3Corporate({
       setTypeDraft(null);
       invalidate();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   function openCreateWizard() {

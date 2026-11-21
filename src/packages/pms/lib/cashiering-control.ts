@@ -335,7 +335,7 @@ export function summarizeBusinessDateActivity(input: {
     allocations: [],
     counterparts: {},
     coverage: emptyHistoryCoverage(),
-    access: { canManage: false, open: false },
+    access: { canCorrect: false, canTransfer: false, canRefund: false, canApplyDeposit: false, open: false },
   });
   const owners = new Map(dayRows.map((row) => [row.id, row.ownerLabel]));
   const recent = events

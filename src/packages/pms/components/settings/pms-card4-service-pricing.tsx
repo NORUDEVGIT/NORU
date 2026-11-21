@@ -56,6 +56,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/components/ui/table";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 function recordToDraft(row: ServicePricingRecord): ServicePricingDraft {
   return {
     id: row.id,
@@ -156,7 +157,7 @@ export function PmsCard4ServicePricing({
       setDirty(false);
       toast.success("Service pricing saved successfully.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save service pricing."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save service pricing.")),
   });
 
   const toggleMutation = useMutation({
@@ -166,7 +167,7 @@ export function PmsCard4ServicePricing({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Service pricing enabled." : "Service pricing disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -176,7 +177,7 @@ export function PmsCard4ServicePricing({
       setPendingDelete(null);
       toast.success("Service pricing deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const busy = saveMutation.isPending || toggleMutation.isPending || deleteMutation.isPending;

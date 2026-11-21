@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
-import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Switch } from "@/shared/components/ui/switch";
@@ -75,6 +74,7 @@ import {
   type BusinessProfileTypeRecord,
 } from "@/packages/pms/lib/company-business-card4.server";
 import { cn } from "@/shared/lib/utils";
+import { draftWithGeneratedCode, friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: BusinessProfileTypeRecord): BusinessProfileTypeDraft {
   return {
@@ -88,11 +88,6 @@ function recordToDraft(row: BusinessProfileTypeRecord): BusinessProfileTypeDraft
     contactRequired: row.contactRequired,
     creditAccountAllowed: row.creditAccountAllowed,
   };
-}
-
-function toggleId(list: string[], id: string, on: boolean): string[] {
-  if (on) return list.includes(id) ? list : [...list, id];
-  return list.filter((item) => item !== id);
 }
 
 function YesNo({ value }: { value: boolean }) {
@@ -142,14 +137,12 @@ export function PmsCard4CompanyBusiness({
   onSavingChange,
   saveRequest,
   onSaved,
-  onGoRequiredFields,
 }: {
   restaurantId: string;
   canEdit: boolean;
   onSavingChange: (saving: boolean, canSave: boolean) => void;
   saveRequest: { token: number; thenNext: boolean } | null;
   onSaved: (thenNext: boolean) => void;
-  onGoRequiredFields: () => void;
 }) {
   const queryClient = useQueryClient();
   const load = useServerFn(getPmsCard4CompanyBusiness);
@@ -172,16 +165,16 @@ export function PmsCard4CompanyBusiness({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<BusinessProfileTypeDraft>(emptyBusinessTypeDraft());
+  const [codeTouched, setCodeTouched] = useState(false);
   const [settings, setSettings] = useState<BusinessProfileSettings>(emptyBusinessSettings());
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [draftDirty, setDraftDirty] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<BusinessProfileTypeRecord | null>(null);
   const [pendingClose, setPendingClose] = useState(false);
   const [roleDraft, setRoleDraft] = useState<BusinessContactRoleDraft>(emptyContactRoleDraft());
+  const [roleCodeTouched, setRoleCodeTouched] = useState(false);
   const [roleEditorOpen, setRoleEditorOpen] = useState(false);
   const [roleAttempted, setRoleAttempted] = useState(false);
-  const requiredFieldsRef = useRef<HTMLDivElement>(null);
-  const [editorFocus, setEditorFocus] = useState<"details" | "fields">("details");
   const thenNextRef = useRef(false);
   const handledSaveToken = useRef(saveRequest?.token ?? 0);
 
@@ -225,7 +218,7 @@ export function PmsCard4CompanyBusiness({
       setDocTypeDraft(null);
       toast.success("Document type saved.");
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to save document type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to save document type.")),
   });
 
   const docTypeActiveMutation = useMutation({
@@ -235,7 +228,7 @@ export function PmsCard4CompanyBusiness({
       await invalidateDocumentTypeQueries();
       toast.success(input.active ? "Document type enabled." : "Document type disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const docTypeRequiredMutation = useMutation({
@@ -245,7 +238,7 @@ export function PmsCard4CompanyBusiness({
       await invalidateDocumentTypeQueries();
       toast.success(input.required ? "Document marked as required." : "Document marked as optional.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const docTypeDeleteMutation = useMutation({
@@ -255,7 +248,7 @@ export function PmsCard4CompanyBusiness({
       setPendingDeleteDocType(null);
       toast.success("Document type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to delete document type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to delete document type.")),
   });
 
   const filteredDocTypes = useMemo(() => {
@@ -303,11 +296,6 @@ export function PmsCard4CompanyBusiness({
   const settingsError = settingsErrors.find(
     (row) => row.field === "defaultBusinessTypeId",
   )?.message;
-  const activeFields = fields.filter((row) => row.active);
-  const staleOnDraft = draft.requiredFieldIds.filter(
-    (id) => !fields.some((row) => row.id === id && row.active),
-  );
-
   const typeMutation = useMutation({
     mutationFn: () =>
       saveType({
@@ -337,7 +325,7 @@ export function PmsCard4CompanyBusiness({
       if (result.id) setSelectedId(result.id);
       toast.success("Business type saved.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save business type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save business type.")),
   });
 
   const settingsMutation = useMutation({
@@ -357,7 +345,7 @@ export function PmsCard4CompanyBusiness({
       toast.success("Company & Business saved.");
       onSaved(thenNextRef.current);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save business settings."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save business settings.")),
   });
 
   const roleMutation = useMutation({
@@ -378,7 +366,7 @@ export function PmsCard4CompanyBusiness({
       setRoleEditorOpen(false);
       toast.success("Contact role saved.");
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save contact role."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save contact role.")),
   });
 
   const roleActiveMutation = useMutation({
@@ -388,7 +376,7 @@ export function PmsCard4CompanyBusiness({
       await queryClient.invalidateQueries({ queryKey });
       toast.success(input.active ? "Contact role enabled." : "Contact role disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const toggleMutation = useMutation({
@@ -399,7 +387,7 @@ export function PmsCard4CompanyBusiness({
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       toast.success(input.active ? "Business type enabled." : "Business type disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -411,7 +399,7 @@ export function PmsCard4CompanyBusiness({
       setSelectedId(null);
       toast.success("Business type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const busy = typeMutation.isPending || settingsMutation.isPending || toggleMutation.isPending;
@@ -468,7 +456,14 @@ export function PmsCard4CompanyBusiness({
     key: K,
     value: BusinessProfileTypeDraft[K],
   ) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    if (key === "code") setCodeTouched(true);
+    setDraft((prev) =>
+      draftWithGeneratedCode(prev, key, value, {
+        codeTouched: key === "code" ? true : codeTouched,
+        style: "compact",
+        max: 12,
+      }),
+    );
     setDraftDirty(true);
   }
 
@@ -481,27 +476,29 @@ export function PmsCard4CompanyBusiness({
   }
 
   function openCreate() {
+    setCodeTouched(false);
     setDraft(emptyBusinessTypeDraft());
     setDraftDirty(true);
-    setEditorFocus("details");
     setEditorOpen(true);
   }
 
-  function openEdit(row: BusinessProfileTypeRecord, focus: "details" | "fields" = "details") {
+  function openEdit(row: BusinessProfileTypeRecord) {
+    setCodeTouched(true);
     setSelectedId(row.id);
     setDraft(recordToDraft(row));
     setDraftDirty(false);
-    setEditorFocus(focus);
     setEditorOpen(true);
   }
 
   function openAddRole() {
+    setRoleCodeTouched(false);
     setRoleDraft(emptyContactRoleDraft());
     setRoleAttempted(false);
     setRoleEditorOpen(true);
   }
 
   function openEditRole(row: { id: string; name: string; code: string; active: boolean }) {
+    setRoleCodeTouched(true);
     setRoleDraft({
       id: row.id,
       name: row.name,
@@ -525,11 +522,6 @@ export function PmsCard4CompanyBusiness({
   }
 
   const activeTypes = types.filter((row) => row.active);
-
-  useEffect(() => {
-    if (!editorOpen || editorFocus !== "fields") return;
-    requiredFieldsRef.current?.scrollIntoView({ block: "nearest" });
-  }, [editorOpen, editorFocus]);
 
   return (
     <div className="space-y-4" data-testid="card4-company-business">
@@ -597,9 +589,6 @@ export function PmsCard4CompanyBusiness({
                   <TableRow>
                     <TableHead>Type</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Required Fields</TableHead>
-                    <TableHead>Tax ID</TableHead>
-                    <TableHead>Contact</TableHead>
                     <TableHead>Credit Account</TableHead>
                     <TableHead>Active</TableHead>
                     <TableHead className="w-12 text-right">Actions</TableHead>
@@ -610,18 +599,6 @@ export function PmsCard4CompanyBusiness({
                     <TableRow key={row.id} className="hover:bg-[#FAF8F5]/80">
                       <TableCell className="py-2 font-medium text-[#251605]">{row.name}</TableCell>
                       <TableCell className="py-2">{row.code}</TableCell>
-                      <TableCell className="py-2">
-                        {row.requiredFieldIds.length}
-                        {row.staleRequiredFieldIds.length > 0 ? (
-                          <span className="ml-1 text-xs text-destructive">needs review</span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <YesNo value={row.taxIdRequired} />
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <YesNo value={row.contactRequired} />
-                      </TableCell>
                       <TableCell className="py-2">
                         <YesNo value={row.creditAccountAllowed} />
                       </TableCell>
@@ -648,11 +625,8 @@ export function PmsCard4CompanyBusiness({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52 border-[#DDD4C5]">
-                            <DropdownMenuItem onSelect={() => openEdit(row, "details")}>
+                            <DropdownMenuItem onSelect={() => openEdit(row)}>
                               Edit Business Type
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => openEdit(row, "fields")}>
-                              Configure Required Fields
                             </DropdownMenuItem>
                             {canEdit ? (
                               <DropdownMenuItem
@@ -1201,76 +1175,13 @@ export function PmsCard4CompanyBusiness({
             onChange={(event) => markType("description", event.target.value)}
           />
         </div>
-        <div ref={requiredFieldsRef}>
-          <p className="text-sm font-medium text-[#251605]">Required Fields</p>
-          <p className="text-xs text-muted-foreground">
-            Select the mandatory fields for this business type.
-          </p>
-          <p className="mt-1 text-xs text-[#251605]">
-            {draft.requiredFieldIds.length} fields selected
-          </p>
-          <div className="mt-2 space-y-2">
-            {activeFields.map((field) => (
-              <div key={field.id} className="flex items-center gap-2">
-                <Checkbox
-                  id={`bf-${field.id}`}
-                  checked={draft.requiredFieldIds.includes(field.id)}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) =>
-                    markType(
-                      "requiredFieldIds",
-                      toggleId(draft.requiredFieldIds, field.id, checked === true),
-                    )
-                  }
-                />
-                <Label htmlFor={`bf-${field.id}`} className="font-normal">
-                  {field.name}
-                </Label>
-              </div>
-            ))}
-          </div>
-          {staleOnDraft.length > 0 ? (
-            <p className="mt-2 text-xs text-destructive">
-              {staleOnDraft.length} selected field(s) are missing or inactive.
-            </p>
-          ) : null}
-          {errorFor("requiredFieldIds") ? (
-            <p className="mt-1 text-xs text-destructive">{errorFor("requiredFieldIds")}</p>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={onGoRequiredFields}
-          >
-            Manage Fields
-          </Button>
-        </div>
-        <div className="space-y-3">
-          <p className="text-sm font-medium text-[#251605]">Business Rules</p>
-          <YesNoSelect
-            id="bt-tax"
-            label="Tax ID Required"
-            value={draft.taxIdRequired}
-            disabled={!canEdit}
-            onChange={(value) => markType("taxIdRequired", value)}
-          />
-          <YesNoSelect
-            id="bt-contact"
-            label="Contact Required"
-            value={draft.contactRequired}
-            disabled={!canEdit}
-            onChange={(value) => markType("contactRequired", value)}
-          />
-          <YesNoSelect
-            id="bt-credit"
-            label="Credit Account Allowed"
-            value={draft.creditAccountAllowed}
-            disabled={!canEdit}
-            onChange={(value) => markType("creditAccountAllowed", value)}
-          />
-        </div>
+        <YesNoSelect
+          id="bt-credit"
+          label="Credit Account Allowed"
+          value={draft.creditAccountAllowed}
+          disabled={!canEdit}
+          onChange={(value) => markType("creditAccountAllowed", value)}
+        />
       </Card3OverlapSheet>
 
       <Card3OverlapSheet
@@ -1297,7 +1208,16 @@ export function PmsCard4CompanyBusiness({
             id="cr-name"
             value={roleDraft.name}
             disabled={!canEdit}
-            onChange={(event) => setRoleDraft((current) => ({ ...current, name: event.target.value }))}
+            onChange={(event) =>
+              setRoleDraft((current) => ({
+                ...current,
+                name: event.target.value,
+                code:
+                  current.id || roleCodeTouched
+                    ? current.code
+                    : setupCodeFromName(event.target.value, { style: "compact", max: 12 }),
+              }))
+            }
           />
           {roleErrorFor("name") ? (
             <p className="text-xs text-destructive">{roleErrorFor("name")}</p>
@@ -1309,7 +1229,10 @@ export function PmsCard4CompanyBusiness({
             id="cr-code"
             value={roleDraft.code}
             disabled={!canEdit}
-            onChange={(event) => setRoleDraft((current) => ({ ...current, code: event.target.value }))}
+            onChange={(event) => {
+              setRoleCodeTouched(true);
+              setRoleDraft((current) => ({ ...current, code: event.target.value.toUpperCase() }));
+            }}
           />
           {roleErrorFor("code") ? (
             <p className="text-xs text-destructive">{roleErrorFor("code")}</p>
@@ -1415,6 +1338,7 @@ function CompanyDocumentTypeSheet({
 }) {
   const [name, setName] = useState(value?.name ?? "");
   const [code, setCode] = useState(value?.code ?? "");
+  const [codeTouched, setCodeTouched] = useState(Boolean(value?.code));
   const [description, setDescription] = useState(value?.description ?? "");
   const [required, setRequired] = useState(Boolean(value?.required));
   const [appliesToCompany, setAppliesToCompany] = useState(value?.appliesToCompany ?? true);
@@ -1426,6 +1350,7 @@ function CompanyDocumentTypeSheet({
     if (open) {
       setName(value?.name ?? "");
       setCode(value?.code ?? "");
+      setCodeTouched(Boolean(value?.code));
       setDescription(value?.description ?? "");
       setRequired(Boolean(value?.required));
       setAppliesToCompany(value?.appliesToCompany ?? true);
@@ -1473,7 +1398,11 @@ function CompanyDocumentTypeSheet({
           value={name}
           disabled={!canEdit}
           placeholder="e.g. Tax Registration Certificate"
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setName(next);
+            if (!value && !codeTouched) setCode(setupCodeFromName(next));
+          }}
         />
       </div>
       <div className="space-y-1">
@@ -1483,7 +1412,10 @@ function CompanyDocumentTypeSheet({
           value={code}
           disabled={!canEdit}
           placeholder="e.g. TAX_CERT, TRADE_LIC"
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onChange={(e) => {
+            setCodeTouched(true);
+            setCode(e.target.value.toUpperCase());
+          }}
         />
       </div>
       <div className="space-y-1">

@@ -139,8 +139,6 @@ export const DEFAULT_BUSINESS_FIELDS = [
   { name: "Business License", code: "BUSINESS_LICENSE", fieldType: "text" as const },
 ] as const;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 export function normalizeBusinessTypeCode(value: string): string {
   return value.trim().toUpperCase();
 }
@@ -242,26 +240,7 @@ export function validateBusinessTypeDraft(
       message: "An active business type with this name already exists.",
     });
   }
-  if (draft.requiredFieldIds.length === 0) {
-    errors.push({ field: "requiredFieldIds", message: "Select at least one required field." });
-  }
-  const fieldById = new Map(fields.map((row) => [row.id, row]));
-  const missing = draft.requiredFieldIds.filter((id) => !UUID.test(id) || !fieldById.has(id));
-  if (missing.length > 0) {
-    errors.push({
-      field: "requiredFieldIds",
-      message: "A selected required field is no longer in the catalogue.",
-    });
-  }
-  const inactiveSelected = draft.requiredFieldIds.filter(
-    (id) => fieldById.get(id)?.active === false,
-  );
-  if (inactiveSelected.length > 0) {
-    errors.push({
-      field: "requiredFieldIds",
-      message: "Remove inactive required fields before saving.",
-    });
-  }
+  void fields;
   return errors;
 }
 

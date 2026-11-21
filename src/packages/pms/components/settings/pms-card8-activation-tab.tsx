@@ -19,6 +19,7 @@ import {
 } from "@/shared/components/ui/collapsible";
 import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/shared/lib/utils";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function formatBusinessDate(value: string | null | undefined) {
   if (!value) return "Missing";
@@ -122,7 +123,7 @@ export function Card8ActivationTab({ restaurantId }: { restaurantId: string }) {
       void queryClient.invalidateQueries({ queryKey: ["my-restaurants"] });
       void navigate({ to: PMS_OPERATIONAL_HOME_PATH, replace: true });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const live = eligibility?.canonicalLive === true;

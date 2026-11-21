@@ -218,7 +218,13 @@ async function evaluateRoomTypeChange(input: {
   reservationRoomId: string;
   roomTypeId: string;
   ratePlanId: string;
-}): Promise<RoomTypeChangeImpact & { unitCount: number; releaseRoomId: string | null }> {
+}): Promise<
+  RoomTypeChangeImpact & {
+    unitCount: number;
+    releaseRoomId: string | null;
+    heldRoomId: string | null;
+  }
+> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   await assertReservationDetailEditable(supabaseAdmin, input.restaurantId, input.reservationId);
 
@@ -356,6 +362,7 @@ async function evaluateRoomTypeChange(input: {
     unitSequence: unit.unit_sequence,
     unitCount,
     releaseRoomId,
+    heldRoomId: unit.room_id ?? null,
     current: {
       roomTypeId: unit.room_type_id,
       roomTypeName: currentType?.name ?? "Current room type",
@@ -484,6 +491,20 @@ export const confirmReservationRoomTypeChange = createServerFn({ method: "POST" 
       roomTypeId: data.roomTypeId,
       ratePlanId: data.ratePlanId,
     });
+    if ((review.current.ratePlanId ?? null) !== review.proposed.ratePlanId) {
+      await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.RESERVATION_RATE_OVERRIDE,
+      );
+    }
+    if (review.heldRoomId && review.releaseRoomId !== review.heldRoomId) {
+      await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT,
+      );
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const pricedStay = review as RoomTypeChangeImpact & {
       unitCount: number;

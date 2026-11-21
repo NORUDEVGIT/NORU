@@ -165,12 +165,7 @@ export function AccountPaymentDialog({
       onOpenChange(false);
       onPosted();
 
-      if (printReceipt) {
-        onReceipt?.(receiptData);
-        window.setTimeout(() => {
-          window.print();
-        }, 120);
-      }
+      if (printReceipt) onReceipt?.(receiptData);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -179,9 +174,9 @@ export function AccountPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg border border-[#E8E1D7] bg-white rounded-2xl p-0 overflow-hidden shadow-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 sm:max-w-lg border border-[#E8E1D7] bg-white rounded-2xl p-0 overflow-hidden shadow-2xl">
         {/* Header */}
-        <DialogHeader className="p-5 pb-4 border-b border-[#E8E1D7] bg-[#F7F4EE]/70">
+        <DialogHeader className="shrink-0 p-5 pb-4 border-b border-[#E8E1D7] bg-[#F7F4EE]/70">
           <div className="flex items-start gap-3">
             <span
               className={cn(
@@ -233,7 +228,7 @@ export function AccountPaymentDialog({
         </DialogHeader>
 
         {/* Form Body */}
-        <div className="p-5 space-y-3.5 text-xs">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-3.5 text-xs">
           {/* Amount */}
           <div className="space-y-1">
             <Label htmlFor="account-entry-amount" className="text-xs font-semibold text-[#5F554B]">
@@ -348,7 +343,7 @@ export function AccountPaymentDialog({
         </div>
 
         {/* Footer */}
-        <DialogFooter className="p-4 border-t border-[#E8E1D7] bg-[#F7F4EE]/50 flex items-center justify-end gap-2">
+        <DialogFooter className="shrink-0 p-4 border-t border-[#E8E1D7] bg-[#F7F4EE]/50 flex items-center justify-end gap-2">
           <Button
             type="button"
             variant="outline"

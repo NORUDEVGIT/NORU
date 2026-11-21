@@ -73,6 +73,15 @@ async function writeAudit(
   if (result.error) console.error("[card5-sales-events] audit", result.error.message);
 }
 
+function catalogueIsSystem(attrs: unknown): boolean {
+  return Boolean(
+    attrs &&
+      typeof attrs === "object" &&
+      !Array.isArray(attrs) &&
+      (attrs as { system?: unknown }).system === true,
+  );
+}
+
 function mapItem(row: any): Card5SalesItem {
   return {
     id: String(row.id),
@@ -80,6 +89,7 @@ function mapItem(row: any): Card5SalesItem {
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
     active: row.active !== false,
+    ...(catalogueIsSystem(row.attrs) ? { system: true } : {}),
   };
 }
 
@@ -121,12 +131,12 @@ export async function loadCard5SalesSnapshot(
   ] = await Promise.all([
     db
       .from("pms_market_segments")
-      .select("id, code, name, description, active")
+      .select("id, code, name, description, active, attrs")
       .eq("restaurant_id", restaurantId)
       .order("name"),
     db
       .from("pms_source_codes")
-      .select("id, code, name, description, active")
+      .select("id, code, name, description, active, attrs")
       .eq("restaurant_id", restaurantId)
       .order("name"),
     db
@@ -527,13 +537,12 @@ export const saveCard5SalesCatalogue = createServerFn({ method: "POST" })
     const before = await loadCard5SalesSnapshot(db, data.restaurantId);
     const isSet6 = (SET6_KINDS as readonly string[]).includes(data.kind);
     const table = isSet6 ? SET6_TABLE[data.kind as (typeof SET6_KINDS)[number]] : "pms_lead_types";
-    const payload = isSet6
+    const fields = isSet6
       ? {
           restaurant_id: data.restaurantId,
           code: data.code,
           name: data.name,
           description: data.description ?? "",
-          attrs: {} as Json,
           active: data.active,
         }
       : {
@@ -543,6 +552,7 @@ export const saveCard5SalesCatalogue = createServerFn({ method: "POST" })
           description: blankToNull(data.description),
           active: data.active,
         };
+    const payload = data.id || !isSet6 ? fields : { ...fields, attrs: {} as Json };
     const result = data.id
       ? await db
           .from(table)

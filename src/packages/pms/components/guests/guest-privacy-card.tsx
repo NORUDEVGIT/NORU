@@ -76,7 +76,10 @@ export function GuestPrivacyCard({
     queryFn: () => fetchAccess({ data: { restaurantId } }),
     retry: false,
   });
-  const canPrivacy = accessQuery.data?.canPrivacy ?? false;
+  const canEdit = accessQuery.data?.canEdit ?? false;
+  const canPrivacyExport = accessQuery.data?.canPrivacyExport ?? false;
+  const canPrivacyDelete = accessQuery.data?.canPrivacyDelete ?? false;
+  const canMerge = accessQuery.data?.canMerge ?? false;
 
   const guestQuery = useQuery({
     queryKey: ["guest", restaurantId, guestId],
@@ -179,6 +182,7 @@ export function GuestPrivacyCard({
           restaurantId={restaurantId}
           guestId={guestId}
           consent={guestQuery.data.guest.consent}
+          canEdit={canEdit}
           onSaved={refresh}
         />
       ) : null}
@@ -188,7 +192,7 @@ export function GuestPrivacyCard({
         <p className="mt-1 text-sm text-muted-foreground">
           Downloads a JSON file of the profile this property holds. The file is not stored on the server.
         </p>
-        {canPrivacy ? (
+        {canPrivacyExport ? (
           <Button
             className="mt-4"
             data-testid="guest-privacy-export"
@@ -197,9 +201,7 @@ export function GuestPrivacyCard({
           >
             Export JSON
           </Button>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">{WAVE5_PRIVACY_ROLES_COPY}</p>
-        )}
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5">
@@ -207,7 +209,7 @@ export function GuestPrivacyCard({
         <p className="mt-1 text-sm text-muted-foreground">{WAVE5_ANONYMISE_COPY}</p>
         {anonymised ? (
           <p className="mt-2 text-sm text-muted-foreground">This profile is already anonymised.</p>
-        ) : canPrivacy ? (
+        ) : canPrivacyDelete ? (
           <Button
             className="mt-4"
             variant="outline"
@@ -216,9 +218,7 @@ export function GuestPrivacyCard({
           >
             Anonymise profile
           </Button>
-        ) : (
-          <p className="mt-2 text-sm text-muted-foreground">{WAVE5_PRIVACY_ROLES_COPY}</p>
-        )}
+        ) : null}
       </div>
 
       {guestId ? (
@@ -237,7 +237,7 @@ export function GuestPrivacyCard({
                   ) : (
                     <p className="mt-1 text-sm text-muted-foreground">This merge has a reversible ledger.</p>
                   )}
-                  {canPrivacy ? (
+                  {canMerge ? (
                     <Button
                       className="mt-2"
                       variant="outline"

@@ -104,6 +104,7 @@ import {
 import { getReservationCommercialAttribution } from "@/packages/pms/lib/revenue/commercial-package.functions";
 import { getPmsSet6Snapshot } from "@/packages/pms/lib/pms-set6-sales-distribution.functions";
 import type { ReservationDetail } from "@/packages/pms/lib/reservations.functions";
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
 import { cn } from "@/shared/lib/utils";
 
 const FIELD =
@@ -111,6 +112,8 @@ const FIELD =
 
 export function ReservationDetailRatesTab({
   restaurantId,
+  grants,
+  stayOpen,
   reservation,
   canManage,
   money,
@@ -125,6 +128,9 @@ export function ReservationDetailRatesTab({
   marketSegments: marketSegmentsProp,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  /** Stay state only; permissions come from grants. */
+  stayOpen: boolean;
   reservation: ReservationDetail;
   canManage: boolean;
   money: (value: number) => string;
@@ -211,7 +217,7 @@ export function ReservationDetailRatesTab({
       fetchPlans({
         data: { restaurantId, roomTypeId: read.unit.roomTypeId, activeOnly: true },
       }),
-    enabled: canManage,
+    enabled: grants.rateOverride && stayOpen,
     retry: false,
   });
 
@@ -273,7 +279,8 @@ export function ReservationDetailRatesTab({
   const editable = canManage && !cancelled;
   const selectedUnit = read.units.find((unit) => unit.id === read.selectedUnitId);
   const canChangePlan =
-    editable &&
+    stayOpen &&
+    !cancelled &&
     (selectedUnit == null ||
       (selectedUnit.status !== "cancelled" && selectedUnit.status !== "no_show"));
 
@@ -377,6 +384,7 @@ export function ReservationDetailRatesTab({
             <GroupRoomRates
               reservation={reservation}
               money={money}
+              showChangePlan={grants.rateOverride}
               editable={canChangePlan && Boolean(read.selectedUnitId)}
               onChangePlan={() => setPlanOpen(true)}
               roomGuestTotal={roomGuestTotal}
@@ -394,6 +402,8 @@ export function ReservationDetailRatesTab({
                 stayTotal={stayGuestTotal}
                 currency={currency}
                 editable={editable}
+                showEdit={grants.edit}
+                showChangePlan={grants.rateOverride}
                 canChangePlan={canChangePlan}
                 marketSegments={marketSegments}
                 onChangePlan={() => setPlanOpen(true)}
@@ -414,6 +424,7 @@ export function ReservationDetailRatesTab({
             <DiscountsCard
               promotion={promotion}
               money={money}
+              showEdit={grants.edit}
               editable={editable}
               removing={removeDiscount.isPending}
               onAdd={() => setDiscountOpen(true)}
@@ -457,24 +468,26 @@ export function ReservationDetailRatesTab({
         <Button type="button" variant="outline" size="sm" onClick={onBackToRooms}>
           Back to Rooms
         </Button>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!editable || saveNotes.isPending}
-            onClick={() => saveNotes.mutate()}
-          >
-            Save Changes
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setRateNotes(reservation.rateNotes ?? "")}
-          >
-            Cancel
-          </Button>
-        </div>
+        {grants.edit ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={!editable || saveNotes.isPending}
+              onClick={() => saveNotes.mutate()}
+            >
+              Save Changes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRateNotes(reservation.rateNotes ?? "")}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : null}
       </div>
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>
         <DialogContent>
@@ -556,12 +569,14 @@ export function ReservationDetailRatesTab({
 function GroupRoomRates({
   reservation,
   money,
+  showChangePlan,
   editable,
   onChangePlan,
   roomGuestTotal = null,
 }: {
   reservation: ReservationDetail;
   money: (value: number) => string;
+  showChangePlan: boolean;
   editable: boolean;
   onChangePlan: () => void;
   roomGuestTotal?: number | null;
@@ -580,16 +595,18 @@ function GroupRoomRates({
             {GROUP_RATE_CHANGE_PER_ROOM}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!editable}
-          onClick={onChangePlan}
-        >
-          <Tag className="mr-1 size-3.5" />
-          Change Rate Plan
-        </Button>
+        {showChangePlan ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!editable}
+            onClick={onChangePlan}
+          >
+            <Tag className="mr-1 size-3.5" />
+            Change Rate Plan
+          </Button>
+        ) : null}
       </div>
       {sections.map((section) => (
         <div key={section.sequence} className="border-t border-[#EEE6D8] pt-3 text-sm">
@@ -641,6 +658,8 @@ function RateInformationCard({
   stayTotal,
   currency,
   editable,
+  showEdit,
+  showChangePlan,
   canChangePlan,
   marketSegments,
   onChangePlan,
@@ -656,6 +675,8 @@ function RateInformationCard({
   stayTotal: number | null;
   currency: string;
   editable: boolean;
+  showEdit: boolean;
+  showChangePlan: boolean;
   canChangePlan: boolean;
   marketSegments: Array<{ id: string; name: string; code?: string | null }>;
   onChangePlan: () => void;
@@ -673,15 +694,17 @@ function RateInformationCard({
             View and manage the applied rate plan, daily rates, discounts and rate adjustments.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!canChangePlan}
-          onClick={onChangePlan}
-        >
-          Edit Rate
-        </Button>
+        {showChangePlan ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!canChangePlan}
+            onClick={onChangePlan}
+          >
+            Edit Rate
+          </Button>
+        ) : null}
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto]">
         <div className="flex gap-3">
@@ -728,26 +751,30 @@ function RateInformationCard({
           <Info label="Currency" value={reviewDash(currency)} />
         </dl>
         <div className="flex flex-col gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canChangePlan}
-            onClick={onChangePlan}
-          >
-            <Tag className="mr-1 size-3.5" />
-            Change Rate Plan
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!editable}
-            onClick={onApplyDiscount}
-          >
-            <Percent className="mr-1 size-3.5" />
-            Apply Discount
-          </Button>
+          {showChangePlan ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!canChangePlan}
+              onClick={onChangePlan}
+            >
+              <Tag className="mr-1 size-3.5" />
+              Change Rate Plan
+            </Button>
+          ) : null}
+          {showEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!editable}
+              onClick={onApplyDiscount}
+            >
+              <Percent className="mr-1 size-3.5" />
+              Apply Discount
+            </Button>
+          ) : null}
         </div>
       </div>
     </section>
@@ -863,6 +890,7 @@ function RatePlanDetailsCard({
 function DiscountsCard({
   promotion,
   money,
+  showEdit,
   editable,
   removing,
   onAdd,
@@ -876,6 +904,7 @@ function DiscountsCard({
     roomSubtotalAfterPromotion: number | null;
   } | null;
   money: (value: number) => string;
+  showEdit: boolean;
   editable: boolean;
   removing: boolean;
   onAdd: () => void;
@@ -888,10 +917,12 @@ function DiscountsCard({
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="font-display text-base text-[#251605]">Discounts & Adjustments</h2>
-        <Button type="button" size="sm" disabled={!editable} onClick={onAdd}>
-          <Plus className="mr-1 size-3.5" />
-          Add
-        </Button>
+        {showEdit ? (
+          <Button type="button" size="sm" disabled={!editable} onClick={onAdd}>
+            <Plus className="mr-1 size-3.5" />
+            Add
+          </Button>
+        ) : null}
       </div>
       {promotion ? (
         <>
@@ -921,16 +952,18 @@ function DiscountsCard({
               ? ""
               : ` Stored room subtotal after promotion ${money(promotion.roomSubtotalAfterPromotion)}.`}
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            disabled={!editable || removing}
-            onClick={onRemove}
-          >
-            {removing ? "Removing…" : "Remove promotion"}
-          </Button>
+          {showEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              disabled={!editable || removing}
+              onClick={onRemove}
+            >
+              {removing ? "Removing…" : "Remove promotion"}
+            </Button>
+          ) : null}
         </>
       ) : (
         <div

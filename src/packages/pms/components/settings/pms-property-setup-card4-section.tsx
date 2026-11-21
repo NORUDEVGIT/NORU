@@ -923,7 +923,6 @@ export function PmsPropertySetupCard4Section({
                 onSavingChange={onSavingChange}
                 saveRequest={saveRequest}
                 onSaved={onSaved}
-                onGoRequiredFields={() => navigateToStep("required-fields")}
               />
             ) : step === "group-types" ? (
               <PmsCard4GroupTypes

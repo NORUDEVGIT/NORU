@@ -143,6 +143,18 @@ describe("Guest listing honesty", () => {
     assert.match(directory, /guest-listing-search/);
     assert.doesNotMatch(directory, /guest-type-filter/);
   });
+
+  it("opens the workspace from View Guest Profiles without sharing the directory access cache", () => {
+    const listing = readRel("../components/workspaces/guest-listing-workspace.tsx");
+    const directory = readRel("../components/workspaces/guest-directory-workspace.tsx");
+    assert.match(listing, /usePmsPermissions\(restaurantId\)/);
+    assert.match(listing, /PMS_PERMISSIONS\.GUEST_PROFILE_VIEW/);
+    assert.match(listing, /queryKey: \["guest-workspace-access", restaurantId\]/);
+    assert.doesNotMatch(listing, /queryKey: \["guests-access", restaurantId\]/);
+    assert.match(directory, /queryKey: \["guests-access", restaurantId\]/);
+    assert.match(directory, /getGuestsAccess/);
+    assert.match(directory, /PMS_PERMISSIONS\.GUEST_PROFILE_VIEW/);
+  });
 });
 
 describe("Card 4 Active/Inactive workspace wiring", () => {

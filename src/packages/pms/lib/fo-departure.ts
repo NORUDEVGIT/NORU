@@ -167,6 +167,7 @@ export function foDepartureActionHints(params: {
   blockingKeys: FoDepartureExceptionKey[];
   datesValid: boolean;
   lateCheckoutNeedsApproval?: boolean;
+  canAuthorizeLateCheckout?: boolean;
   staffRole?: string;
 }): FoDepartureActionHints {
   const inHouse = params.status === "checked_in";
@@ -178,7 +179,11 @@ export function foDepartureActionHints(params: {
     canOpenGuest: Boolean(params.guestId),
     canOpenReservation: true,
     lateCheckoutRequiresApproval:
-      inHouse && foLateCheckoutRequiresApproval(params.lateCheckoutNeedsApproval === true, params.staffRole ?? ""),
+      inHouse &&
+      foLateCheckoutRequiresApproval(
+        params.lateCheckoutNeedsApproval === true,
+        params.canAuthorizeLateCheckout === true,
+      ),
     canHandoffUnarrived: params.status === "pending" || params.status === "confirmed",
   };
 }

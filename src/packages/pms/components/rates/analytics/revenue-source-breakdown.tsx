@@ -4,6 +4,7 @@ import type {
   RevenuePerformanceOverview,
 } from "@/packages/pms/lib/revenue/revenue-analytics";
 import { AlertCircle } from "lucide-react";
+import { AnalyticsSegmented } from "./analytics-segmented";
 
 export function RevenueSourceBreakdown({
   overview,
@@ -33,44 +34,24 @@ export function RevenueSourceBreakdown({
   };
 
   return (
-    <div className="space-y-3">
-      {/* Sub-tab switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 rounded-xl border border-[#E8E1D7] bg-[#F7F4EE]/60 p-1">
-          <button
-            type="button"
-            onClick={() => setSourceTab("commercial")}
-            className={`h-8 rounded-lg px-3.5 text-xs font-semibold transition-all ${
-              sourceTab === "commercial"
-                ? "bg-white text-[#251605] shadow-xs border border-[#E8E1D7]"
-                : "text-[#756A5B] hover:text-[#251605] hover:bg-white/50"
-            }`}
-          >
-            Commercial Booking Sources
-          </button>
-          <button
-            type="button"
-            onClick={() => setSourceTab("technical")}
-            className={`h-8 rounded-lg px-3.5 text-xs font-semibold transition-all ${
-              sourceTab === "technical"
-                ? "bg-white text-[#251605] shadow-xs border border-[#E8E1D7]"
-                : "text-[#756A5B] hover:text-[#251605] hover:bg-white/50"
-            }`}
-          >
-            Technical Origin
-          </button>
-        </div>
-      </div>
+    <section className="rounded-xl border border-[#E8E1D7] bg-white shadow-xs">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E8E1D7] px-4 py-2.5">
+        <h3 className="font-display text-sm font-semibold text-[#251605]">
+          {sourceTab === "commercial" ? "Revenue by Booking Source" : "Revenue by Technical Origin"}
+        </h3>
+        <AnalyticsSegmented
+          ariaLabel="Source breakdown"
+          value={sourceTab}
+          onChange={setSourceTab}
+          options={[
+            { value: "commercial", label: "Booking Source" },
+            { value: "technical", label: "Technical Origin" },
+          ]}
+        />
+      </header>
 
-      {/* Commercial Source Table */}
       {sourceTab === "commercial" && (
-        <div className="rounded-xl border border-[#E8E1D7] bg-card shadow-xs">
-          <div className="border-b border-[#E8E1D7] px-4 py-3.5">
-            <h3 className="font-display text-base font-semibold text-[#251605]">
-              Commercial Booking Source Attribution
-            </h3>
-          </div>
-
+        <div>
           {commercialSources.length === 0 ? (
             <div className="p-8 text-center text-xs text-[#756A5B]">
               No commercial source-attributed reservations match the selected filters.
@@ -132,15 +113,8 @@ export function RevenueSourceBreakdown({
         </div>
       )}
 
-      {/* Technical Origin Table */}
       {sourceTab === "technical" && (
-        <div className="rounded-xl border border-[#E8E1D7] bg-card shadow-xs">
-          <div className="border-b border-[#E8E1D7] px-4 py-3.5">
-            <h3 className="font-display text-base font-semibold text-[#251605]">
-              Technical Origin Analysis
-            </h3>
-          </div>
-
+        <div>
           {technicalOrigins.length === 0 ? (
             <div className="p-8 text-center text-xs text-[#756A5B]">
               No reservation data available for technical origin attribution.
@@ -187,6 +161,6 @@ export function RevenueSourceBreakdown({
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

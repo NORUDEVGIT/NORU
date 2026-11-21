@@ -264,7 +264,7 @@ describe("RR-P2-03 — wiring, drawer and no fake product", () => {
     }
     assert.match(legend, /Low Remaining/);
     assert.match(legend, /Inventory bands, not demand/);
-    assert.match(toolbar, /Bulk Rate Change/);
+    assert.match(view, /Bulk Rate Change/);
     assert.match(workspace, /RateCalendarView/);
     assert.doesNotMatch(workspace, /<RateCalendarTab/);
     assert.match(

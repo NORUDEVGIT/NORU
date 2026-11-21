@@ -51,6 +51,7 @@ import {
 } from "@/packages/pms/lib/pms-set3-rates-guest.functions";
 import { WAVE4_SET3_FLAG_COPY } from "@/packages/pms/lib/guest-profile-wave4";
 import { PmsPreferenceOptionsEditor } from "@/packages/pms/components/settings/pms-preference-options-editor";
+import { friendlySetupError, setupCodeFromName } from "@/packages/pms/lib/setup-form-errors";
 
 function refreshSet3(queryClient: ReturnType<typeof useQueryClient>, restaurantId: string) {
   void queryClient.invalidateQueries({ queryKey: ["pms-set1-foundation", restaurantId] });
@@ -96,7 +97,7 @@ export function Set3RatesSection({
       toast.success("Meal plan updated.");
       refreshSet3(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (
@@ -289,7 +290,7 @@ export function Set3GuestSection({
       toast.success("Guest profile rules saved.");
       refreshSet3(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const idMutation = useMutation({
     mutationFn: (input: { id?: string; code: string; name: string; active: boolean }) =>
@@ -299,7 +300,7 @@ export function Set3GuestSection({
       setIdOpen(false);
       refreshSet3(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
   const vipMutation = useMutation({
     mutationFn: (input: { id?: string; code: string; name: string; active: boolean }) =>
@@ -309,7 +310,7 @@ export function Set3GuestSection({
       setVipOpen(false);
       refreshSet3(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const domain = checklist.domains["guest-profile"];
@@ -617,11 +618,13 @@ function CatalogueDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [codeTouched, setCodeTouched] = useState(false);
   const [active, setActive] = useState(true);
   useEffect(() => {
     if (!open) return;
     setName(row?.name ?? "");
     setCode(row?.code ?? "");
+    setCodeTouched(Boolean(row));
     setActive(row?.active ?? true);
   }, [open, row]);
   return (
@@ -636,7 +639,11 @@ function CatalogueDialog({
             <Input
               id={`set3-cat-name-${title}`}
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setName(next);
+                if (!row && !codeTouched) setCode(setupCodeFromName(next));
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -644,7 +651,10 @@ function CatalogueDialog({
             <Input
               id={`set3-cat-code-${title}`}
               value={code}
-              onChange={(event) => setCode(event.target.value)}
+              onChange={(event) => {
+                setCodeTouched(true);
+                setCode(event.target.value.toUpperCase());
+              }}
             />
           </div>
         </div>

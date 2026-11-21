@@ -5,6 +5,7 @@ import { Calendar, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import { useMoney } from "@/core/state/property-format";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { CanonicalPhoneInput } from "@/packages/pms/components/guests/canonical-phone-input";
 import { getAmendContext } from "@/packages/pms/lib/fo-amendments.functions";
 import {
@@ -98,6 +99,7 @@ export function FoEditDetailsForm({
   testId: string;
 }) {
   const money = useMoney();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const queryClient = useQueryClient();
   const fetchReservation = useServerFn(getReservation);
   const fetchGuest = useServerFn(getGuest);
@@ -225,6 +227,11 @@ export function FoEditDetailsForm({
     isStayRangeValid(draft.arrival, draft.departure) &&
     /^\d+$/.test(draft.nights.trim()) &&
     Number(draft.nights) >= CREATE_RESERVATION_MIN_NIGHTS;
+  const writePlan = foEditDetailsPlan({ draft, baseline: seed, status: stay.status });
+  const saveBlocked =
+    (writePlan.guest && !desk.canEditGuest) ||
+    (writePlan.amend && !desk.canEditReservation) ||
+    (writePlan.inHouseDates && !desk.canStayEdit);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -239,6 +246,15 @@ export function FoEditDetailsForm({
       if (Object.keys(nextErrors).length > 0) return false;
       const plan = foEditDetailsPlan({ draft, baseline: seed, status: stay.status });
       if (!plan.amend && !plan.inHouseDates && !plan.guest) return false;
+      if (plan.guest && !desk.canEditGuest) {
+        throw new Error("Guest profile edit is required to save guest details.");
+      }
+      if (plan.amend && !desk.canEditReservation) {
+        throw new Error("Reservation edit is required to save stay details.");
+      }
+      if (plan.inHouseDates && !desk.canStayEdit) {
+        throw new Error("Stay edit is required to change these dates.");
+      }
       if (plan.guest) {
         if (!profile) throw new Error("Guest profile is still loading.");
         await submitGuest({
@@ -582,7 +598,7 @@ export function FoEditDetailsForm({
           type="button"
           className={cn("rounded-md", GOLD_BUTTON)}
           data-testid="fo-edit-details-save"
-          disabled={save.isPending || !stayIntervalValid}
+          disabled={save.isPending || !stayIntervalValid || saveBlocked}
           onClick={() => save.mutate()}
         >
           Save Changes

@@ -23,6 +23,8 @@ import {
 } from "@/shared/components/ui/table";
 import { listCompanyBilling } from "@/packages/pms/lib/guest-company-detail.functions";
 import { COMPANY_BILLING_COPY } from "@/packages/pms/lib/guest-company-detail-workspace";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 
 export function GuestCompanyBilling({
   restaurantId,
@@ -32,6 +34,9 @@ export function GuestCompanyBilling({
   companyId: string;
 }) {
   const load = useServerFn(listCompanyBilling);
+  const permissions = usePmsPermissions(restaurantId);
+  const canViewReservation = permissions.can(PMS_PERMISSIONS.RESERVATION_VIEW);
+  const canViewFolio = permissions.can(PMS_PERMISSIONS.CASHIERING_VIEW);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const query = useQuery({
@@ -362,7 +367,7 @@ export function GuestCompanyBilling({
                       </span>
                     </TableCell>
                     <TableCell className="py-2.5 text-right space-x-1">
-                      {row.reservationId ? (
+                      {canViewReservation && row.reservationId ? (
                         <Button
                           asChild
                           size="sm"
@@ -377,7 +382,7 @@ export function GuestCompanyBilling({
                           </Link>
                         </Button>
                       ) : null}
-                      {data.summary.canOperate && row.folioId ? (
+                      {canViewFolio && row.folioId ? (
                         <Button
                           asChild
                           size="sm"

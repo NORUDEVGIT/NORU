@@ -23,6 +23,7 @@ const dialogs = readFileSync(
   new URL("../components/cashiering/folio-dialogs.tsx", import.meta.url),
   "utf8",
 );
+const server = readFileSync(new URL("./cashiering.server.ts", import.meta.url), "utf8");
 const checkout = readFileSync(
   new URL("../components/frontoffice/fo-check-out-stepper.tsx", import.meta.url),
   "utf8",
@@ -51,7 +52,7 @@ describe("Cashiering Phase 5 refunds and authorization", () => {
     assert.doesNotMatch(sql, /guest_folios\.balance/);
   });
 
-  it("keeps the owner or manager gate and does not write an approval request", () => {
+  it("gates the correction on the cashiering permission and does not write an approval request", () => {
     const entry = poster.slice(
       poster.indexOf("export const postFolioEntry"),
       poster.indexOf("export const closeFolio"),
@@ -65,7 +66,11 @@ describe("Cashiering Phase 5 refunds and authorization", () => {
     assert.doesNotMatch(poster, /pms_approval_requests/);
     assert.doesNotMatch(dialogs, /pending approval|approved by workflow/i);
     assert.match(dialogs, /Remaining on this payment/);
-    assert.match(dialogs, /Only an owner or manager can post this correction/);
+    assert.match(dialogs, /type === "discount"\) return sources.filter\(\(line\) => line.type === "charge"\)/);
+    assert.match(dialogs, /CORRECTION_AUTHORIZER/);
+    assert.match(server, /The matching cashiering permission allows this post/);
+    assert.doesNotMatch(server, /Only an owner or manager can post this correction/);
+    assert.doesNotMatch(dialogs, /Only an owner or manager can post this correction/);
     assert.match(checkout, /cashieringRefundHref/);
     assert.doesNotMatch(checkout, /postFolioEntry/);
   });

@@ -21,6 +21,8 @@ import {
   PREFERRED_CONTACT_TIME_LABELS,
 } from "@/packages/pms/lib/guest-profile-overview";
 import { PREFERENCE_SETUP_HREF } from "@/packages/pms/lib/guest-profile-wave2";
+import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
+import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
 import {
   listGuestPreferenceWorkspace,
   saveGuestPreferenceWorkspace,
@@ -79,10 +81,12 @@ function TypeControl({
   type,
   values,
   onChange,
+  showSetupLink = false,
 }: {
   type: GuestPreferenceWorkspaceType;
   values: string[];
   onChange: (next: string[]) => void;
+  showSetupLink?: boolean;
 }) {
   if (!type.active) {
     const displayValue = labelForPreferenceValues(type.options, values, type.valueType);
@@ -104,13 +108,15 @@ function TypeControl({
       return (
         <div className="flex items-center gap-1.5 py-1 text-xs text-[#756A5B]">
           <span>No active options configured.</span>
-          <a
-            href={PREFERENCE_SETUP_HREF}
-            className="inline-flex items-center gap-0.5 text-[#8A641A] hover:underline font-medium text-[11px]"
-          >
-            Review Property Setup
-            <ExternalLink className="size-3 ml-0.5" />
-          </a>
+          {showSetupLink ? (
+            <a
+              href={PREFERENCE_SETUP_HREF}
+              className="inline-flex items-center gap-0.5 text-[#8A641A] hover:underline font-medium text-[11px]"
+            >
+              Review Property Setup
+              <ExternalLink className="size-3 ml-0.5" />
+            </a>
+          ) : null}
         </div>
       );
     }
@@ -222,13 +228,15 @@ function TypeControl({
     return (
       <div className="flex items-center gap-1.5 py-1 text-xs text-[#756A5B]">
         <span>No active options configured.</span>
-        <a
-          href={PREFERENCE_SETUP_HREF}
-          className="inline-flex items-center gap-0.5 text-[#8A641A] hover:underline font-medium text-[11px]"
-        >
-          Review Property Setup
-          <ExternalLink className="size-3 ml-0.5" />
-        </a>
+        {showSetupLink ? (
+          <a
+            href={PREFERENCE_SETUP_HREF}
+            className="inline-flex items-center gap-0.5 text-[#8A641A] hover:underline font-medium text-[11px]"
+          >
+            Review Property Setup
+            <ExternalLink className="size-3 ml-0.5" />
+          </a>
+        ) : null}
       </div>
     );
   }
@@ -271,7 +279,7 @@ export function GuestPreferencesView({
   guestId,
   guest,
   preferences,
-  canManage = true,
+  canManage = false,
   onSaved,
 }: {
   restaurantId: string;
@@ -282,6 +290,8 @@ export function GuestPreferencesView({
   onSaved?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const permissions = usePmsPermissions(restaurantId);
+  const showSetupLink = permissions.can(PMS_PERMISSIONS.CONFIG_GUEST_SETUP_VIEW);
   const fetchWorkspace = useServerFn(listGuestPreferenceWorkspace);
   const saveWorkspace = useServerFn(saveGuestPreferenceWorkspace);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -446,42 +456,46 @@ export function GuestPreferencesView({
           </label>
         </div>
 
-        <div className="flex items-center gap-2">
-          {isDirty ? (
+        {canManage ? (
+          <div className="flex items-center gap-2">
+            {isDirty ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={saveMutation.isPending}
+                onClick={handleDiscard}
+                className="h-8 text-xs border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#F7F4EE]"
+              >
+                <RotateCcw className="mr-1.5 size-3.5" /> Discard
+              </Button>
+            ) : null}
             <Button
               type="button"
-              variant="outline"
               size="sm"
-              disabled={saveMutation.isPending}
-              onClick={handleDiscard}
-              className="h-8 text-xs border-[#DDD4C5] bg-white text-[#756A5B] hover:bg-[#F7F4EE]"
+              disabled={!isDirty || saveMutation.isPending}
+              onClick={() => saveMutation.mutate()}
+              className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
             >
-              <RotateCcw className="mr-1.5 size-3.5" /> Discard
+              <Check className="mr-1.5 size-3.5" />
+              {saveMutation.isPending ? "Saving…" : "Save Changes"}
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            disabled={!canManage || !isDirty || saveMutation.isPending}
-            onClick={() => saveMutation.mutate()}
-            className="h-8 text-xs bg-[#8A641A] hover:bg-[#725215] text-white shadow-sm font-medium transition-colors"
-          >
-            <Check className="mr-1.5 size-3.5" />
-            {saveMutation.isPending ? "Saving…" : "Save Changes"}
-          </Button>
-        </div>
+          </div>
+        ) : null}
       </div>
 
       {!hasTypes ? (
         <div className="rounded-xl border border-[#DDD4C5] bg-white p-6 text-center text-xs text-[#756A5B]">
           <p>{PREFERENCES_EMPTY_TYPES}</p>
-          <a
-            className="inline-flex items-center gap-1 mt-2 text-[#8A641A] hover:underline font-medium"
-            href={PREFERENCE_SETUP_HREF}
-          >
-            <span>Open Property Setup</span>
-            <ExternalLink className="size-3" />
-          </a>
+          {showSetupLink ? (
+            <a
+              className="inline-flex items-center gap-1 mt-2 text-[#8A641A] hover:underline font-medium"
+              href={PREFERENCE_SETUP_HREF}
+            >
+              <span>Open Property Setup</span>
+              <ExternalLink className="size-3" />
+            </a>
+          ) : null}
         </div>
       ) : null}
 
@@ -514,6 +528,7 @@ export function GuestPreferencesView({
                     type={type}
                     values={draft.answers[type.id] ?? []}
                     onChange={(next) => setAnswer(type.id, next)}
+                    showSetupLink={showSetupLink}
                   />
                 </div>
               ))}

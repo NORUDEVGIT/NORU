@@ -66,6 +66,7 @@ import {
   validateIdentityDocumentTypeDraft,
 } from "@/packages/pms/lib/identity-documents-card4.server";
 import { invalidateGuestWorkspaceConfigQueries } from "@/packages/pms/lib/guest-workspace-invalidation";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 function recordToDraft(row: IdentityDocumentTypeRecord): IdentityDocumentTypeDraft {
   return {
@@ -179,7 +180,7 @@ export function IdentityDocumentEditorSheet({
       onOpenChange(false);
       onSaved?.(res.id);
     },
-    onError: (error: Error) => toast.error(error.message || "Unable to save document type."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Unable to save document type.")),
   });
 
   function mark<K extends keyof IdentityDocumentTypeDraft>(key: K, value: IdentityDocumentTypeDraft[K]) {
@@ -414,7 +415,7 @@ export function IdentityDocumentCatalogSheet({
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
       toast.success("Identity document settings updated.");
     },
-    onError: (error: Error) => toast.error(error.message || "Failed to update settings."),
+    onError: (error: Error) => toast.error(friendlySetupError(error, "Failed to update settings.")),
   });
 
   const activeMutation = useMutation({
@@ -425,7 +426,7 @@ export function IdentityDocumentCatalogSheet({
       await queryClient.invalidateQueries({ queryKey: ["pms-card4-profile-types", restaurantId] });
       await invalidateGuestWorkspaceConfigQueries(queryClient, restaurantId);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const reorderMutation = useMutation({
@@ -436,7 +437,7 @@ export function IdentityDocumentCatalogSheet({
       setReorderOpen(false);
       toast.success("Document order updated.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -448,7 +449,7 @@ export function IdentityDocumentCatalogSheet({
       setPendingDelete(null);
       toast.success("Document type deleted.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   return (

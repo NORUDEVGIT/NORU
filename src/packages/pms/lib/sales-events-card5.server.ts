@@ -57,6 +57,7 @@ export type Card5SalesItem = {
   name: string;
   description: string;
   active: boolean;
+  system?: boolean;
 };
 
 export type Card5OrderedItem = Card5SalesItem & {
@@ -283,6 +284,7 @@ export function emptySalesItem(partial?: Partial<Card5SalesItem>): Card5SalesIte
     name: partial?.name ?? "",
     description: partial?.description ?? "",
     active: partial?.active !== false,
+    ...(partial?.system ? { system: true } : {}),
   };
 }
 

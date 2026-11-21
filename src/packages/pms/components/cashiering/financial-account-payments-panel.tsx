@@ -2,9 +2,12 @@ import * as React from "react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight, Landmark, Scale, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Landmark, Scale } from "lucide-react";
 import { toast } from "sonner";
 
+import { useAccountToolbarSearch } from "@/packages/pms/components/cashiering/financial-account-chrome";
+import { FolioChromeSlot, FolioDateRange } from "@/packages/pms/components/cashiering/folio-workspace-chrome";
+import { PmsFilterChoiceRow, PmsFilterMenu } from "@/packages/pms/components/pms-filter-menu";
 import {
   AllocatePaymentDialog,
   ReverseAllocationDialog,
@@ -30,7 +33,10 @@ import {
   getFinancialAccountPaymentDetail,
   listFinancialAccountPayments,
 } from "@/packages/pms/lib/cashiering-account-payments.functions";
-import type { AccountWorkspaceKind } from "@/packages/pms/lib/cashiering-account-workspace";
+import {
+  NO_ACCOUNT_WORKSPACE_GRANTS,
+  type AccountWorkspaceKind,
+} from "@/packages/pms/lib/cashiering-account-workspace";
 import {
   postFinancialAccountEntry,
   postSettlementWriteOff,
@@ -73,6 +79,19 @@ type Money = (value: number) => string;
 type DateTime = (iso: string | null | undefined) => string;
 type PageSize = 10 | 25 | 50;
 type Compose = "payment" | "writeoff" | null;
+
+const TYPE_OPTIONS = [
+  ["all", "All types"],
+  ["payment", "Payments"],
+  ["refund", "Refunds"],
+  ["write_off", "Write-Offs"],
+] as const;
+
+const SORT_OPTIONS = [
+  ["newest", "Newest first"],
+  ["oldest", "Oldest first"],
+  ["amount", "Amount"],
+] as const;
 
 function postingKey(prefix: string): string {
   return `${prefix}-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
@@ -142,7 +161,8 @@ export function FinancialAccountPayments({
     amount: number;
     activeAmount: number;
   } | null>(null);
-  const [receipt, setReceipt] = useState<TenderReceipt | null>(null);
+  const [viewReceipt, setViewReceipt] = useState<TenderReceipt | null>(null);
+  const [printReceipt, setPrintReceipt] = useState<TenderReceipt | null>(null);
   const fetchProperty = useServerFn(getCashieringDocumentProperty);
   const propertyQuery = useQuery({
     queryKey: ["cashiering-document-property", restaurantId],
@@ -189,19 +209,12 @@ export function FinancialAccountPayments({
     () =>
       result?.capabilities ??
       accountPaymentCapabilities({
-        role,
         status: shownStatus,
         balance: shownBalance,
         accountKind,
-        granted: {
-          receivePayment: false,
-          refund: false,
-          createInvoice: false,
-          writeOff: false,
-          close: false,
-        },
+        granted: NO_ACCOUNT_WORKSPACE_GRANTS,
       }),
-    [accountKind, result?.capabilities, role, shownBalance, shownStatus],
+    [accountKind, result?.capabilities, shownBalance, shownStatus],
   );
   const presentation = accountBalancePresentation(shownBalance);
   const pageCount = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize));
@@ -242,39 +255,130 @@ export function FinancialAccountPayments({
     onComposeHandled();
   }, [compose, caps.canReceivePayment, caps.canWriteOff, onComposeHandled]);
 
+  useAccountToolbarSearch({
+    value: search,
+    placeholder: "Search description, method, or amount",
+    testId: "account-payments-search",
+    onChange: (value) => {
+      setSearch(value);
+      setPage(1);
+    },
+  });
+
   return (
     <section className="space-y-4" data-testid="account-payments">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl text-[#251605]">Payments</h2>
-          <p className="text-sm text-muted-foreground">
-            Payments, refunds, and write-offs posted to this financial account.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {caps.canReceivePayment ? (
-            <Button
-              className="bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
-              data-testid="receive-payment"
-              onClick={openPayment}
-            >
-              <Landmark className="size-4" /> Receive Payment
-            </Button>
-          ) : null}
-          {caps.canWriteOff ? (
-            <Button variant="outline" data-testid="write-off" onClick={openWriteOff}>
-              <Scale className="size-4" /> Write Off
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Summary
-          label="Current Balance"
-          value={formatBalance(money, shownBalance)}
-          hint={presentation.label}
+      <FolioChromeSlot name="dates">
+        <FolioDateRange
+          from={from}
+          to={to}
+          onFrom={(value) => {
+            setFrom(value);
+            setPage(1);
+          }}
+          onTo={(value) => {
+            setTo(value);
+            setPage(1);
+          }}
+          onRange={(nextFrom, nextTo) => {
+            setFrom(nextFrom);
+            setTo(nextTo);
+            setPage(1);
+          }}
+          fromTestId="account-payments-from"
+          toTestId="account-payments-to"
         />
+      </FolioChromeSlot>
+      <FolioChromeSlot name="filter">
+        <PmsFilterMenu
+          activeCount={
+            (type !== "all" ? 1 : 0) +
+            (method !== "all" ? 1 : 0) +
+            (postedBy ? 1 : 0) +
+            (sort !== "newest" ? 1 : 0)
+          }
+          onClear={() => {
+            setType("all");
+            setMethod("all");
+            setPostedBy("");
+            setSort("newest");
+            setPage(1);
+          }}
+          buttonTestId="account-payments-filters-button"
+          menuTestId="account-payments-filters-menu"
+        >
+          <PmsFilterChoiceRow
+            label="Type"
+            value={type}
+            current={TYPE_OPTIONS.find(([id]) => id === type)?.[1] ?? ""}
+            options={TYPE_OPTIONS}
+            onChange={(value) => {
+              setType(value as typeof type);
+              setPage(1);
+            }}
+          />
+          <PmsFilterChoiceRow
+            label="Method"
+            value={method}
+            current={method === "all" ? "" : accountMethodLabel(method)}
+            options={[
+              ["all", "All methods"],
+              ...ACCOUNT_TENDER_METHODS.map((item) => [item, accountMethodLabel(item)] as const),
+            ]}
+            onChange={(value) => {
+              setMethod(value as typeof method);
+              setPage(1);
+            }}
+          />
+          <PmsFilterChoiceRow
+            label="Posted by"
+            value={postedBy || "all"}
+            current={(result?.actors ?? []).find((actor) => actor.id === postedBy)?.name ?? ""}
+            options={[
+              ["all", "Anyone"],
+              ...(result?.actors ?? []).map((actor) => [actor.id, actor.name] as const),
+            ]}
+            onChange={(value) => {
+              setPostedBy(value === "all" ? "" : value);
+              setPage(1);
+            }}
+          />
+          <PmsFilterChoiceRow
+            label="Order"
+            value={sort}
+            neutralValue="newest"
+            current={SORT_OPTIONS.find(([id]) => id === sort)?.[1] ?? ""}
+            options={SORT_OPTIONS}
+            onChange={(value) => setSort(value as typeof sort)}
+          />
+        </PmsFilterMenu>
+      </FolioChromeSlot>
+      <FolioChromeSlot name="cta">
+        {caps.showReceivePayment ? (
+          <Button
+            size="sm"
+            className="h-9 bg-[#C89933] text-[#251605] hover:bg-[#B5882D]"
+            data-testid="receive-payment"
+            disabled={!caps.canReceivePayment}
+            title={caps.canReceivePayment ? undefined : "This account is closed."}
+            onClick={openPayment}
+          >
+            <Landmark className="size-3.5" /> Receive Payment
+          </Button>
+        ) : null}
+        {caps.canWriteOff ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 border-[#DDD4C5]"
+            data-testid="write-off"
+            onClick={openWriteOff}
+          >
+            <Scale className="size-3.5" /> Write Off
+          </Button>
+        ) : null}
+      </FolioChromeSlot>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Summary
           label="Payments"
           value={money(result?.totals.payments ?? 0)}
@@ -296,88 +400,6 @@ export function FinancialAccountPayments({
       </div>
 
       <div className={cn(CARD, "space-y-3 p-3")}>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[220px] max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Search description, method, or amount"
-              className="h-9 pl-8 text-sm border-[#E8E1D7] bg-white focus-visible:ring-1 focus-visible:ring-[#C89933]"
-            />
-          </div>
-          <Filter
-            value={type}
-            onChange={(value) => {
-              setType(value as typeof type);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All types"],
-              ["payment", "Payments"],
-              ["refund", "Refunds"],
-              ["write_off", "Write-Offs"],
-            ]}
-          />
-          <Filter
-            value={method}
-            onChange={(value) => {
-              setMethod(value as typeof method);
-              setPage(1);
-            }}
-            options={[
-              ["all", "All methods"],
-              ...ACCOUNT_TENDER_METHODS.map((item) => [item, accountMethodLabel(item)] as const),
-            ]}
-          />
-          <Filter
-            value={postedBy}
-            onChange={(value) => {
-              setPostedBy(value);
-              setPage(1);
-            }}
-            options={[
-              ["", "Posted by"],
-              ...(result?.actors ?? []).map((actor) => [actor.id, actor.name] as const),
-            ]}
-          />
-          <Filter
-            value={sort}
-            onChange={(value) => setSort(value as typeof sort)}
-            options={[
-              ["newest", "Newest first"],
-              ["oldest", "Oldest first"],
-              ["amount", "Amount"],
-            ]}
-          />
-          <div className="flex items-center gap-1.5">
-            <Input
-              type="date"
-              value={from}
-              onChange={(event) => {
-                setFrom(event.target.value);
-                setPage(1);
-              }}
-              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
-              aria-label="From date"
-            />
-            <span className="text-xs text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={to}
-              onChange={(event) => {
-                setTo(event.target.value);
-                setPage(1);
-              }}
-              className="h-9 w-36 text-xs border-[#E8E1D7] bg-white"
-              aria-label="To date"
-            />
-          </div>
-        </div>
-
         <div className="rounded-lg border border-[#E8E1D7] overflow-hidden">
           {paymentsQuery.isLoading ? (
             <p className="px-4 py-8 text-sm text-center text-muted-foreground">Loading payments…</p>
@@ -532,7 +554,7 @@ export function FinancialAccountPayments({
         documentProperty={documentProperty}
         onOpenChange={setPaymentOpen}
         onPosted={refreshMoney}
-        onReceipt={(r) => setReceipt(r)}
+        onReceipt={(r) => setViewReceipt(r)}
       />
       <WriteOffDialog
         open={writeOffOpen}
@@ -594,17 +616,24 @@ export function FinancialAccountPayments({
           if (!open) setReverseAllocation(null);
         }}
       />
-      {receipt ? (
-        <>
-          <DepositReceiptModal
-            receipt={receipt}
-            open={Boolean(receipt)}
-            money={money}
-            dateTime={dateTime}
-            onClose={() => setReceipt(null)}
-          />
-          <TenderReceiptPrint receipt={receipt} money={money} dateTime={dateTime} />
-        </>
+      <DepositReceiptModal
+        receipt={viewReceipt}
+        open={viewReceipt !== null}
+        money={money}
+        dateTime={dateTime}
+        onClose={() => setViewReceipt(null)}
+        onPrint={
+          viewReceipt
+            ? () => {
+                setPrintReceipt(viewReceipt);
+                setViewReceipt(null);
+                window.setTimeout(() => window.print(), 80);
+              }
+            : undefined
+        }
+      />
+      {printReceipt ? (
+        <TenderReceiptPrint receipt={printReceipt} money={money} dateTime={dateTime} />
       ) : null}
     </section>
   );
@@ -700,9 +729,6 @@ function PaymentDialog({
           folioBalance: projected ?? balance,
         };
         onReceipt?.(receiptData);
-        window.setTimeout(() => {
-          window.print();
-        }, 120);
       }
       toast.success("Payment posted.");
       onOpenChange(false);
@@ -1243,10 +1269,12 @@ function PaymentDetail({
 
 function Summary({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className={cn(CARD, "p-3.5 transition-shadow hover:shadow-md")}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#736B5E]">{label}</p>
-      <p className="mt-1 font-display text-lg font-semibold text-[#251605] tabular-nums">{value}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+    <div className="min-w-0 rounded-lg border border-[#DDD4C5] bg-white px-3 py-2 shadow-sm" title={hint}>
+      <p className="truncate text-[10px] font-medium text-[#756A5B]">{label}</p>
+      <p className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-[#251605] tabular-nums">
+        {value}
+      </p>
+      <p className="truncate text-[10px] text-[#756A5B]">{hint}</p>
     </div>
   );
 }

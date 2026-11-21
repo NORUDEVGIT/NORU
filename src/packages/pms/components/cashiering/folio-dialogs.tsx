@@ -54,6 +54,7 @@ import {
 } from "@/packages/pms/lib/cashiering.functions";
 import { guestPaymentRefundable } from "@/packages/pms/lib/cashiering-guest-allocation";
 import {
+  CORRECTION_AUTHORIZER,
   remainingOnPaymentSource,
   type TransactionType,
 } from "@/packages/pms/lib/cashiering.server";
@@ -303,7 +304,7 @@ export function FolioEntryDialog({
         });
         return (available ?? 0) > 0.009;
       });
-    if (type === "discount") return [];
+    if (type === "discount") return sources.filter((line) => line.type === "charge");
     if (type === "adjustment") return sources.filter((line) => line.type !== "charge");
     return sources;
   }, [paymentAllocationNets, sources, type]);
@@ -612,7 +613,7 @@ export function FolioEntryDialog({
                   </p>
                 ) : null}
                 <p className="text-[11px] text-muted-foreground">
-                  {authorizerNote ?? "Only an owner or manager can post this correction."}
+                  {authorizerNote ?? CORRECTION_AUTHORIZER}
                   {thresholdNote
                     ? ` ${thresholdNote}`
                     : " Approval thresholds are not enforced on this post."}

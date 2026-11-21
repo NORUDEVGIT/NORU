@@ -1,4 +1,9 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from "react";
+=======
+import type { ReservationDetailGrants } from "@/packages/pms/lib/reservation-detail-actions";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+>>>>>>> main
 import { ReservationDetailSummary } from "@/packages/pms/components/workspaces/reservation-detail-summary";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -83,6 +88,8 @@ const NONE = "__none";
 
 export function ReservationDetailRequestsTab({
   restaurantId,
+  grants,
+  stayOpen,
   reservation,
   guest,
   preferences,
@@ -99,6 +106,8 @@ export function ReservationDetailRequestsTab({
   onSaved,
 }: {
   restaurantId: string;
+  grants: ReservationDetailGrants;
+  stayOpen: boolean;
   reservation: ReservationDetail;
   guest: GuestProfile | null;
   preferences: GuestPreferences | null;
@@ -121,6 +130,7 @@ export function ReservationDetailRequestsTab({
   const updateRequest = useServerFn(updateGuestServiceRequest);
   const cancelled = reservation.status === "cancelled";
   const editable = canManage && !cancelled;
+  const serviceOpen = stayOpen && !cancelled;
   const nights = nightsBetween(reservation.arrivalDate, reservation.departureDate);
 
   const [statusFilter, setStatusFilter] = useState<GuestServiceStatus | "all">("all");
@@ -273,6 +283,7 @@ export function ReservationDetailRequestsTab({
                   Track and manage operational requests for this reservation.
                 </p>
               </div>
+<<<<<<< HEAD
               <Button
                 type="button"
                 size="sm"
@@ -284,11 +295,49 @@ export function ReservationDetailRequestsTab({
                 Add Request
               </Button>
             </div>
+=======
+              {grants.guestServiceCreate ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!serviceOpen || activeTypes.length === 0}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <Plus className="mr-1 size-3.5" />
+                  Add Request
+                </Button>
+              ) : null}
+            </div>
+            <div className="mb-3 flex flex-wrap items-end gap-2">
+              <label className="grid min-w-48 flex-1 gap-1 text-[11px] text-muted-foreground">
+                Special Occasion
+                <Input
+                  id="reservation-special-occasion"
+                  maxLength={80}
+                  disabled={!editable || saveStay.isPending}
+                  value={occasion}
+                  onChange={(event) => setOccasion(event.target.value)}
+                />
+              </label>
+              {grants.edit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={!editable || saveStay.isPending}
+                  onClick={() => saveStay.mutate({ specialOccasion: occasion.trim() || null })}
+                >
+                  Save occasion
+                </Button>
+              ) : null}
+            </div>
+>>>>>>> main
             {servicesQuery.error instanceof Error ? (
               <p className="mt-2 text-sm text-destructive">{servicesQuery.error.message}</p>
             ) : null}
           </section>
 
+<<<<<<< HEAD
           <ServiceRequestsCard
             items={visibleItems}
             types={types}
@@ -329,6 +378,142 @@ export function ReservationDetailRequestsTab({
               </ol>
             )}
           </section>
+=======
+          {show("guest") || show("room") || show("vip") ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {isGroupReservation(reservation) && show("guest") ? (
+                <p className="text-xs text-muted-foreground lg:col-span-2">
+                  {GROUP_PROFILE_PREFERENCE_NOTE}
+                </p>
+              ) : null}
+              {show("guest") ? (
+                <PreferenceCard
+                  title={
+                    isGroupReservation(reservation)
+                      ? "Primary Guest / Booker Preferences"
+                      : "Guest Preferences (from profile)"
+                  }
+                  icon={<Heart className="size-3.5 text-[#B8954F]" />}
+                  chips={profileChips}
+                  empty="No guest profile preferences recorded."
+                  edit={
+                    grants.guestEdit ? (
+                      <Button asChild size="sm" variant="ghost">
+                        <Link
+                          to="/restaurant/pms/guests/$guestId"
+                          params={{ guestId: reservation.guestId }}
+                          search={{ card: "preferences" }}
+                        >
+                          Edit
+                        </Link>
+                      </Button>
+                    ) : null
+                  }
+                />
+              ) : null}
+              {show("room") || show("vip") || show("guest") ? (
+                <PreferenceCard
+                  title="Reservation Specific Preferences"
+                  icon={<Star className="size-3.5 text-[#B8954F]" />}
+                  chips={section === "room" ? roomChips : section === "vip" ? vipChips : stayChips}
+                  empty="No reservation-specific preferences recorded."
+                  edit={
+                    grants.edit ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={!editable}
+                        onClick={() => setPrefOpen(true)}
+                      >
+                        Edit
+                      </Button>
+                    ) : null
+                  }
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {show("service") ? (
+            <ServiceRequestsCard
+              items={visibleItems}
+              types={types}
+              staff={staff}
+              money={money}
+              serviceRules={serviceRules.data ?? null}
+              dateTime={dateTime}
+              statusFilter={statusFilter}
+              search={search}
+              showUpdate={grants.guestEdit}
+              editable={serviceOpen}
+              updating={updateMutation.isPending}
+              onStatus={setStatusFilter}
+              onSearch={setSearch}
+              onUpdate={(input) => updateMutation.mutate(input)}
+            />
+          ) : null}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section
+              className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+              data-testid="request-internal-notes"
+            >
+              <h2 className="mb-2 font-display text-base text-[#251605]">
+                Internal Notes (Requests)
+              </h2>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Internal notes about requests and guest preferences (visible to hotel staff only).
+              </p>
+              <Textarea
+                id="request-tab-notes"
+                maxLength={REQUEST_NOTES_MAX}
+                disabled={!editable}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value.slice(0, REQUEST_NOTES_MAX))}
+                placeholder="Add internal notes here…"
+                className="min-h-24"
+              />
+              <p className="mt-1 text-right text-[11px] text-muted-foreground">
+                {notes.length}/{REQUEST_NOTES_MAX}
+              </p>
+            </section>
+            <section
+              className="rounded-xl border border-[#DDD4C5] bg-white p-4 shadow-sm"
+              data-testid="request-history"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="flex items-center gap-1.5 font-display text-base text-[#251605]">
+                  <Bell className="size-3.5 text-[#B8954F]" />
+                  Request History
+                </h2>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSection("history")}
+                >
+                  View All
+                </Button>
+              </div>
+              {compactHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No request history for this stay.</p>
+              ) : (
+                <ol className="space-y-2 text-xs">
+                  {compactHistory.map((event) => (
+                    <li key={event.id} className="border-b border-[#F4EEE4] pb-2 last:border-0">
+                      <p className="text-muted-foreground">{dateTime(event.at)}</p>
+                      <p className="text-[#251605]">{event.text}</p>
+                      {event.actor ? (
+                        <p className="text-muted-foreground">by {event.actor}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          </div>
+>>>>>>> main
         </div>
         <RequestsSummaryRail
           reservation={reservation}
@@ -344,9 +529,44 @@ export function ReservationDetailRequestsTab({
         />
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDD4C5] bg-white py-3">
+<<<<<<< HEAD
         <Button type="button" variant="outline" size="sm" onClick={onBackToFolio}>
           Back to Folio & Payments
         </Button>
+=======
+        {grants.openFolio ? (
+          <Button type="button" variant="outline" size="sm" onClick={onBackToFolio}>
+            Back to Folio & Payments
+          </Button>
+        ) : (
+          <span />
+        )}
+        {grants.edit ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={!editable || saveStay.isPending}
+              onClick={() => saveStay.mutate({ notes })}
+            >
+              Save Changes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setNotes(reservation.notes ?? "");
+                setPrefDraft(buildRoomPrefDraft(reservation.specialRequests));
+                setStatusFilter("all");
+                setSearch("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : null}
+>>>>>>> main
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -471,6 +691,7 @@ function ServiceRequestsCard({
   dateTime,
   statusFilter,
   search,
+  showUpdate,
   editable,
   updating,
   onStatus,
@@ -485,6 +706,7 @@ function ServiceRequestsCard({
   dateTime: (iso: string | null | undefined) => string;
   statusFilter: GuestServiceStatus | "all";
   search: string;
+  showUpdate: boolean;
   editable: boolean;
   updating: boolean;
   onStatus: (status: GuestServiceStatus | "all") => void;
@@ -584,6 +806,7 @@ function ServiceRequestsCard({
                       {item.preferredAt ? dateTime(item.preferredAt) : DETAIL_DASH}
                     </td>
                     <td className="py-2">
+                      {showUpdate ? (
                       <div className="flex gap-1">
                         {actions.start ? (
                           <Button
@@ -642,6 +865,7 @@ function ServiceRequestsCard({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
+                      ) : null}
                     </td>
                   </tr>
                 );

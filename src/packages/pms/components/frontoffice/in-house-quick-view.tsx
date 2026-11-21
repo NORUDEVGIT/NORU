@@ -34,6 +34,7 @@ import type { FoStayAmendmentHistoryRow } from "@/packages/pms/lib/fo-amendments
 import { FoEditDetailsForm } from "@/packages/pms/components/frontoffice/fo-edit-details-form";
 import { FoFolioChargesPanel } from "@/packages/pms/components/frontoffice/fo-folio-charges-panel";
 import { useMoney } from "@/core/state/property-format";
+import { useFrontOfficeDeskAccess } from "@/packages/pms/lib/use-pms-permissions";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -130,6 +131,7 @@ export function InHouseQuickViewSheet({
   onAction: (action: InHouseQuickViewAction, qv: FoInHouseQuickView) => void;
 }) {
   const money = useMoney();
+  const desk = useFrontOfficeDeskAccess(restaurantId);
   const [tab, setTab] = useState<FoGuestWorkspaceTabId>(initialTab);
   const fetchQv = useServerFn(getFrontOfficeInHouseQuickView);
   const fetchCheckOut = useServerFn(getCheckOutContext);
@@ -168,11 +170,11 @@ export function InHouseQuickViewSheet({
 
   // Canonical hints decide what is visible; tabs only regroup the same action ids.
   const menuIds = new Set((qv ? inHouseMenuItems(qv.hints) : []).map((item) => item.id));
-  const amendStayAvailable = menuIds.has("amend_stay");
+  const amendStayAvailable = desk.canStayEdit && menuIds.has("amend_stay");
   const maintenanceRelevant = Boolean(
     qv?.room.maintenanceStatus && qv.room.maintenanceStatus !== "none",
   );
-  const canReadFolio = qv?.financial.lane === "live";
+  const canReadFolio = desk.canReadStayFolio && qv?.financial.lane === "live";
   const tabs = qv ? foGuestWorkspaceTabs(qv.stay.status, { canReadFolio }) : [];
   const activeTab =
     tabs.some((item) => item.id === tab) ||
@@ -413,7 +415,7 @@ export function InHouseQuickViewSheet({
             >
               {roomRows(qv)}
               <div className="flex flex-wrap gap-2">
-                {qv.hints.canMoveRoom ? (
+                {desk.canStayEdit && qv.hints.canMoveRoom ? (
                   <Button
                     size="sm"
                     className={GOLD_BUTTON}
@@ -427,7 +429,7 @@ export function InHouseQuickViewSheet({
                     Room move is not available for this stay.
                   </FoWorkflowUnavailable>
                 )}
-                {maintenanceRelevant ? (
+                {desk.canCreateMaintenance && maintenanceRelevant ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -486,7 +488,7 @@ export function InHouseQuickViewSheet({
             >
               {financialRows(qv)}
               <div className="flex flex-wrap gap-2">
-                {qv.hints.canCheckOut ? (
+                {desk.canCheckOut && qv.hints.canCheckOut ? (
                   <Button
                     size="sm"
                     className={GOLD_BUTTON}
@@ -500,7 +502,7 @@ export function InHouseQuickViewSheet({
                     Check-out is not available for this stay.
                   </FoWorkflowUnavailable>
                 )}
-                {menuIds.has("open_folio") ? (
+                {desk.canReadStayFolio && menuIds.has("open_folio") ? (
                   <Button
                     size="sm"
                     variant="outline"

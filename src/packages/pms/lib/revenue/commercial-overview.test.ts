@@ -270,7 +270,7 @@ describe("RR-P5-UI-01 commercial overview + promotions", () => {
     assert.doesNotMatch(promotions, /text-\[9px\]|text-\[10px\]/);
     assert.match(promotions, /PROMOTION_PAGE_SIZES/);
     assert.match(promotions, /role="button"/);
-    assert.match(promotions, /Filter/);
+    assert.match(promotions, /useRateRevenueExtras/);
     assert.match(promotions, /Configure in Property Setup/);
 
     assert.doesNotMatch(drawer, /<aside/);

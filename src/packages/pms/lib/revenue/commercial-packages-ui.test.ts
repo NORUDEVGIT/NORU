@@ -251,7 +251,7 @@ describe("RR-P5-UI-02 packages workspace", () => {
     assert.doesNotMatch(view, /text-\[9px\]|text-\[10px\]/);
     assert.match(view, /PACKAGE_PAGE_SIZES/);
     assert.match(view, /role="button"/);
-    assert.match(view, /Filter/);
+    assert.match(view, /useRateRevenueExtras/);
     assert.match(view, /Configure in Property Setup/);
 
     assert.doesNotMatch(drawer, /<aside/);

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { PMS_PERMISSIONS } from "@/packages/pms/lib/pms-permissions";
 import { usePmsPermissions } from "@/packages/pms/lib/use-pms-permissions";
+import { frontOfficeDeskAccess } from "@/packages/pms/lib/front-office-desk-access";
 import { toast } from "sonner";
 
 import { FrontOfficeChrome } from "@/packages/pms/components/frontoffice/front-office-chrome";
@@ -445,6 +446,10 @@ export function FrontOfficeWorkspace({
   }, []);
 
   const canOpenCashiering = permissions.can(PMS_PERMISSIONS.CASHIERING_VIEW);
+  const deskAccess = frontOfficeDeskAccess({
+    isOwner: permissions.isOwner,
+    codes: permissions.permissions,
+  });
   const deskReady = permissions.can(PMS_PERMISSIONS.FRONT_OFFICE_VIEW);
 
   const exceptionDesk = useFoExceptionDesk(restaurantId, today, deskReady);
@@ -748,9 +753,13 @@ export function FrontOfficeWorkspace({
           amendmentHistory={amendmentHistory}
           onSelectStay={openStayQuickView}
           onSelectInHouse={openInHouseFromRack}
-          onSelectRoom={openHkTask}
+          onSelectRoom={(target) => {
+            if (!deskAccess.canCreateHousekeepingTask && !deskAccess.canEditHousekeepingTask) return;
+            openHkTask(target);
+          }}
           onRackAction={onRackBarAction}
           canOpenCashiering={canOpenCashiering}
+          deskAccess={deskAccess}
           staffRole={membership.role}
           onRackSearchChange={onRackSearchChange}
           onWalkIn={

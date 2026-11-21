@@ -238,7 +238,6 @@ export const getFinancialAccountPaymentAllocationWorkspace = createServerFn({ me
     const settlements = await loadSettlements(supabaseAdmin, data.restaurantId, account);
     const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
     const rights = allocationCapabilities({
-      role: me.role,
       status: account.status,
       granted: { view: true, allocate: flags.allocate },
     });

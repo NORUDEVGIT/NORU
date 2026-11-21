@@ -79,6 +79,7 @@ import {
   type SimulatedTestOutcome,
 } from "@/packages/pms/lib/integrations-catalog";
 import { FiscalIntegrationDrawer } from "@/packages/pms/components/settings/fiscal/fiscal-integration-drawer";
+import { friendlySetupError } from "@/packages/pms/lib/setup-form-errors";
 
 const ENVIRONMENT_LABELS = { sandbox: "Sandbox", production: "Production" } as const;
 
@@ -135,7 +136,7 @@ export function Card6IntegrationsTab({
       setDrawer(null);
       toast.success("Integration saved. Credentials were not stored.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const toggleMutation = useMutation({
@@ -145,7 +146,7 @@ export function Card6IntegrationsTab({
       await invalidate();
       toast.success(input.enabled ? "Integration enabled." : "Integration disabled.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const deleteMutation = useMutation({
@@ -155,7 +156,7 @@ export function Card6IntegrationsTab({
       setPendingDelete(null);
       toast.success("Integration deleted. Its history was kept.");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const testMutation = useMutation({
@@ -173,7 +174,7 @@ export function Card6IntegrationsTab({
         },
       }),
     onSuccess: () => invalidate(),
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(friendlySetupError(error)),
   });
 
   const records = useMemo(() => query.data?.integrations ?? [], [query.data]);

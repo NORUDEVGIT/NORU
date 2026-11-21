@@ -7,6 +7,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { cashierError, cashieringPermissionFlags } from "./cashiering.server";
 import {
   accountWorkspaceCapabilities,
+  accountWorkspaceGrants,
   countIssuedInvoices,
   recentAccountActivity,
   recentAccountDocuments,
@@ -61,7 +62,7 @@ export const getFinancialAccountWorkspace = createServerFn({ method: "GET" })
     z.object({ restaurantId: idSchema, accountId: idSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<FinancialAccountWorkspace | null> => {
-    const me = await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.CASHIERING_VIEW);
     const flags = await cashieringPermissionFlags(context as never, data.restaurantId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -347,17 +348,10 @@ export const getFinancialAccountWorkspace = createServerFn({ method: "GET" })
       recentActivity: activity,
       recentDocuments: documents,
       capabilities: accountWorkspaceCapabilities({
-        role: me.role,
         status: account.status,
         balance,
         accountKind: kind,
-        granted: {
-          receivePayment: flags.receivePayment,
-          refund: flags.refund,
-          createInvoice: flags.createInvoice,
-          writeOff: flags.writeOff,
-          close: flags.close,
-        },
+        granted: accountWorkspaceGrants(flags),
       }),
     };
   });

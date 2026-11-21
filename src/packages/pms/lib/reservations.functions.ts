@@ -10,6 +10,7 @@ import {
   resolveEffectivePermissions,
 } from "./pms-permissions.server";
 import { PMS_PERMISSION_DENIED, PMS_PERMISSIONS } from "./pms-permissions";
+import { moduleOrDesk } from "./fo-desk-permissions";
 import {
   MANUAL_RESERVATION_STATUSES,
   RESERVATION_STATUSES,
@@ -2889,6 +2890,47 @@ async function applyUnitScopedReservationEdit(input: {
   };
 }
 
+/** A rate plan change needs Change Stay Rate and a room change needs Assign / Change Room, whatever screen sent the edit. */
+async function assertAmendScopedGrants(
+  context: unknown,
+  supabaseAdmin: (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"],
+  data: {
+    restaurantId: string;
+    reservationId: string;
+    reservationRoomId?: string | null;
+    roomId?: string | null;
+    ratePlanId?: string | null;
+  },
+): Promise<void> {
+  const read = data.reservationRoomId
+    ? await supabaseAdmin
+        .from("hotel_reservation_rooms")
+        .select("room_id, rate_plan_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("reservation_id", data.reservationId)
+        .eq("id", data.reservationRoomId)
+        .maybeSingle()
+    : await supabaseAdmin
+        .from("hotel_reservations")
+        .select("room_id, rate_plan_id")
+        .eq("restaurant_id", data.restaurantId)
+        .eq("id", data.reservationId)
+        .maybeSingle();
+  if (read.error) throw new Error(read.error.message);
+  const current = read.data as { room_id: string | null; rate_plan_id: string | null } | null;
+  if (!current) return;
+  if ((data.ratePlanId ?? null) !== (current.rate_plan_id ?? null)) {
+    await requirePmsActor(context as never, data.restaurantId, PMS_PERMISSIONS.RESERVATION_RATE_OVERRIDE);
+  }
+  if ((data.roomId ?? null) !== (current.room_id ?? null)) {
+    await requirePmsActorAny(
+      context as never,
+      data.restaurantId,
+      moduleOrDesk(PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_ROOM_ASSIGN),
+    );
+  }
+}
+
 export const amendReservation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
@@ -2913,13 +2955,14 @@ export const amendReservation = createServerFn({ method: "POST" })
   )
   .handler(
     async ({ data, context }): Promise<{ id: string; amendment: StayAmendmentResult | null }> => {
-      const me = await requirePmsActor(
+      const me = await requirePmsActorAny(
         context as never,
         data.restaurantId,
-        PMS_PERMISSIONS.RESERVATION_EDIT,
+        moduleOrDesk(PMS_PERMISSIONS.RESERVATION_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_RESERVATION_EDIT),
       );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
+      await assertAmendScopedGrants(context, supabaseAdmin, data);
       if (data.reservationRoomId !== undefined) {
         return applyUnitScopedReservationEdit({
           supabaseAdmin: supabaseAdmin as unknown as EditDb,
@@ -3614,10 +3657,10 @@ export const assignReservationRoom = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(
+    const me = await requirePmsActorAny(
       context as never,
       data.restaurantId,
-      PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT,
+      moduleOrDesk(PMS_PERMISSIONS.RESERVATION_ASSIGNMENT_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_ROOM_ASSIGN),
     );
 
     const { data: existing, error: readError } = await context.supabase
@@ -3799,10 +3842,10 @@ export const manageReservationRoomGuest = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
-    const me = await requirePmsActor(
+    const me = await requirePmsActorAny(
       context as never,
       data.restaurantId,
-      PMS_PERMISSIONS.RESERVATION_EDIT,
+      moduleOrDesk(PMS_PERMISSIONS.RESERVATION_EDIT, PMS_PERMISSIONS.FRONT_OFFICE_RESERVATION_EDIT),
     );
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await assertReservationDetailEditable(supabaseAdmin, data.restaurantId, data.reservationId);
