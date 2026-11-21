@@ -25,8 +25,33 @@ import {
 export const POLICE_HISTORICAL_NOTE =
   "Historical results use recorded stay dates and reservation-room status. Early departures may not be reflected if the stay dates were not updated.";
 
-export const POLICE_EMPTY_TITLE = "No matching guests";
-export const POLICE_EMPTY_BODY = "No named guests match the selected stay date and filters.";
+export const POLICE_PRESENCE_IN_HOUSE_CAPTION =
+  "Shows currently checked-in guests whose stay overlaps the selected date.";
+
+export const POLICE_PRESENCE_HISTORICAL_CAPTION =
+  "Includes checked-out guests whose stay overlapped the selected date.";
+
+export const POLICE_EMPTY_IN_HOUSE_TITLE = "No in-house guests match the selected stay date.";
+export const POLICE_EMPTY_IN_HOUSE_BODY = "Try Historical to view past stays.";
+
+export const POLICE_EMPTY_HISTORICAL_TITLE =
+  "No historical guest stays match the selected date or filters.";
+
+export function policePresenceCaption(presence: PoliceStayPresence): string {
+  return presence === "HISTORICAL"
+    ? POLICE_PRESENCE_HISTORICAL_CAPTION
+    : POLICE_PRESENCE_IN_HOUSE_CAPTION;
+}
+
+export function policeEmptyCopy(presence: PoliceStayPresence): {
+  title: string;
+  body: string | null;
+} {
+  if (presence === "HISTORICAL") {
+    return { title: POLICE_EMPTY_HISTORICAL_TITLE, body: null };
+  }
+  return { title: POLICE_EMPTY_IN_HOUSE_TITLE, body: POLICE_EMPTY_IN_HOUSE_BODY };
+}
 
 export const POLICE_SCREEN_COLUMNS = [
   "No.",

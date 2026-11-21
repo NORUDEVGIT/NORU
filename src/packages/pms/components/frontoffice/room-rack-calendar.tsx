@@ -100,6 +100,7 @@ import {
   dateRange,
   hkStatusAriaLabel,
   isLiveHorizon,
+  isOpsStripFilterActive,
   isPermissionDeniedMessage,
   liveHkStatus,
   reservationBarPlacement,
@@ -142,11 +143,12 @@ import {
 } from "@/packages/pms/lib/fo-rack-power";
 import {
   getFrontOfficeDashboard,
+  listFrontOfficeRoomHkStates,
   listOccupancy,
+  type FrontOfficeRoomHkState,
   type FrontOfficeStay,
   type OccupancyRoom,
 } from "@/packages/pms/lib/frontoffice.functions";
-import { listRoomRack, type RackRoom } from "@/packages/pms/lib/housekeeping.functions";
 import type { FoHkTaskRoomTarget } from "@/packages/pms/components/frontoffice/fo-housekeeping-task-modal";
 import { listReservations } from "@/packages/pms/lib/reservations.functions";
 import {
@@ -230,6 +232,9 @@ function exportRackStays(
     })),
   });
 }
+
+/** Housekeeping feed lifecycle for FO rack cells — never invents Clean/Dirty. */
+type RackHkFeed = "loading" | "ready" | "hidden" | "unavailable";
 
 export function RoomRackCalendar({
   restaurantId,
@@ -369,7 +374,8 @@ export function RoomRackCalendar({
   const fetchOccupancy = useServerFn(listOccupancy);
   const fetchReservations = useServerFn(listReservations);
   const fetchDashboard = useServerFn(getFrontOfficeDashboard);
-  const fetchHk = useServerFn(listRoomRack);
+  /** FO-scoped room HK/maintenance read — not the Housekeeping board listRoomRack. */
+  const fetchHk = useServerFn(listFrontOfficeRoomHkStates);
   const fetchFeeds = useServerFn(listFoExceptionFeeds);
 
   useEffect(() => {
@@ -389,6 +395,11 @@ export function RoomRackCalendar({
   useEffect(() => {
     writeSharedWeekStart(restaurantId, focusDate);
   }, [restaurantId, focusDate]);
+
+  // House day comes from restaurants.business_date and is "" while loading.
+  // Never call the dashboard with an empty date — validation fails and the strip
+  // used to paint that failure as legitimate zeros.
+  const houseDateReady = /^\d{4}-\d{2}-\d{2}$/.test(today);
 
   const occupancyQuery = useQuery({
     queryKey: ["front-office", "occupancy", restaurantId],
@@ -420,6 +431,7 @@ export function RoomRackCalendar({
   const dashboardQuery = useQuery({
     queryKey: ["front-office", "dashboard", restaurantId, today],
     queryFn: () => fetchDashboard({ data: { restaurantId, today } }),
+    enabled: houseDateReady,
     ...foOperationalQueryOptions(),
     retry: false,
   });
@@ -432,6 +444,7 @@ export function RoomRackCalendar({
   const feedsQuery = useQuery({
     queryKey: ["front-office", "exception-feeds", restaurantId, today],
     queryFn: () => fetchFeeds({ data: { restaurantId, businessDate: today } }),
+    enabled: houseDateReady,
     ...foOperationalQueryOptions(),
     retry: false,
   });
@@ -444,7 +457,18 @@ export function RoomRackCalendar({
   );
   const hkByRoom = new Map((hkQuery.data ?? []).map((r) => [r.id, r]));
   const hkDenied = hkQuery.isError && isPermissionDeniedMessage(hkQuery.error);
-  const hkAvailable = !hkDenied && !!hkQuery.data;
+  const hkFeed: RackHkFeed =
+    hkQuery.isLoading || (hkQuery.isFetching && !hkQuery.data)
+      ? "loading"
+      : hkDenied
+        ? "hidden"
+        : hkQuery.isError
+          ? "unavailable"
+          : hkQuery.data
+            ? "ready"
+            : "unavailable";
+  /** True only when the Housekeeping feed returned rooms — used for filters / vacant-HK KPIs. */
+  const hkAvailable = hkFeed === "ready";
   const discrepancyLive = (feedsQuery.data?.discrepancyLane ?? "coming_soon") === "live";
   const openDiscrepancyRoomIds = new Set(
     discrepancyLive ? (feedsQuery.data?.discrepancies ?? []).map((row) => row.roomId) : [],
@@ -483,6 +507,11 @@ export function RoomRackCalendar({
         status: room.status,
         housekeepingStatus: hkByRoom.get(room.id)?.housekeepingStatus ?? null,
         hasOpenDiscrepancy: openDiscrepancyRoomIds.has(room.id),
+        hasDepartureAttention:
+          Boolean(room.reservationId && departureAttentionByStayId.has(room.reservationId)) ||
+          stays.some(
+            (stay) => stay.roomId === room.id && departureAttentionByStayId.has(stay.id),
+          ),
       },
       filters,
     ),
@@ -591,15 +620,26 @@ export function RoomRackCalendar({
     <div className="space-y-3" data-testid="fo-room-rack-calendar">
       <OpsStrip
         {...(dashboardQuery.data ? { dashboard: dashboardQuery.data } : {})}
-        loading={dashboardQuery.isLoading}
+        loading={!houseDateReady || (houseDateReady && dashboardQuery.isLoading && !dashboardQuery.data)}
+        unavailable={houseDateReady && dashboardQuery.isError}
         rooms={rooms.map((room) => ({
           occupancy: room.occupancy,
           status: room.status,
           housekeepingStatus: hkByRoom.get(room.id)?.housekeepingStatus ?? null,
         }))}
         hkAvailable={hkAvailable}
-        occupancyTrusted={!occupancyQuery.isError && !dashboardQuery.isError}
+        occupancyTrusted={
+          !occupancyQuery.isError && Boolean(dashboardQuery.data) && !dashboardQuery.isError
+        }
         openDiscrepancies={discrepancyLive ? (feedsQuery.data?.discrepancies.length ?? 0) : null}
+        filters={filters}
+        onFilter={(next) => {
+          if (isOpsStripFilterActive(filters, next)) {
+            setFilters(EMPTY_RACK_FILTERS);
+            return;
+          }
+          setFilters({ ...EMPTY_RACK_FILTERS, ...next });
+        }}
       />
 
       <section
@@ -729,6 +769,7 @@ export function RoomRackCalendar({
           rooms={operationalRooms}
           stays={searchedStays}
           hkByRoom={hkByRoom}
+          hkFeed={hkFeed}
           today={focusDate}
           groupBy={groupBy}
           onGroupBy={setGroupBy}
@@ -767,7 +808,7 @@ export function RoomRackCalendar({
             stays={searchedStays}
             unassigned={unassigned}
             hkByRoom={hkByRoom}
-            hkAvailable={hkAvailable}
+            hkFeed={hkFeed}
             focusDate={rangeStart}
             days={days}
             groupBy={groupBy}
@@ -933,10 +974,13 @@ function previewDates(
 function OpsStrip({
   dashboard,
   loading,
+  unavailable = false,
   rooms,
   hkAvailable,
   occupancyTrusted = true,
   openDiscrepancies = null,
+  filters,
+  onFilter,
 }: {
   dashboard?: {
     arrivalsToday: number;
@@ -949,6 +993,8 @@ function OpsStrip({
     attention?: number;
   };
   loading: boolean;
+  /** True when the canonical dashboard query failed — never paint as real zeros. */
+  unavailable?: boolean;
   rooms: Array<{
     occupancy: "vacant" | "occupied";
     status: string;
@@ -957,25 +1003,9 @@ function OpsStrip({
   hkAvailable: boolean;
   occupancyTrusted?: boolean;
   openDiscrepancies?: number | null;
+  filters: RackFilters;
+  onFilter: (next: Partial<RackFilters>) => void;
 }) {
-  const cards = dashboard
-    ? deriveOpsStrip({
-        arrivalsToday: dashboard.arrivalsToday,
-        departuresToday: dashboard.departuresToday,
-        inHouse: dashboard.inHouse,
-        availableRooms: dashboard.availableRooms,
-        occupiedRooms: dashboard.occupiedRooms,
-        outOfOrder: dashboard.outOfOrder,
-        outOfService: dashboard.outOfService,
-        rooms,
-        hkAvailable,
-        occupancyTrusted,
-        openDiscrepancies,
-        attention: dashboard.attention ?? null,
-      })
-    : [];
-
-  const visible = frontOfficeKpiCards(cards);
   if (loading && !dashboard) {
     return (
       <p className="text-xs text-muted-foreground" data-testid="fo-ops-strip">
@@ -984,18 +1014,77 @@ function OpsStrip({
     );
   }
 
+  if (unavailable || !dashboard) {
+    const visible = frontOfficeKpiCards([], { unavailable: true });
+    return (
+      <div
+        className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
+        data-testid="fo-ops-strip"
+        data-dashboard="unavailable"
+      >
+        {visible.map((item) => {
+          const meta = opsKpiMeta(item.id);
+          return (
+            <div
+              key={item.id}
+              data-testid={`fo-ops-${item.id}`}
+              className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 text-left shadow-sm"
+            >
+              <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", meta.tone)}>
+                {meta.icon}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[10px] font-medium text-[#756A5B]">{item.label}</p>
+                <p className="font-display text-lg font-semibold leading-tight tracking-tight text-[#251605]">
+                  {item.display ?? "—"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const cards = deriveOpsStrip({
+    arrivalsToday: dashboard.arrivalsToday,
+    departuresToday: dashboard.departuresToday,
+    inHouse: dashboard.inHouse,
+    availableRooms: dashboard.availableRooms,
+    occupiedRooms: dashboard.occupiedRooms,
+    outOfOrder: dashboard.outOfOrder,
+    outOfService: dashboard.outOfService,
+    rooms,
+    hkAvailable,
+    occupancyTrusted,
+    openDiscrepancies,
+    attention: dashboard.attention ?? null,
+  });
+
+  const visible = frontOfficeKpiCards(cards);
+
   return (
     <div
       className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
       data-testid="fo-ops-strip"
+      data-dashboard="ready"
     >
       {visible.map((item) => {
+        const active = isOpsStripFilterActive(filters, item.filter);
         const meta = opsKpiMeta(item.id);
         return (
-          <div
+          <button
             key={item.id}
+            type="button"
             data-testid={`fo-ops-${item.id}`}
-            className="flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border border-[#DDD4C5] bg-white px-2.5 py-2 text-left shadow-sm"
+            aria-pressed={active}
+            className={cn(
+              "flex h-[4.25rem] min-w-0 items-center gap-2.5 rounded-lg border bg-white px-2.5 py-2 text-left shadow-sm transition-colors",
+              active
+                ? "border-[#C89933] ring-1 ring-[#C89933]/40"
+                : "border-[#DDD4C5] hover:border-[#C89933]",
+            )}
+            onClick={() => onFilter(item.filter)}
           >
             <span className={cn("grid size-8 shrink-0 place-items-center rounded-full", meta.tone)}>
               {meta.icon}
@@ -1006,7 +1095,7 @@ function OpsStrip({
                 {item.display ?? item.value}
               </p>
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
@@ -1014,7 +1103,33 @@ function OpsStrip({
 }
 
 /** Visible strip only. deriveOpsStrip still returns the full set for other views. */
-function frontOfficeKpiCards(cards: OpsStripItem[]): OpsStripItem[] {
+function frontOfficeKpiCards(
+  cards: OpsStripItem[],
+  options?: { unavailable?: boolean },
+): OpsStripItem[] {
+  if (options?.unavailable) {
+    return [
+      { id: "arrivals", label: "Arrivals", value: 0, display: "—", filter: { staySlice: "arrival" } },
+      { id: "in_house", label: "In-House", value: 0, display: "—", filter: { staySlice: "in_house" } },
+      {
+        id: "departures",
+        label: "Departures",
+        value: 0,
+        display: "—",
+        filter: { staySlice: "departure" },
+      },
+      {
+        id: "occupancy_pct",
+        label: "Occupancy",
+        value: 0,
+        display: "—",
+        filter: { roomStatus: "occupied" },
+      },
+      { id: "available", label: "Available", value: 0, display: "—", filter: { roomStatus: "available" } },
+      { id: "attention", label: "Attention", value: 0, display: "—", filter: { discrepancy: "open" } },
+    ];
+  }
+
   const byId = new Map(cards.map((item) => [item.id, item]));
   const arrivals = byId.get("arrivals");
   const inHouse = byId.get("in_house");
@@ -1025,9 +1140,24 @@ function frontOfficeKpiCards(cards: OpsStripItem[]): OpsStripItem[] {
   const attention =
     byId.get("attention") ?? byId.get("discrepancies") ?? byId.get("vacant_dirty");
   return [
-    { id: "arrivals", label: "Arrivals", value: arrivals?.value ?? 0, filter: arrivals?.filter ?? { staySlice: "arrival" } },
-    { id: "in_house", label: "In-House", value: inHouse?.value ?? 0, filter: inHouse?.filter ?? { staySlice: "in_house" } },
-    { id: "departures", label: "Departures", value: departures?.value ?? 0, filter: departures?.filter ?? { staySlice: "departure" } },
+    {
+      id: "arrivals",
+      label: "Arrivals",
+      value: arrivals?.value ?? 0,
+      filter: arrivals?.filter ?? { staySlice: "arrival" },
+    },
+    {
+      id: "in_house",
+      label: "In-House",
+      value: inHouse?.value ?? 0,
+      filter: inHouse?.filter ?? { staySlice: "in_house" },
+    },
+    {
+      id: "departures",
+      label: "Departures",
+      value: departures?.value ?? 0,
+      filter: departures?.filter ?? { staySlice: "departure" },
+    },
     {
       id: "occupancy_pct",
       label: "Occupancy",
@@ -1035,7 +1165,12 @@ function frontOfficeKpiCards(cards: OpsStripItem[]): OpsStripItem[] {
       display: occupancy?.display ?? "—",
       filter: occupancy?.filter ?? { roomStatus: "occupied" },
     },
-    { id: "available", label: "Available", value: available?.value ?? 0, filter: available?.filter ?? { roomStatus: "available" } },
+    {
+      id: "available",
+      label: "Available",
+      value: available?.value ?? 0,
+      filter: available?.filter ?? { roomStatus: "available" },
+    },
     {
       id: "attention",
       label: "Attention",
@@ -1332,17 +1467,18 @@ function RackGroupSelect({
   );
 }
 
-function hkTaskTarget(room: OccupancyRoom, hk: RackRoom | null): FoHkTaskRoomTarget {
+function hkTaskTarget(room: OccupancyRoom, hk: FrontOfficeRoomHkState | null): FoHkTaskRoomTarget {
   return {
     roomId: room.id,
     roomNumber: room.roomNumber,
     occupancy: room.occupancy,
     housekeepingStatus: hk?.housekeepingStatus ?? null,
     guestName: room.guestName,
-    openTaskId: hk?.openTaskId ?? null,
-    openTaskStatus: hk?.openTaskStatus ?? null,
-    openTaskType: hk?.openTaskType ?? null,
-    openTaskPriority: hk?.openTaskPriority ?? null,
+    // Open HK tasks stay on the Housekeeping board feed — FO status read is room state only.
+    openTaskId: null,
+    openTaskStatus: null,
+    openTaskType: null,
+    openTaskPriority: null,
   };
 }
 
@@ -1454,7 +1590,7 @@ function RackViewMenu({
   businessDate: string;
   canOpenCashiering: boolean;
   staffRole?: string;
-  hkByRoom: Map<string, RackRoom>;
+  hkByRoom: Map<string, FrontOfficeRoomHkState>;
   onRackAction: (action: FoRackBarActionId, stay: FrontOfficeStay) => void;
 }) {
   const grants = useRackDeskGrants();
@@ -1503,7 +1639,7 @@ type RackViewRowsProps = {
   businessDate: string;
   canOpenCashiering: boolean;
   staffRole?: string;
-  hkByRoom: Map<string, RackRoom>;
+  hkByRoom: Map<string, FrontOfficeRoomHkState>;
   departureAttentionByStayId: DepartureAttentionByStayId;
   onSelectStay: (stay: FrontOfficeStay) => void;
   onSelectInHouse: (target: FoRackInHouseTarget) => void;
@@ -1663,7 +1799,7 @@ function CalendarBoard({
   stays,
   unassigned,
   hkByRoom,
-  hkAvailable,
+  hkFeed,
   focusDate,
   days,
   groupBy,
@@ -1688,8 +1824,8 @@ function CalendarBoard({
   rooms: OccupancyRoom[];
   stays: FoRackStay[];
   unassigned: FoRackStay[];
-  hkByRoom: Map<string, RackRoom>;
-  hkAvailable: boolean;
+  hkByRoom: Map<string, FrontOfficeRoomHkState>;
+  hkFeed: RackHkFeed;
   focusDate: string;
   days: number;
   groupBy: RackGroupBy;
@@ -1762,8 +1898,9 @@ function CalendarBoard({
       targetRoomTypeName: room.roomTypeName,
       targetStatus: room.status,
       targetHousekeeping: hk?.housekeepingStatus ?? null,
-      targetReady: hk?.ready ?? null,
-      hkKnown: hkAvailable && !!hk,
+      // Policy-ready flag lives on the HK board feed; FO status read is cleanliness only.
+      targetReady: null,
+      hkKnown: hkFeed === "ready" && !!hk,
       arrivalDate: stay.arrivalDate,
       departureDate: stay.departureDate,
       reservationRoomId: stay.reservationRoomId ?? null,
@@ -1793,7 +1930,7 @@ function CalendarBoard({
       nextDepartureDate: nextDeparture,
       currentRoomStatus: assigned?.status ?? null,
       currentHousekeeping: hk?.housekeepingStatus ?? null,
-      hkKnown: !!stay.roomId && hkAvailable && !!hk,
+      hkKnown: !!stay.roomId && hkFeed === "ready" && !!hk,
       roomSubtotal: stay.roomSubtotal,
       nightlyRates: stay.nightlyRates,
     });
@@ -1885,7 +2022,7 @@ function CalendarBoard({
                 key={room.id}
                 room={room}
                 hk={hkByRoom.get(room.id) ?? null}
-                hkAvailable={hkAvailable}
+                hkFeed={hkFeed}
                 stays={byRoom.get(room.id) ?? []}
                 focusDate={focusDate}
                 days={days}
@@ -2012,7 +2149,7 @@ function UnassignedRow({
 function RoomRow({
   room,
   hk,
-  hkAvailable,
+  hkFeed,
   stays,
   focusDate,
   days,
@@ -2040,8 +2177,8 @@ function RoomRow({
   amendmentLatestByStay,
 }: {
   room: OccupancyRoom;
-  hk: RackRoom | null;
-  hkAvailable: boolean;
+  hk: FrontOfficeRoomHkState | null;
+  hkFeed: RackHkFeed;
   stays: FoRackStay[];
   focusDate: string;
   days: number;
@@ -2165,7 +2302,7 @@ function RoomRow({
         style={highlightStyle}
         {...dropHandlers}
       >
-        <RackHkCell hk={hk} hkAvailable={hkAvailable} />
+        <RackHkCell hk={hk} feed={hkFeed} />
       </RackFrozenBodyCell>
       <div
         className={cn(
@@ -2690,6 +2827,7 @@ function PhoneRackList({
   rooms,
   stays,
   hkByRoom,
+  hkFeed,
   today,
   groupBy,
   onGroupBy,
@@ -2706,7 +2844,8 @@ function PhoneRackList({
 }: {
   rooms: OccupancyRoom[];
   stays: FoRackStay[];
-  hkByRoom: Map<string, RackRoom>;
+  hkByRoom: Map<string, FrontOfficeRoomHkState>;
+  hkFeed: RackHkFeed;
   today: string;
   groupBy: RackGroupBy;
   onGroupBy: (next: RackGroupBy) => void;
@@ -2766,7 +2905,7 @@ function PhoneRackList({
                     }}
                   >
                     <span>{room.roomNumber}</span>
-                    <FoHkStatusGlyph status={hk?.housekeepingStatus} />
+                    <RackHkCell hk={hk ?? null} feed={hkFeed} compact />
                     <span className="font-normal text-muted-foreground">· {room.roomTypeName}</span>
                   </button>
                   <StayBadgeStrip
@@ -2950,29 +3089,77 @@ function RackStatusPill({
   );
 }
 
-function RackHkCell({ hk, hkAvailable }: { hk: RackRoom | null; hkAvailable: boolean }) {
-  if (!hkAvailable) {
+function RackHkCell({
+  hk,
+  feed,
+  compact = false,
+}: {
+  hk: FrontOfficeRoomHkState | null;
+  feed: RackHkFeed;
+  compact?: boolean;
+}) {
+  if (feed === "loading") {
     return (
-      <span className="text-xs text-muted-foreground" data-testid="fo-room-hk">
-        —
+      <span
+        className="text-xs text-muted-foreground"
+        data-testid="fo-room-hk"
+        data-hk-state="loading"
+      >
+        …
       </span>
     );
   }
+  if (feed === "hidden") {
+    return (
+      <span
+        className="text-xs text-muted-foreground"
+        data-testid="fo-room-hk"
+        data-hk-state="hidden"
+        title="Housekeeping status is hidden for this account"
+      >
+        Hidden
+      </span>
+    );
+  }
+  if (feed === "unavailable") {
+    return (
+      <span
+        className="text-xs text-muted-foreground"
+        data-testid="fo-room-hk"
+        data-hk-state="unavailable"
+        title="Housekeeping status could not be loaded"
+      >
+        Unavailable
+      </span>
+    );
+  }
+
   const label = hkStatusAriaLabel(hk?.housekeepingStatus);
   if (!label) {
     return (
-      <span className="text-xs text-muted-foreground" data-testid="fo-room-hk">
-        —
+      <span
+        className="text-xs text-muted-foreground"
+        data-testid="fo-room-hk"
+        data-hk-state="not-set"
+        title="No housekeeping status recorded for this room"
+      >
+        Not set
       </span>
     );
   }
+
   return (
     <span
-      className="inline-flex items-center gap-1 whitespace-nowrap text-[11px]"
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap text-[11px]",
+        compact && "text-xs",
+      )}
       data-testid="fo-room-hk"
+      data-hk-state="ready"
+      data-hk-status={hk?.housekeepingStatus ?? undefined}
     >
       <FoHkStatusGlyph status={hk?.housekeepingStatus} />
-      <span>{label}</span>
+      {compact ? null : <span>{label}</span>}
     </span>
   );
 }

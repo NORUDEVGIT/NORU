@@ -5,17 +5,22 @@ import { describe, it } from "node:test";
 import { POLICE_EXCEL_MIME } from "./police-stay-export.ts";
 import { POLICE_STAY_TOO_LARGE_MESSAGE } from "./police-stay-report.ts";
 import {
-  POLICE_EMPTY_BODY,
-  POLICE_EMPTY_TITLE,
+  POLICE_EMPTY_HISTORICAL_TITLE,
+  POLICE_EMPTY_IN_HOUSE_BODY,
+  POLICE_EMPTY_IN_HOUSE_TITLE,
   POLICE_HISTORICAL_NOTE,
+  POLICE_PRESENCE_HISTORICAL_CAPTION,
+  POLICE_PRESENCE_IN_HOUSE_CAPTION,
   POLICE_PRINT_COLUMNS,
   POLICE_PRINT_SHOW_ROOM,
   POLICE_SCREEN_COLUMNS,
   policeBlank,
   policeClearedSearch,
+  policeEmptyCopy,
   policeFilterSearch,
   policeGeneratedLabel,
   policePresence,
+  policePresenceCaption,
   policePrintIdentity,
   policeReportFailure,
   policeReportRequest,
@@ -153,15 +158,22 @@ describe("Police stay report screen", () => {
     assert.match(screen, /police-stay-date/);
     assert.match(screen, /fromTestId="police-from"/);
     assert.match(screen, /toTestId="police-to"/);
+    assert.match(screen, /testId="police-presence"/);
+    assert.match(screen, /ReportToolbarSegmented/);
+    assert.doesNotMatch(screen, /label="Presence"/);
     assert.match(screen, /policeClearedSearch\(businessDate\)/);
     assert.match(screen, /ReportToolbarSearch/);
     const searchBar = read("../components/reports/report-filter-bar.tsx");
     assert.match(searchBar, /setTimeout\(\(\) => onCommit\(draft\.trim\(\)\), 300\)/);
+    assert.match(searchBar, /export function ReportToolbarSegmented/);
   });
 
   it("separates loading, empty, error, and no-access", () => {
-    assert.equal(POLICE_EMPTY_TITLE, "No matching guests");
-    assert.match(POLICE_EMPTY_BODY, /No named guests match/);
+    assert.equal(policeEmptyCopy("IN_HOUSE").title, POLICE_EMPTY_IN_HOUSE_TITLE);
+    assert.equal(policeEmptyCopy("IN_HOUSE").body, POLICE_EMPTY_IN_HOUSE_BODY);
+    assert.equal(policeEmptyCopy("HISTORICAL").title, POLICE_EMPTY_HISTORICAL_TITLE);
+    assert.equal(policeEmptyCopy("HISTORICAL").body, null);
+    assert.match(screen, /policeEmptyCopy\(presence\)/);
     assert.match(screen, /query\.isPending \? "loading"/);
     assert.match(screen, /failure === "access" \? "no-access"/);
     assert.match(screen, /police-empty/);
@@ -178,8 +190,11 @@ describe("Police stay report screen", () => {
   });
 
   it("shows the historical limitation and prints the full filtered export", () => {
+    assert.equal(policePresenceCaption("IN_HOUSE"), POLICE_PRESENCE_IN_HOUSE_CAPTION);
+    assert.equal(policePresenceCaption("HISTORICAL"), POLICE_PRESENCE_HISTORICAL_CAPTION);
+    assert.match(screen, /police-presence-caption/);
     assert.match(POLICE_HISTORICAL_NOTE, /Early departures may not be reflected/);
-    assert.match(screen, /police-historical-note/);
+    assert.match(screen, /POLICE_HISTORICAL_NOTE/);
     assert.match(screen, /Historical Stay Register/);
     const printed = policeReportRequest({
       restaurantId: "11111111-1111-4111-8111-111111111111",

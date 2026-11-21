@@ -991,6 +991,116 @@ export const postCheckInDeposit = createServerFn({ method: "POST" })
     );
   });
 
+/**
+ * Ordinary guest payment during check-in (advance / partial / full stay).
+ * Uses the same ledger path as Cashiering postFolioEntry({ type: "payment" }).
+ * Does not write deposit progress — Collect Deposit remains the deposit path.
+ */
+export const postCheckInPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        restaurantId: idSchema,
+        reservationId: idSchema,
+        amount: z.number().positive(),
+        method: z.string().trim().min(1).max(40),
+        receivedFrom: z.string().trim().min(1).max(120),
+        reference: z.string().max(80).optional().nullable(),
+        note: z.string().max(160).optional().nullable(),
+        idempotencyKey: z.string().min(8).max(80),
+      })
+      .parse(input),
+  )
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{ ok: true; folioId: string; folioNumber: string | null; transactionId: string }> => {
+      const me = await requirePmsActor(
+        context as never,
+        data.restaurantId,
+        PMS_PERMISSIONS.FRONT_OFFICE_CHECK_IN,
+      );
+      await requirePmsActorAny(
+        context as never,
+        data.restaurantId,
+        moduleOrDesk(PMS_PERMISSIONS.CASHIERING_PAYMENT_POST, PMS_PERMISSIONS.FRONT_OFFICE_PAYMENT_POST),
+      );
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      const opened = await supabaseAdmin.rpc("open_folio_for_reservation", {
+        _restaurant_id: data.restaurantId,
+        _reservation_id: data.reservationId,
+        _membership_id: me.id,
+      });
+      if (opened.error) throw cashierError(opened.error.message);
+      const folioId = (opened.data as { id: string }).id;
+
+      const snapshot = await loadPolish1Snapshot(supabaseAdmin, data.restaurantId);
+      const tender = folioTenderFromCatalogue(
+        data.method,
+        snapshot.paymentMethodsAvailable ? snapshot.paymentMethods : null,
+      );
+      if (!tender.ok) throw new Error(tender.message);
+
+      const amount = Math.round(data.amount * 100) / 100;
+      const payer = data.receivedFrom.trim();
+      const note = blankToNull(data.note);
+      const reference = blankToNull(data.reference);
+      const withPayer =
+        note && note !== payer ? `${note} · Received from ${payer}` : `Received from ${payer}`;
+      const withReference = reference ? `${withPayer} · ${reference}` : withPayer;
+      const description = `Check-in payment (${tender.stored}) · ${withReference}`.slice(0, 200);
+
+      let txnId: string;
+      try {
+        // Same live path as postFolioEntry({ type: "payment" }) — no second ledger.
+        const posted = await callPostFolioTransaction({
+          restaurantId: data.restaurantId,
+          folioId,
+          type: "payment",
+          category: "payment",
+          description,
+          amount,
+          membershipId: me.id,
+          paymentMethod: tender.stored,
+          idempotencyKey: data.idempotencyKey,
+        });
+        txnId = posted.id;
+      } catch (error) {
+        throw new Error(mapCashierShiftError((error as Error).message));
+      }
+
+      await recordReservationEvent({
+        restaurantId: data.restaurantId,
+        reservationId: data.reservationId,
+        eventType: "amended",
+        newValues: {
+          checkin_payment_id: txnId,
+          amount,
+          method: tender.stored,
+        },
+        notes: "Check-in payment posted to folio.",
+        actorMembershipId: me.id,
+      });
+
+      const { data: folioRow } = await supabaseAdmin
+        .from("folios")
+        .select("folio_number")
+        .eq("id", folioId)
+        .eq("restaurant_id", data.restaurantId)
+        .maybeSingle();
+
+      return {
+        ok: true,
+        folioId,
+        folioNumber: folioRow?.folio_number ? String(folioRow.folio_number) : null,
+        transactionId: txnId,
+      };
+    },
+  );
+
 export const waiveCheckInDeposit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => z.object(waiverInput).parse(input))

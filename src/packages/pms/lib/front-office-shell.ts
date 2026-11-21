@@ -808,6 +808,8 @@ export function roomMatchesFilters(
     status: string;
     housekeepingStatus?: string | null;
     hasOpenDiscrepancy?: boolean;
+    /** Departure-timing attention from getFrontOfficeDashboard (Attention KPI). */
+    hasDepartureAttention?: boolean;
   },
   filters: RackFilters,
 ): boolean {
@@ -815,7 +817,10 @@ export function roomMatchesFilters(
   if (filters.roomType !== "all" && room.roomTypeName !== filters.roomType) return false;
   if (filters.hkStatus !== "all" && (room.housekeepingStatus ?? "") !== filters.hkStatus)
     return false;
-  if (filters.discrepancy === "open" && !room.hasOpenDiscrepancy) return false;
+  // Attention KPI reuses discrepancy:"open" and includes departure-timing cases.
+  if (filters.discrepancy === "open") {
+    if (!room.hasOpenDiscrepancy && !room.hasDepartureAttention) return false;
+  }
   if (filters.roomStatus !== "all") {
     if (filters.roomStatus === "vacant" || filters.roomStatus === "occupied") {
       if (room.occupancy !== filters.roomStatus) return false;
